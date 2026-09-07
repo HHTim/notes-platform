@@ -44,7 +44,8 @@ class TestBuild(unittest.TestCase):
 
     def test_no_company_terms(self):
         for page in self.out.rglob('*.html'):
-            self.assertNotIn('KPI', page.read_text(encoding='utf-8'), str(page))
+            text_lower = page.read_text(encoding='utf-8').lower()
+            self.assertNotIn('kpi', text_lower, str(page))
 
     def test_progress_key_per_module(self):
         js = (self.out / 'course.js').read_text(encoding='utf-8')

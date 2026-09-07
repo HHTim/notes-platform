@@ -91,6 +91,7 @@ def render_module_page(mod, mods, tpl):
     data = ('var MODULE=%s;\nvar QUIZ=%s;\nvar SLUGS=%s;'
             % (json.dumps(mod['id']), json.dumps(quiz, ensure_ascii=False),
                json.dumps(slugs, ensure_ascii=False)))
+    data = data.replace('</', '<\\/')   # 防護：測驗文字若含 </ 之類的字，不會提前把嵌入的 <script> 截斷
     arts = [overview_html(mod)] + [article_html(mod, i, L) for i, L in enumerate(mod['lessons'])]
     page = tpl['module.html']
     for key, val in (('__TITLE__', mod['title']), ('__MODSEL__', modsel_html(mods, mod['id'])),
