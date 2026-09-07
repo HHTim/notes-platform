@@ -48,12 +48,22 @@ class TestContent(unittest.TestCase):
                 qs = json.loads(qf.read_text(encoding='utf-8'))['questions']
                 with self.subTest(lesson=str(qf)):
                     # 任務 3 補完題後把下限改成 5（規格：每課 5〜10 題）
-                    self.assertTrue(3 <= len(qs) <= 10, '目前 %d 題' % len(qs))
+                    self.assertTrue(5 <= len(qs) <= 10, '規格要求每課 5〜10 題，目前 %d 題' % len(qs))
                     for q in qs:
                         self.assertTrue(q['q'].strip())
                         self.assertTrue(q['exp'].strip())
                         self.assertGreaterEqual(len(q['opts']), 3)
                         self.assertTrue(all(o.strip() for o in q['opts']))
+
+    def test_original_questions_untouched(self):
+        first_q = {
+            '01-physical': '為什麼以前不把兩個服務裝在同一台機器上？',
+            '05-why-k8s': 'K8s 的核心運作方式是？',
+            '13-when': '該不該從 Docker 轉 K8s，最根本的判斷是？',
+        }
+        for d, q in first_q.items():
+            qs = json.loads((CONTENT / 'k8s' / d / 'quiz.json').read_text(encoding='utf-8'))['questions']
+            self.assertEqual(qs[0]['q'], q, d)
 
     def test_k8s_migration_details(self):
         _, mods = load_modules()
