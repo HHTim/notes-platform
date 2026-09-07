@@ -107,7 +107,7 @@ sidebar.addEventListener('click',function(e){
 });
 function route(){
   var h=location.hash||'#/';
-  var m=h.match(/^#\\/lesson\\/([a-z0-9-]+)$/);
+  var m=h.match(/^#\/lesson\/([a-z0-9-]+)$/);
   var slug=m&&SLUGS.indexOf(m[1])>=0?m[1]:null;
   document.querySelectorAll('main > article').forEach(function(a){a.hidden=true;});
   var pg=document.getElementById(slug?('pg-'+slug):'pg-ov');
