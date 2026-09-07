@@ -1,0 +1,492 @@
+<!-- 來源：rescue/distributed-lock-redis.artifact.html（舊對話救回的 artifact，已剝殼）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出鎖搬到多台機器後為什麼失效、分散式鎖怎麼補救</li><li>看懂 SET … NX EX 這行指令，講出用 Redis 當鎖的三個坑</li><li>分清四種擺法差在哪，以及為什麼哨兵和叢集也救不了鎖</li></ul></div>
+<section>
+    <p class="era">先講「鎖」</p>
+    <h3 class="head">鎖就是廁所門閂</h3>
+    <p>一個人進去、把門閂上，其他人只能在外面等。等他出來、門閂打開，下一個才進得去。</p>
+    <p>程式裡也一樣：同一份資料（例如帳戶餘額）同一時間只准一個人改，避免兩個人同時扣款、扣成一次。</p>
+
+    <figure>
+      <svg viewBox="0 0 720 200" role="img" aria-label="同一台伺服器裡，兩件工作搶同一個鎖，只有一個能通過去改餘額">
+        <rect x="30" y="26" width="380" height="150" rx="6" fill="none" stroke="currentColor" stroke-opacity=".35"/>
+        <text x="46" y="48" font-size="12" opacity=".6">一台伺服器裡面</text>
+
+        <circle cx="100" cy="88" r="20" fill="none" stroke="currentColor"/>
+        <text x="100" y="93" font-size="14" text-anchor="middle">A</text>
+        <circle cx="100" cy="148" r="20" fill="none" stroke="currentColor"/>
+        <text x="100" y="153" font-size="14" text-anchor="middle">B</text>
+
+        <rect x="250" y="76" width="56" height="76" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="278" y="120" font-size="15" text-anchor="middle" fill="var(--gold)">鎖</text>
+
+        <line x1="124" y1="90" x2="242" y2="102" stroke="var(--gold)" stroke-width="2" marker-end="url(#a1)"/>
+        <text x="150" y="80" font-size="12" fill="var(--gold)">進去了</text>
+
+        <line x1="124" y1="146" x2="242" y2="132" stroke="currentColor" stroke-opacity=".5" stroke-dasharray="5 4" marker-end="url(#a2)"/>
+        <text x="152" y="170" font-size="12" opacity=".6">在外面等</text>
+
+        <line x1="310" y1="114" x2="500" y2="114" stroke="var(--gold)" stroke-width="2" marker-end="url(#a1)"/>
+        <rect x="510" y="84" width="170" height="60" rx="4" fill="none" stroke="currentColor"/>
+        <text x="595" y="120" font-size="15" text-anchor="middle">帳戶餘額</text>
+
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--gold)"/>
+          </marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>同一台機器裡的鎖，就是一塊記在記憶體裡的旗子。A 舉起來，B 就看得到，只能等。</figcaption>
+    </figure>
+  </section>
+<section>
+    <p class="era">問題來了</p>
+    <h3 class="head">變成三台機器，門閂就管不到別人了</h3>
+    <p>為了撐流量，同一套程式會複製成好幾台一起跑。可是每台機器的記憶體是各自獨立的——<strong>A 台舉的旗子，B 台看不到</strong>。</p>
+
+    <figure>
+      <svg viewBox="0 0 760 300" role="img" aria-label="三台伺服器各自有自己的鎖，三台同時扣同一筆餘額">
+        <g stroke="currentColor" fill="none">
+          <rect x="30" y="34" width="210" height="58" rx="5"/>
+          <rect x="30" y="121" width="210" height="58" rx="5"/>
+          <rect x="30" y="208" width="210" height="58" rx="5"/>
+        </g>
+        <text x="52" y="70" font-size="15">伺服器 1</text>
+        <text x="52" y="157" font-size="15">伺服器 2</text>
+        <text x="52" y="244" font-size="15">伺服器 3</text>
+
+        <g fill="none" stroke="var(--gold)" stroke-width="1.6">
+          <rect x="180" y="48" width="40" height="30" rx="4"/>
+          <rect x="180" y="135" width="40" height="30" rx="4"/>
+          <rect x="180" y="222" width="40" height="30" rx="4"/>
+        </g>
+        <g font-size="12" text-anchor="middle" fill="var(--gold)">
+          <text x="200" y="68">鎖</text>
+          <text x="200" y="155">鎖</text>
+          <text x="200" y="242">鎖</text>
+        </g>
+        <text x="200" y="24" font-size="12" text-anchor="middle" fill="var(--gold)">三把鎖各鎖各的</text>
+
+        <g stroke="var(--danger)" stroke-width="2" marker-end="url(#ad)">
+          <line x1="248" y1="63" x2="548" y2="140"/>
+          <line x1="248" y1="150" x2="548" y2="152"/>
+          <line x1="248" y1="237" x2="548" y2="164"/>
+        </g>
+        <text x="392" y="96" font-size="13" text-anchor="middle" fill="var(--danger)">同一秒，三個人都覺得自己拿到鎖</text>
+
+        <rect x="560" y="112" width="170" height="80" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="645" y="146" font-size="15" text-anchor="middle">帳戶餘額</text>
+        <text x="645" y="170" font-size="14" text-anchor="middle" fill="var(--danger)">被扣了三次</text>
+
+        <defs>
+          <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--danger)"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>鎖放在各自的記憶體裡，三台之間互相看不見，等於沒鎖。</figcaption>
+    </figure>
+  </section>
+<section>
+    <p class="era">解法</p>
+    <h3 class="head">分散式鎖 = 大家去同一個櫃檯拿鑰匙</h3>
+    <p>把鎖搬出去，放到一個所有機器都看得到的地方。誰先拿到那把唯一的鑰匙，誰才能動手。</p>
+    <p class="muted">Redis 常被拿來當這個櫃檯，因為它夠快（毫秒等級）而且大家本來就有裝。</p>
+
+    <figure>
+      <svg viewBox="0 0 760 290" role="img" aria-label="三台伺服器都向同一個 Redis 要鎖，只有一台拿到，才能去改餘額">
+        <g stroke="currentColor" fill="none">
+          <rect x="24" y="34" width="170" height="52" rx="5"/>
+          <rect x="24" y="118" width="170" height="52" rx="5"/>
+          <rect x="24" y="202" width="170" height="52" rx="5"/>
+        </g>
+        <text x="44" y="66" font-size="15">伺服器 1</text>
+        <text x="44" y="150" font-size="15">伺服器 2</text>
+        <text x="44" y="234" font-size="15">伺服器 3</text>
+
+        <line x1="202" y1="60" x2="316" y2="128" stroke="var(--gold)" stroke-width="2" marker-end="url(#a3)"/>
+        <line x1="202" y1="144" x2="316" y2="144" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="5 4" marker-end="url(#a4)"/>
+        <line x1="202" y1="228" x2="316" y2="160" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="5 4" marker-end="url(#a4)"/>
+
+        <rect x="324" y="98" width="150" height="94" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="399" y="134" font-size="15" text-anchor="middle" fill="var(--gold)">Redis</text>
+        <text x="399" y="160" font-size="13" text-anchor="middle" fill="var(--gold)">唯一的鑰匙</text>
+
+        <text x="252" y="86" font-size="12" fill="var(--gold)">給我</text>
+        <text x="236" y="196" font-size="12" opacity=".6">給我</text>
+
+        <line x1="484" y1="145" x2="586" y2="145" stroke="var(--gold)" stroke-width="2" marker-end="url(#a3)"/>
+        <text x="535" y="132" font-size="12" text-anchor="middle" fill="var(--gold)">只有 1 拿到</text>
+
+        <rect x="596" y="115" width="140" height="60" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="666" y="151" font-size="15" text-anchor="middle">帳戶餘額</text>
+
+        <text x="399" y="228" font-size="13" text-anchor="middle" opacity=".65">2 和 3 拿不到，只能等或放棄</text>
+
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--gold)"/>
+          </marker>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".45"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>鎖搬到共用的地方，三台就有了共同的裁判。</figcaption>
+    </figure>
+  </section>
+<section>
+    <p class="era">實際上怎麼寫</p>
+    <h3 class="head">一行指令就是一把鎖</h3>
+    <p><code>SET 訂單123 我的名字 NX EX 30</code></p>
+    <p><code>NX</code> 的意思是「這個名字目前沒人用，才寫得進去」——所以第一個寫進去的人贏，其他人會收到失敗。<code>EX 30</code> 是「30 秒後這筆自動消失」。</p>
+    <p>做完事情就把它刪掉，換下一個人。</p>
+
+    <h3 style="margin-top:8px">三個常見的坑</h3>
+    <div class="pits">
+      <div class="pit">
+        <span class="n">1</span>
+        <p><strong>忘了設過期時間。</strong>拿到鎖的機器當場斷電，鎖永遠留在那裡，後面全部卡死。所以 <code>EX</code> 一定要寫。</p>
+      </div>
+      <div class="pit">
+        <span class="n">2</span>
+        <p><strong>刪到別人的鎖。</strong>我的鎖過期了、換 B 拿到，我這時才做完、順手一刪——刪掉的是 B 的。所以要先確認「這把鎖上面寫的是不是我的名字」，而且<strong>確認和刪除必須是同一個不會被插隊的動作</strong>（實務上用 Lua 腳本，一小段送進 Redis 裡面整段一起跑的程式）。</p>
+      </div>
+      <div class="pit">
+        <span class="n">3</span>
+        <p><strong>事情做太久，鎖先過期了。</strong>你以為還鎖著，其實別人已經進來了。解法是背景每隔一段時間幫鎖續命，或是把過期時間設得比最慢的情況再長一些。</p>
+      </div>
+    </div>
+  </section>
+<section>
+    <p class="era">REDIS 的四種擺法</p>
+    <h3 class="head">從一台，到一整排</h3>
+    <p>這四種是「Redis 本身怎麼架」，跟鎖是兩件事，但等一下會發現它們會互相打架。</p>
+
+    <div class="grid2">
+
+      <figure>
+        <svg viewBox="0 0 380 230" role="img" aria-label="單機：只有一台 Redis，掛了就全停">
+          <rect x="120" y="30" width="140" height="44" rx="5" fill="none" stroke="currentColor" stroke-opacity=".5"/>
+          <text x="190" y="58" font-size="14" text-anchor="middle">你的程式</text>
+          <line x1="190" y1="78" x2="190" y2="112" stroke="currentColor" stroke-width="2" marker-end="url(#b1)"/>
+          <rect x="110" y="118" width="160" height="66" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+          <text x="190" y="158" font-size="16" text-anchor="middle" fill="var(--gold)">Redis</text>
+          <text x="190" y="212" font-size="13" text-anchor="middle" fill="var(--danger)">它掛了，全部服務跟著停</text>
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption><strong>單機（Standalone）</strong>：就一台。開發、測試環境常這樣。</figcaption>
+      </figure>
+
+      <figure>
+        <svg viewBox="0 0 380 230" role="img" aria-label="主從：一台主機負責寫，資料非同步複製到兩台從機">
+          <rect x="118" y="24" width="144" height="56" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+          <text x="190" y="48" font-size="15" text-anchor="middle" fill="var(--gold)">主機</text>
+          <text x="190" y="68" font-size="12" text-anchor="middle" fill="var(--gold)">只有它能寫</text>
+
+          <line x1="150" y1="84" x2="92" y2="126" stroke="currentColor" stroke-opacity=".55" stroke-dasharray="5 4" marker-end="url(#b2)"/>
+          <line x1="230" y1="84" x2="288" y2="126" stroke="currentColor" stroke-opacity=".55" stroke-dasharray="5 4" marker-end="url(#b2)"/>
+          <text x="190" y="112" font-size="12" text-anchor="middle" opacity=".7">非同步複製</text>
+
+          <rect x="24" y="132" width="130" height="52" rx="5" fill="none" stroke="currentColor"/>
+          <text x="89" y="163" font-size="14" text-anchor="middle">從機</text>
+          <rect x="226" y="132" width="130" height="52" rx="5" fill="none" stroke="currentColor"/>
+          <text x="291" y="163" font-size="14" text-anchor="middle">從機</text>
+
+          <text x="190" y="212" font-size="13" text-anchor="middle" fill="var(--danger)">主機掛了，要人工換一台上去</text>
+          <defs>
+            <marker id="b2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".55"/>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption><strong>主從複製（Master–Replica）</strong>：多幾份備份，讀取可以分流，但換主機要靠人。</figcaption>
+      </figure>
+
+      <figure>
+        <svg viewBox="0 0 380 230" role="img" aria-label="哨兵：三個監看程序盯著主從，主機掛了自動把從機升上來">
+          <rect x="30" y="24" width="130" height="52" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+          <text x="95" y="55" font-size="15" text-anchor="middle" fill="var(--gold)">主機</text>
+          <rect x="30" y="118" width="130" height="48" rx="5" fill="none" stroke="currentColor"/>
+          <text x="95" y="147" font-size="14" text-anchor="middle">從機</text>
+          <line x1="95" y1="80" x2="95" y2="112" stroke="currentColor" stroke-opacity=".55" stroke-dasharray="5 4" marker-end="url(#b3)"/>
+
+          <g fill="none" stroke="var(--ok)" stroke-width="1.8">
+            <circle cx="268" cy="46" r="19"/>
+            <circle cx="322" cy="86" r="19"/>
+            <circle cx="268" cy="126" r="19"/>
+          </g>
+          <g font-size="12" text-anchor="middle" fill="var(--ok)">
+            <text x="268" y="51">哨兵</text>
+            <text x="322" y="91">哨兵</text>
+            <text x="268" y="131">哨兵</text>
+          </g>
+
+          <line x1="248" y1="52" x2="168" y2="48" stroke="var(--ok)" stroke-dasharray="4 4" marker-end="url(#b4)"/>
+          <line x1="248" y1="126" x2="168" y2="140" stroke="var(--ok)" stroke-dasharray="4 4" marker-end="url(#b4)"/>
+          <text x="208" y="90" font-size="11" text-anchor="middle" fill="var(--ok)">每秒探活</text>
+
+          <text x="190" y="196" font-size="13" text-anchor="middle" fill="var(--ok)">主機掛了 → 自動把從機升為新主機</text>
+          <text x="190" y="216" font-size="12" text-anchor="middle" opacity=".65">資料量還是「一台能裝多少」</text>
+          <defs>
+            <marker id="b3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".55"/>
+            </marker>
+            <marker id="b4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="var(--ok)"/>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption><strong>哨兵（Sentinel）</strong>：多養一組看門的程序，專門盯著主機有沒有活著，掛了自動換人。</figcaption>
+      </figure>
+
+      <figure>
+        <svg viewBox="0 0 380 230" role="img" aria-label="叢集：資料依編號切成三段，分別放在三組主從上">
+          <text x="190" y="22" font-size="12" text-anchor="middle" opacity=".7">依 key 算出編號，決定去哪一組</text>
+          <line x1="190" y1="30" x2="190" y2="46" stroke="currentColor" stroke-opacity=".5"/>
+          <line x1="66" y1="46" x2="314" y2="46" stroke="currentColor" stroke-opacity=".5"/>
+          <g stroke="currentColor" stroke-opacity=".5">
+            <line x1="66" y1="46" x2="66" y2="62"/>
+            <line x1="190" y1="46" x2="190" y2="62"/>
+            <line x1="314" y1="46" x2="314" y2="62"/>
+          </g>
+
+          <g fill="none" stroke="var(--gold)" stroke-width="2">
+            <rect x="14" y="66" width="104" height="44" rx="5"/>
+            <rect x="138" y="66" width="104" height="44" rx="5"/>
+            <rect x="262" y="66" width="104" height="44" rx="5"/>
+          </g>
+          <g font-size="13" text-anchor="middle" fill="var(--gold)">
+            <text x="66" y="86">主機</text>
+            <text x="190" y="86">主機</text>
+            <text x="314" y="86">主機</text>
+          </g>
+          <g class="mono" font-size="10" text-anchor="middle" fill="var(--gold)">
+            <text x="66" y="103">0–5460</text>
+            <text x="190" y="103">5461–10922</text>
+            <text x="314" y="103">10923–16383</text>
+          </g>
+
+          <g stroke="currentColor" stroke-opacity=".5" stroke-dasharray="4 4">
+            <line x1="66" y1="112" x2="66" y2="136"/>
+            <line x1="190" y1="112" x2="190" y2="136"/>
+            <line x1="314" y1="112" x2="314" y2="136"/>
+          </g>
+          <g fill="none" stroke="currentColor">
+            <rect x="14" y="138" width="104" height="40" rx="5"/>
+            <rect x="138" y="138" width="104" height="40" rx="5"/>
+            <rect x="262" y="138" width="104" height="40" rx="5"/>
+          </g>
+          <g font-size="13" text-anchor="middle">
+            <text x="66" y="163">從機</text>
+            <text x="190" y="163">從機</text>
+            <text x="314" y="163">從機</text>
+          </g>
+
+          <text x="190" y="200" font-size="13" text-anchor="middle" fill="var(--ok)">資料量和流量可以一直往上加機器</text>
+          <text x="190" y="219" font-size="12" text-anchor="middle" opacity=".65">每組自己也會自動換主機</text>
+        </svg>
+        <figcaption><strong>叢集（Cluster）</strong>：資料被分成 16384 個號碼段，分給好幾組主從各管一段。</figcaption>
+      </figure>
+
+    </div>
+  </section>
+<section>
+    <p class="era">四種擺法一次看完</p>
+    <h3 class="head">差別在「容量」和「掛了誰救」</h3>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">擺法</th>
+            <th scope="col">能裝多少資料</th>
+            <th scope="col">主機掛了</th>
+            <th scope="col">維運麻煩度</th>
+            <th scope="col">什麼時候用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">單機</th>
+            <td>一台的量</td>
+            <td class="hot">全停</td>
+            <td>最低</td>
+            <td>本機開發、測試</td>
+          </tr>
+          <tr>
+            <th scope="row">主從複製</th>
+            <td>一台的量</td>
+            <td class="hot">要人工切換</td>
+            <td>低</td>
+            <td>想多一份備份、讀取想分流</td>
+          </tr>
+          <tr>
+            <th scope="row">哨兵</th>
+            <td>一台的量</td>
+            <td class="good">自動換人（幾十秒）</td>
+            <td>中</td>
+            <td>資料塞得下一台，但不能停</td>
+          </tr>
+          <tr>
+            <th scope="row">叢集</th>
+            <td class="good">加機器就能加</td>
+            <td class="good">自動換人（每組各自換）</td>
+            <td>高</td>
+            <td>一台裝不下，或流量很大</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="muted">雲端的託管服務（例如 GCP 的 Memorystore、AWS 的 ElastiCache）幫你把哨兵那一段包起來了，你只會看到「基本版」和「高可用版／叢集版」這種選項。</p>
+  </section>
+<section>
+    <p class="era">最重要的一段</p>
+    <h3 class="head">換成哨兵或叢集，鎖還是會破</h3>
+    <p>很多人以為「架成哨兵就安全了」。<strong>剛好相反</strong>——自動換主機這件事，正是鎖出事的時候。</p>
+    <p>因為主機把資料複製給從機是<strong>非同步</strong>的：主機先回你「好，鎖給你」，才慢慢把這筆送去從機。中間那零點幾秒如果主機掛了，那筆鎖就消失了。</p>
+
+    <figure>
+      <svg viewBox="0 0 760 330" role="img" aria-label="時間軸：A 向主機拿到鎖，資料還沒複製到從機主機就掛了，從機升為新主機後 B 也拿到同一把鎖">
+        <g font-size="13" fill="currentColor">
+          <text x="10" y="54">A</text>
+          <text x="10" y="106">B</text>
+          <text x="10" y="188">主機</text>
+          <text x="10" y="268">從機</text>
+        </g>
+        <g stroke="currentColor" stroke-opacity=".25">
+          <line x1="72" y1="50" x2="748" y2="50"/>
+          <line x1="72" y1="102" x2="748" y2="102"/>
+          <line x1="72" y1="184" x2="748" y2="184"/>
+          <line x1="72" y1="264" x2="748" y2="264"/>
+        </g>
+
+        <!-- 1 -->
+        <line x1="150" y1="58" x2="150" y2="174" stroke="var(--gold)" stroke-width="2" marker-end="url(#c1)"/>
+        <text x="158" y="122" font-size="12" fill="var(--gold)">① 拿到鎖</text>
+
+        <!-- 2 -->
+        <line x1="300" y1="192" x2="300" y2="256" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#c2)"/>
+        <line x1="288" y1="216" x2="312" y2="240" stroke="var(--danger)" stroke-width="2"/>
+        <line x1="312" y1="216" x2="288" y2="240" stroke="var(--danger)" stroke-width="2"/>
+        <text x="322" y="228" font-size="12" fill="var(--danger)">② 還沒複製過去</text>
+
+        <!-- 3 -->
+        <line x1="428" y1="170" x2="456" y2="198" stroke="var(--danger)" stroke-width="3"/>
+        <line x1="456" y1="170" x2="428" y2="198" stroke="var(--danger)" stroke-width="3"/>
+        <text x="442" y="152" font-size="12" text-anchor="middle" fill="var(--danger)">③ 主機掛了</text>
+
+        <!-- 4 -->
+        <line x1="560" y1="256" x2="560" y2="194" stroke="currentColor" stroke-width="2" marker-end="url(#c3)"/>
+        <text x="572" y="230" font-size="12">④ 從機升為新主機</text>
+        <text x="572" y="248" font-size="11" opacity=".65">（它從來沒看過那把鎖）</text>
+
+        <!-- 5 -->
+        <line x1="700" y1="110" x2="700" y2="252" stroke="var(--danger)" stroke-width="2" marker-end="url(#c2)"/>
+        <text x="690" y="94" font-size="12" text-anchor="end" fill="var(--danger)">⑤ B 也拿到鎖</text>
+
+        <line x1="72" y1="300" x2="748" y2="300" stroke="currentColor" stroke-opacity=".25"/>
+        <text x="410" y="322" font-size="14" text-anchor="middle" fill="var(--danger)">同一把鎖，兩個人同時拿著</text>
+        <text x="748" y="24" font-size="11" text-anchor="end" opacity=".6">時間 →</text>
+
+        <defs>
+          <marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--gold)"/>
+          </marker>
+          <marker id="c2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--danger)"/>
+          </marker>
+          <marker id="c3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>叢集也一樣——每一組主從內部都是同樣的複製方式，同樣會發生。這不是設定錯了，是這種複製方式本來就這樣。</figcaption>
+    </figure>
+
+    <p class="muted">Redis 官方提出過一種叫 Redlock 的做法：向五台<strong>互相獨立</strong>的 Redis 同時要鎖，超過一半答應才算數。但學界對它是否真的安全一直有爭論，而且要多養五台，用的人不多。</p>
+  </section>
+<section>
+    <p class="era">那到底怎麼辦</p>
+    <h3 class="head">先問一句：鎖破了會怎樣？</h3>
+    <p>這題沒有「一定要怎樣」的答案，取決於重複做一次的後果有多嚴重。</p>
+
+    <div class="grid2">
+      <div class="card">
+        <span class="badge">重做一次沒差</span>
+        <h3>直接用 Redis 就好</h3>
+        <p>例如「同一支排程不要同時跑兩份」「按鈕連點兩下擋掉」。真的漏了，頂多多跑一次，資料不會壞。</p>
+      </div>
+      <div class="card">
+        <span class="badge">不能重複，但想留著 Redis</span>
+        <h3>加一個遞增編號</h3>
+        <p>Redis 發鎖時順便發一個一直變大的號碼，寫資料時把號碼帶上；後端只收比看過的最大號碼更大的。晚到的舊號碼直接擋掉。這招英文叫 fencing token。</p>
+      </div>
+      <div class="card">
+        <span class="badge">絕對不能重複</span>
+        <h3>別用 Redis 當鎖</h3>
+        <p>改用 etcd 或 ZooKeeper。它們寫入時要多數節點都點頭才算成功，所以換主機不會把已答應的東西弄丟。代價是比較慢、要多維護一套。</p>
+      </div>
+      <div class="card">
+        <span class="badge">常被忽略</span>
+        <h3>其實資料庫就能擋</h3>
+        <p>唯一索引、<code>SELECT ... FOR UPDATE</code>、樂觀鎖版本號。只有一個資料庫的情況下，這通常比自己架分散式鎖更穩也更省事。</p>
+      </div>
+    </div>
+
+    <figure>
+      <svg viewBox="0 0 760 250" role="img" aria-label="遞增編號：A 拿到 33 號、B 拿到 34 號，資料庫只接受比看過的最大號碼更大的請求">
+        <rect x="20" y="88" width="140" height="70" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="90" y="118" font-size="14" text-anchor="middle" fill="var(--gold)">Redis</text>
+        <text x="90" y="138" font-size="12" text-anchor="middle" fill="var(--gold)">發鎖 + 發號碼</text>
+
+        <line x1="168" y1="108" x2="240" y2="72" stroke="currentColor" stroke-opacity=".55" marker-end="url(#d1)"/>
+        <line x1="168" y1="140" x2="240" y2="176" stroke="currentColor" stroke-opacity=".55" marker-end="url(#d1)"/>
+
+        <rect x="248" y="46" width="170" height="52" rx="5" fill="none" stroke="currentColor"/>
+        <text x="333" y="70" font-size="14" text-anchor="middle">A 先拿到</text>
+        <text x="333" y="88" font-size="13" text-anchor="middle" class="mono">號碼 33</text>
+
+        <rect x="248" y="150" width="170" height="52" rx="5" fill="none" stroke="currentColor"/>
+        <text x="333" y="174" font-size="14" text-anchor="middle">A 卡住後，B 拿到</text>
+        <text x="333" y="192" font-size="13" text-anchor="middle" class="mono">號碼 34</text>
+
+        <line x1="426" y1="82" x2="562" y2="112" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#d2)"/>
+        <text x="494" y="84" font-size="12" text-anchor="middle" fill="var(--danger)">遲到的 33 → 擋掉</text>
+
+        <line x1="426" y1="170" x2="562" y2="142" stroke="var(--ok)" stroke-width="2" marker-end="url(#d3)"/>
+        <text x="494" y="188" font-size="12" text-anchor="middle" fill="var(--ok)">34 → 接受</text>
+
+        <rect x="572" y="90" width="168" height="74" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="656" y="120" font-size="14" text-anchor="middle">資料庫</text>
+        <text x="656" y="142" font-size="12" text-anchor="middle" opacity=".75">只收比 34 大的</text>
+
+        <defs>
+          <marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".55"/>
+          </marker>
+          <marker id="d2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--danger)"/>
+          </marker>
+          <marker id="d3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="var(--ok)"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption>就算鎖破了、兩個人同時拿著，最後一關還是只認號碼大的那個。</figcaption>
+    </figure>
+  </section>
+<section>
+    <p class="era">回到現實</p>
+    <h3 class="head">放登入資訊沒問題，想當鎖要三思</h3>
+    <p>一個常見的用法：把登入者的身份與權限暫存在 Redis（雲端上就是 GCP 的 Memorystore、AWS 的 ElastiCache 這類託管服務）。<strong>這個用途沒有上面的問題</strong>——換主機時真的掉了幾筆，使用者頂多重新登入一次。</p>
+    <p>要留意的是<strong>哪天想拿 Redis 來當鎖</strong>的時候，例如「同一份文件不要被兩個人同時送出審核」。那種情境屬於上面的「不能重複」，建議先看資料庫的唯一索引擋不擋得住，擋得住就不用架鎖。</p>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>機器變多，各自記憶體裡的鎖就互相看不到，等於沒鎖。</li><li>分散式鎖就是把鎖搬到一個大家都看得到的地方，Redis 是常見選擇。</li><li>Redis 四種擺法差在「裝得下多少」和「主機掛了誰來救」：單機沒人救、主從要人工救、哨兵自動救、叢集自動救而且裝得更多。</li><li>但四種都救不了鎖——因為複製是非同步的，換主機的瞬間鎖會憑空消失。</li><li>先問「重複做一次會怎樣」。沒差就用 Redis；不能重複就加遞增編號，或乾脆用資料庫、etcd。</li></ul></div>

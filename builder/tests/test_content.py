@@ -68,6 +68,20 @@ class TestContent(unittest.TestCase):
         self.assertNotIn('Kubernetes 的核心迴圈', read('08-deployment'))
         self.assertIn('ReplicaSet', read('08-deployment'))
 
+    def test_redis_module(self):
+        site, mods = load_modules()
+        self.assertIn('redis', [m['id'] for m in mods])
+        redis = [m for m in mods if m['id'] == 'redis'][0]
+        self.assertEqual(len(redis['lessons']), 1)
+        html = (CONTENT / 'redis' / redis['lessons'][0]['dir'] / 'lesson.html').read_text(encoding='utf-8')
+        self.assertNotIn('KPI', html, '公司內容不上站')
+        self.assertNotIn('CLAUDE.md', html)
+        self.assertNotIn('class="tag"', html, '段落標籤要換成全站的 era')
+        self.assertNotIn('<h2', html, '段落標題要換成全站的 h3.head')
+        self.assertEqual(html.count('<section'), 9)
+        self.assertIn('SET', html)          # 指令那段還在
+        self.assertIn('fencing token', html)  # 遞增編號那段還在
+
 
 if __name__ == '__main__':
     unittest.main()
