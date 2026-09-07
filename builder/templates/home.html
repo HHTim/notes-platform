@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__SITE_TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;900&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <button class="burger" id="burger" aria-label="開關模組選單">☰</button>
+  <a class="brand" href="./">Tim 的<b>筆記平台</b></a>
+</header>
+<div class="scrim" id="scrim"></div>
+<nav class="sidebar" id="sidebar" aria-label="模組選單">
+  <div class="group">模組</div>
+__SIDEBAR__
+</nav>
+<main class="main">
+  <div class="ov-hero">
+    <p class="kick">NOTES · 個人筆記平台</p>
+    <h1>__SITE_TITLE__</h1>
+    <p>__SITE_INTRO__</p>
+  </div>
+  <div class="mod-cards">
+__CARDS__
+  </div>
+  <footer class="site">內容公開；學習進度存在你這台裝置的瀏覽器裡。</footer>
+</main>
+<script>
+(function(){
+var MODS=__MODS__;
+var sidebar=document.getElementById('sidebar'),scrim=document.getElementById('scrim');
+document.getElementById('burger').addEventListener('click',function(){
+  sidebar.classList.toggle('open');scrim.classList.toggle('show');
+});
+scrim.addEventListener('click',function(){sidebar.classList.remove('open');scrim.classList.remove('show');});
+MODS.forEach(function(m){
+  var done=0;
+  try{
+    var d=JSON.parse(localStorage.getItem('notes-progress:'+m.id))||{};
+    Object.keys(d).forEach(function(k){if(d[k]&&d[k].done)done++;});
+  }catch(e){}
+  var el=document.querySelector('[data-stat="'+m.id+'"]');
+  if(el)el.innerHTML='完成 <b>'+done+'</b> / '+m.count+' 課';
+});
+})();
+</script>
+</body>
+</html>

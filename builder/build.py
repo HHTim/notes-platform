@@ -101,14 +101,20 @@ def render_module_page(mod, mods, tpl):
 
 
 def render_home_page(site, mods, tpl):
-    # 任務 6 換成真正的首頁模板；先給佔位頁讓整條流程跑得通
-    if 'home.html' not in tpl:
-        links = ''.join('<li><a href="%s/">%s %s</a></li>' % (m['id'], m['icon'], m['title'])
-                        for m in mods)
-        return ('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>%s</title>'
-                '</head><body><h1>%s</h1><ul>%s</ul></body></html>'
-                % (site['site_title'], site['site_title'], links))
-    raise NotImplementedError('home.html 模板由任務 6 實作')
+    side = ''.join('  <a href="%s/"><span class="n">%s</span><span>%s</span></a>\n'
+                   % (m['id'], m['icon'], m['title']) for m in mods)
+    cards = ''.join(
+        '<a class="mod-card" href="%s/"><span class="icon">%s</span><b>%s</b>'
+        '<span>%s</span><span class="stats"><span data-stat="%s"></span> · 共 %d 課</span></a>\n'
+        % (m['id'], m['icon'], m['title'], m['intro'], m['id'], len(m['lessons']))
+        for m in mods)
+    mods_js = json.dumps([{'id': m['id'], 'count': len(m['lessons'])} for m in mods],
+                         ensure_ascii=False)
+    page = tpl['home.html']
+    for key, val in (('__SITE_TITLE__', site['site_title']), ('__SITE_INTRO__', site['site_intro']),
+                     ('__SIDEBAR__', side), ('__CARDS__', cards), ('__MODS__', mods_js)):
+        page = page.replace(key, val)
+    return page
 
 
 def build(content_dir=None, tpl_dir=None, out_dir=None):
