@@ -1,0 +1,128 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>一句話說出容器和虛擬機唯一的差別</li><li>解釋為什麼金融業有些場景仍用虛擬機</li></ul></div>
+<section>
+    <p class="era">第三代・容器</p>
+    <h3 class="head">不要整套作業系統，共用就好</h3>
+    <p>回頭想一下：三台虛擬機的作業系統其實都是同一套 Linux，只是各裝一份。那能不能<strong>大家共用底下那一套，上面只放各自的程式和環境</strong>？</p>
+    <p>可以。Linux 本來就內建兩個機制：一個讓每個容器只看得到屬於自己的東西（看不到別人的檔案和程序），一個限制它最多能吃多少 CPU 和記憶體。容器就是把這兩個開關打開而已。</p>
+
+    <figure>
+      <svg viewBox="0 0 780 372" role="img" aria-label="虛擬機與容器的疊層對照：虛擬機每一份自帶作業系統，容器則共用底下那一套">
+        <text x="196" y="24" font-size="16" text-anchor="middle" font-weight="700">虛擬機</text>
+        <text x="584" y="24" font-size="16" text-anchor="middle" font-weight="700">容器</text>
+        <line x1="390" y1="10" x2="390" y2="330" stroke="currentColor" stroke-opacity=".2" stroke-dasharray="4 5"/>
+        <g fill="none" stroke="currentColor">
+          <rect x="18" y="42" width="112" height="152" rx="4"/>
+          <rect x="140" y="42" width="112" height="152" rx="4"/>
+          <rect x="262" y="42" width="112" height="152" rx="4"/>
+        </g>
+        <g font-size="12.5" text-anchor="middle">
+          <text x="74" y="66">程式</text><text x="196" y="66">程式</text><text x="318" y="66">程式</text>
+        </g>
+        <g font-size="12" text-anchor="middle" opacity=".7">
+          <text x="74" y="92">函式庫</text><text x="196" y="92">函式庫</text><text x="318" y="92">函式庫</text>
+        </g>
+        <g fill="var(--slate-soft)" stroke="var(--slate)">
+          <rect x="28" y="106" width="92" height="78" rx="3"/>
+          <rect x="150" y="106" width="92" height="78" rx="3"/>
+          <rect x="272" y="106" width="92" height="78" rx="3"/>
+        </g>
+        <g font-size="12" text-anchor="middle" fill="var(--slate)">
+          <text x="74" y="140">作業</text><text x="74" y="158">系統</text>
+          <text x="196" y="140">作業</text><text x="196" y="158">系統</text>
+          <text x="318" y="140">作業</text><text x="318" y="158">系統</text>
+        </g>
+        <rect x="18" y="202" width="356" height="38" rx="4" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="196" y="226" font-size="13.5" text-anchor="middle" fill="var(--gold)">Hypervisor</text>
+
+        <text x="584" y="80" font-size="13" text-anchor="middle" fill="var(--gold)">這一整塊省下來了</text>
+        <line x1="470" y1="96" x2="470" y2="126" stroke="var(--gold)" stroke-dasharray="4 4"/>
+        <line x1="584" y1="96" x2="584" y2="126" stroke="var(--gold)" stroke-dasharray="4 4"/>
+        <line x1="698" y1="96" x2="698" y2="126" stroke="var(--gold)" stroke-dasharray="4 4"/>
+        <g fill="none" stroke="currentColor">
+          <rect x="414" y="130" width="112" height="64" rx="4"/>
+          <rect x="528" y="130" width="112" height="64" rx="4"/>
+          <rect x="642" y="130" width="112" height="64" rx="4"/>
+        </g>
+        <g font-size="12.5" text-anchor="middle">
+          <text x="470" y="152">程式</text><text x="584" y="152">程式</text><text x="698" y="152">程式</text>
+        </g>
+        <g font-size="12" text-anchor="middle" opacity=".7">
+          <text x="470" y="176">函式庫</text><text x="584" y="176">函式庫</text><text x="698" y="176">函式庫</text>
+        </g>
+        <rect x="414" y="202" width="340" height="38" rx="4" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="584" y="226" font-size="13.5" text-anchor="middle" fill="var(--gold)">容器引擎（Docker）</text>
+
+        <rect x="18" y="250" width="356" height="36" rx="4" fill="none" stroke="currentColor" stroke-opacity=".6"/>
+        <text x="196" y="273" font-size="13" text-anchor="middle" opacity=".8">主機作業系統</text>
+        <rect x="414" y="250" width="340" height="36" rx="4" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="2"/>
+        <text x="584" y="273" font-size="13" text-anchor="middle" fill="var(--slate)">主機作業系統（大家共用這一套）</text>
+        <rect x="18" y="294" width="356" height="34" rx="4" fill="none" stroke="currentColor" stroke-opacity=".6"/>
+        <text x="196" y="316" font-size="13" text-anchor="middle" opacity=".8">硬體</text>
+        <rect x="414" y="294" width="340" height="34" rx="4" fill="none" stroke="currentColor" stroke-opacity=".6"/>
+        <text x="584" y="316" font-size="13" text-anchor="middle" opacity=".8">硬體</text>
+        <text x="390" y="358" font-size="14" text-anchor="middle" fill="var(--gold)">差別就只有這一件事：作業系統是各背一套，還是共用一套</text>
+      </svg>
+      <figcaption>少背一套作業系統，體積從幾 GB 掉到幾十 MB，啟動從一分鐘掉到一秒內，一台機器塞得下的數量從個位數變成幾十個。</figcaption>
+    </figure>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col">實體機</th><th scope="col">虛擬機</th><th scope="col">容器</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">開一個要多久</th><td class="num">數週～數月</td><td class="num">數分鐘</td><td class="num">1 秒內</td></tr>
+          <tr><th scope="row">佔多大</th><td>一整台機器</td><td class="num">2–10 GB</td><td class="num">30–300 MB</td></tr>
+          <tr><th scope="row">一台機器塞得下</th><td class="num">1 個服務</td><td class="num">5–20 台</td><td class="num">數十～上百個</td></tr>
+          <tr><th scope="row">作業系統</th><td>自己一套</td><td>每台各一套</td><td>大家共用一套</td></tr>
+          <tr><th scope="row">隔離程度</th><td>最徹底</td><td>很徹底</td><td>夠用，但底下那套作業系統是共用的</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">這三代<strong>不是互相取代</strong>。現在最常見的組合是：實體機上跑虛擬機，虛擬機裡面跑容器。</p>
+
+    <h4>「隔離程度」那一列在講什麼</h4>
+    <p>這一列最容易被跳過，但它是<strong>金融業還在用虛擬機的唯一理由</strong>。差別在於：<strong>兩邊之間隔的那道牆，是真牆還是紙牆。</strong></p>
+
+    <figure>
+      <svg viewBox="0 0 780 268" role="img" aria-label="虛擬機之間隔著各自的作業系統與 Hypervisor 兩道牆；容器之間只隔著共用的同一套作業系統一道牆，那套作業系統若有漏洞就可能被跨過去">
+        <text x="196" y="24" font-size="14" text-anchor="middle" font-weight="700">虛擬機之間</text>
+        <text x="584" y="24" font-size="14" text-anchor="middle" font-weight="700">容器之間</text>
+        <line x1="390" y1="14" x2="390" y2="222" stroke="currentColor" stroke-opacity=".2" stroke-dasharray="4 5"/>
+
+        <rect x="20" y="40" width="150" height="52" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="95" y="72" font-size="13" text-anchor="middle" fill="var(--gold)">虛擬機 A</text>
+        <rect x="222" y="40" width="150" height="52" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="297" y="72" font-size="13" text-anchor="middle" fill="var(--gold)">虛擬機 B</text>
+
+        <rect x="20" y="100" width="150" height="34" rx="4" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="2"/>
+        <text x="95" y="122" font-size="11.5" text-anchor="middle" fill="var(--slate)">A 自己的作業系統</text>
+        <rect x="222" y="100" width="150" height="34" rx="4" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="2"/>
+        <text x="297" y="122" font-size="11.5" text-anchor="middle" fill="var(--slate)">B 自己的作業系統</text>
+
+        <rect x="20" y="142" width="352" height="34" rx="4" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="2"/>
+        <text x="196" y="164" font-size="12" text-anchor="middle" fill="var(--slate)">Hypervisor</text>
+
+        <text x="196" y="200" font-size="12.5" text-anchor="middle" fill="var(--gold)">中間隔了兩道</text>
+        <text x="196" y="218" font-size="12.5" text-anchor="middle" fill="var(--gold)">要從 A 爬到 B，很難</text>
+
+        <rect x="408" y="40" width="150" height="52" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="483" y="72" font-size="13" text-anchor="middle" fill="var(--gold)">容器 A</text>
+        <rect x="610" y="40" width="150" height="52" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="685" y="72" font-size="13" text-anchor="middle" fill="var(--gold)">容器 B</text>
+
+        <rect x="408" y="100" width="352" height="34" rx="4" fill="var(--slate-soft)" stroke="var(--danger)" stroke-width="2"/>
+        <text x="584" y="122" font-size="12" text-anchor="middle" fill="var(--danger)">同一套作業系統（兩邊共用）</text>
+
+        <text x="584" y="164" font-size="12.5" text-anchor="middle" fill="var(--danger)">中間只隔了一道，而且是共用的</text>
+        <text x="584" y="184" font-size="12.5" text-anchor="middle" fill="var(--danger)">這一道若有漏洞，就可能從 A 爬到 B</text>
+        <text x="584" y="212" font-size="11.5" text-anchor="middle" opacity=".7">平常不會發生，但「不可能」和「很難」是兩回事</text>
+
+        <rect x="20" y="234" width="740" height="26" rx="4" fill="none" stroke="currentColor" stroke-opacity=".3"/>
+        <text x="390" y="252" font-size="12.5" text-anchor="middle" opacity=".8">所以法遵要求「不同客戶的東西不能跑在同一個作業系統上」時，只能用虛擬機</text>
+      </svg>
+      <figcaption>換句話說：虛擬機是<strong>真的切成兩台電腦</strong>；容器是<strong>同一台電腦上，講好互相不看對方</strong>。九成情況後者就夠，但那一成不夠的時候，換不了。</figcaption>
+    </figure>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>唯一的差別：作業系統是各背一套，還是共用一套。</li><li>少背一套系統：體積幾 GB → 幾十 MB、啟動一分鐘 → 一秒內。</li><li>隔離是「牆的厚度」問題：虛擬機隔兩道（切得徹底），容器共用一道；法遵要求硬隔離時只能用虛擬機。</li><li>三代不互相取代：實體機上跑虛擬機、虛擬機裡跑容器是常態。</li></ul></div>

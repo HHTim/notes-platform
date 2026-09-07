@@ -1,0 +1,109 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用一個問題判斷該不該上 K8s</li><li>知道託管服務幫你做掉哪些事</li></ul></div>
+<section>
+    <p class="era">分水嶺</p>
+    <h3 class="head">什麼時候該從 Docker 轉 K8s</h3>
+    <p>最根本的那條線只有一句話：<strong class="win">你需不需要「跨機器決定東西放哪台」。</strong></p>
+    <p>Docker 管的是<strong>這一台機器上</strong>的容器，Docker Compose 也一樣。<strong>一旦有第二台機器要一起服務，就沒有東西幫你決定新容器放哪一台</strong>——那個缺口就是 K8s 補的。</p>
+
+    <figure>
+      <svg viewBox="0 0 780 344" role="img" aria-label="三個問題的判斷流程：不需要跨機器就用 Docker Compose；可以接受手動重開就繼續用 Docker；沒有專人顧就用託管服務；三個都成立才輪到 Kubernetes">
+        <g fill="none" stroke="currentColor">
+          <rect x="16" y="20" width="352" height="58" rx="5"/>
+          <rect x="16" y="104" width="352" height="58" rx="5"/>
+          <rect x="16" y="188" width="352" height="58" rx="5"/>
+        </g>
+        <g font-size="14">
+          <text x="34" y="46">要跑在 2 台以上機器嗎？</text>
+          <text x="34" y="130">不能停機，要自動修復、</text>
+          <text x="34" y="214">有人真的會顧它嗎？</text>
+        </g>
+        <text x="34" y="150" font-size="14">不斷線換版本嗎？</text>
+        <g stroke="var(--danger)" stroke-width="1.8">
+          <line x1="376" y1="49" x2="424" y2="49" marker-end="url(#m1)"/>
+          <line x1="376" y1="133" x2="424" y2="133" marker-end="url(#m1)"/>
+          <line x1="376" y1="217" x2="424" y2="217" marker-end="url(#m1)"/>
+        </g>
+        <g font-size="11" fill="var(--danger)" text-anchor="middle">
+          <text x="400" y="40">否</text><text x="400" y="124">否</text><text x="400" y="208">否</text>
+        </g>
+        <g fill="none" stroke="var(--danger)" stroke-dasharray="5 4">
+          <rect x="432" y="20" width="332" height="58" rx="5"/>
+          <rect x="432" y="104" width="332" height="58" rx="5"/>
+          <rect x="432" y="188" width="332" height="58" rx="5"/>
+        </g>
+        <g font-size="13.5" fill="var(--danger)">
+          <text x="450" y="45">一台機器 + Docker Compose 就夠</text>
+          <text x="450" y="64" font-size="11.5" opacity=".85">再加 restart 設定，掛了會自己重開</text>
+          <text x="450" y="129">繼續用 Docker</text>
+          <text x="450" y="148" font-size="11.5" opacity=".85">換版本停個幾分鐘可以接受的話</text>
+          <text x="450" y="213">用託管的：Cloud Run、ECS Fargate</text>
+          <text x="450" y="232" font-size="11.5" opacity=".85">別人幫你顧那一層</text>
+        </g>
+        <g stroke="var(--gold)" stroke-width="2">
+          <line x1="192" y1="86" x2="192" y2="96" marker-end="url(#m2)"/>
+          <line x1="192" y1="170" x2="192" y2="180" marker-end="url(#m2)"/>
+          <line x1="192" y1="254" x2="192" y2="268" marker-end="url(#m2)"/>
+        </g>
+        <g font-size="11" fill="var(--gold)" text-anchor="middle">
+          <text x="210" y="94">是</text><text x="210" y="178">是</text><text x="210" y="264">是</text>
+        </g>
+        <rect x="16" y="274" width="748" height="52" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="390" y="306" font-size="15" text-anchor="middle" fill="var(--gold)">三個都是 → 這時候才輪到 Kubernetes</text>
+        <defs>
+          <marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--danger)"/></marker>
+          <marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--gold)"/></marker>
+        </defs>
+      </svg>
+      <figcaption>不是 Docker 和 K8s 二選一。中間那一格（託管的服務）才是大多數團隊實際落腳的地方。</figcaption>
+    </figure>
+
+    <div class="ledger">
+      <div class="box solved">
+        <h5>該轉的訊號</h5>
+        <ul>
+          <li><strong>機器超過一台。</strong>最根本的一條。</li>
+          <li><strong>整台機器掛了要有人接。</strong>Docker 能重開容器，機器整台死掉它救不了。</li>
+          <li><strong>換版本不能斷線。</strong></li>
+          <li>流量大要自動多開幾份，小了要縮回去。</li>
+          <li>服務多到互相找不到對方，位址又一直變。</li>
+        </ul>
+      </div>
+      <div class="box left">
+        <h5>先別轉的訊號</h5>
+        <ul>
+          <li>就一台機器，流量穩定 → <strong>Docker Compose 就夠了</strong>。</li>
+          <li>服務只有一到三支，而且不常改。</li>
+          <li>半夜停 10 分鐘換版本，沒人會抗議。</li>
+          <li><strong>沒有人要顧它。</strong></li>
+          <li>「因為大家都在用」——這不是理由。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+<section class="plain">
+    <p class="era">中間那一格</p>
+    <h3 class="head">「託管的服務」到底幫你做掉什麼</h3>
+    <p>判斷流程裡「有人真的會顧它嗎 → 否」那一格，指的是 Cloud Run、ECS Fargate、App Runner 這類服務。它們的共同點是：<strong>你只交出一個映像檔，其他全部有人幫你做。</strong></p>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col">這件事</th><th scope="col">自己架 K8s</th><th scope="col">用託管的</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">決定放哪台機器</th><td>排班的 kube-scheduler（你要顧它）</td><td class="win">雲端商，你看不到</td></tr>
+          <tr><th scope="row">掛了補上</th><td>巡邏的 kube-controller-manager（你要顧它）</td><td class="win">同上</td></tr>
+          <tr><th scope="row">master 掛了補台</th><td class="hot">你的工作</td><td class="win">沒有 master 這回事給你看</td></tr>
+          <tr><th scope="row">滾動更新</th><td>寫在 Deployment 裡</td><td class="win">內建，換版本就是換一行</td></tr>
+          <tr><th scope="row">流量小的時候</th><td>機器照樣開著照樣算錢</td><td class="win">可以縮到零，沒人用就不算錢</td></tr>
+          <tr><th scope="row">你要寫的東西</th><td>Dockerfile ＋ 一疊 K8s 設定</td><td class="win">只有 Dockerfile</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>代價是<strong>彈性變小</strong>：託管服務只給你幾個能調的選項（要幾份、每份多少記憶體、等多久算失敗），K8s 那些細緻的擺放規則你調不到。多數團隊願意換。</p>
+    <p class="formula">同一個映像檔，三種地方都能跑<br><code>docker run</code>／託管服務／K8s</p>
+    <p>這是最值得帶走的一句：<strong>第 1〜4 課（容器和 Docker）不管最後選哪一條路都要會</strong>；第 5〜12 課是背景知識——知道託管服務底下在做什麼、看文件時詞彙對得起來就夠了。</p>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>分水嶺一句話：需不需要「跨機器決定東西放哪台」。不需要就別上。</li><li>一台機器、流量穩定 → Docker Compose 就夠；需要但沒人顧 → 用託管服務（Cloud Run、ECS Fargate）。</li><li>同一個映像檔在 docker run／託管服務／K8s 都能跑——Docker 學了不會白學。</li></ul></div>

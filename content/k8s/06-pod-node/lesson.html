@@ -1,0 +1,155 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 Pod 和容器的關係、Node 的組成公式</li><li>知道一台 Node 通常跑幾個 Pod、kubelet 為什麼存在</li></ul></div>
+<section>
+    <p class="era">第 1 層・最小的</p>
+    <h3 class="head">容器</h3>
+    <p>就是第二部分講的那個，你已經懂了。<strong>K8s 沒有改變容器是什麼</strong>——它只是決定「什麼時候、在哪一台、起幾個」。</p>
+  </section>
+<section>
+    <p class="era">第 2 層・往外一層</p>
+    <h3 class="head">Pod：一組綁在一起的容器</h3>
+    <p>Pod 是<strong>一組永遠綁在一起的容器</strong>：同一個網路位址、同一批磁碟、一定在同一台機器上、一起生一起死。</p>
+    <p>九成情況下，一個 Pod 裡面就是<strong>一個</strong>容器。那為什麼還要多包這一層？因為那一成的情況：主程式旁邊要擺一個貼身小幫手（正式叫 <strong>sidecar</strong>，邊車容器——收日誌的、處理加密連線的），這兩個要能用 <code>localhost</code> 互打，所以不能分開放。Pod 就是那個「綁在一起」的盒子。</p>
+    <p class="formula">你說「我要 3 份」，指的是 3 個 Pod，不是 3 個容器</p>
+  </section>
+<section>
+    <p class="era">第 3 層・再往外</p>
+    <h3 class="head">Node：Pod 住的那台機器</h3>
+
+    <p class="q">「我可以用 Hypervisor 開一台虛擬機，在那個作業系統裡裝 Docker，然後跑好幾個容器嗎？」</p>
+    <p><strong class="win">可以，而且這就是最常見的做法。</strong>你講的那台虛擬機，只要再多裝一個小東西，它就變成一個 Node。</p>
+    <p>那個小東西叫 <strong>kubelet</strong>——一個<strong>一直開著、不會關掉的小程式</strong>，當這台機器的聯絡窗口：聽大腦（<strong>Control Plane</strong>，控制平面）的指令、在自己這台把容器叫起來或關掉、然後回報「我這邊還活著、還剩多少資源」。</p>
+    <p class="formula">一台機器 ＋ 容器執行環境（containerd）＋ kubelet ＝ 一個 Node</p>
+
+    <figure>
+      <svg viewBox="0 0 780 404" role="img" aria-label="一層包一層：實體機上跑 Hypervisor，切出兩台虛擬機，每台虛擬機裝了容器執行環境和 kubelet 而成為一個 Node，Node 上面跑 Pod，Pod 裡面才是容器">
+        <text x="390" y="24" font-size="13" text-anchor="middle" opacity=".7">一層包一層，由外往內看</text>
+        <rect x="14" y="36" width="752" height="342" rx="6" fill="none" stroke="currentColor" stroke-opacity=".55"/>
+        <text x="26" y="54" font-size="11.5" opacity=".6">一台實體機</text>
+        <rect x="26" y="336" width="728" height="30" rx="4" fill="none" stroke="currentColor" stroke-opacity=".7"/>
+        <text x="390" y="356" font-size="13" text-anchor="middle" opacity=".8">Hypervisor（把一台切成兩台虛擬機）</text>
+
+        <rect x="26" y="62" width="358" height="266" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="38" y="80" font-size="12" fill="var(--gold)" font-weight="700">虛擬機 ＝ Node 1</text>
+        <rect x="38" y="88" width="334" height="82" rx="4" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="46" y="104" font-size="11" opacity=".65">Pod</text>
+        <rect x="46" y="110" width="153" height="52" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/>
+        <text x="122" y="141" font-size="12.5" text-anchor="middle" fill="var(--gold)">你的後端程式</text>
+        <rect x="211" y="110" width="153" height="52" rx="3" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="4 4"/>
+        <text x="287" y="134" font-size="11.5" text-anchor="middle" opacity=".55">偶爾多一個</text>
+        <text x="287" y="152" font-size="11.5" text-anchor="middle" opacity=".55">收日誌的小幫手</text>
+        <rect x="38" y="178" width="334" height="82" rx="4" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="46" y="194" font-size="11" opacity=".65">Pod</text>
+        <rect x="46" y="200" width="153" height="52" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/>
+        <text x="122" y="231" font-size="12.5" text-anchor="middle" fill="var(--gold)">另一支服務</text>
+        <rect x="38" y="268" width="161" height="26" rx="3" fill="none" stroke="currentColor" stroke-opacity=".7"/>
+        <text x="118" y="286" font-size="11.5" text-anchor="middle" opacity=".8">容器執行環境</text>
+        <rect x="211" y="268" width="161" height="26" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/>
+        <text x="291" y="286" font-size="11.5" text-anchor="middle" fill="var(--slate)" class="mono">kubelet</text>
+        <rect x="38" y="298" width="334" height="24" rx="3" fill="none" stroke="currentColor" stroke-opacity=".55"/>
+        <text x="205" y="315" font-size="11.5" text-anchor="middle" opacity=".7">這台虛擬機自己的作業系統</text>
+
+        <rect x="396" y="62" width="358" height="266" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="408" y="80" font-size="12" fill="var(--gold)" font-weight="700">虛擬機 ＝ Node 2</text>
+        <rect x="408" y="88" width="334" height="82" rx="4" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="416" y="104" font-size="11" opacity=".65">Pod</text>
+        <rect x="416" y="110" width="153" height="52" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/>
+        <text x="492" y="141" font-size="12.5" text-anchor="middle" fill="var(--gold)">前端那一包</text>
+        <rect x="408" y="178" width="334" height="82" rx="4" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="5 4"/>
+        <text x="575" y="224" font-size="12" text-anchor="middle" opacity=".45">還有空位，大腦想放什麼就放什麼</text>
+        <rect x="408" y="268" width="161" height="26" rx="3" fill="none" stroke="currentColor" stroke-opacity=".7"/>
+        <text x="488" y="286" font-size="11.5" text-anchor="middle" opacity=".8">容器執行環境</text>
+        <rect x="581" y="268" width="161" height="26" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/>
+        <text x="661" y="286" font-size="11.5" text-anchor="middle" fill="var(--slate)" class="mono">kubelet</text>
+        <rect x="408" y="298" width="334" height="24" rx="3" fill="none" stroke="currentColor" stroke-opacity=".55"/>
+        <text x="575" y="315" font-size="11.5" text-anchor="middle" opacity=".7">這台虛擬機自己的作業系統</text>
+        <text x="390" y="396" font-size="13" text-anchor="middle" fill="var(--slate)">黃色那塊就是差別：多了它，這台機器才叫 Node</text>
+      </svg>
+      <figcaption>你講的「開一台虛擬機、裝 Docker、跑很多容器」，就是這張圖裡的一格。K8s 只是在上面多加了 kubelet 和 Pod 這兩層。</figcaption>
+    </figure>
+
+    <p class="q">「可是 Docker 本來就能啟動很多容器啊，為什麼還要裝 kubelet？一定要變成 Node 嗎？」</p>
+    <p><strong class="win">不一定。一台裝了 Docker、沒有 kubelet 的機器，可以跑得好好的。</strong>它只是不在 K8s 叢集裡而已。你甚至可以混著用：三台加入叢集，另外一台獨立跑 Docker。</p>
+    <p>kubelet 存在的理由，不是「啟動容器」——那件事容器執行環境（container runtime）本來就會做。它存在的理由是<strong>回答「誰來決定要起什麼容器」</strong>：</p>
+
+    <figure>
+      <svg viewBox="0 0 780 300" role="img" aria-label="純 Docker 是人登入那台機器下指令；K8s 是大腦下指令給機器上的 kubelet，再由 kubelet 叫容器執行環境起容器">
+        <text x="16" y="26" font-size="12" class="mono" opacity=".6">純 Docker</text>
+        <rect x="16" y="36" width="748" height="98" rx="5" fill="none" stroke="currentColor" stroke-opacity=".25"/>
+        <text x="52" y="92" font-size="14" text-anchor="middle">你</text>
+        <text x="52" y="110" font-size="10.5" text-anchor="middle" opacity=".6">（人）</text>
+        <line x1="82" y1="88" x2="152" y2="88" stroke="currentColor" stroke-width="2" marker-end="url(#n1)"/>
+        <text x="117" y="76" font-size="11" text-anchor="middle" class="mono">docker run</text>
+        <rect x="160" y="58" width="200" height="58" rx="5" fill="none" stroke="currentColor"/>
+        <text x="260" y="84" font-size="13.5" text-anchor="middle">容器執行環境</text>
+        <text x="260" y="104" font-size="11" text-anchor="middle" opacity=".6">就在你登入的這台上</text>
+        <line x1="368" y1="88" x2="428" y2="88" stroke="currentColor" stroke-width="2" marker-end="url(#n1)"/>
+        <rect x="436" y="58" width="130" height="58" rx="5" fill="none" stroke="currentColor"/>
+        <text x="501" y="93" font-size="13.5" text-anchor="middle">容器起來了</text>
+        <text x="590" y="80" font-size="12" fill="var(--danger)">你必須知道自己</text>
+        <text x="590" y="99" font-size="12" fill="var(--danger)">登入在哪一台</text>
+
+        <text x="16" y="172" font-size="12" class="mono" fill="var(--gold)">加入 K8s 之後</text>
+        <rect x="16" y="182" width="748" height="98" rx="5" fill="none" stroke="var(--gold)" stroke-opacity=".4"/>
+        <rect x="30" y="204" width="112" height="56" rx="5" fill="none" stroke="var(--slate)" stroke-width="2"/>
+        <text x="86" y="228" font-size="13.5" text-anchor="middle" fill="var(--slate)">大腦</text>
+        <text x="86" y="247" font-size="10.5" text-anchor="middle" fill="var(--slate)">在別台機器上</text>
+        <line x1="150" y1="232" x2="206" y2="232" stroke="var(--slate)" stroke-width="2" marker-end="url(#n2)"/>
+        <text x="178" y="220" font-size="10.5" text-anchor="middle" fill="var(--slate)">下令</text>
+        <rect x="214" y="204" width="130" height="56" rx="5" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="2"/>
+        <text x="279" y="228" font-size="13.5" text-anchor="middle" fill="var(--slate)" class="mono">kubelet</text>
+        <text x="279" y="247" font-size="10.5" text-anchor="middle" fill="var(--slate)">這台的內應</text>
+        <line x1="352" y1="232" x2="408" y2="232" stroke="currentColor" stroke-width="2" marker-end="url(#n1)"/>
+        <text x="380" y="220" font-size="10.5" text-anchor="middle" opacity=".7">叫它做</text>
+        <rect x="416" y="204" width="150" height="56" rx="5" fill="none" stroke="currentColor"/>
+        <text x="491" y="238" font-size="13.5" text-anchor="middle">容器執行環境</text>
+        <line x1="574" y1="232" x2="618" y2="232" stroke="var(--gold)" stroke-width="2" marker-end="url(#n3)"/>
+        <rect x="626" y="204" width="130" height="56" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="691" y="238" font-size="13.5" text-anchor="middle" fill="var(--gold)">容器起來了</text>
+        <defs>
+          <marker id="n1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"/></marker>
+          <marker id="n2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--slate)"/></marker>
+          <marker id="n3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--gold)"/></marker>
+        </defs>
+      </svg>
+      <figcaption>兩排最後都是「容器執行環境把容器叫起來」，一模一樣。差別只在最左邊：<strong>是人親自登入那台機器下指令，還是遠端的大腦下指令。</strong></figcaption>
+    </figure>
+
+    <p class="formula">要不要裝 kubelet ＝ 這台機器要不要交給大腦管</p>
+
+    <p class="q">「一台虛擬機開起來，通常只會跑一個容器嗎？」</p>
+    <p><strong class="hot">不是，通常是幾十個。</strong>這點要特別更正——如果一台機器只跑一個容器，那容器就白用了，跟第一代「一台機器一個服務」沒兩樣。</p>
+    <p>容器的整個價值就在<strong>密度</strong>：它輕，所以一台塞得下很多個。K8s 預設<strong>一台 Node 最多 110 個 Pod</strong>（可以調），實際上跑二三十個很常見。</p>
+
+    <figure>
+      <svg viewBox="0 0 780 210" role="img" aria-label="舊做法一台機器跑一個服務，容器做法一台同樣的機器上跑二十幾個 Pod">
+        <text x="16" y="26" font-size="12" class="mono" opacity=".6">第一代的想法</text>
+        <rect x="16" y="36" width="330" height="76" rx="5" fill="none" stroke="currentColor" stroke-opacity=".6"/>
+        <rect x="120" y="54" width="122" height="40" rx="4" fill="none" stroke="currentColor" stroke-opacity=".6"/>
+        <text x="181" y="79" font-size="12.5" text-anchor="middle" opacity=".7">一個服務</text>
+        <text x="181" y="132" font-size="12" text-anchor="middle" fill="var(--danger)">整台機器只給它用</text>
+
+        <line x1="372" y1="30" x2="372" y2="196" stroke="currentColor" stroke-opacity=".2" stroke-dasharray="4 5"/>
+
+        <text x="400" y="26" font-size="12" class="mono" fill="var(--gold)">同一台機器，改跑容器</text>
+        <rect x="400" y="36" width="364" height="76" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.2">
+          <rect x="412" y="46" width="38" height="26" rx="3"/><rect x="456" y="46" width="38" height="26" rx="3"/>
+          <rect x="500" y="46" width="38" height="26" rx="3"/><rect x="544" y="46" width="38" height="26" rx="3"/>
+          <rect x="588" y="46" width="38" height="26" rx="3"/><rect x="632" y="46" width="38" height="26" rx="3"/>
+          <rect x="676" y="46" width="38" height="26" rx="3"/><rect x="720" y="46" width="38" height="26" rx="3"/>
+          <rect x="412" y="78" width="38" height="26" rx="3"/><rect x="456" y="78" width="38" height="26" rx="3"/>
+          <rect x="500" y="78" width="38" height="26" rx="3"/><rect x="544" y="78" width="38" height="26" rx="3"/>
+          <rect x="588" y="78" width="38" height="26" rx="3"/><rect x="632" y="78" width="38" height="26" rx="3"/>
+          <rect x="676" y="78" width="38" height="26" rx="3"/><rect x="720" y="78" width="38" height="26" rx="3"/>
+        </g>
+        <text x="582" y="132" font-size="12" text-anchor="middle" fill="var(--gold)">十幾二十個 Pod 是常態</text>
+
+        <rect x="16" y="152" width="748" height="44" rx="5" fill="none" stroke="currentColor" stroke-opacity=".3"/>
+        <text x="390" y="180" font-size="13" text-anchor="middle" opacity=".8">一台只跑一個容器的話，容器就白用了——那跟第一代沒兩樣</text>
+      </svg>
+      <figcaption>例外確實有：有些高度隔離的場景真的一台只放一個，但那是為了安全刻意放棄密度，不是常態。</figcaption>
+    </figure>
+    <p class="muted">順帶一提：kubelet 自己也不會起容器，它是叫底下的容器執行環境去起。而 K8s 現在預設用的執行環境已經不是完整的 Docker Engine，是 containerd（Docker 本來就拿它當底層）。你在文件上看到「K8s 移除 dockershim」（v1.24，2022 年）講的就是這件事——不影響你，因為 Docker build 出來的映像檔照樣能跑。</p>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Pod 是派工單位：通常裡面就一個容器，偶爾多一個貼身小幫手（sidecar）。</li><li>一台機器＋容器執行環境（containerd）＋kubelet ＝ 一個 Node；kubelet 是聽大腦指令的聯絡窗口。</li><li>一台 Node 跑幾十個 Pod 是常態（預設上限 110 個）；一台只跑一個就白用容器了。</li><li>Pod 落在哪台不用你管，重開一次就可能換位子。</li></ul></div>

@@ -1,0 +1,54 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 K8s 的一句話本質：比對單子與現況的管家</li><li>分清「宣告式」和「一步一步下指令」的差別</li></ul></div>
+  <section>
+    <p class="era">一句話本質</p>
+    <h3 class="head">一個一直在比對的管家</h3>
+    <p>上一課結尾那四個「還沒解決的」問題——放哪台、誰重開、怎麼找、怎麼換版本——共同點是：<strong>都需要有人一直盯著、一直做決定。</strong>Kubernetes（常簡寫 K8s，因為 K 和 s 中間有 8 個字母）就是那個盯著的人。</p>
+    <p>它的運作方式只有一句話：<strong>你交一張「我要什麼」的單子，它每分每秒比對現況跟單子一不一樣，不一樣就自己補到一樣。</strong></p>
+<figure>
+      <svg viewBox="0 0 760 262" role="img" aria-label="Kubernetes 的核心迴圈：你要三份，掛掉一份後它自動補回三份">
+        <g font-size="13" text-anchor="middle" opacity=".75">
+          <text x="126" y="34">你交代的：我要 3 份</text>
+          <text x="380" y="34">有一份掛了</text>
+          <text x="634" y="34">它自己補一份回來</text>
+        </g>
+        <g fill="none" stroke="var(--gold)" stroke-width="2">
+          <rect x="52" y="60" width="46" height="46" rx="4"/>
+          <rect x="104" y="60" width="46" height="46" rx="4"/>
+          <rect x="156" y="60" width="46" height="46" rx="4"/>
+        </g>
+        <g fill="none" stroke="var(--gold)" stroke-width="2">
+          <rect x="306" y="60" width="46" height="46" rx="4"/>
+          <rect x="358" y="60" width="46" height="46" rx="4"/>
+        </g>
+        <rect x="410" y="60" width="46" height="46" rx="4" fill="none" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 4"/>
+        <line x1="420" y1="70" x2="446" y2="96" stroke="var(--danger)" stroke-width="2.5"/>
+        <line x1="446" y1="70" x2="420" y2="96" stroke="var(--danger)" stroke-width="2.5"/>
+        <g fill="none" stroke="var(--gold)" stroke-width="2">
+          <rect x="560" y="60" width="46" height="46" rx="4"/>
+          <rect x="612" y="60" width="46" height="46" rx="4"/>
+        </g>
+        <rect x="664" y="60" width="46" height="46" rx="4" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <text x="687" y="90" font-size="16" text-anchor="middle" fill="var(--gold)">新</text>
+        <line x1="232" y1="83" x2="292" y2="83" stroke="currentColor" stroke-opacity=".45" marker-end="url(#g1)"/>
+        <line x1="486" y1="83" x2="546" y2="83" stroke="currentColor" stroke-opacity=".45" marker-end="url(#g1)"/>
+        <g font-size="12.5" text-anchor="middle" opacity=".7">
+          <text x="126" y="132">現況 3 份 ✓</text>
+          <text x="380" y="132">現況 2 份，跟單子不符</text>
+          <text x="634" y="132">現況 3 份 ✓</text>
+        </g>
+        <path d="M634 152 L634 186 L126 186 L126 152" fill="none" stroke="var(--gold)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#g2)"/>
+        <text x="380" y="208" font-size="14" text-anchor="middle" fill="var(--gold)">這個比對，一直在跑，沒有停過</text>
+        <text x="380" y="236" font-size="13" text-anchor="middle" opacity=".7">你不用寫「掛了要重開」的程式，你只要寫「我要 3 份」</text>
+        <defs>
+          <marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".45"/></marker>
+          <marker id="g2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--gold)"/></marker>
+        </defs>
+      </svg>
+      <figcaption>這叫「你只講結果，不講步驟」，正式名稱<strong>宣告式（declarative）</strong>。傳統做法是寫一堆「如果掛了就重開」的腳本，K8s 是你交一張單子，它負責維持。</figcaption>
+    </figure>
+    <p>這種「只講結果，不講步驟」的做法，正式名稱叫<strong>宣告式（declarative）</strong>。相對的是傳統做法：寫一堆「如果掛了就重開」「先停 A 再起 B」的腳本，一步一步下指令。</p>
+    <p class="formula">你負責「說要什麼」，K8s 負責「讓現況一直是那樣」</p>
+    <p class="muted">「單子交給誰」「誰在比對」「補的動作誰做」——這些角色接下來三課會一個一個拆開。這一課只要記住這個迴圈。</p>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>K8s 的核心是一個沒有停過的迴圈：比對「單子」和「現況」，不一樣就補到一樣。</li><li>你只寫「我要 3 份」，不寫「掛了要重開」的腳本——這叫宣告式（declarative）。</li><li>掛掉一份，它自己補一份回來，你不用半夜起床。</li></ul></div>

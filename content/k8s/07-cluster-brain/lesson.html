@@ -1,0 +1,211 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 master／worker 的分工</li><li>講出大腦四個角色各管什麼、etcd 為什麼是命根</li></ul></div>
+<section>
+    <p class="era">第 4 層・再往外</p>
+    <h3 class="head">叢集：一堆 Node 湊起來，分兩種角色</h3>
+    <ul class="plainlist">
+      <li><strong>worker node</strong>——跑你的 Pod 的機器。平常口語講「Node」，八成指這種。</li>
+      <li><strong>master node</strong>——跑大腦（Control Plane）的機器。<strong>它不跑你的程式。</strong></li>
+    </ul>
+    <p class="muted">名詞注意：Kubernetes 官方後來把 master 改稱 <strong>control plane node</strong>，但業界口語還是常講 master node，兩個是同一件事。</p>
+
+    <figure>
+      <svg viewBox="0 0 780 344" role="img" aria-label="叢集分成三台 master node 跑大腦角色，其中一台是檔案室的主、一台正在做排班工作，另外三台 worker node 跑你的 Pod">
+        <rect x="16" y="30" width="352" height="252" rx="6" fill="none" stroke="var(--slate)" stroke-width="2"/>
+        <text x="30" y="50" font-size="12" fill="var(--slate)" font-weight="700">master node × 3（跑大腦，不跑你的程式）</text>
+        <rect x="30" y="60" width="324" height="66" rx="5" fill="none" stroke="var(--slate)"/>
+        <text x="44" y="99" font-size="12.5" fill="var(--slate)">master 1</text>
+        <rect x="116" y="72" width="106" height="42" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/>
+        <text x="169" y="89" font-size="10.5" text-anchor="middle" fill="var(--slate)">檔案室</text>
+        <text x="169" y="105" font-size="10.5" text-anchor="middle" fill="var(--slate)">主</text>
+        <rect x="232" y="72" width="110" height="42" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/>
+        <text x="287" y="89" font-size="10.5" text-anchor="middle" fill="var(--slate)">排班／巡邏</text>
+        <text x="287" y="105" font-size="10.5" text-anchor="middle" fill="var(--slate)">做事中</text>
+        <rect x="30" y="134" width="324" height="66" rx="5" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="44" y="173" font-size="12.5" opacity=".7">master 2</text>
+        <rect x="116" y="146" width="106" height="42" rx="4" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="169" y="163" font-size="10.5" text-anchor="middle" opacity=".7">檔案室</text>
+        <text x="169" y="179" font-size="10.5" text-anchor="middle" opacity=".7">副本</text>
+        <rect x="232" y="146" width="110" height="42" rx="4" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="287" y="163" font-size="10.5" text-anchor="middle" opacity=".7">排班／巡邏</text>
+        <text x="287" y="179" font-size="10.5" text-anchor="middle" opacity=".7">待命</text>
+        <rect x="30" y="208" width="324" height="66" rx="5" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="44" y="247" font-size="12.5" opacity=".7">master 3</text>
+        <rect x="116" y="220" width="106" height="42" rx="4" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="169" y="237" font-size="10.5" text-anchor="middle" opacity=".7">檔案室</text>
+        <text x="169" y="253" font-size="10.5" text-anchor="middle" opacity=".7">副本</text>
+        <rect x="232" y="220" width="110" height="42" rx="4" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="287" y="237" font-size="10.5" text-anchor="middle" opacity=".7">排班／巡邏</text>
+        <text x="287" y="253" font-size="10.5" text-anchor="middle" opacity=".7">待命</text>
+
+        <line x1="374" y1="156" x2="404" y2="156" stroke="currentColor" stroke-opacity=".5" stroke-width="2" marker-end="url(#q1)"/>
+        <text x="389" y="144" font-size="10" text-anchor="middle" opacity=".6">指揮</text>
+
+        <rect x="412" y="30" width="352" height="252" rx="6" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="426" y="50" font-size="12" fill="var(--gold)" font-weight="700">worker node × 3（跑你的 Pod）</text>
+        <g fill="none" stroke="currentColor" stroke-opacity=".6">
+          <rect x="426" y="60" width="324" height="66" rx="5"/>
+          <rect x="426" y="134" width="324" height="66" rx="5"/>
+          <rect x="426" y="208" width="324" height="66" rx="5"/>
+        </g>
+        <g font-size="12.5" opacity=".7">
+          <text x="440" y="99">worker 1</text><text x="440" y="173">worker 2</text><text x="440" y="247">worker 3</text>
+        </g>
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.6">
+          <rect x="516" y="72" width="106" height="42" rx="4"/>
+          <rect x="632" y="72" width="106" height="42" rx="4"/>
+          <rect x="516" y="146" width="106" height="42" rx="4"/>
+          <rect x="632" y="146" width="106" height="42" rx="4"/>
+          <rect x="516" y="220" width="106" height="42" rx="4"/>
+        </g>
+        <rect x="632" y="220" width="106" height="42" rx="4" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="5 4"/>
+        <g font-size="11.5" text-anchor="middle" fill="var(--gold)">
+          <text x="569" y="99">Pod</text><text x="685" y="99">Pod</text>
+          <text x="569" y="173">Pod</text><text x="685" y="173">Pod</text>
+          <text x="569" y="247">Pod</text>
+        </g>
+        <text x="685" y="246" font-size="10.5" text-anchor="middle" opacity=".4">空位</text>
+        <text x="390" y="312" font-size="13" text-anchor="middle" opacity=".78">master 擺奇數台的理由：很多決定要「超過半數同意」才算數</text>
+        <text x="390" y="332" font-size="12" text-anchor="middle" fill="var(--danger)">3 台可以死 1 台，5 台可以死 2 台，2 台死 1 台就完蛋（過不了半數）</text>
+        <defs>
+          <marker id="q1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".5"/></marker>
+        </defs>
+      </svg>
+      <figcaption>本機測試的叢集，master 和 worker 可以是同一台；正式環境一定分開，而且 master 至少 3 台。</figcaption>
+    </figure>
+  </section>
+<section>
+    <p class="era">第 5 層・最外面</p>
+    <h3 class="head">大腦（Control Plane）：四個角色，各自是一個 Pod</h3>
+
+    <p class="q">「一個 master node 裡面有幾個 pod？」</p>
+    <p><strong>大約四個。</strong>因為那四個角色<strong>各自就是一個容器、包在一個 Pod 裡</strong>，跑在 master node 上。「大腦」——正式名稱<strong>控制平面（Control Plane）</strong>，舊稱 master——不是一支程式，是這四個 Pod 湊起來的。</p>
+
+    <figure>
+      <svg viewBox="0 0 780 300" role="img" aria-label="一台 master node 剖開來看，裡面是四個 Pod：櫃檯、檔案室、排班的、巡邏的，由這台自己的 kubelet 直接照顧">
+        <rect x="20" y="34" width="450" height="240" rx="6" fill="none" stroke="var(--slate)" stroke-width="2"/>
+        <text x="34" y="54" font-size="12" fill="var(--slate)" font-weight="700">一台 master node 剖開來看</text>
+
+        <rect x="36" y="66" width="204" height="70" rx="5" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="1.6"/>
+        <text x="138" y="94" font-size="13.5" text-anchor="middle" fill="var(--slate)">櫃檯</text>
+        <text x="138" y="114" font-size="10.5" text-anchor="middle" fill="var(--slate)" class="mono">API Server</text>
+        <text x="138" y="130" font-size="10" text-anchor="middle" fill="var(--slate)">一個 Pod</text>
+
+        <rect x="252" y="66" width="204" height="70" rx="5" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="1.6"/>
+        <text x="354" y="94" font-size="13.5" text-anchor="middle" fill="var(--slate)">檔案室</text>
+        <text x="354" y="114" font-size="10.5" text-anchor="middle" fill="var(--slate)" class="mono">etcd</text>
+        <text x="354" y="130" font-size="10" text-anchor="middle" fill="var(--slate)">一個 Pod</text>
+
+        <rect x="36" y="146" width="204" height="70" rx="5" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="1.6"/>
+        <text x="138" y="174" font-size="13.5" text-anchor="middle" fill="var(--slate)">排班的</text>
+        <text x="138" y="194" font-size="10.5" text-anchor="middle" fill="var(--slate)" class="mono">Scheduler</text>
+        <text x="138" y="210" font-size="10" text-anchor="middle" fill="var(--slate)">一個 Pod</text>
+
+        <rect x="252" y="146" width="204" height="70" rx="5" fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="1.6"/>
+        <text x="354" y="174" font-size="13.5" text-anchor="middle" fill="var(--slate)">巡邏的</text>
+        <text x="354" y="194" font-size="10.5" text-anchor="middle" fill="var(--slate)" class="mono">Controller Manager</text>
+        <text x="354" y="210" font-size="10" text-anchor="middle" fill="var(--slate)">一個 Pod</text>
+
+        <rect x="36" y="226" width="420" height="32" rx="4" fill="none" stroke="currentColor" stroke-opacity=".7"/>
+        <text x="246" y="247" font-size="12" text-anchor="middle" opacity=".8">這台自己的 kubelet ＋ 容器執行環境</text>
+
+        <line x1="480" y1="150" x2="504" y2="150" stroke="currentColor" stroke-opacity=".4" stroke-width="2" marker-end="url(#t1)"/>
+
+        <text x="514" y="76" font-size="13" font-weight="700">這四個 Pod 是特別的</text>
+        <text x="514" y="106" font-size="12.5" opacity=".8">它們由這台自己的 kubelet</text>
+        <text x="514" y="126" font-size="12.5" opacity=".8">直接顧，<tspan font-weight="700">不是大腦排出來的</tspan></text>
+        <text x="514" y="158" font-size="12.5" fill="var(--danger)">因為雞生蛋的問題：</text>
+        <text x="514" y="178" font-size="12.5" fill="var(--danger)">大腦還沒起來的時候，</text>
+        <text x="514" y="198" font-size="12.5" fill="var(--danger)">誰來排大腦？</text>
+        <text x="514" y="230" font-size="12.5" fill="var(--gold)">所以它們掛了，這台的</text>
+        <text x="514" y="250" font-size="12.5" fill="var(--gold)">kubelet 馬上重開，</text>
+        <text x="514" y="270" font-size="12.5" fill="var(--gold)">不用等誰下令</text>
+
+        <defs>
+          <marker id="t1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".4"/></marker>
+        </defs>
+      </svg>
+      <figcaption>所以「master node 掛了」和「master 上某個 Pod 掛了」是<strong>兩件不同的事</strong>——後者那台的 kubelet 自己就重開了，前者才會少一台。</figcaption>
+    </figure>
+
+    <h4>四個角色各做什麼</h4>
+    <div class="terms">
+      <div class="term"><b>櫃檯（kube-apiserver）</b><span>所有指令的唯一入口。你打 <code>kubectl</code> 就是打它，其他三個角色也只能透過它講話。它自己不做決定。</span></div>
+      <div class="term"><b>檔案室（etcd）</b><span>把所有單子和所有現況存起來。K8s 的一切狀態都在這裡。</span></div>
+      <div class="term"><b>排班的（kube-scheduler）</b><span>有新 Pod 要跑，看哪台 worker 還有空的 CPU 和記憶體，決定放哪台。決定完就沒它的事，實際起容器是 kubelet。</span></div>
+      <div class="term"><b>巡邏的（kube-controller-manager）</b><span>一直在跑「單子說 3 份，現在幾份？不夠就補」的迴圈。K8s 會自我修復，靠的就是它。</span></div>
+    </div>
+  </section>
+<section>
+    <p class="era">共通的部分</p>
+    <h3 class="head">每一台機器都有的三樣東西</h3>
+
+    <p class="q">「你說 master 上只有那四個角色，那 master 上也有 kubelet 嗎？」</p>
+    <p><strong class="win">有。每一台機器都有 kubelet，不分 master 還是 worker。</strong>這正是為什麼 master 上那四個角色能用 Pod 的形式跑——是那台自己的 kubelet 在顧它們。</p>
+    <p>更精確地說，<strong>每台機器都有三樣共通的東西</strong>，master 只是在這三樣之上，額外多跑那四個角色：</p>
+
+    <figure>
+      <svg viewBox="0 0 780 306" role="img" aria-label="master node 和 worker node 底層都有容器執行環境、kubelet、kube-proxy 三樣共通的東西，master 額外多跑四個大腦角色，worker 上面跑你的程式">
+        <rect x="16" y="30" width="364" height="230" rx="6" fill="none" stroke="var(--slate)" stroke-width="2"/>
+        <text x="30" y="50" font-size="12" fill="var(--slate)" font-weight="700">master node</text>
+        <g fill="var(--slate-soft)" stroke="var(--slate)" stroke-width="1.6">
+          <rect x="30" y="60" width="166" height="50" rx="4"/><rect x="204" y="60" width="166" height="50" rx="4"/>
+          <rect x="30" y="118" width="166" height="50" rx="4"/><rect x="204" y="118" width="166" height="50" rx="4"/>
+        </g>
+        <g font-size="12" text-anchor="middle" fill="var(--slate)">
+          <text x="113" y="82">櫃檯</text><text x="287" y="82">檔案室</text>
+          <text x="113" y="140">排班的</text><text x="287" y="140">巡邏的</text>
+        </g>
+        <g font-size="9.5" text-anchor="middle" fill="var(--slate)" class="mono">
+          <text x="113" y="99">kube-apiserver</text><text x="287" y="99">etcd</text>
+          <text x="113" y="157">kube-scheduler</text><text x="287" y="157">kube-controller-manager</text>
+        </g>
+
+        <rect x="400" y="30" width="364" height="230" rx="6" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="414" y="50" font-size="12" fill="var(--gold)" font-weight="700">worker node</text>
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.6">
+          <rect x="414" y="60" width="166" height="50" rx="4"/><rect x="588" y="60" width="166" height="50" rx="4"/>
+          <rect x="414" y="118" width="166" height="50" rx="4"/><rect x="588" y="118" width="166" height="50" rx="4"/>
+        </g>
+        <g font-size="12" text-anchor="middle" fill="var(--gold)">
+          <text x="497" y="90">你的 Pod</text><text x="671" y="90">你的 Pod</text>
+          <text x="497" y="148">你的 Pod</text><text x="671" y="148">你的 Pod</text>
+        </g>
+
+        <rect x="16" y="178" width="748" height="70" rx="5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"/>
+        <text x="28" y="196" font-size="11" opacity=".7">兩邊都有，一模一樣</text>
+        <g fill="none" stroke="currentColor" stroke-opacity=".75">
+          <rect x="30" y="202" width="110" height="38" rx="4"/><rect x="148" y="202" width="110" height="38" rx="4"/><rect x="266" y="202" width="104" height="38" rx="4"/>
+          <rect x="414" y="202" width="110" height="38" rx="4"/><rect x="532" y="202" width="110" height="38" rx="4"/><rect x="650" y="202" width="104" height="38" rx="4"/>
+        </g>
+        <g font-size="10.5" text-anchor="middle" opacity=".85">
+          <text x="85" y="219">容器執行環境</text><text x="203" y="219">聯絡窗口</text><text x="318" y="219">轉發表</text>
+          <text x="469" y="219">容器執行環境</text><text x="587" y="219">聯絡窗口</text><text x="702" y="219">轉發表</text>
+        </g>
+        <g font-size="9.5" text-anchor="middle" opacity=".6" class="mono">
+          <text x="85" y="234">containerd</text><text x="203" y="234">kubelet</text><text x="318" y="234">kube-proxy</text>
+          <text x="469" y="234">containerd</text><text x="587" y="234">kubelet</text><text x="702" y="234">kube-proxy</text>
+        </g>
+
+        <text x="390" y="282" font-size="13" text-anchor="middle" opacity=".8">差別只在上半部：master 跑那四個角色，worker 跑你的程式</text>
+        <text x="390" y="300" font-size="11.5" text-anchor="middle" opacity=".6">正式環境會設定成「你的 Pod 不准排到 master 上」，讓大腦不被業務流量拖累</text>
+      </svg>
+      <figcaption>那個「轉發表」（<code>kube-proxy</code>）是一支真的在跑的程式，負責把大腦發下來的名單寫進這台機器的網路規則——它就是第 9 課要講的 Service 背後的執行者。</figcaption>
+    </figure>
+    <p class="muted">用託管的 K8s（GKE、EKS）時，左邊那整個框你看不到也連不進去，雲端商幫你顧。你只看得到右邊。</p>
+  </section>
+<section>
+    <p class="era">大腦裡面那個資料庫</p>
+    <h3 class="head">etcd 是什麼</h3>
+    <p><strong>它就是一個資料庫</strong>，專門存「設定」這種小東西，不存業務資料。名字來自 Linux 放設定檔的那個資料夾 <code>/etc</code>，後面加一個 d 代表分散式——<strong>「分散在好幾台上的設定檔資料夾」</strong>，這就是它的全部。</p>
+    <p>它跟一般資料庫的差別只有一個：<strong>它可以有好幾份，而且保證每一份內容一樣</strong>。做法是每一筆寫入都要超過半數的份數點頭才算數。</p>
+    <p>K8s 用它存兩種東西：</p>
+    <ul class="plainlist">
+      <li><strong>所有的單子</strong>——你要 3 份、用哪個映像檔、Service 叫什麼名字。</li>
+      <li><strong>所有的現況</strong>——現在哪些 Pod 在跑、跑在哪一台、健不健康。</li>
+    </ul>
+    <p class="formula">K8s 的一切狀態都在 etcd 裡 ⟹ 備份 etcd ＝ 備份整個叢集</p>
+    <p>反過來說，<strong class="hot">etcd 沒了，叢集就沒了</strong>。機器都還在、容器可能還在跑，但大腦完全失憶，不知道誰是誰、也不知道該有幾份。</p>
+    <p class="muted">上一份講分散式鎖的資料裡提過 etcd，就是這個東西。它被選中的理由是「換主機時不會弄丟已經答應的事」，這點 Redis 做不到。</p>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>worker node 跑你的 Pod；master node 跑大腦（Control Plane），不跑你的程式。</li><li>四個角色：櫃檯（kube-apiserver）、檔案室（etcd）、排班的（kube-scheduler）、巡邏的（kube-controller-manager）——各自是一個 Pod。</li><li>每台機器（不分 master/worker）都有三樣：containerd、kubelet、kube-proxy。</li><li>etcd 存所有單子和現況：備份 etcd ＝ 備份整個叢集。</li></ul></div>

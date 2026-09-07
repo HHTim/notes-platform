@@ -1,0 +1,152 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清補位和選舉兩種機制</li><li>說出 master 死一台之後會發生什麼、誰負責補</li></ul></div>
+<section>
+    <p class="era">兩種完全不同的機制</p>
+    <h3 class="head">補位 vs 選舉</h3>
+    <div class="ledger">
+      <div class="box solved">
+        <h5>補位</h5>
+        <ul>
+          <li>數量不夠了，<strong>生一個新的出來</strong>。</li>
+          <li>前提：要有一個「更上層的東西」來生。</li>
+          <li>Pod 掛了、worker node 掛了，都是這種。</li>
+        </ul>
+      </div>
+      <div class="box left">
+        <h5>選舉</h5>
+        <ul>
+          <li>數量<strong>本來就固定，不會變多</strong>。</li>
+          <li>只是決定「剩下這群裡面誰做主」。</li>
+          <li>master node 掛了是這種。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col">誰掛了</th><th scope="col">怎麼發現</th><th scope="col">怎麼處理</th><th scope="col">是哪一種</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">一個 Pod</th>
+            <td>巡邏的（kube-controller-manager）發現「單子說 3 份，現在 2 份」</td>
+            <td>直接開一個新的（會換位子、換位址）</td>
+            <td class="win">補位</td>
+          </tr>
+          <tr>
+            <th scope="row">一台 worker node</th>
+            <td>它的 kubelet 不回報了（約 40 秒沒消息就標記不健康）</td>
+            <td>再等幾分鐘確認真的死了，把上面的 Pod 排到其他還活著的機器</td>
+            <td class="win">補位</td>
+          </tr>
+          <tr>
+            <th scope="row">master 上的一個 Pod</th>
+            <td>那台自己的 kubelet 發現</td>
+            <td>它自己就重開了，機器還在，很快回來；期間工作由別台 master 接手</td>
+            <td class="win">補位</td>
+          </tr>
+          <tr>
+            <th scope="row">一台 master node</th>
+            <td>其他 master 發現它沒回應</td>
+            <td>檔案室（etcd）重選一個主；排班和巡邏由待命的接手。<strong>但台數不會變回來</strong></td>
+            <td class="hot">選舉</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<section>
+    <p class="era">你問的那題</p>
+    <h3 class="head">「死了一個補上一個，所以只剩兩個？」</h3>
+    <p class="q">「原本三個，死了一個，補上一個，所以現在只剩兩個？那下次掛掉呢？」</p>
+    <p><strong class="hot">master node 不會自動補位。3 台死 1 台，就是剩 2 台，不會有第 4 台自己長出來。</strong></p>
+    <p>原因很簡單：worker 上的 Pod 掛了，是<strong>大腦（Control Plane）</strong>去補的。那 master 掛了誰去補？<strong>沒有更上層的東西了</strong>——大腦自己就是壞掉的那個。</p>
+
+    <figure>
+      <svg viewBox="0 0 780 306" role="img" aria-label="master node 掛掉的連鎖：三台死一台剩兩台仍可運作但已無餘裕，再死一台剩一台就過不了半數，整個叢集凍結；補回第三台是人的工作">
+        <g font-size="12.5" text-anchor="middle" opacity=".8">
+          <text x="128" y="30">一開始：3 台</text>
+          <text x="390" y="30">死 1 台 → 剩 2 台</text>
+          <text x="652" y="30">再死 1 台 → 剩 1 台</text>
+        </g>
+
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2">
+          <rect x="44" y="48" width="52" height="44" rx="4"/>
+          <rect x="102" y="48" width="52" height="44" rx="4"/>
+          <rect x="160" y="48" width="52" height="44" rx="4"/>
+        </g>
+
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2">
+          <rect x="306" y="48" width="52" height="44" rx="4"/>
+          <rect x="364" y="48" width="52" height="44" rx="4"/>
+        </g>
+        <rect x="422" y="48" width="52" height="44" rx="4" fill="none" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 4"/>
+        <line x1="432" y1="58" x2="464" y2="82" stroke="var(--danger)" stroke-width="2.5"/>
+        <line x1="464" y1="58" x2="432" y2="82" stroke="var(--danger)" stroke-width="2.5"/>
+
+        <rect x="568" y="48" width="52" height="44" rx="4" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+        <g fill="none" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5 4">
+          <rect x="626" y="48" width="52" height="44" rx="4"/>
+          <rect x="684" y="48" width="52" height="44" rx="4"/>
+        </g>
+        <g stroke="var(--danger)" stroke-width="2.5">
+          <line x1="636" y1="58" x2="668" y2="82"/><line x1="668" y1="58" x2="636" y2="82"/>
+          <line x1="694" y1="58" x2="726" y2="82"/><line x1="726" y1="58" x2="694" y2="82"/>
+        </g>
+
+        <line x1="232" y1="70" x2="288" y2="70" stroke="currentColor" stroke-opacity=".4" stroke-width="2" marker-end="url(#u1)"/>
+        <line x1="494" y1="70" x2="550" y2="70" stroke="currentColor" stroke-opacity=".4" stroke-width="2" marker-end="url(#u1)"/>
+
+        <g font-size="12" text-anchor="middle">
+          <text x="128" y="118" fill="var(--gold)">正常運作</text>
+          <text x="128" y="138" opacity=".7">可以再死 1 台</text>
+          <text x="390" y="118" fill="var(--gold)">選出新的主，還在運作</text>
+          <text x="390" y="138" fill="var(--danger)">但已經沒有餘裕了</text>
+          <text x="652" y="118" fill="var(--danger)">1 票 &lt; 需要的 2 票</text>
+          <text x="652" y="138" fill="var(--danger)">檔案室只能讀不能寫</text>
+        </g>
+
+        <rect x="556" y="152" width="192" height="46" rx="5" fill="none" stroke="var(--danger)" stroke-width="2"/>
+        <text x="652" y="180" font-size="13.5" text-anchor="middle" fill="var(--danger)">整個叢集凍結</text>
+
+        <path d="M390 224 L390 250 L128 250 L128 224" fill="none" stroke="var(--slate)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#u2)"/>
+        <text x="259" y="272" font-size="13" text-anchor="middle" fill="var(--slate)">補回第 3 台，是人（或維運工具）的工作</text>
+        <text x="259" y="292" font-size="12" text-anchor="middle" fill="var(--slate)">大腦不會自己長出新的 master</text>
+
+        <defs>
+          <marker id="u1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".4"/></marker>
+          <marker id="u2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--slate)"/></marker>
+        </defs>
+      </svg>
+      <figcaption>所以「死一台要趕快補回去」是<strong>維運的責任</strong>，不是 K8s 的功能。這就是為什麼「顧 K8s 是一份全職工作」。</figcaption>
+    </figure>
+
+    <h4>master 掛掉時，那兩場選舉在選什麼</h4>
+    <div class="ledger">
+      <div class="box solved">
+        <h5>檔案室（etcd）選主</h5>
+        <ul>
+          <li>3 台裡面要<strong>超過半數（2 台）活著</strong>才寫得進去。</li>
+          <li>主的那台掛了，剩下兩台投票選一個新的主。</li>
+          <li>這就是為什麼要奇數台。</li>
+        </ul>
+      </div>
+      <div class="box solved">
+        <h5>排班的、巡邏的搶標記（leader election）</h5>
+        <ul>
+          <li>這兩個角色<strong>同一時間只能有一個在做事</strong>——不然兩個同時補 Pod，會補出雙份。</li>
+          <li>3 台上面都有跑，但要先搶到一個標記，搶到的才幹活。</li>
+          <li>搶到的那台掛了，剩下的重新搶。</li>
+        </ul>
+      </div>
+    </div>
+    <p class="formula">「同一時間只能有一個在做事」＝ 這就是分散式鎖</p>
+    <p>而 K8s 這把鎖是用<strong>檔案室（etcd）</strong>做的，不是 Redis。理由是 etcd 換主機不會弄丟已經答應的東西，Redis 會。</p>
+
+    <h4>那 master 全掛了會怎樣？</h4>
+    <p><strong class="win">已經在跑的 Pod 會繼續跑。</strong>因為每台 worker 上的 kubelet 是自主的，它照著最後一次收到的指令繼續維持，使用者不會馬上感覺到。</p>
+    <p><strong class="hot">但整個叢集會凍結</strong>：不能改任何東西、掛掉的 Pod 不會被補、換版本做不了、自動增減份數停擺。不是立刻全停，是「還在動但沒人管」——這反而更危險，因為不會有人立刻發現。</p>
+    <p class="muted">雲端託管的 K8s（GKE、EKS）是雲端商幫你顧 master，你看不到也不用管。這是託管版最大的價值。</p>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Pod 掛、worker 掛 → 補位（大腦生一個新的）；master 掛 → 選舉（台數不會自己變回來）。</li><li>master 要奇數台：3 台可死 1 台，2 台死 1 台就過不了半數。</li><li>補回 master 是人的工作——這就是「顧 K8s 是一份全職工作」的原因。</li><li>master 全掛：已在跑的 Pod 照跑，但叢集凍結——還在動但沒人管，反而更危險。</li></ul></div>

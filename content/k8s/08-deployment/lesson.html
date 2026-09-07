@@ -1,0 +1,137 @@
+<!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 Dockerfile 和 Deployment 兩張單子</li><li>說出 requests／limits 的差別與滾動更新的原理</li></ul></div>
+<section>
+    <p class="era">操作一・下單</p>
+    <h3 class="head">Deployment：你怎麼跟大腦（Control Plane）講話</h3>
+    <p>你交一張單子（正式叫<strong>資源定義檔</strong>，就是一個 YAML 檔）：「訂單服務我要 3 份，用 <code>order-svc:1.4</code> 這個映像檔，每份最多吃 1 GB 記憶體。」之後巡邏的（kube-controller-manager）就每分每秒在比對，不一樣就自己補到一樣。</p>
+
+    <h4>「最多吃 1 GB」其實有兩種寫法</h4>
+    <p>單子上的資源可以寫兩個數字，意思完全不同：</p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col">保留量（requests）</th><th scope="col">上限（limits）</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">意思</th><td>「至少幫我留這麼多」</td><td>「絕對不准超過」</td></tr>
+          <tr><th scope="row">誰在看它</th><td>排班的（kube-scheduler）——照這個數字算哪台機器塞得下</td><td>那台機器本身——超過就處理你</td></tr>
+          <tr><th scope="row">可以超過嗎</th><td class="win">可以。機器有空就借你用</td><td class="hot">不行</td></tr>
+          <tr><th scope="row">超過會怎樣</th><td>不會怎樣，這本來就允許</td><td><strong>記憶體</strong>超過 → 容器直接被殺掉重開<br><strong>CPU</strong> 超過 → 不殺，但被拖慢</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>所以有人把保留量（<code>requests</code>）叫「軟的那個」、上限（<code>limits</code>）叫「硬的那個」——<strong>差別就是「超過會不會被處理」</strong>。</p>
+    <p class="muted">兩個都不寫也能跑，但那台機器上的容器會互相搶資源，一個寫爆記憶體全部跟著倒——就是第 1 課講的「一台機器塞兩個服務會打架」那件事又回來了。</p>
+
+    
+
+    <p class="muted">實務細節：巡邏的其實隔著一層叫 <code>ReplicaSet</code> 的中間人在數份數——Deployment 管「換版本」、ReplicaSet 管「維持份數」。下指令看狀態時會看到它，知道它是誰就好。</p>
+    <h4>Dockerfile 和 Deployment 差在哪</h4>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col">Dockerfile</th><th scope="col">Deployment</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">給誰看</th><td>Docker（打包工具）</td><td>Kubernetes 的大腦（Control Plane）</td></tr>
+          <tr><th scope="row">什麼時候用</th><td><strong>打包的時候</strong></td><td><strong>上線的時候</strong></td></tr>
+          <tr><th scope="row">在講什麼</th><td>這一包裡面要有什麼：打底用的作業系統、Java、你的程式、開機跑哪一行</td><td>這一包要跑幾份、每份能吃多少資源、怎麼換版本</td></tr>
+          <tr><th scope="row">產出</th><td>一個映像檔</td><td>一群跑著的 Pod</td></tr>
+          <tr><th scope="row">多久改一次</th><td>程式改了才要重建</td><td>想調份數、換版本就改</td></tr>
+          <tr><th scope="row">知道對方存在嗎</th><td class="win">不知道，也不需要知道</td><td>只寫得出映像檔的名字</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure>
+      <svg viewBox="0 0 780 330" role="img" aria-label="打包階段由 Dockerfile 建出映像檔推上倉庫；上線階段由 Deployment 單子指名該映像檔，大腦據此開出三個 Pod">
+        <text x="16" y="26" font-size="12" class="mono" opacity=".6">① 打包的時候</text>
+        <rect x="16" y="36" width="748" height="106" rx="5" fill="none" stroke="currentColor" stroke-opacity=".25"/>
+        <rect x="36" y="58" width="150" height="62" rx="5" fill="none" stroke="currentColor"/>
+        <text x="111" y="84" font-size="14" text-anchor="middle">Dockerfile</text>
+        <text x="111" y="105" font-size="11.5" text-anchor="middle" opacity=".65">食譜</text>
+        <line x1="194" y1="89" x2="252" y2="89" stroke="currentColor" stroke-width="2" marker-end="url(#k1)"/>
+        <text x="223" y="76" font-size="11" text-anchor="middle" class="mono">build</text>
+        <rect x="260" y="58" width="190" height="62" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        <text x="355" y="84" font-size="14" text-anchor="middle" fill="var(--gold)">映像檔</text>
+        <text x="355" y="105" font-size="12" text-anchor="middle" fill="var(--gold)" class="mono">order-svc:1.4</text>
+        <line x1="458" y1="89" x2="516" y2="89" stroke="currentColor" stroke-width="2" marker-end="url(#k1)"/>
+        <text x="487" y="76" font-size="11" text-anchor="middle" class="mono">push</text>
+        <rect x="524" y="58" width="220" height="62" rx="5" fill="none" stroke="currentColor" stroke-dasharray="6 4"/>
+        <text x="634" y="94" font-size="14" text-anchor="middle">映像檔倉庫</text>
+
+        <text x="16" y="182" font-size="12" class="mono" opacity=".6">② 上線的時候</text>
+        <rect x="16" y="192" width="748" height="120" rx="5" fill="none" stroke="currentColor" stroke-opacity=".25"/>
+        <rect x="36" y="214" width="220" height="78" rx="5" fill="none" stroke="var(--slate)" stroke-width="2"/>
+        <text x="146" y="238" font-size="14" text-anchor="middle" fill="var(--slate)">Deployment 單子</text>
+        <text x="146" y="260" font-size="11.5" text-anchor="middle" fill="var(--slate)" class="mono">映像檔：order-svc:1.4</text>
+        <text x="146" y="279" font-size="11.5" text-anchor="middle" fill="var(--slate)" class="mono">份數：3</text>
+        <path d="M355 126 L355 160 L146 160 L146 206" fill="none" stroke="var(--gold)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#k2)"/>
+        <text x="368" y="152" font-size="11.5" fill="var(--gold)">單子上只寫映像檔的名字，不含內容</text>
+        <line x1="264" y1="253" x2="326" y2="253" stroke="currentColor" stroke-width="2" marker-end="url(#k1)"/>
+        <text x="295" y="240" font-size="11" text-anchor="middle" opacity=".7">交給</text>
+        <rect x="334" y="222" width="130" height="62" rx="5" fill="none" stroke="var(--slate)" stroke-width="2"/>
+        <text x="399" y="258" font-size="14" text-anchor="middle" fill="var(--slate)">大腦</text>
+        <line x1="472" y1="253" x2="530" y2="253" stroke="var(--gold)" stroke-width="2" marker-end="url(#k3)"/>
+        <text x="501" y="240" font-size="11" text-anchor="middle" fill="var(--gold)">開出</text>
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.8">
+          <rect x="540" y="230" width="60" height="46" rx="4"/>
+          <rect x="608" y="230" width="60" height="46" rx="4"/>
+          <rect x="676" y="230" width="60" height="46" rx="4"/>
+        </g>
+        <g font-size="12" text-anchor="middle" fill="var(--gold)">
+          <text x="570" y="258">Pod</text><text x="638" y="258">Pod</text><text x="706" y="258">Pod</text>
+        </g>
+        <defs>
+          <marker id="k1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"/></marker>
+          <marker id="k2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--gold)"/></marker>
+          <marker id="k3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--gold)"/></marker>
+        </defs>
+      </svg>
+      <figcaption>要換版本，你改的是<strong>下面那張單子</strong>的一行字（1.4 改成 1.5），不是重寫 Dockerfile。</figcaption>
+    </figure>
+
+    <p class="win">重點：Dockerfile 完全不知道 K8s 存在。同一個映像檔可以 <code>docker run</code>、可以丟給 Cloud Run、也可以給 K8s。所以你現在學 Docker，一點都不會浪費。</p>
+
+    <h4>換版本不用停機</h4>
+    <figure>
+      <svg viewBox="0 0 760 210" role="img" aria-label="滾動更新：三份服務一次換一份，每個時刻都還有舊版在服務">
+        <g font-size="12" text-anchor="middle" opacity=".7">
+          <text x="92" y="30">一開始</text><text x="284" y="30">換第一份</text><text x="476" y="30">換第二份</text><text x="668" y="30">換完</text>
+        </g>
+        <g fill="none" stroke="currentColor" stroke-opacity=".65" stroke-width="1.8">
+          <rect x="42" y="48" width="34" height="34" rx="4"/><rect x="84" y="48" width="34" height="34" rx="4"/><rect x="126" y="48" width="34" height="34" rx="4"/>
+        </g>
+        <rect x="234" y="48" width="34" height="34" rx="4" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.8"/>
+        <g fill="none" stroke="currentColor" stroke-opacity=".65" stroke-width="1.8">
+          <rect x="276" y="48" width="34" height="34" rx="4"/><rect x="318" y="48" width="34" height="34" rx="4"/>
+        </g>
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.8">
+          <rect x="426" y="48" width="34" height="34" rx="4"/><rect x="468" y="48" width="34" height="34" rx="4"/>
+        </g>
+        <rect x="510" y="48" width="34" height="34" rx="4" fill="none" stroke="currentColor" stroke-opacity=".65" stroke-width="1.8"/>
+        <g fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1.8">
+          <rect x="618" y="48" width="34" height="34" rx="4"/><rect x="660" y="48" width="34" height="34" rx="4"/><rect x="702" y="48" width="34" height="34" rx="4"/>
+        </g>
+        <g stroke="currentColor" stroke-opacity=".35">
+          <line x1="176" y1="65" x2="220" y2="65" marker-end="url(#i1)"/>
+          <line x1="368" y1="65" x2="412" y2="65" marker-end="url(#i1)"/>
+          <line x1="560" y1="65" x2="604" y2="65" marker-end="url(#i1)"/>
+        </g>
+        <g font-size="12" text-anchor="middle">
+          <text x="101" y="106" opacity=".7">3 份舊版</text>
+          <text x="293" y="106" fill="var(--gold)">1 新 + 2 舊</text>
+          <text x="485" y="106" fill="var(--gold)">2 新 + 1 舊</text>
+          <text x="677" y="106" fill="var(--gold)">3 份新版</text>
+        </g>
+        <rect x="42" y="126" width="694" height="34" rx="4" fill="none" stroke="var(--gold)" stroke-dasharray="5 4"/>
+        <text x="389" y="148" font-size="13" text-anchor="middle" fill="var(--gold)">從頭到尾都有人在服務，使用者不會看到白畫面</text>
+        <text x="389" y="188" font-size="12.5" text-anchor="middle" opacity=".7">新版有問題？一行指令退回舊版，因為舊映像檔還在倉庫裡</text>
+        <defs>
+          <marker id="i1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".35"/></marker>
+        </defs>
+      </svg>
+      <figcaption>這叫<strong>滾動更新（rolling update）</strong>：一次只換一份，換好、確認活著，才換下一份。退回舊版叫 <strong>rollback</strong>。</figcaption>
+    </figure>
+  </section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Dockerfile 管打包（這包裡有什麼）；Deployment 管上線（跑幾份、怎麼換版本）。兩者互不相識。</li><li>requests（保留量）＝至少留這麼多、可以超；limits（上限）＝絕不准超，記憶體超了容器被殺掉重開。</li><li>滾動更新（rolling update）：一次只換一份，全程都有人服務；舊映像檔還在倉庫，隨時退回（rollback）。</li></ul></div>
