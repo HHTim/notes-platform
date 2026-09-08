@@ -12,14 +12,9 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 
 ## 現況（2026-09-07）
 
-- **第一期已實作完成**（計畫與過程：`docs/superpowers/plans/2026-09-07-phase1-rescue-and-launch.md`）：`content/` 有 k8s（13 課）與 redis（1 課）兩個模組、每課測驗 5〜8 題、`builder/` 建置工具與測試（含新舊頁面一致性比對）、`.github/workflows/deploy.yml`。
-- **上線差最後一步**：GitHub Pages 尚未開通，需 Tim 到 repo Settings → Pages → Source 選「GitHub Actions」，再 re-run 失敗的 Actions；之後用手機開網址驗收。
-- 第二期（進度同步）、第三期（`/add-note`）未動工。
-- `rescue/` 是舊對話搶救出來的原始檔，是遷移的**輸入**，遷移驗收後可刪：
-  - `vm-container-k8s.html` — K8s 教材長頁版（21 個 section，內容來源）
-  - `build_spa.py` — 現行建置腳本（13 課切法、39 題測驗、亮暖色版型都在裡面），改造成 `builder/` 的起點
-  - `k8s-course.html` — 現行成品（遷移後的比對基準：新工具組出來要跟它一致）
-  - `distributed-lock-redis.artifact.html` — Redis 鎖頁面，外層包著 artifact 發佈系統的程式碼，取用時剝殼（`<title>` 之後才是本體）
+- **第一期已完成並驗收**（2026-09-08 Tim 手機實測通過；計畫與過程：`docs/superpowers/plans/2026-09-07-phase1-rescue-and-launch.md`）：網站已上線，`content/` 有 k8s（13 課）與 redis（1 課）兩個模組、每課測驗 5〜8 題、`builder/` 建置工具與測試、`.github/workflows/deploy.yml` 自動部署。
+- `rescue/`（舊對話救回的原始檔）已隨驗收刪除；新舊頁面一致性測試（`builder/tests/test_parity.py`）因此自動跳過，屬正常現象。
+- 第二期（進度同步）、第三期（`/add-note`）未動工。第二期開工前需 Tim 用個人 Google 帳號開一個免費的 Firebase 專案。
 
 ## 工程慣例
 
