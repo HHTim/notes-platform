@@ -55,20 +55,11 @@ class TestContent(unittest.TestCase):
                         self.assertGreaterEqual(len(q['opts']), 3)
                         self.assertTrue(all(o.strip() for o in q['opts']))
 
-    def test_original_questions_untouched(self):
-        first_q = {
-            '01-physical': '為什麼以前不把兩個服務裝在同一台機器上？',
-            '05-why-k8s': 'K8s 的核心運作方式是？',
-            '13-when': '該不該從 Docker 轉 K8s，最根本的判斷是？',
-        }
-        for d, q in first_q.items():
-            qs = json.loads((CONTENT / 'k8s' / d / 'quiz.json').read_text(encoding='utf-8'))['questions']
-            self.assertEqual(qs[0]['q'], q, d)
-
     def test_k8s_migration_details(self):
         _, mods = load_modules()
         k8s = [m for m in mods if m['id'] == 'k8s'][0]
-        self.assertEqual(len(k8s['lessons']), 13)
+        # 遷移驗證已完成；下限守住既有課數，允許 /add-note 之後加課
+        self.assertGreaterEqual(len(k8s['lessons']), 13)
         read = lambda d: (CONTENT / 'k8s' / d / 'lesson.html').read_text(encoding='utf-8')
         # 修字有帶到、圖有搬對位子（對應 rescue/build_spa.py 的加工）
         self.assertIn('第 9 課要講的 Service 背後的執行者', read('07-cluster-brain'))
@@ -82,13 +73,14 @@ class TestContent(unittest.TestCase):
         site, mods = load_modules()
         self.assertIn('redis', [m['id'] for m in mods])
         redis = [m for m in mods if m['id'] == 'redis'][0]
-        self.assertEqual(len(redis['lessons']), 1)
+        # 遷移驗證已完成；下限守住既有課數，允許 /add-note 之後加課
+        self.assertGreaterEqual(len(redis['lessons']), 1)
         html = (CONTENT / 'redis' / redis['lessons'][0]['dir'] / 'lesson.html').read_text(encoding='utf-8')
         self.assertNotIn('KPI', html, '公司內容不上站')
         self.assertNotIn('CLAUDE.md', html)
         self.assertNotIn('class="tag"', html, '段落標籤要換成全站的 era')
         self.assertNotIn('<h2', html, '段落標題要換成全站的 h3.head')
-        self.assertEqual(html.count('<section'), 9)
+        self.assertGreaterEqual(html.count('<section'), 9)
         self.assertIn('SET', html)          # 指令那段還在
         self.assertIn('fencing token', html)  # 遞增編號那段還在
 

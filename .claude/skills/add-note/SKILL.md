@@ -124,6 +124,7 @@ EOF
 ```
 
 發佈 `/tmp/preview.html` 為 artifact（不公開分享）。預覽裡的登入同步不會動（外站程式被 artifact 環境擋掉），這是正常的，跟 Tim 講一聲。
+課裡有下載進 assets/ 的圖片時，雲端預覽顯示不出那些圖（單一檔案帶不了圖檔）——也是正常的，跟 Tim 講一聲；圖要在第 7 步發佈後的正式網址看。
 
 Tim 要求修改就改，改完重新預覽；他說 OK 才往下。
 
@@ -134,6 +135,8 @@ git add content/
 git commit -m "feat: 收錄〈課名〉進 <模組> 模組（來源：<來源網域>）"
 git push
 ```
+
+push 被拒絕（另一台裝置先推了）就 `git pull --rebase` 之後再推一次。
 
 等自動部署（repo 是公開的，可輪詢
 `https://api.github.com/repos/HHTim/notes-platform/actions/runs?per_page=1`
