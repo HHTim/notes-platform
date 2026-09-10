@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_templates(tpl_dir):
-    names = ('style.css', 'course.js', 'module.html', 'home.html')
+    names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
 
 
@@ -24,6 +24,8 @@ def load_site(content_dir):
             L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             L['assets'] = ldir / 'assets'
         mods.append(mod)
+    fb = content_dir / 'firebase.json'
+    site['firebase'] = json.loads(fb.read_text(encoding='utf-8')) if fb.exists() else None
     return site, mods
 
 
@@ -85,18 +87,26 @@ def modsel_html(mods, current_id):
                    for m in mods)
 
 
-def render_module_page(mod, mods, tpl):
+def render_module_page(mod, mods, tpl, firebase=None):
     quiz = {L['slug']: L['quiz'] for L in mod['lessons']}
     slugs = [L['slug'] for L in mod['lessons']]
     data = ('var MODULE=%s;\nvar QUIZ=%s;\nvar SLUGS=%s;'
             % (json.dumps(mod['id']), json.dumps(quiz, ensure_ascii=False),
                json.dumps(slugs, ensure_ascii=False)))
     data = data.replace('</', '<\\/')   # 防護：測驗文字若含 </ 之類的字，不會提前把嵌入的 <script> 截斷
+    if firebase:
+        sdk = 'https://www.gstatic.com/firebasejs/10.14.1/firebase-%s-compat.js'
+        sync = ('<script>var FIREBASE_CONFIG=%s;</script>\n' % json.dumps(firebase)
+                + ''.join('<script src="%s"></script>\n' % (sdk % part)
+                          for part in ('app', 'auth', 'firestore'))
+                + '<script src="../sync.js"></script>')
+    else:
+        sync = ''
     arts = [overview_html(mod)] + [article_html(mod, i, L) for i, L in enumerate(mod['lessons'])]
     page = tpl['module.html']
     for key, val in (('__TITLE__', mod['title']), ('__MODSEL__', modsel_html(mods, mod['id'])),
                      ('__SIDEBAR__', sidebar_html(mod)), ('__ARTICLES__', ''.join(arts)),
-                     ('__DATA__', data)):
+                     ('__DATA__', data), ('__SYNC__', sync)):
         page = page.replace(key, val)
     return page
 
@@ -129,11 +139,14 @@ def build(content_dir=None, tpl_dir=None, out_dir=None):
     out_dir.mkdir(parents=True)
     (out_dir / 'style.css').write_text(tpl['style.css'], encoding='utf-8')
     (out_dir / 'course.js').write_text(tpl['course.js'], encoding='utf-8')
+    if site['firebase']:
+        (out_dir / 'sync.js').write_text(tpl['sync.js'], encoding='utf-8')
     (out_dir / 'index.html').write_text(render_home_page(site, mods, tpl), encoding='utf-8')
     for mod in mods:
         d = out_dir / mod['id']
         d.mkdir()
-        (d / 'index.html').write_text(render_module_page(mod, mods, tpl), encoding='utf-8')
+        (d / 'index.html').write_text(render_module_page(mod, mods, tpl, site['firebase']),
+                                      encoding='utf-8')
         for L in mod['lessons']:
             if L['assets'].is_dir():   # 規格：每課的圖放自己的 assets/；建置時搬到 assets/<課資料夾>/
                 shutil.copytree(L['assets'], d / 'assets' / L['dir'])

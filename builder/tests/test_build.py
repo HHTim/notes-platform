@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # 建置結果檢查：檔案齊、模組頁的側邊欄／文章／測驗資料都組對
-import json, re, sys, tempfile, unittest
+import json, re, shutil, sys, tempfile, unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,6 +76,55 @@ class TestBuild(unittest.TestCase):
             self.assertIn('共 %d 課' % len(mod['lessons']), html)
         self.assertIn('style.css', html)
         self.assertIn('viewport', html)
+
+
+def build_variant(firebase_cfg):
+    """複製 content/ 到暫存區，依參數放或拿掉 firebase.json，建置後回傳 dist 路徑。"""
+    tmp = Path(tempfile.mkdtemp())
+    content = tmp / 'content'
+    shutil.copytree(ROOT / 'content', content)
+    fb = content / 'firebase.json'
+    if firebase_cfg is None:
+        if fb.exists():
+            fb.unlink()
+    else:
+        fb.write_text(json.dumps(firebase_cfg), encoding='utf-8')
+    out = tmp / 'dist'
+    builder.build(content_dir=content, out_dir=out)
+    return out
+
+
+class TestFirebaseInjection(unittest.TestCase):
+    CFG = {'apiKey': 'test-key', 'authDomain': 'test.firebaseapp.com', 'projectId': 'test'}
+
+    def test_off_without_config(self):
+        out = build_variant(None)
+        html = (out / 'k8s' / 'index.html').read_text(encoding='utf-8')
+        self.assertNotIn('firebasejs', html)
+        self.assertNotIn('FIREBASE_CONFIG', html)
+        self.assertNotIn('sync.js', html)
+        self.assertFalse((out / 'sync.js').exists())
+
+    def test_on_with_config(self):
+        out = build_variant(self.CFG)
+        for mid in ('k8s', 'redis'):
+            html = (out / mid / 'index.html').read_text(encoding='utf-8')
+            self.assertIn('var FIREBASE_CONFIG=', html, mid)
+            self.assertIn('"apiKey": "test-key"', html, mid)
+            for part in ('firebase-app-compat.js', 'firebase-auth-compat.js',
+                         'firebase-firestore-compat.js'):
+                self.assertIn('https://www.gstatic.com/firebasejs/10.14.1/' + part, html, mid)
+            self.assertIn('<script src="../sync.js"></script>', html, mid)
+            # 順序：course.js 要先於 sync.js（sync.js 依賴 NotesCourse）
+            self.assertLess(html.index('course.js'), html.index('sync.js'), mid)
+        self.assertTrue((out / 'sync.js').exists())
+        home = (out / 'index.html').read_text(encoding='utf-8')
+        self.assertNotIn('firebasejs', home)
+
+    def test_placeholder_never_leaks(self):
+        for out in (build_variant(None), build_variant(self.CFG)):
+            for page in out.rglob('*.html'):
+                self.assertNotIn('__SYNC__', page.read_text(encoding='utf-8'), str(page))
 
 
 if __name__ == '__main__':
