@@ -52,6 +52,19 @@ class TestBuild(unittest.TestCase):
         self.assertIn("'notes-progress:'+MODULE", js)
         self.assertNotIn('k8s-course-done', js)
 
+    def test_sidebar_progress_and_hint(self):
+        for mid in ('k8s', 'redis'):
+            html = (self.out / mid / 'index.html').read_text(encoding='utf-8')
+            self.assertIn('id="sideProg"', html, mid)
+            self.assertIn('id="syncHint"', html, mid)
+            self.assertIn('進度只存在這台裝置', html, mid)
+
+    def test_course_js_hooks(self):
+        js = (self.out / 'course.js').read_text(encoding='utf-8')
+        self.assertIn('window.NotesCourse', js)
+        self.assertIn('notes:progress-saved', js)
+        self.assertIn('sideProg', js)
+
     def test_home_page(self):
         html = (self.out / 'index.html').read_text(encoding='utf-8')
         self.assertIn(self.site['site_title'], html)

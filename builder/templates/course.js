@@ -1,7 +1,10 @@
 (function(){
 var KEY='notes-progress:'+MODULE;
 function loadDone(){try{return JSON.parse(localStorage.getItem(KEY))||{};}catch(e){return {};}}
-function saveDone(d){try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){}}
+function saveDone(d){
+  try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){}
+  try{document.dispatchEvent(new CustomEvent('notes:progress-saved',{detail:{module:MODULE,data:d}}));}catch(e){}
+}
 function refreshTicks(){
   var d=loadDone(),n=0;
   SLUGS.forEach(function(s){ if(d[s]&&d[s].done)n++; });
@@ -14,6 +17,8 @@ function refreshTicks(){
   });
   var p=document.getElementById('ovProgress');
   if(p) p.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課'+(n===SLUGS.length?'——全部打勾了 🎉':'');
+  var sp=document.getElementById('sideProg');
+  if(sp) sp.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課';
 }
 function shuffle(a){
   for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}
@@ -130,4 +135,5 @@ if(!location.hash){
 route();
 var modsel=document.getElementById('modsel');
 if(modsel)modsel.addEventListener('change',function(){location.href='../'+this.value+'/';});
+window.NotesCourse={module:MODULE,slugs:SLUGS,loadDone:loadDone,saveDone:saveDone,refreshTicks:refreshTicks};
 })();
