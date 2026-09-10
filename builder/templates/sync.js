@@ -55,12 +55,12 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
   }
   function showUnauthorized() {
     synced = false;
-    setHint('此帳號未獲授權，進度僅存於本機（<a href="#" id="syncOut">登出</a>）');
+    setHint('此帳號未獲授權，進度僅存於本機 · <a href="#" id="syncOut">登出</a>');
     bindLogout();
   }
   function showSynced(user) {
     synced = true;
-    setHint('已同步（' + esc(user.displayName || user.email) + '）（<a href="#" id="syncOut">登出</a>）');
+    setHint('已同步（' + esc(user.displayName || user.email) + '）· <a href="#" id="syncOut">登出</a>');
     bindLogout();
   }
 
