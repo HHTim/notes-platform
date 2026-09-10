@@ -77,13 +77,18 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     db.collection('whitelist').doc(user.email).get().then(function (snap) {
       if (!snap.exists) { showUnauthorized(); return; }
       uid = user.uid;
-      return db.collection('progress').doc(uid).get().then(function (p) {
+      db.collection('progress').doc(uid).get().then(function (p) {
         var cloud = (p.exists && p.data()[course.module]) || {};
         var merged = NotesSync.merge(course.loadDone(), cloud);
         course.saveDone(merged);   // 寫回本機（此刻 synced 還是 false，事件不會重複推雲端）
         course.refreshTicks();
         showSynced(user);          // 從這裡開始，之後的每次作答才會推雲端
         pushCloud(merged);         // 合併結果推上雲端一次
+      })['catch'](function () {
+        /* 在名單上，但進度暫時讀不到（例如斷線）：不是授權問題。
+           顯示「沒登入」那行——「進度只存在這台裝置」此刻是事實，
+           點登入連結會重跑登入流程，等於重試一次。 */
+        showLoggedOut();
       });
     })['catch'](function () { showUnauthorized(); });
   });
