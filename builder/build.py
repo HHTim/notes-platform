@@ -96,7 +96,7 @@ def render_module_page(mod, mods, tpl, firebase=None):
     data = data.replace('</', '<\\/')   # 防護：測驗文字若含 </ 之類的字，不會提前把嵌入的 <script> 截斷
     if firebase:
         sdk = 'https://www.gstatic.com/firebasejs/10.14.1/firebase-%s-compat.js'
-        sync = ('<script>var FIREBASE_CONFIG=%s;</script>\n' % json.dumps(firebase)
+        sync = ('<script>var FIREBASE_CONFIG=%s;</script>\n' % json.dumps(firebase).replace('</', '<\\/')
                 + ''.join('<script src="%s"></script>\n' % (sdk % part)
                           for part in ('app', 'auth', 'firestore'))
                 + '<script src="../sync.js"></script>')

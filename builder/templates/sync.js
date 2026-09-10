@@ -90,7 +90,12 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
            點登入連結會重跑登入流程，等於重試一次。 */
         showLoggedOut();
       });
-    })['catch'](function () { showUnauthorized(); });
+    })['catch'](function (err) {
+      /* 讀白名單失敗：規則拒絕（permission-denied）才是授權問題；
+         其他失敗（例如斷線）照「沒登入」那行顯示，內容才是真的。 */
+      if (err && err.code === 'permission-denied') { showUnauthorized(); }
+      else { showLoggedOut(); }
+    });
   });
 
   /* 之後每次對答案，course.js 存檔時會發這個事件 */
