@@ -12,9 +12,11 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 
 ## 現況（2026-09-07）
 
-- **第一期已完成並驗收**（2026-09-08 Tim 手機實測通過；計畫與過程：`docs/superpowers/plans/2026-09-07-phase1-rescue-and-launch.md`）：網站已上線，`content/` 有 k8s（13 課）與 redis（1 課）兩個模組、每課測驗 5〜8 題、`builder/` 建置工具與測試、`.github/workflows/deploy.yml` 自動部署。
-- `rescue/`（舊對話救回的原始檔）已隨驗收刪除；新舊頁面一致性測試（`builder/tests/test_parity.py`）因此自動跳過，屬正常現象。
-- 第二期（進度同步）、第三期（`/add-note`）未動工。第二期開工前需 Tim 用個人 Google 帳號開一個免費的 Firebase 專案。
+- **第一期（救檔＋上線）與第二期（進度跨裝置同步）都已完成並驗收**（第一期 2026-09-08、第二期 2026-09-10 Tim 實測通過；計畫與過程在 `docs/superpowers/plans/`）。
+- 第二期要點：Google 登入＋Firestore（專案 `notes-platform-82407`，Tim 個人帳號、免費方案）；設定在 `content/firebase.json`（三個值都是公開識別碼）；同步邏輯在 `builder/templates/sync.js`；資料庫規則正本在 `firebase/firestore.rules`（改規則要去 Firebase 主控台貼上發佈）；白名單＝Firestore 的 `whitelist` 集合，文件 ID 是 email，Tim 在主控台增刪；設定手冊在 `docs/firebase-setup.md`。
+- 已知且接受的邊角：登出不清本機進度（規格：沒登入進度存本機）；兩裝置同時開著交錯作答時雲端可能暫時回退、較新裝置下次登入自癒。
+- `rescue/`（舊對話救回的原始檔）已隨第一期驗收刪除；一致性測試自動跳過屬正常。
+- 第三期（`/add-note`）未動工。前置：手機使用時在 claude.ai 連結 GitHub（規格第 9 節的一次性設定）。
 
 ## 工程慣例
 
