@@ -77,6 +77,12 @@ class TestBuild(unittest.TestCase):
         self.assertIn('style.css', html)
         self.assertIn('viewport', html)
 
+    def test_fixnote_styles(self):
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('mark.fixnote', css)
+        self.assertIn('attr(data-note)', css)   # 提示文字來自 data-note，純 CSS 不用 JavaScript
+        self.assertIn('a.fixsrc', css)
+
 
 def build_variant(firebase_cfg):
     """複製 content/ 到暫存區，依參數放或拿掉 firebase.json，建置後回傳 dist 路徑。"""
