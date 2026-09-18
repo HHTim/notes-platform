@@ -1,0 +1,139 @@
+<!-- 來源：https://hackmd.io/@vxrpYkjKTMytFsxOado2rw/SJj8ApUw2 · 收錄日期：2026-09-10 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用自己的話講出 String、StringBuffer、StringBuilder 差在哪、什麼時候用哪個</li><li>分清集合家族（List、Set、Queue）與常考的 ArrayList、LinkedList、Vector 取捨</li><li>答出物件導向三本柱、介面與抽象類別的差別，以及 final／finally／finalize 這類陷阱題</li></ul></div>
+<section>
+    <p class="era">字串</p>
+    <h3 class="head">String、StringBuffer、StringBuilder 差在哪</h3>
+    <p class="q">面試官：字串三兄弟差在哪？什麼時候用哪個？</p>
+    <p><strong>String 是不可變的（immutable）</strong>——宣告之後內容就不能改。每次看起來像「修改」的動作（串接、取代），其實都是產生一個全新的字串物件、占一塊新的記憶體。偶爾改一次沒差，放進迴圈大量串接就又慢又浪費。</p>
+    <p>所以才有另外兩兄弟——內容可變、修改時不再另闢記憶體：</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>類別</th><th>內容可變</th><th>執行緒安全</th><th>速度</th><th>出現版本</th></tr></thead>
+      <tbody>
+        <tr><th>String</th><td>不可變</td><td>—（不可變本身就安全）</td><td class="num">—</td><td class="num">JDK 1.0</td></tr>
+        <tr><th>StringBuffer</th><td>可變</td><td>安全（多執行緒同時用不會壞）</td><td class="num">慢</td><td class="num">JDK 1.0</td></tr>
+        <tr><th>StringBuilder</th><td>可變</td><td>不保證</td><td class="num">快</td><td class="num">JDK 1.5</td></tr>
+      </tbody>
+    </table></div>
+    <p class="formula">要改值就用 StringBuilder；真的有多執行緒同時改同一份，才用 StringBuffer</p>
+    <p>經典寫法——迴圈裡串大量字串：</p>
+    <pre><code>StringBuilder sb = new StringBuilder();
+for (String s : hugeArray) {
+    sb.append(s);
+}
+String result = sb.toString();</code></pre>
+</section>
+<section>
+    <p class="era">集合框架</p>
+    <h3 class="head">List、Set、Queue，和它們的迭代器</h3>
+    <p>Collection 介面底下最常考的三個家族：<strong>List</strong>（有順序、允許重複）、<strong>Set</strong>（無順序、不允許重複——重複的直接不加入）、<strong>Queue</strong>（排隊，先進先出為主）。Map 是另一家人，存的是「鍵對值」，不繼承 Collection。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Iterator 是 Java 1.5 Iterable 介面的一個方法」，版本與名詞混在一起，查證後更正">迭代器介面 <code>java.util.Iterator</code> 從 JDK 1.2 就有；Java 5 才加入 <code>java.lang.Iterable</code> 介面，它定義的 <code>iterator()</code> 方法會回傳一個迭代器</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Iterable.html" target="_blank" rel="noopener">出處</a>。Collection 繼承 Iterable，所以 List、Set、Queue 都能給出迭代器——for-each 語法也是靠它。為什麼做成介面？ArrayList 有迭代器、HashSet 也有迭代器，統一都叫 Iterator，用法就一致。</p>
+    <pre><code>List&lt;String&gt; list = new ArrayList&lt;&gt;();
+Iterator&lt;String&gt; it = list.iterator();
+while (it.hasNext()) {        // 還有下一個嗎？
+    String s = it.next();     // 拿下一個
+}</code></pre>
+    <h4>Array 和 ArrayList 差在哪</h4>
+    <ul class="plainlist">
+      <li><strong>Array</strong>：長度固定（建立後不能改）、基本型別和物件都能放、執行效率高。</li>
+      <li><strong>ArrayList</strong>：長度會自己長、只能放物件——基本型別要換成包裝類別（int 換成 Integer），通常搭配泛型使用。</li>
+    </ul>
+    <h4>ArrayList 和 LinkedList 怎麼選</h4>
+    <ul class="plainlist">
+      <li><strong>ArrayList</strong>：底層是連續的陣列空間，可以用索引值直接取值（隨機存取），讀取快；但要在中間插入或刪除，得搬動後面整段資料。</li>
+      <li><strong>LinkedList</strong>：底層是一個接一個的節點（node），沒有索引值、要遍歷才找得到元素；但插入刪除只要改動前後節點的接法，頻繁增刪時划算。</li>
+    </ul>
+    <p class="muted">Vector 是 List 家族的老成員（JDK 1.0），跟 ArrayList 大同小異但「每個操作都同步」——每個動作都要拿一次鎖，浪費效能，實務上已被 ArrayList 與各種並行集合取代，面試知道它為什麼被淘汰就好。</p>
+    <h4>泛型與 int／Integer</h4>
+    <p>泛型（generics，JDK 1.5 出現）：在角括號裡先講好集合要放什麼型別，編譯時就能擋住放錯型別的程式碼。角括號裡只能放參考型別——所以是 <code>List&lt;Integer&gt;</code> 不是 <code>List&lt;int&gt;</code>。int 是基本型別，適合單純運算；Integer 是包裝類別，多了 <code>parseInt()</code>、<code>compareTo()</code> 這些方法可用。</p>
+</section>
+<section>
+    <p class="era">物件導向</p>
+    <h3 class="head">三本柱、介面與抽象類別</h3>
+    <div class="terms">
+      <div class="term"><b>封裝</b><span>欄位設 private、對外只開 public 的 get／set——資料不攤在陽光下，保護資料、也讓改動不外洩。</span></div>
+      <div class="term"><b>繼承</b><span>父類別有的（欄位、方法），子類別繼承後也有；用來收掉重複的程式碼。宣告 final 的類別不能被繼承。</span></div>
+      <div class="term"><b>多型</b><span>宣告父型別、執行時放子類別的實體（里氏替換原則）。多載＝同名方法、參數不同；複寫＝子類別改寫父類別的方法。</span></div>
+    </div>
+    <p><code>this</code> 指當前物件、拿自己類別的成員；<code>super</code> 拿父類別的成員。存取修飾子由開到關：</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>修飾子</th><th>誰能存取</th></tr></thead>
+      <tbody>
+        <tr><th>public</th><td>所有類別</td></tr>
+        <tr><th>protected</th><td>同套件的類別＋所有子類別</td></tr>
+        <tr><th>（不寫，預設）</th><td>同套件的類別</td></tr>
+        <tr><th>private</th><td>只有自己類別內部</td></tr>
+      </tbody>
+    </table></div>
+    <p class="q">面試官：Java 可以多重繼承嗎？</p>
+    <p>類別不行，只能單一繼承——所以才有介面：一個類別可以同時實作很多個介面，補上多重繼承的需求。跟抽象類別的比較：</p>
+    <ul class="plainlist">
+      <li><strong>抽象類別</strong>：不能實體化、只能被繼承；不一定要有抽象方法，但有抽象方法的類別一定要宣告 abstract；子類別必須實作所有抽象方法；一個類別只能繼承一個。</li>
+      <li><strong>介面</strong>：欄位預設是常數（public static final）、沒有建構子、介面之間可以再繼承；目的在降低程式之間的耦合。<mark class="fixnote" tabindex="0" data-note="原筆記此處寫「介面裡面宣告的方法，預設由編譯器加上 public abstract」，那是 Java 8 以前的事，查證後更正">Java 8 起介面可以有帶實作的 default 方法與 static 方法（Java 9 起還有 private 方法），「介面方法一律抽象」已經是舊版本的答案</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/java/IandI/defaultmethods.html" target="_blank" rel="noopener">出處</a>。</li>
+    </ul>
+    <p><code>instanceof</code> 是二元運算子，測左邊的物件是不是右邊類別（或其子類別、介面實作）的實體；兩邊要有繼承關係，否則直接編譯錯誤。</p>
+    <p><code>static</code> 的成員在類別第一次載入時就先就位，那時任何物件都還沒出生——所以 static 方法裡不能用 <code>this</code>。</p>
+    <p class="muted">加分題：一個類別裡可以再放類別嗎？可以，Java 1.1 起有四種內部類別（靜態、成員、區域、匿名），好處是能直接存取外部類別的 private 成員。</p>
+</section>
+<section>
+    <p class="era">例外處理</p>
+    <h3 class="head">兩種例外，和三個長很像的關鍵字</h3>
+    <p>所有例外的根類別是 <code>Throwable</code>，分兩支：<strong>Error</strong>（系統層級的錯，例如記憶體滿了，抓也沒用）和 <strong>Exception</strong>。Exception 再分兩種：</p>
+    <ul class="plainlist">
+      <li><strong>checked exception</strong>（編譯器強迫你處理）：例如 IOException、FileNotFoundException——不用 try-catch 包住或用 throws 聲明，編譯不過。</li>
+      <li><strong>unchecked exception</strong>（不強迫）：RuntimeException 家族，例如 ClassCastException（轉型失敗）、IndexOutOfBoundsException（索引越界）、<mark class="fixnote" tabindex="0" data-note="原筆記此處寫「NullPointException」，少了 er，查證後更正">NullPointerException（空指標）</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/NullPointerException.html" target="_blank" rel="noopener">出處</a>。</li>
+    </ul>
+    <p><code>throw</code> 是手動丟出一個例外；<code>throws</code> 掛在方法宣告上，聲明「這個方法可能丟例外，處理交給呼叫我的人」。</p>
+    <p class="q">面試官：final、finally、finalize 差在哪？</p>
+    <ul class="plainlist">
+      <li><strong>final</strong>：修飾類別＝不能被繼承；修飾方法＝不能被複寫；修飾變數＝值不能再改（常數）；修飾物件參考＝不能再指向別的物件。</li>
+      <li><strong>finally</strong>：例外處理的收尾區塊，寫在 catch 後面——<strong>無論例外有沒有被解決都會執行</strong>，所以拿來釋放資源（關資料庫連線、關檔案）。</li>
+      <li><strong>finalize</strong>：宣告在 Object 的方法，垃圾回收器回收物件前會呼叫。<mark class="fixnote" tabindex="0" data-note="原筆記把 finalize 當一般知識介紹；它已於 Java 9 標記廢棄、Java 18 進一步標記為準備移除，查證後補上">這個機制已經走向淘汰：Java 9 起標記廢棄（deprecated），Java 18 起進一步標記為準備移除——現在面試答這題，要補上這句才是最新答案</mark><a class="fixsrc" href="https://openjdk.org/jeps/421" target="_blank" rel="noopener">出處</a>。</li>
+    </ul>
+</section>
+<section>
+    <p class="era">設計與框架</p>
+    <h3 class="head">Design Pattern、MVC、Spring</h3>
+    <p><strong>設計模式（design pattern）</strong>不是現成的程式碼，是「這類問題通常這樣解」的方案描述，目標是讓程式可重複使用、有彈性。GoF 那本書把 23 種模式分三群：創建型、結構型、行為型。<mark class="fixnote" tabindex="0" data-note="原筆記的創建型清單寫「Abstract Method」，正確名稱是 Abstract Factory（抽象工廠），查證後更正">創建型五個：Factory Method、Abstract Factory、Builder、Prototype、Singleton</mark><a class="fixsrc" href="https://refactoring.guru/design-patterns/creational-patterns" target="_blank" rel="noopener">出處</a>。其中 Factory Method（工廠方法）一句話：父類別先定義「怎麼生出物件」的介面，讓子類別決定實際生出哪一種。</p>
+    <p><strong>MVC</strong>＝Model-View-Controller，把「資料」「畫面」「指揮」三種職責拆開——職責單一互不影響、有利分工、元件可重用：</p>
+    <figure>
+    <svg viewBox="0 0 760 220" role="img" aria-label="MVC：使用者的操作交給 Controller，Controller 更新 Model，Model 的資料變化反映到 View，View 呈現給使用者">
+      <rect x="30" y="80" width="140" height="60" rx="8" fill="#F6E9D2" stroke="#B5730F"/>
+      <text x="100" y="106" font-size="14" font-weight="700" fill="#22242A" text-anchor="middle">使用者</text>
+      <text x="100" y="126" font-size="11.5" fill="#55575E" text-anchor="middle">點按鈕、送表單</text>
+      <line x1="170" y1="95" x2="292" y2="60" stroke="#8A5809" stroke-width="2"/>
+      <polygon points="292,60 281,60 285,68" fill="#8A5809"/>
+      <text x="222" y="62" font-size="11.5" fill="#8A5809" text-anchor="middle">操作</text>
+      <rect x="296" y="30" width="170" height="56" rx="8" fill="#FFFFFF" stroke="#5E7A9B"/>
+      <text x="381" y="53" font-size="14" font-weight="700" fill="#22242A" text-anchor="middle">Controller</text>
+      <text x="381" y="73" font-size="11.5" fill="#55575E" text-anchor="middle">指揮：收請求、叫人做事</text>
+      <line x1="466" y1="58" x2="586" y2="58" stroke="#8B8D94" stroke-width="2"/>
+      <polygon points="586,58 576,53 576,63" fill="#8B8D94"/>
+      <text x="526" y="50" font-size="11.5" fill="#55575E" text-anchor="middle">更新</text>
+      <rect x="590" y="30" width="140" height="56" rx="8" fill="#FFFFFF" stroke="#5E7A9B"/>
+      <text x="660" y="53" font-size="14" font-weight="700" fill="#22242A" text-anchor="middle">Model</text>
+      <text x="660" y="73" font-size="11.5" fill="#55575E" text-anchor="middle">資料與商業邏輯</text>
+      <line x1="655" y1="86" x2="475" y2="160" stroke="#8B8D94" stroke-width="2"/>
+      <polygon points="475,160 486,159 482,151" fill="#8B8D94"/>
+      <text x="585" y="135" font-size="11.5" fill="#55575E" text-anchor="middle">資料變化</text>
+      <rect x="296" y="140" width="170" height="56" rx="8" fill="#FFFFFF" stroke="#5E7A9B"/>
+      <text x="381" y="163" font-size="14" font-weight="700" fill="#22242A" text-anchor="middle">View</text>
+      <text x="381" y="183" font-size="11.5" fill="#55575E" text-anchor="middle">畫面：把資料呈現出來</text>
+      <line x1="296" y1="168" x2="176" y2="128" stroke="#8A5809" stroke-width="2"/>
+      <polygon points="176,128 185,134 187,126" fill="#8A5809"/>
+      <text x="238" y="140" font-size="11.5" fill="#8A5809" text-anchor="middle">呈現</text>
+    </svg>
+    <figcaption>原筆記的 MVC 圖是外站截圖，這裡照全站風格重畫。方向記法：操作進 Controller、Controller 動 Model、Model 的變化流向 View、View 給使用者看。</figcaption>
+    </figure>
+    <p><strong>Spring</strong>：實作「控制反轉」（IoC，Inversion of Control——物件不自己生依賴，交給框架注入）的輕量框架。常考關鍵字：DI（依賴注入）、AOP（面向切面，把記錄、交易這類橫切關注點抽出來）、模組化（功能拆成一個個 jar，用多少裝多少）。</p>
+</section>
+<section>
+    <p class="era">專題怎麼答</p>
+    <h3 class="head">被問到自己的專題時</h3>
+    <p class="muted">這一段是個人答法的整理，照原筆記保留，答的是一個訂房網站的畢業專題。</p>
+    <ul class="plainlist">
+      <li><strong>Coding rules</strong>：HTML 用 BEM 命名（Block__Element--Modifier）；類別名大駝峰（PascalCase）；變數小駝峰（camelCase）；常數全大寫並加上 <mark class="fixnote" tabindex="0" data-note="原筆記此處寫「加上Final」，Java 關鍵字一律小寫，查證後更正">小寫的 <code>final</code> 關鍵字</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-3.html#jls-3.9" target="_blank" rel="noopener">出處</a>。</li>
+      <li><strong>版本控制</strong>：Git 是版本控制系統（追蹤、管理程式碼的修改歷史，分散式、每人本機都能獨立工作）；GitHub 是架在 Git 上的程式碼代管平台（集中存放、pull request、問題追蹤）。一句話：Git 是工具，GitHub 是放工具產出的地方。</li>
+      <li><strong>負責的功能與分工</strong>：擔任組長——題目構想、分工、時程、每週對進度，版本控制上統一管理 main 分支；功能面負責廠商端的房型、行程、私房景點管理與上下架。分工做法：Figma 與前端靜態頁完成後先切大功能，再交由各自負責的組員實作。</li>
+    </ul>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>字串要改值就用 StringBuilder；真的有多執行緒同時改，才用 StringBuffer。</li><li>List 有序可重複、Set 無序不重複；讀多用 ArrayList、插刪多用 LinkedList。</li><li>類別只能單一繼承，介面補位——而且 Java 8 之後介面也能帶 default 方法。</li><li>final 鎖定、finally 必執行、finalize 已走向淘汰（Java 18 起標記準備移除）。</li><li>答題公式：先一句話定義，再講差別與取捨，最後補一個版本或實務註記。</li></ul></div>
