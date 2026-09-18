@@ -16,7 +16,8 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 - 第二期要點：Google 登入＋Firestore（專案 `notes-platform-82407`，Tim 個人帳號、免費方案）；設定在 `content/firebase.json`（三個值都是公開識別碼）；同步邏輯在 `builder/templates/sync.js`；資料庫規則正本在 `firebase/firestore.rules`（改規則要去 Firebase 主控台貼上發佈）；白名單＝Firestore 的 `whitelist` 集合，文件 ID 是 email，Tim 在主控台增刪；設定手冊在 `docs/firebase-setup.md`。
 - 已知且接受的邊角：登出不清本機進度（規格：沒登入進度存本機）；兩裝置同時開著交錯作答時雲端可能暫時回退、較新裝置下次登入自癒。
 - `rescue/`（舊對話救回的原始檔）已隨第一期驗收刪除；一致性測試自動跳過屬正常。
-- 第三期（`/add-note`）未動工。前置：手機使用時在 claude.ai 連結 GitHub（規格第 9 節的一次性設定）。
+- **第三期（`/add-note`）已完成並驗收**（2026-09-18 用真 HackMD 筆記全流程跑通，新增「面試集」模組）。收筆記的流程整套在 `.claude/skills/add-note/SKILL.md`——七步、三個停問點、更正標記寫法、內容慣例都在裡面，直接用 `/add-note` 觸發。
+- **三期全數完成，進入日常使用**：把 HackMD 舊筆記逐篇餵給 `/add-note`。手機要用的前置：在 claude.ai 連結 GitHub（規格第 9 節的一次性設定）。
 
 ## 工程慣例
 
