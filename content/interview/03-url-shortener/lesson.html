@@ -51,7 +51,7 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
     └─ A 用完，原子切換到 B
                          │
                          └─ 換 B 發號，再預載下一段</code></pre>
-    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。<mark class="fixnote" tabindex="0" data-note="原筆記寫「用到 80% 時背景預載 Buffer B」，查證後更正">Leaf 官方的門檻是「號段已下發 10%」就啟動背景預載——趁早預載，門檻也可依消耗速度調整，不是固定的 80%</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。切換時要防多執行緒重複載入，也要處理預載失敗、目前號段耗盡、資料庫短暫不可用這幾種情況。</p>
+    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。<mark class="fixnote" tabindex="0" data-note="原筆記寫「用到 80% 時背景預載 Buffer B」，查證後更正">Leaf 官方的門檻是「號段已下發 10%」就啟動背景預載——趁早預載，Leaf 另外會依消耗速度動態調整號段長度，不是固定的 80%</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。切換時要防多執行緒重複載入，也要處理預載失敗、目前號段耗盡、資料庫短暫不可用這幾種情況。</p>
     <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「DB 存取完全在背景，使用端感受不到任何延遲」，查證後更正">雙 Buffer 只能隱藏正常情況下的配置延遲，不是保證永遠無感：Leaf 的原文建議把號段長度設成尖峰每秒請求數的 600 倍，資料庫掛掉時也只能再撐 10〜20 分鐘</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 <section>
