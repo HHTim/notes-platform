@@ -41,7 +41,7 @@
 <section>
 <p class="era">名稱要去哪裡查</p>
 <h3 class="head">Nginx 的上游 DNS 解析時機</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Nginx DNS 解析步驟：1. 先使用 DNS 解析，再使用 Nginx resolver 指定的 DNS 解析 2. 後者的 DNS 解析結果會覆蓋前者」，並稱所有形式「都會在啟動時被解析」，查證後更正：固定名稱與含變數的名稱解析時機不同，不是兩階段互相覆蓋"><code>proxy_pass</code> 寫死主機名稱時，Nginx 在啟動或重載設定時解析一次——解析失敗會讓啟動或重載失敗，成功後也不會照 DNS TTL 重新解析；<code>proxy_pass</code> 含變數時則改在處理請求時解析，此時必須用 <code>resolver</code> 指定 DNS 伺服器，並會依 TTL 更新</mark><a class="fixsrc" href="https://www.f5.com/company/blog/nginx/dns-service-discovery-nginx-plus" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Nginx DNS 解析步驟：1. 先使用 DNS 解析，再使用 Nginx resolver 指定的 DNS 解析 2. 後者的 DNS 解析結果會覆蓋前者」、所有形式「都會在啟動時被解析」，並稱解析失敗時「Nginx 會完全崩潰並停止所有 Web 請求」，查證後更正：固定名稱與含變數的名稱解析時機不同、不是兩階段互相覆蓋；解析失敗的後果是設定載入不成功（啟動或重載失敗），不是執行中崩潰"><code>proxy_pass</code> 寫死主機名稱時，Nginx 在啟動或重載設定時解析一次——解析失敗一般情況下會使啟動或重載失敗，成功後也不會照 DNS TTL 重新解析；<code>proxy_pass</code> 含變數時則改在處理請求時解析，此時必須用 <code>resolver</code> 指定 DNS 伺服器，並會依 TTL 更新</mark><a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>location /telemetry/ {
     resolver 10.0.0.53 valid=30s;
     set $monitor_backend https://monitor.example.internal;
@@ -85,6 +85,7 @@
 <p class="era">從錯誤訊息回推</p>
 <h3 class="head">「no host in upstream」不應只怪雙斜線</h3>
 <p>案例曾出現 <code>no host in upstream</code>，當時把原因歸咎於路徑中的雙斜線。但這個訊息更直接指向 Nginx 算出的上游 URL 缺少有效主機部分，例如變數為空、URL 組合錯誤或變數展開結果不合法。雙斜線通常影響的是路徑語意，不等同於「沒有上游主機」。</p>
+<p class="muted">原筆記把這個錯誤的主因歸給雙斜線；這個因果查無官方文件定論，本課改寫成下面的除錯順序，不斷言單一成因。</p>
 <p>較可靠的除錯順序是：</p>
 <ol><li>以設定測試確認語法有效。</li><li>記錄或檢查變數展開後的上游主機與 URI。</li><li>在相同執行環境驗證 DNS 能否解析。</li><li>確認 TLS 名稱、Host 標頭與上游憑證是否相符。</li><li>測試原始路徑、改寫路徑、查詢字串與尾端斜線。</li></ol>
 </section>
@@ -96,4 +97,4 @@
 <p>設定檔也不應包含 API 金鑰、私密金鑰或可識別內部環境的資訊。機密值應透過適合的秘密管理機制注入，日誌則要避免記錄權杖與個資。</p>
 </section>
 
-<div class="keys"><p class="lbl">這課的關鍵</p><ul><li>Hosting 選型是在成本、控制權、擴充性與維運負擔之間取捨。</li><li>Nginx 可提供靜態檔案，也可依主機、路徑或規則把請求代理到上游。</li><li>含變數的 proxy_pass、resolver、rewrite 與 URI 組合必須一起驗證。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Hosting 選型是在成本、控制權、擴充性與維運負擔之間取捨。</li><li>Nginx 可提供靜態檔案，也可依主機、路徑或規則把請求代理到上游。</li><li>含變數的 proxy_pass、resolver、rewrite 與 URI 組合必須一起驗證。</li></ul></div>
