@@ -53,7 +53,7 @@ class TestBuild(unittest.TestCase):
         self.assertNotIn('k8s-course-done', js)
 
     def test_sidebar_progress_and_hint(self):
-        for mid in ('k8s', 'redis'):
+        for mid in ('k8s', 'database'):
             html = (self.out / mid / 'index.html').read_text(encoding='utf-8')
             self.assertIn('id="sideProg"', html, mid)
             self.assertIn('id="syncHint"', html, mid)
@@ -113,7 +113,7 @@ class TestFirebaseInjection(unittest.TestCase):
 
     def test_on_with_config(self):
         out = build_variant(self.CFG)
-        for mid in ('k8s', 'redis'):
+        for mid in ('k8s', 'database'):
             html = (out / mid / 'index.html').read_text(encoding='utf-8')
             self.assertIn('var FIREBASE_CONFIG=', html, mid)
             self.assertIn('"apiKey": "test-key"', html, mid)

@@ -69,13 +69,14 @@ class TestContent(unittest.TestCase):
         self.assertNotIn('Kubernetes 的核心迴圈', read('08-deployment'))
         self.assertIn('ReplicaSet', read('08-deployment'))
 
-    def test_redis_module(self):
+    def test_database_module(self):
         site, mods = load_modules()
-        self.assertIn('redis', [m['id'] for m in mods])
-        redis = [m for m in mods if m['id'] == 'redis'][0]
-        # 遷移驗證已完成；下限守住既有課數，允許 /add-note 之後加課
-        self.assertGreaterEqual(len(redis['lessons']), 1)
-        html = (CONTENT / 'redis' / redis['lessons'][0]['dir'] / 'lesson.html').read_text(encoding='utf-8')
+        self.assertIn('database', [m['id'] for m in mods])
+        database = [m for m in mods if m['id'] == 'database'][0]
+        # Redis 的分散式鎖課併進資料庫模組；下限守住既有課數，允許 /add-note 之後加課
+        self.assertGreaterEqual(len(database['lessons']), 5)
+        lock_lesson = [L for L in database['lessons'] if L['dir'] == '05-distributed-lock'][0]
+        html = (CONTENT / 'database' / lock_lesson['dir'] / 'lesson.html').read_text(encoding='utf-8')
         self.assertNotIn('KPI', html, '公司內容不上站')
         self.assertNotIn('CLAUDE.md', html)
         self.assertNotIn('class="tag"', html, '段落標籤要換成全站的 era')
