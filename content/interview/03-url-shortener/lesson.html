@@ -21,7 +21,7 @@
 <section>
     <p class="era">號段模式</p>
     <h3 class="head">把逐次取號改成批次取號</h3>
-    <p><strong>一句話定義：</strong>號段模式（出自美團開源的發號系統 Leaf）是讓資料庫一次「批發」一段互不重疊的 ID 範圍給應用節點，節點在自己的記憶體裡逐一發號。</p>
+    <p><strong>一句話定義：</strong>號段模式（常見的實作是美團開源的發號系統 Leaf）是讓資料庫一次「批發」一段互不重疊的 ID 範圍給應用節點，節點在自己的記憶體裡逐一發號。</p>
     <p class="q">面試官：資料庫的自增 ID 一定不能用嗎？</p>
     <p>不是。中小流量下自增 ID 簡單可靠、通常夠用。等到每產生一個 ID 都要同步跑一趟資料庫、單一寫入點逼近上限，或分庫分表後難以維持全域唯一，才需要號段或其他分散式 ID 方案。</p>
     <pre><code>配置表
@@ -36,7 +36,7 @@ url_short   3000     1000     ← 已發到 3000，每次批發 1000 個
 UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code></pre>
     <p><mark class="fixnote" tabindex="0" data-note="原筆記把這條 UPDATE 直接標成「樂觀鎖，同時只有一台搶到」，查證後更正">「同時只有一台搶到」靠的是資料庫對同一列的排他鎖——UPDATE 會鎖住那一列，別的交易要等它放手，本質是鎖、不是樂觀鎖；樂觀鎖是不上鎖、改之前用版本欄位或條件式更新確認「值沒被別人動過」</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「號段 [1001,2000)」配 step=1000；半開區間（含頭不含尾）只有 999 個，數量對不上，查證後更正">step＝1000 的一段號是 1001〜2000 共 1000 個；若要用半開區間表示，應寫 [1001, 2001)</mark><a class="fixsrc" href="https://zh.wikipedia.org/wiki/%E5%8D%80%E9%96%93" target="_blank" rel="noopener">出處</a>。</p>
-    <p>數字 ID 轉成 Base62 就是短碼，但長度跟著 ID 大小走，不能保證永遠是 6 或 7 碼。不想讓短碼洩漏大致的建立順序，可以再加一層可逆置換，或改用隨機碼——隨機碼就得處理碰撞。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「ID 產生好之後用 Base62 編碼轉成 6-7 位英數字串，就是短碼」，查證後更正">數字 ID 轉成 Base62 就是短碼，但長度跟著 ID 大小走：6 碼裝得下約 568 億（62 的 6 次方）、7 碼約 3.5 兆，ID 超過就變 8 碼——不能保證永遠是 6 或 7 碼</mark><a class="fixsrc" href="https://en.wikipedia.org/wiki/Base62" target="_blank" rel="noopener">出處</a>。不想讓短碼洩漏大致的建立順序，可以再加一層可逆置換，或改用隨機碼——隨機碼就得處理碰撞。</p>
     <p class="q">面試官：號段模式跟 Snowflake 怎麼取捨？</p>
     <p><strong>號段模式</strong>的 ID 趨勢遞增、對資料庫索引友善、資料庫壓力極低，但依賴中央的配置表，節點重啟也會浪費沒用完的號段。<strong>Snowflake</strong>（Twitter 開源的作法：時間戳＋機器編號＋序號拼成一個 64 位元 ID）完全在本機發號、不依賴資料庫，但要治理時鐘回撥（機器時間被往回調時可能發出重複 ID）與機器編號衝突。</p>
 </section>
@@ -51,7 +51,7 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
     └─ A 用完，原子切換到 B
                          │
                          └─ 換 B 發號，再預載下一段</code></pre>
-    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。切換時要防多執行緒重複載入，也要處理預載失敗、目前號段耗盡、資料庫短暫不可用這幾種情況。</p>
+    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。<mark class="fixnote" tabindex="0" data-note="原筆記寫「用到 80% 時背景預載 Buffer B」，查證後更正">Leaf 官方的門檻是「號段已下發 10%」就啟動背景預載——趁早預載，門檻也可依消耗速度調整，不是固定的 80%</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。切換時要防多執行緒重複載入，也要處理預載失敗、目前號段耗盡、資料庫短暫不可用這幾種情況。</p>
     <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「DB 存取完全在背景，使用端感受不到任何延遲」，查證後更正">雙 Buffer 只能隱藏正常情況下的配置延遲，不是保證永遠無感：Leaf 的原文建議把號段長度設成尖峰每秒請求數的 600 倍，資料庫掛掉時也只能再撐 10〜20 分鐘</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 <section>
@@ -113,6 +113,6 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
       通過 → Bloom Filter
                確定不存在 → 404
                可能存在 → 本地快取 → Redis → 資料庫</code></pre>
-    <p>限流維度不要只看 IP——同一個公司或社區共用出口 IP，會誤傷正常使用者；可組合帳號、租戶、API 與風險訊號。回 429 時附上重試提示，客戶端則用「間隔越等越久＋隨機抖動」的重試。另外，應用層限流保護的是後端容量，擋不了大規模的阻斷服務攻擊——那要靠邊緣網路、WAF 與流量清洗。</p>
+    <p>限流維度不要只看 IP——同一個公司或社區共用出口 IP，會誤傷正常使用者；可組合帳號、租戶、API 與風險訊號。回 429 時附上重試提示，客戶端則用「間隔越等越久＋隨機抖動」的重試。另外，<mark class="fixnote" tabindex="0" data-note="原筆記寫限流「用來防護：防止『惡意刷流量（DDOS／暴增流量）』，防止惡意爬蟲、DDOS 攻擊」，查證後更正">應用層限流保護的是後端容量，擋不了大規模的阻斷服務（DDoS）攻擊——那種等級的流量可達每秒兆位元，要靠邊緣網路的容量、WAF（網路應用程式防火牆，在流量進門前過濾攻擊樣式）與流量清洗來吸收</mark><a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-best-practices-ddos-resiliency/mitigation-techniques.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>系統設計題先問語意：自訂短碼、點擊統計、過期到底指什麼，答案會改變架構。</li><li>發號：號段模式把資料庫壓力除以 step，雙 Buffer 把配置延遲藏進背景——但資料庫掛掉只是多撐一陣，不是永遠無感。</li><li>寫入底線：回應成功前映射要耐久存好；要非同步就走交易式 Outbox，不是丟進佇列就回頭。</li><li>讀取：本地快取 → Redis → 資料庫層層擋；快取 TTL 是快取的事，業務到期要在資料庫驗。</li><li>防護兩件套：限流擋超量流量，Bloom Filter 擋「確定不存在」的查詢——它說沒有就沒有，說有要再查。</li></ul></div>
