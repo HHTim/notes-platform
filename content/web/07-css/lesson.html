@@ -1,0 +1,133 @@
+<!-- 來源：HackMD 匯出「CSS (Cascading Style Sheets)_01」「CSS (Cascading Style Sheets)_02」「HTML 5 Semantic Elements (語義元素)」的 flexbox 段「進階 HTML CSS」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>連結樣式表並讀懂 CSS 規則</li><li>判斷層疊、特定度與繼承的結果</li><li>用盒模型、display、position 與 Flexbox 排版</li><li>建立轉場、變形、動畫與可維護的字型設定</li></ul></div>
+
+<section>
+<p class="era">套用樣式</p>
+<h3 class="head">一條 CSS 規則包含選擇器與宣告</h3>
+<pre><code>h1 {
+  color: #b42318;
+  line-height: 1.2;
+}</code></pre>
+<p><code>h1</code> 是選擇器；大括號內是屬性和值組成的宣告。正式專案通常以 <code>&lt;link rel="stylesheet" href="styles.css"&gt;</code> 載入外部樣式表，便於快取與共同維護。行內樣式與文件內樣式適合有限情境，不宜散落各處。</p>
+<p>顏色可用具名色、十六進位、<code>rgb()</code>、帶透明度的 <code>rgb()</code> 或 <code>hsl()</code> 表示。RGB 每個色彩通道常以 0 到 255 表達；透明度 0 代表透明，1 代表不透明。</p>
+</section>
+
+<section>
+<p class="era">找到元素</p>
+<h3 class="head">選擇器像寄件地址：越精確，命中範圍越小</h3>
+<div class="tablewrap"><table><thead><tr><th>選擇器</th><th>範例</th><th>命中對象</th></tr></thead><tbody><tr><td>元素</td><td><code>p</code></td><td>所有 p 元素</td></tr><tr><td>類別</td><td><code>.notice</code></td><td>class 包含 notice 的元素</td></tr><tr><td>ID</td><td><code>#signup</code></td><td>id 為 signup 的元素</td></tr><tr><td>後代</td><td><code>nav a</code></td><td>nav 裡的所有 a</td></tr><tr><td>屬性</td><td><code>input[type="email"]</code></td><td>電子郵件輸入框</td></tr><tr><td>偽類</td><td><code>button:hover</code></td><td>滑鼠指向的按鈕</td></tr><tr><td>偽元素</td><td><code>p::first-line</code></td><td>段落第一行</td></tr></tbody></table></div>
+<p>一個元素可以有多個 class；id 值在同一份文件中應保持唯一。<code>:focus</code> 表示取得焦點，鍵盤使用者也需要清楚可見的焦點樣式。</p>
+</section>
+
+<section>
+<p class="era">衝突裁判</p>
+<h3 class="head">層疊、特定度與繼承一起決定結果</h3>
+<p>當多條宣告競爭同一屬性時，瀏覽器會考量來源與重要性、層（cascade layer）、特定度、作用範圍鄰近性及出現順序。只有前面的判斷仍打平時，較後面的宣告才勝出。</p>
+<p class="formula">一般選擇器權重概念：ID ＞ class／屬性／偽類 ＞ 元素／偽元素</p>
+<pre><code>.title { color: blue; }
+h1.title { color: red; }
+/* h1.title 的特定度較高，因此標題為紅色。 */</code></pre>
+<p>繼承則像家族特徵：<mark class="fixnote" tabindex="0" data-note="原筆記寫「如果自身沒有特定指定 CSS 屬性，則繼承父母的 CSS 屬性(non-inherited)」，查證後更正：只有會繼承的屬性（inherited）拿父元素的計算值；不繼承的屬性（non-inherited）拿的是自己的初始值">沒有指定值時，「會繼承」的屬性（如 <code>color</code>、<code>font-family</code>）拿父元素的計算值；「不繼承」的屬性（如 <code>width</code>、<code>margin</code>、<code>border</code>）拿自己的初始值，不會去拿父元素的值</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_cascade/Inheritance" target="_blank" rel="noopener">出處</a>。是否繼承是各屬性的定義，不是所有未指定的屬性都跟著父元素。</p>
+</section>
+
+<section>
+<p class="era">每個元素都是盒子</p>
+<h3 class="head">盒模型決定實際占用空間</h3>
+<p>盒模型由內容（content）、內距（padding）、邊框（border）與外距（margin）向外組成。預設 <code>box-sizing: content-box</code> 時，設定的寬高只計內容；常見的 <code>border-box</code> 則把 padding 與 border 算進指定寬高，比較直覺。</p>
+<pre><code>* {
+  box-sizing: border-box;
+}
+
+.card {
+  width: min(100%, 32rem);
+  padding: 1rem 1.5rem;
+  border: 1px solid #ccc;
+  margin: 1rem auto;
+}</code></pre>
+<p><code>padding: 2px 10px 6px 3px</code> 依序是上、右、下、左；兩個值則是上下、左右。<code>rem</code> 相對於根元素字級，<code>%</code> 的基準依屬性而異。<mark class="fixnote" tabindex="0" data-note="原筆記在 viewport height 那行寫「10vw = 10%」，查證後更正：vw 是視窗寬度單位，視窗高度的 10% 要寫 10vh">1vw 是視窗寬度的 1%，1vh 是視窗高度的 1%——視窗高度的 10% 要寫 <code>10vh</code>，不是 <code>10vw</code></mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/length" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">正常排版流</p>
+<h3 class="head">block、inline 與 inline-block</h3>
+<p>區塊盒（block box）通常在正常流中另起一行，行內盒（inline box）隨文字排列。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Block Element：width = Device Width，頁面有多寬，該 block 就有多寬(width: 100%)」，查證後更正：正常流中 width: auto 的區塊盒是「延伸填滿容器的行內空間」，並不是被宣告成 width: 100%，兩者在有 padding 或 margin 時結果不同">正常流中的區塊盒預設（<code>width: auto</code>）會延伸填滿容器的行內方向空間，而不是等同宣告 <code>width: 100%</code>——後者在盒子另有 padding 或 margin 時會撐出容器</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_display/Block_and_inline_layout_in_normal_flow" target="_blank" rel="noopener">出處</a>。</p>
+<p>一般非替換的 inline 元素不適合直接用 <code>width</code>、<code>height</code> 控制尺寸；<code>inline-block</code> 則能保持同行排列，同時接受盒子尺寸。<code>display: none</code> 會讓元素不產生盒子，也不占版面。<code>img</code>、<code>input</code> 等替換元素有自己的尺寸行為，不宜簡化成「固定五種 inline-block 元素」。</p>
+</section>
+
+<section>
+<p class="era">一維排版</p>
+<h3 class="head">Flexbox 把容器剩餘空間分配給項目</h3>
+<p>在容器設 <code>display: flex</code> 後，它的直接子元素才會成為 flex items。主軸由 <code>flex-direction</code> 決定；<code>justify-content</code> 沿主軸排列，<code>align-items</code> 沿交叉軸對齊。</p>
+<pre><code>.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.card {
+  flex: 1 1 14rem;
+}</code></pre>
+<p><code>flex: 1 1 14rem</code> 依序是 <code>flex-grow</code>、<code>flex-shrink</code>、<code>flex-basis</code>。<mark class="fixnote" tabindex="0" data-note="原筆記寫 flex 項目設定寬度「其實設定的是最大寬度 (max-width)」、flex-basis 是「該 box 最低寬度(類似 min-width 的概念?)」，查證後更正：width 是伸縮前的基準（flex-basis 非 auto 時 flex-basis 優先），flex-basis 是初始主軸尺寸，都不是 max-width 或 min-width">flex 項目設定的 <code>width</code> 是伸縮計算前的基準尺寸（<code>flex-basis</code> 為 auto 時沿用 width），不是最大寬度；<code>flex-basis</code> 是初始主軸尺寸，也不是最小寬度——空間不足時項目會因預設的 <code>flex-shrink: 1</code> 被壓縮</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/flex-basis" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 box5「未設定 width，所以透過 flex-shrink 填滿整個 container」，查證後更正：分配剩餘空間讓項目長大的是 flex-grow；flex-shrink 只在空間不足時把項目縮小">讓項目長大、分掉容器剩餘空間的是 <code>flex-grow</code>；<code>flex-shrink</code> 是空間不足時讓項目縮小的機制，兩者方向相反</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/flex-grow" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">精準定位</p>
+<h3 class="head">position 決定元素以誰為座標基準</h3>
+<ul class="plainlist"><li><code>static</code>：依正常流排列，位移屬性通常不起作用。</li><li><code>relative</code>：保留原位置占位，再相對自己的正常位置偏移；也常用來建立 absolute 的包含區塊。</li><li><code>absolute</code>：脫離正常流，通常相對最近的定位祖先排列。</li><li><code>fixed</code>：脫離正常流，通常相對視窗固定。</li><li><code>sticky</code>：先留在正常流，捲動到指定門檻後於所屬捲動區域內黏住。</li></ul>
+<p><code>z-index</code> 比較的是堆疊脈絡（stacking context，瀏覽器分層比大小的範圍）中的層級，並非只要數字較大就能跨越所有祖先蓋住其他元素。<mark class="fixnote" tabindex="0" data-note="原筆記寫 relative、absolute、fixed、sticky 都「Stacking context (可以設定 z-index)」，查證後更正：relative 與 absolute 要搭配非 auto 的 z-index 才建立堆疊脈絡；fixed 與 sticky 才是一律建立">relative 或 absolute 要搭配非 auto 的 <code>z-index</code> 才會建立堆疊脈絡；<code>fixed</code> 與 <code>sticky</code> 則一律建立</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_positioned_layout/Stacking_context" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">文字與媒體</p>
+<h3 class="head">可讀性先於裝飾</h3>
+<p>常用文字屬性包含 <code>font-size</code>、<code>font-weight</code>、<code>line-height</code>、<code>letter-spacing</code>、<code>text-align</code> 與 <code>text-decoration</code>。字型可提供一串後備選項，避免第一套字型無法載入時失去可讀性。</p>
+<pre><code>@font-face {
+  font-family: "Course Sans";
+  src: url("/fonts/course-sans.woff2") format("woff2");
+  font-display: swap;
+}
+
+body {
+  font-family: "Course Sans", system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}</code></pre>
+<p><code>object-fit: cover</code> 會維持媒體比例並填滿框，超出的部分可能被裁掉。背景圖的 <code>background-size: cover</code> 有類似視覺結果，但背景圖不應承擔必須被讀到的內容。</p>
+</section>
+
+<section>
+<p class="era">動態效果</p>
+<h3 class="head">transition 是狀態間過場，animation 是時間腳本</h3>
+<pre><code>.button {
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.button:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+@keyframes pulse {
+  from { opacity: .6; }
+  to { opacity: 1; }
+}
+
+.status {
+  animation: pulse 800ms ease-in-out infinite alternate;
+}</code></pre>
+<p><code>transform</code> 可平移、旋轉與縮放；<code>transition</code> 控制屬性從舊狀態變到新狀態的過程；<code>@keyframes</code> 則定義多階段動畫。應避免無止境或大幅移動造成不適，並尊重使用者的減少動態效果偏好。</p>
+</section>
+
+<section>
+<p class="era">進階維護</p>
+<h3 class="head">SCSS 是產生 CSS 的工具，不是瀏覽器直接理解的新語法</h3>
+<p>SCSS 提供巢狀規則、變數、模組與 mixin，可減少重複，但必須先編譯成 CSS。巢狀不要太深，否則會產生難覆寫、特定度偏高的選擇器。<mark class="fixnote" tabindex="0" data-note="原筆記把 import 列為 SCSS 的主要作法之一，查證後補充：Sass 官方文件自 Dart Sass 1.80.0 起把 @import 標記為棄用，將在 3.0.0 移除">Sass 的 <code>@import</code> 已被官方標記棄用（Dart Sass 1.80.0 起，預計 3.0.0 移除），新專案應改用 <code>@use</code> 與 <code>@forward</code> 模組系統</mark><a class="fixsrc" href="https://sass-lang.com/documentation/at-rules/import/" target="_blank" rel="noopener">出處</a>。</p>
+<p>HTML 錨點可配合 <code>scroll-behavior: smooth</code> 產生平滑捲動，但仍要考量減少動態效果設定。圖片與圖示也要確認授權，重要圖像需提供合適替代文字。</p>
+</section>
+
+<div class="keys"><p class="lbl">這課的關鍵</p><ul><li>層疊不只是「後蓋前」；特定度與來源等條件先決定勝負。</li><li>盒模型與 box-sizing 會直接影響元素實際尺寸。</li><li>Flexbox 處理一維空間分配；position 處理脫離或相對正常流的位置。</li><li>動態效果應服務狀態回饋，並兼顧效能與可及性。</li></ul></div>

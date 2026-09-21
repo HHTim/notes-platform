@@ -1,0 +1,140 @@
+<!-- 來源：HackMD 匯出 JavaScript 筆記八篇（AC 筆記三篇、var/let/const 差異、資料型別與資料結構、隨機數字、Object/Key/Value、六角學院入門）與「Node.js & Java 比較」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>理解 JavaScript 引擎、瀏覽器與 Node.js 的關係</li><li>宣告變數並辨認常見資料型別</li><li>用條件、迴圈與函式組合程式邏輯</li><li>操作陣列、物件、隨機數與基本 DOM</li></ul></div>
+
+<section>
+<p class="era">執行程式</p>
+<h3 class="head">JavaScript 需要宿主環境提供舞台</h3>
+<p>JavaScript 引擎負責解析與執行語言；Chrome 與 Node.js 都使用 V8。瀏覽器另外提供 DOM、事件與網路等 Web API，Node.js 則提供檔案、程序與伺服器相關 API。<mark class="fixnote" tabindex="0" data-note="原筆記寫「JavaScript 的執行環境 Runtime 是 Node.js」，查證後更正：Node.js 是把 V8 搬到瀏覽器外的其中一種執行環境，瀏覽器本身也是 JavaScript 的執行環境">Node.js 是「其中一種」JavaScript 執行環境——它把 Chrome 的 V8 引擎搬到瀏覽器外執行；瀏覽器本身也是執行環境</mark><a class="fixsrc" href="https://nodejs.org/en/learn/getting-started/introduction-to-nodejs" target="_blank" rel="noopener">出處</a>。同一套 JavaScript 語法可以在不同環境執行，但可使用的全域 API 不完全相同。</p>
+<p>REPL 是「讀取、求值、輸出、循環」（Read-Eval-Print Loop），適合快速測試運算式：</p>
+<pre><code>&gt; 2 + 3
+5
+&gt; "Hi".toUpperCase()
+'HI'</code></pre>
+</section>
+
+<section>
+<p class="era">名字與資料</p>
+<h3 class="head">變數像有名稱的置物盒</h3>
+<p><code>=</code> 是賦值，不是數學等號。現代 JavaScript 通常先選 <code>const</code>；只有需要把變數重新指向另一個值時才用 <code>let</code>。<code>var</code> 具有函式作用域與較易混淆的提升行為，新程式通常不需要優先使用。</p>
+<pre><code>const course = "JavaScript";
+let progress = 0;
+progress = progress + 1;</code></pre>
+<p><code>let</code> 與 <code>const</code> 是區塊作用域（block scope），有效範圍受大括號限制。<code>const</code> 禁止重新賦值，但若值是物件，物件內容仍可能被修改。</p>
+<pre><code>const learner = { name: "小安" };
+learner.name = "小華"; // 可以：修改物件內容
+// learner = {};       // 不可以：重新指派變數</code></pre>
+</section>
+
+<section>
+<p class="era">資料型別</p>
+<h3 class="head">先分清值的種類，才知道能做什麼</h3>
+<p>基本型別（primitive）包含字串、數字、布林值、<code>undefined</code>、<code>null</code>、<code>bigint</code> 與 <code>symbol</code>。物件型別則包含一般物件、陣列與函式等。</p>
+<div class="terms">
+<div class="term"><b>undefined</b><span>變數已存在，但目前沒有指定值；也可能是缺少屬性的結果。</span></div>
+<div class="term"><b>未宣告識別字</b><span>名稱根本不在可見作用域內，直接讀取通常產生 ReferenceError。</span></div>
+<div class="term"><b>null</b><span>由程式主動表達「目前沒有值」。</span></div>
+<div class="term"><b>NaN</b><span>表示某次數值運算得不到有效數字；它的型別仍是 number。</span></div>
+</div>
+<p>基本型別通常按值複製；物件變數保存的是對物件的參照。兩個變數指向同一物件時，從其中一個變數修改內容，另一個也會看到變化。</p>
+</section>
+
+<section>
+<p class="era">流程控制</p>
+<h3 class="head">條件做選擇，迴圈處理重複工作</h3>
+<pre><code>const score = 82;
+
+if (score &gt;= 60) {
+  console.log("通過");
+} else {
+  console.log("再試一次");
+}
+
+for (let i = 0; i &lt; 3; i += 1) {
+  console.log(`第 ${i + 1} 次`);
+}</code></pre>
+<p>條件判斷通常優先使用嚴格相等 <code>===</code> 與嚴格不相等 <code>!==</code>，避免自動型別轉換帶來意外。設計迴圈時要確認初始值、繼續條件與每輪更新，否則可能形成無限迴圈。</p>
+</section>
+
+<section>
+<p class="era">封裝步驟</p>
+<h3 class="head">函式把輸入轉成可重複使用的結果</h3>
+<pre><code>function calculateTotal(price, quantity) {
+  return price * quantity;
+}
+
+const total = calculateTotal(120, 3);
+console.log(total); // 360</code></pre>
+<p><code>price</code> 與 <code>quantity</code> 是參數，呼叫時傳入的是引數；<code>return</code> 把結果交回呼叫端。函式若沒有明確回傳值，呼叫結果是 <code>undefined</code>。</p>
+</section>
+
+<section>
+<p class="era">集合資料</p>
+<h3 class="head">陣列按順序收納，物件以 key 描述資料</h3>
+<pre><code>const lessons = ["HTML", "CSS", "JavaScript"];
+console.log(lessons[0]); // HTML
+
+const player = {
+  firstName: "Tim",
+  lastName: "Huang",
+  fullName() {
+    return `${this.firstName} ${this.lastName}`;
+  }
+};
+
+console.log(player.fullName());</code></pre>
+<p>陣列索引從 0 開始。物件屬性可用 <code>object.key</code> 或 <code>object["key"]</code> 取得；當 key 存在變數中或不是合法識別字時，方括號寫法特別有用。物件中的函式常稱為方法，呼叫方法要加括號。</p>
+<p><code>slice(begin, end)</code> 回傳從 begin 到 end 之前的淺拷貝，不修改原陣列；<code>splice(start, deleteCount, ...items)</code> 則會直接修改原陣列，可刪除或插入項目。</p>
+<pre><code>const names = ["安", "柏", "晴", "德"];
+const copy = names.slice(1, 3); // ["柏", "晴"]
+// names 仍維持原樣
+
+names.splice(1, 1, "文");
+// names 變成 ["安", "文", "晴", "德"]</code></pre>
+</section>
+
+<section>
+<p class="era">隨機整數</p>
+<h3 class="head">先縮放區間，再無條件捨去</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「最小的數不會等於 0，也就是0.0000…01」，查證後更正：Math.random() 的範圍是大於等於 0、小於 1，最小值可能就是 0"><code>Math.random()</code> 會產生大於等於 0、且小於 1 的偽隨機數——最小值可能就是 0，最大不會到 1</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random" target="_blank" rel="noopener">出處</a>。乘上區間長度、用 <code>Math.floor()</code> 捨去小數，再加回最小值，即可得到指定範圍的整數。</p>
+<p class="formula">min 到 max（不含 max）：Math.floor(Math.random() * (max - min)) + min</p>
+<p class="formula">min 到 max（包含 max）：Math.floor(Math.random() * (max - min + 1)) + min</p>
+<pre><code>function rollDice() {
+  return Math.floor(Math.random() * 6) + 1;
+}</code></pre>
+<p class="muted">這類亂數適合遊戲與介面效果；密碼、權杖或抽獎安全需求應使用密碼學安全的亂數來源。</p>
+</section>
+
+<section>
+<p class="era">日期</p>
+<h3 class="head">Date 表示時間點，但解析字串要小心</h3>
+<pre><code>const now = new Date();
+console.log(now.getFullYear());
+
+const launch = new Date("2026-09-21T09:00:00+08:00");
+console.log(launch.toISOString());</code></pre>
+<p><code>Date</code> 內部以時間戳記表示時間點，顯示時會受到時區影響。交換資料時宜使用明確、標準化且帶有時區資訊的日期時間字串，避免依賴含糊的地區格式。</p>
+</section>
+
+<section>
+<p class="era">操作網頁</p>
+<h3 class="head">DOM 把 HTML 變成 JavaScript 可操作的物件</h3>
+<pre><code>&lt;h1 id="title"&gt;尚未開始&lt;/h1&gt;
+&lt;script&gt;
+  const title = document.querySelector("#title");
+  title.textContent = "開始學 JavaScript";
+&lt;/script&gt;</code></pre>
+<p><code>document.querySelector()</code> 會回傳第一個符合 CSS 選擇器的元素；<code>textContent</code> 用來讀寫純文字。若元素不存在，結果會是 <code>null</code>，操作前要確認。</p>
+<p>傳統做法把 script 放在 body 結尾，讓前面的元素先被解析。另一種常見作法是在外部腳本使用 <code>defer</code>，下載時不阻塞 HTML 解析，並在文件解析完成後按順序執行。</p>
+<pre><code>&lt;script src="/app.js" defer&gt;&lt;/script&gt;</code></pre>
+</section>
+
+<section>
+<p class="era">理解執行環境</p>
+<h3 class="head">Node.js 與 Java 不宜硬做一對一類比</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「V8 編譯後可在不同平台執行」，查證後更正：V8 是各平台各自有實作的引擎，用解譯與即時編譯執行 JavaScript；「一次編譯、到處執行」是 Java 位元碼的模式，JavaScript 不會先編成一份通用產物">V8 是用 C++ 寫成、在 Chrome 與 Node.js 使用的 JavaScript 引擎，於各平台上直接解譯與即時編譯 JavaScript；「一次編譯、到處執行」是 Java 位元碼的模式，不是 V8 的</mark><a class="fixsrc" href="https://v8.dev/" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「JVM 是 Java 的編譯器」，查證後更正：JVM 是執行 .class 位元碼的虛擬機器，把 .java 編譯成位元碼的是 javac">JVM 是執行 Java 位元碼的虛擬機器；把 <code>.java</code> 原始碼編譯成 <code>.class</code> 位元碼的是 <code>javac</code> 編譯器</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/getStarted/intro/definition.html" target="_blank" rel="noopener">出處</a>。JRE 提供執行 Java 程式所需的 JVM 與函式庫，JDK 則再包含編譯器等開發工具。</p>
+<p class="muted">原筆記總結「Node ≒ JDK、V8 ≒ JVM、Node.js ≒ JRE」——這些元件的邊界與責任不同，只能當非常粗略的輔助類比，不能視為等價。</p>
+<div class="tablewrap"><table><thead><tr><th>面向</th><th>JavaScript／Node.js</th><th>Java</th></tr></thead><tbody><tr><td>語言執行核心</td><td>V8 等 JavaScript 引擎</td><td>JVM 執行位元碼</td></tr><tr><td>常見執行套件</td><td>Node.js runtime 與其 API</td><td>Java runtime 與標準函式庫</td></tr><tr><td>開發工具</td><td>另搭配套件管理器、編輯器與建置工具</td><td>JDK 包含 javac 等工具</td></tr></tbody></table></div>
+</section>
+
+<div class="keys"><p class="lbl">這課的關鍵</p><ul><li>JavaScript 引擎執行語言，宿主環境決定還能使用哪些 API。</li><li>預設使用 const，需要重新賦值時用 let，並留意區塊作用域。</li><li>陣列適合有順序的集合，物件適合以 key-value 描述實體。</li><li>slice 不改原陣列，splice 會修改原陣列。</li><li>DOM 是 JavaScript 與 HTML 內容互動的橋梁。</li></ul></div>

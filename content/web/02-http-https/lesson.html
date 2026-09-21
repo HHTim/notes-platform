@@ -1,0 +1,73 @@
+<!-- 來源：HackMD 匯出「What is HTTP?」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看懂 HTTP 請求與回應的基本結構</li><li>依用途選擇常見 HTTP 方法</li><li>從狀態碼判斷處理結果</li><li>解釋 HTTPS 與 TLS 提供的保護及限制</li></ul></div>
+
+<section>
+<p class="era">Web 的共同語言</p>
+<h3 class="head">HTTP 是請求與回應的規則</h3>
+<p>HTTP（Hypertext Transfer Protocol，超文字傳輸協定）是應用層協定。瀏覽器等用戶端送出請求，伺服器回傳回應；傳送內容不只 HTML，也可能是 JSON、圖片、影音或其他資料。</p>
+<p>HTTP 是無狀態協定（Stateless Protocol）：每個請求在協定語意上可以獨立處理。若網站需要記住登入狀態或購物車，通常會搭配 Cookie、Session 或權杖（Token）。</p>
+</section>
+
+<section>
+<p class="era">寄出需求單</p>
+<h3 class="head">HTTP Request 有哪些部分？</h3>
+<pre><code>GET /products/42 HTTP/1.1
+Host: shop.example.com
+Accept: application/json
+Authorization: Bearer &lt;token&gt;</code></pre>
+<ul class="plainlist"><li><b>方法（Method）：</b>想對資源做什麼。</li><li><b>目標：</b>路徑與查詢參數，例如 <code>/products/42</code>。</li><li><b>標頭（Headers）：</b>主機、可接受格式、認證、快取條件等附加資訊。</li><li><b>訊息本體（Body）：</b>要傳送的資料；並非每個請求都有。</li></ul>
+<div class="tablewrap"><table><thead><tr><th>方法</th><th>常見語意</th><th>提醒</th></tr></thead><tbody><tr><td>GET</td><td>讀取資源</td><td>應避免造成資源狀態改變</td></tr><tr><td>POST</td><td>提交資料或建立資源</td><td>重送可能重複產生效果</td></tr><tr><td>PUT</td><td>以送出的表示建立或取代目標資源</td><td>通常具冪等性</td></tr><tr><td>PATCH</td><td>局部修改資源</td><td>不保證具冪等性</td></tr><tr><td>DELETE</td><td>刪除資源</td><td>語意上通常具冪等性</td></tr></tbody></table></div>
+<p class="muted">冪等性（idempotent）：同一個請求重複送多次，結果和送一次相同。PUT 與 DELETE 通常有這個性質，POST 通常沒有。</p>
+</section>
+
+<section>
+<p class="era">伺服器回單</p>
+<h3 class="head">Response 與狀態碼</h3>
+<pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: max-age=60
+
+{"id":42,"name":"網路入門"}</code></pre>
+<p>回應包含狀態行、標頭與可選的訊息本體。三位數狀態碼先以第一位數分類：</p>
+<div class="terms"><div class="term"><b>1xx</b><span>資訊性回應，表示處理仍在進行。</span></div><div class="term"><b>2xx</b><span>成功，例如 200 OK、201 Created。</span></div><div class="term"><b>3xx</b><span>重新導向或快取相關，例如 301、304。</span></div><div class="term"><b>4xx</b><span>請求端情境無法完成，例如 400、401、403、404。</span></div><div class="term"><b>5xx</b><span>伺服器處理失敗，例如 500、503。</span></div></div>
+<p class="muted">「4xx 是前端寫錯、5xx 是後端寫錯」太武斷；狀態碼描述 HTTP 結果分類，不足以單獨判定是哪個團隊造成問題。</p>
+</section>
+
+<section>
+<p class="era">明信片與密封信</p>
+<h3 class="head">HTTP 與 HTTPS 的差別</h3>
+<p>一般 HTTP 沒有替應用資料提供 TLS 保護，沿途能觀察流量的一方可能讀取或竄改內容。HTTPS 則是透過 TLS 保護 HTTP 通訊，不是另一套取代 HTTP 語意的應用協定。</p>
+<p class="formula">HTTPS = HTTP + TLS</p>
+<p>HTTP 的常見預設連接埠是 80，HTTPS 是 443；但服務也能設定其他連接埠。連接埠本身不會產生加密，真正提供保護的是 TLS。</p>
+</section>
+
+<section>
+<p class="era">先驗身分再談秘密</p>
+<h3 class="head">TLS 交握做了什麼？</h3>
+<p>TLS 交握的目的，是協商版本與加密參數、驗證伺服器憑證，並建立後續通訊使用的工作階段金鑰。現代 TLS 通常使用非對稱密碼技術進行身分驗證與金鑰協商，再以效率較高的對稱式加密保護大量資料。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把交握寫成「客戶端生成預主密鑰（Pre-Master Secret），使用服務器公鑰加密後發送」，查證後更正：那是舊式 RSA 金鑰交換；TLS 1.3 已移除靜態 RSA 與靜態 Diffie-Hellman，全部改用有前向保密性的金鑰交換">現行的 TLS 1.3 已移除「用伺服器公鑰加密預主密鑰」這種靜態 RSA 金鑰交換，一律使用具前向保密性（forward secrecy）的暫時性金鑰交換——就算私鑰日後外洩，過去的通訊也解不開</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446" target="_blank" rel="noopener">出處</a>。</p>
+<ol><li>用戶端送出支援的 TLS 版本、加密選項及交握資料。</li><li>伺服器選擇參數並送出憑證等交握資料。</li><li>瀏覽器檢查憑證鏈、有效期限及名稱是否符合。</li><li>雙方完成金鑰交換並推導工作階段金鑰。</li><li>後續 HTTP 訊息在受保護的連線中傳輸。</li></ol>
+<p>憑證通常由受信任的憑證機構（Certificate Authority，CA）簽發，也可能使用組織自建 CA。它把網站名稱與公開金鑰等資料綁在一起；私密金鑰則必須由伺服器端妥善保管。</p>
+</section>
+
+<section>
+<p class="era">三種核心保護</p>
+<h3 class="head">HTTPS 能保護什麼？</h3>
+<ul><li><b>機密性：</b>降低通訊內容遭沿途偷看的風險。</li><li><b>完整性：</b>讓雙方能偵測資料是否在傳輸途中遭竄改。</li><li><b>身分驗證：</b>透過憑證確認連線對象控制相符的網域與私密金鑰。</li></ul>
+<p>HTTPS 不代表網站內容一定可信，也無法單獨阻擋釣魚、惡意程式、應用程式漏洞或 DDoS。它保護的是傳輸通道，不是替整個網站品質背書。</p>
+</section>
+
+<section>
+<p class="era">效能與實務</p>
+<h3 class="head">HTTPS 的成本沒有想像中那麼單純</h3>
+<p>TLS 會增加交握與加解密工作，但現代硬體、連線重用及 HTTP/2、HTTP/3 等技術可降低影響。<mark class="fixnote" tabindex="0" data-note="原筆記寫「使用 SSL 加密須購買 SSL 憑證，造成開發端增加額外的開發成本」，查證後更正：已有免費憑證機構；原筆記後段的搬遷步驟其實也提到 Let's Encrypt 免費方案，前後矛盾">憑證不一定要花錢買——Let's Encrypt 這類免費憑證機構可以自動簽發與更新 TLS 憑證</mark><a class="fixsrc" href="https://letsencrypt.org/" target="_blank" rel="noopener">出處</a>，因此不應把「一定很慢、一定要付費買憑證」當成 HTTPS 的固定缺點。</p>
+<p>網站遷移到 HTTPS 時，常見工作包括取得並自動更新憑證、將 HTTP 重新導向 HTTPS、修正混合內容、更新 canonical URL 與分析工具設定，最後測試憑證鏈、重新導向及所有資源。</p>
+</section>
+
+<section>
+<p class="era">版本差異</p>
+<h3 class="head">HTTP 不一定都跑在同一種傳輸上</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 HTTP「實際上是藉由 TCP 作為資料的傳輸方式」，查證後補充：這只適用於 HTTP/1.1 與 HTTP/2；HTTP/3 改用以 UDP 為基礎的 QUIC，並整合 TLS 1.3">HTTP/1.1 與 HTTP/2 通常使用 TCP；HTTP/3 則運行在以 UDP 為基礎的 QUIC 上，並整合 TLS 1.3</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">出處</a>。因此「HTTP 一定透過 TCP」只適用於部分版本。</p>
+</section>
+
+<div class="keys"><p class="lbl">這課的關鍵</p><ul><li>HTTP 定義請求、回應、方法、標頭與狀態碼的語意。</li><li>HTTPS 是受 TLS 保護的 HTTP，提供機密性、完整性與身分驗證。</li><li>HTTPS 不會自動消除網站漏洞、釣魚或 DDoS 等其他風險。</li></ul></div>

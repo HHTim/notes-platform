@@ -1,0 +1,99 @@
+<!-- 來源：HackMD 匯出「What is Web Hosting?」「Nginx.conf」（實戰除錯筆記，環境細節已去識別） · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>依成本、控制權與維運能力選擇託管方式</li><li>理解 Nginx 作為 Web 伺服器與反向代理的角色</li><li>分辨 <code>$request_uri</code> 與 <code>$uri</code></li><li>從真實案例找出 DNS 解析與代理路徑問題</li></ul></div>
+
+<section>
+<p class="era">讓網站被找得到</p>
+<h3 class="head">Web Hosting 是替網站準備營業場所</h3>
+<p>Web Hosting（網站託管）是提供運算、儲存與網路環境，讓網站檔案或應用程式能持續接受網際網路請求。它不只「存放檔案」，還可能包含執行環境、TLS、監控、備份、擴充及資料庫服務。</p>
+<p>典型架構可能包含硬體或雲端資源、作業系統、Web 伺服器、應用程式執行環境及資料層；代管平台則可能把其中多層藏起來，由供應商維護。</p>
+</section>
+
+<section>
+<p class="era">選住處</p>
+<h3 class="head">常見託管方式怎麼選？</h3>
+<div class="tablewrap"><table><thead><tr><th>方式</th><th>特色</th><th>適合情境</th><th>主要代價</th></tr></thead><tbody><tr><td>共享主機</td><td>多個租戶共享環境，管理簡單</td><td>小型網站、內容網站</td><td>控制權與資源彈性較低</td></tr><tr><td>VPS</td><td>取得隔離的虛擬主機資源</td><td>需要自訂環境的中小型服務</td><td>需自行管理系統與安全更新</td></tr><tr><td>專用伺服器</td><td>獨占實體主機</td><td>特殊硬體、隔離或合規需求</td><td>成本與維運負擔高</td></tr><tr><td>雲端託管</td><td>資源可彈性配置與擴縮</td><td>流量波動或高可用服務</td><td>架構及計費較複雜</td></tr><tr><td>容器平台</td><td>以映像封裝應用與相依性</td><td>多服務、可攜部署</td><td>需要容器與編排能力</td></tr><tr><td>Serverless</td><td>供應商管理底層資源，依事件執行</td><td>API、事件處理、間歇工作</td><td>執行限制、平台相依與成本模型</td></tr></tbody></table></div>
+<p>「無伺服器」不是沒有伺服器，而是使用者通常不必直接配置或維護底層主機。選型時要一起考量預算、流量、延遲、合規、團隊維運能力、可攜性與擴充需求。</p>
+<p class="muted">原筆記列了各方案在特定雲端平台的對應產品與月費區間；產品定位與價格會隨時間變動，本課改講不綁供應商的選型原則。</p>
+</section>
+
+<section>
+<p class="era">入口接待員</p>
+<h3 class="head">Nginx 可以直接回檔案，也可以轉送請求</h3>
+<p>Nginx 常扮演 Web 伺服器、反向代理、TLS 終止點或負載平衡器。直接提供 HTML、CSS、JavaScript 時，它像倉庫出貨員；把請求轉給後端服務時，則像櫃台替訪客找到正確部門。</p>
+<pre><code>server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://application_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}</code></pre>
+<p><code>try_files</code> 常用於單頁應用程式：若實體檔案不存在，就回傳 <code>index.html</code>，再由前端路由處理網址。這也表示真正不存在的靜態資源可能被回成 HTML，設定時要配合資源路徑與錯誤處理。</p>
+</section>
+
+<section>
+<p class="era">名稱要去哪裡查</p>
+<h3 class="head">Nginx 的上游 DNS 解析時機</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Nginx DNS 解析步驟：1. 先使用 DNS 解析，再使用 Nginx resolver 指定的 DNS 解析 2. 後者的 DNS 解析結果會覆蓋前者」，並稱所有形式「都會在啟動時被解析」，查證後更正：固定名稱與含變數的名稱解析時機不同，不是兩階段互相覆蓋"><code>proxy_pass</code> 寫死主機名稱時，Nginx 在啟動或重載設定時解析一次——解析失敗會讓啟動或重載失敗，成功後也不會照 DNS TTL 重新解析；<code>proxy_pass</code> 含變數時則改在處理請求時解析，此時必須用 <code>resolver</code> 指定 DNS 伺服器，並會依 TTL 更新</mark><a class="fixsrc" href="https://www.f5.com/company/blog/nginx/dns-service-discovery-nginx-plus" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>location /telemetry/ {
+    resolver 10.0.0.53 valid=30s;
+    set $monitor_backend https://monitor.example.internal;
+    proxy_pass $monitor_backend$request_uri;
+}</code></pre>
+<p><code>resolver</code> 放在 <code>http</code>、<code>server</code> 或 <code>location</code> 會形成不同作用範圍。全域設定較集中，局部設定則能隔離不同環境；DNS 位址應由部署環境提供，不應把內部位址硬寫成通用範例。</p>
+</section>
+
+<section>
+<p class="era">一個真實案例</p>
+<h3 class="head">同一路徑，要依環境代理到不同監控服務</h3>
+<p>某個前端單頁應用程式需要載入監控腳本，並將資料送到監控服務。瀏覽器一律請求站內的 <code>/telemetry/</code>，避免前端直接知道各環境的內部服務位址；Nginx 再依目前站台環境轉送到對應上游。</p>
+<pre><code>瀏覽器
+  → GET /telemetry/agent.js
+  → Nginx 判斷目前環境
+  → 測試環境或正式環境的監控服務
+  → 回傳 agent.js</code></pre>
+<p>第一次設定把所有上游名稱直接寫進靜態 <code>proxy_pass</code>。結果容器啟動時，其中一個只有另一環境才能解析的名稱失敗，連目前可用的網站也無法正常啟動。</p>
+<p>團隊後來把每個環境的解析器與上游放進各自的代理區塊，並以變數延後到真正收到該路徑的請求時才解析。這解決了啟動時跨環境 DNS 不可達的問題，也讓環境邊界更清楚。</p>
+</section>
+
+<section>
+<p class="era">第二個坑</p>
+<h3 class="head">Rewrite 之後，到底該轉送哪一條路徑？</h3>
+<p>入口規則先把公開路徑改寫成內部路徑，以便重新選擇 <code>location</code>：</p>
+<pre><code>location /telemetry/ {
+    rewrite ^/telemetry/(.*)$ /telemetry_stage/$1 last;
+}</code></pre>
+<p><code>last</code> 會以改寫後的 URI 重新執行 location 比對。這時必須分清：</p>
+<div class="terms"><div class="term"><b>$request_uri</b><span>用戶端送來的原始 URI，通常包含查詢字串，rewrite 後仍不變。</span></div><div class="term"><b>$uri</b><span>目前正處理的正規化 URI，可被 rewrite 改變，通常不含查詢字串。</span></div></div>
+<p>若上游仍期待原始的 <code>/telemetry/agent.js</code>，可明確傳遞原始 URI：</p>
+<pre><code>location /telemetry_stage/ {
+    resolver 10.0.0.53;
+    set $stage_backend https://monitor-stage.example.internal;
+    proxy_pass $stage_backend$request_uri;
+}</code></pre>
+<p>若上游期待改寫後的路徑，就應明確使用目前 URI 或組合出目標路徑。重點不是背一個斜線口訣，而是先寫下「用戶端 URI、目前 URI、上游 URI」三者的預期值，再測試含路徑與查詢字串的案例。</p>
+</section>
+
+<section>
+<p class="era">從錯誤訊息回推</p>
+<h3 class="head">「no host in upstream」不應只怪雙斜線</h3>
+<p>案例曾出現 <code>no host in upstream</code>，當時把原因歸咎於路徑中的雙斜線。但這個訊息更直接指向 Nginx 算出的上游 URL 缺少有效主機部分，例如變數為空、URL 組合錯誤或變數展開結果不合法。雙斜線通常影響的是路徑語意，不等同於「沒有上游主機」。</p>
+<p>較可靠的除錯順序是：</p>
+<ol><li>以設定測試確認語法有效。</li><li>記錄或檢查變數展開後的上游主機與 URI。</li><li>在相同執行環境驗證 DNS 能否解析。</li><li>確認 TLS 名稱、Host 標頭與上游憑證是否相符。</li><li>測試原始路徑、改寫路徑、查詢字串與尾端斜線。</li></ol>
+</section>
+
+<section>
+<p class="era">安全與快取</p>
+<h3 class="head">能代理成功，還不等於適合上線</h3>
+<p>反向代理設定還要考量逾時、請求大小、重試、上游 TLS 驗證、存取控制與敏感標頭。若要停用快取，應理解 <code>Cache-Control: no-store</code>、<code>no-cache</code> 與 <code>expires</code> 的差異，而不是重複加入彼此矛盾的標頭。</p>
+<p>設定檔也不應包含 API 金鑰、私密金鑰或可識別內部環境的資訊。機密值應透過適合的秘密管理機制注入，日誌則要避免記錄權杖與個資。</p>
+</section>
+
+<div class="keys"><p class="lbl">這課的關鍵</p><ul><li>Hosting 選型是在成本、控制權、擴充性與維運負擔之間取捨。</li><li>Nginx 可提供靜態檔案，也可依主機、路徑或規則把請求代理到上游。</li><li>含變數的 proxy_pass、resolver、rewrite 與 URI 組合必須一起驗證。</li></ul></div>
