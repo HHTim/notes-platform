@@ -1,0 +1,118 @@
+<!-- 來源：HackMD 匯出「短網址服務的高併發設計」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用「讀寫比＋三個先問的問題」替系統設計題開場，先釐清語意再動手</li><li>講出號段模式與雙 Buffer 怎麼把發號壓力從資料庫搬進記憶體</li><li>用多層快取、Bloom Filter、限流組出扛得住高併發讀取的導向路徑</li></ul></div>
+<section>
+    <p class="era">需求與流量模型</p>
+    <h3 class="head">先釐清語意，再估容量</h3>
+    <p class="q">面試官：很多使用者同時在轉短網址、點短網址，高併發怎麼處理？</p>
+    <p>短網址是典型的「讀多寫少」：建立短碼（寫）少而要快，導向（讀）量大得多。先別急著畫架構，三個問題每一個都會改變設計，要先問：</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>先問</th><th>若「要」</th><th>若「不要」</th></tr></thead>
+      <tbody>
+        <tr><th>允許自訂短碼？</th><td>要做正規化、保留字與唯一性檢查，還要處理兩人同時搶同一個碼</td><td>由唯一 ID 直接編碼，流程最簡單</td></tr>
+        <tr><th>統計點擊？</th><td>統計這條路不能拖慢導向，還要定義準確度與去重規則</td><td>整條事件與彙總鏈省掉</td></tr>
+        <tr><th>網址會過期？</th><td>資料要有業務到期時間，讀取時也要驗</td><td>映射可以永久保存，但仍要想刪除政策</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">讀寫比不要憑空斷言一個數字；面試時先提出假設（例如讀遠大於寫），再說明會用產品預估與上線後的監控資料校正。</p>
+    <pre><code>建立：長網址 → 產生唯一 ID → Base62 編碼 → 儲存映射 → 回傳短碼
+導向：短碼 → 查詢映射 → 驗證狀態與到期時間 → 回傳重新導向</code></pre>
+    <p class="muted">Base62＝用 0〜9、a〜z、A〜Z 共 62 個字元當進位符號來表示數字，同樣的數值能寫得比十進位短很多。</p>
+</section>
+<section>
+    <p class="era">號段模式</p>
+    <h3 class="head">把逐次取號改成批次取號</h3>
+    <p><strong>一句話定義：</strong>號段模式（出自美團開源的發號系統 Leaf）是讓資料庫一次「批發」一段互不重疊的 ID 範圍給應用節點，節點在自己的記憶體裡逐一發號。</p>
+    <p class="q">面試官：資料庫的自增 ID 一定不能用嗎？</p>
+    <p>不是。中小流量下自增 ID 簡單可靠、通常夠用。等到每產生一個 ID 都要同步跑一趟資料庫、單一寫入點逼近上限，或分庫分表後難以維持全域唯一，才需要號段或其他分散式 ID 方案。</p>
+    <pre><code>配置表
+biz_tag     max_id   step
+url_short   3000     1000     ← 已發到 3000，每次批發 1000 個
+
+節點 A 拿到 1001〜2000        節點 B 拿到 2001〜3000
+在記憶體用 AtomicLong          （Java 的原子計數器，
+.getAndIncrement() 逐一發號     多執行緒同時加一不會亂）
+
+號段快用完才回資料庫拿下一段：
+UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code></pre>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記把這條 UPDATE 直接標成「樂觀鎖，同時只有一台搶到」，查證後更正">「同時只有一台搶到」靠的是資料庫對同一列的排他鎖——UPDATE 會鎖住那一列，別的交易要等它放手，本質是鎖、不是樂觀鎖；樂觀鎖是不上鎖、改之前用版本欄位或條件式更新確認「值沒被別人動過」</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「號段 [1001,2000)」配 step=1000；半開區間（含頭不含尾）只有 999 個，數量對不上，查證後更正">step＝1000 的一段號是 1001〜2000 共 1000 個；若要用半開區間表示，應寫 [1001, 2001)</mark><a class="fixsrc" href="https://zh.wikipedia.org/wiki/%E5%8D%80%E9%96%93" target="_blank" rel="noopener">出處</a>。</p>
+    <p>數字 ID 轉成 Base62 就是短碼，但長度跟著 ID 大小走，不能保證永遠是 6 或 7 碼。不想讓短碼洩漏大致的建立順序，可以再加一層可逆置換，或改用隨機碼——隨機碼就得處理碰撞。</p>
+    <p class="q">面試官：號段模式跟 Snowflake 怎麼取捨？</p>
+    <p><strong>號段模式</strong>的 ID 趨勢遞增、對資料庫索引友善、資料庫壓力極低，但依賴中央的配置表，節點重啟也會浪費沒用完的號段。<strong>Snowflake</strong>（Twitter 開源的作法：時間戳＋機器編號＋序號拼成一個 64 位元 ID）完全在本機發號、不依賴資料庫，但要治理時鐘回撥（機器時間被往回調時可能發出重複 ID）與機器編號衝突。</p>
+</section>
+<section>
+    <p class="era">雙 BUFFER</p>
+    <h3 class="head">目前號段用完之前，先預載下一段</h3>
+    <p><strong>一句話定義：</strong><mark class="fixnote" tabindex="0" data-note="原筆記標題寫「雙 Buffet 優化」——Buffet 是自助餐，正確名稱是 Buffer（緩衝區），查證後更正">雙 Buffer（雙緩衝區）</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>是一邊用目前的號段，一邊在背景預載下一段，把「跑資料庫拿新號段」的延遲藏起來。</p>
+    <pre><code>Buffer A：正在發號
+    │ 消耗到門檻（Leaf 的做法：發出 10% 就開始）
+    ├──────────────→ 背景執行緒去資料庫配置 Buffer B
+    │
+    └─ A 用完，原子切換到 B
+                         │
+                         └─ 換 B 發號，再預載下一段</code></pre>
+    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。切換時要防多執行緒重複載入，也要處理預載失敗、目前號段耗盡、資料庫短暫不可用這幾種情況。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「DB 存取完全在背景，使用端感受不到任何延遲」，查證後更正">雙 Buffer 只能隱藏正常情況下的配置延遲，不是保證永遠無感：Leaf 的原文建議把號段長度設成尖峰每秒請求數的 600 倍，資料庫掛掉時也只能再撐 10〜20 分鐘</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+<section>
+    <p class="era">寫入與點擊統計</p>
+    <h3 class="head">先保證映射存好，再非同步做其他事</h3>
+    <p><strong>一句話定義：</strong>建立短網址的正確性底線：回應「成功」之前，短碼對長網址的映射已經耐久存好、查得到。</p>
+    <pre><code>Client → API → 取得唯一 ID → Base62 編碼
+     → 耐久寫入映射（主資料庫）
+     → 寫入或失效快取
+     → 回傳短碼</code></pre>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記建議「非同步 MQ（Kafka）落地 DB，立即回應短碼給 Client（不等 DB）」，查證後更正">只把映射丟進訊息佇列就回應成功，訊息一延遲或遺失，使用者就拿到一個點了沒反應的短碼；要非同步發事件，正規做法是交易式 Outbox——訊息先跟業務資料寫進同一筆資料庫交易，再由另一個程序送進訊息佇列，保證「交易成功才有訊息」</mark><a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a>。若產品真的接受「建好後短暫查不到」，也要明說這個一致性契約與重試行為。</p>
+    <p class="q">面試官：快取的 TTL 跟網址的到期時間是同一件事嗎？</p>
+    <p>不是。TTL（time to live，存活時間）控制快取那把 key 什麼時候消失；業務到期時間決定短網址什麼時候不准再用。<mark class="fixnote" tabindex="0" data-note="原筆記同時假設「過期時間 30 天」和「Redis TTL 到期後查 DB 回填、重設 TTL」——這樣網址永遠查得到，等於從未過期，查證後更正">Redis 的 TTL 到期只是把快取裡那把 key 刪掉；要讓短網址真的 30 天失效，資料庫必須存業務到期時間、每次讀取都驗，清理工作只負責回收空間</mark><a class="fixsrc" href="https://redis.io/docs/latest/commands/expire/" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="q">面試官：點擊統計怎麼避免拖慢導向？</p>
+    <p>把統計從導向的關鍵路徑上解開：只要近似總數，可在 Redis 用計數器累加、再批次寫回資料庫；要稽核、去重或多維分析，就發布點擊事件、由下游消費者慢慢算。兩種都要想清楚事件遺失、重複、機器人流量與使用者隱私。</p>
+</section>
+<section>
+    <p class="era">高併發讀取</p>
+    <h3 class="head">多層快取縮短導向路徑</h3>
+    <p><strong>一句話定義：</strong>多層快取用「更小、更近」的儲存層接住熱門資料，把大多數讀取擋在資料庫前面。</p>
+    <pre><code>短碼請求
+  → 本地快取（例如 Caffeine，Java 常用的本機快取程式庫）
+      miss → Redis Cluster
+                miss → 主資料庫
+                          → 回填 Redis → 回填本地快取
+  → 驗證啟用狀態與到期時間 → 重新導向</code></pre>
+    <p>本地快取最快，但各節點的內容可能短暫不一致；Redis 是大家共用的快取，要規劃分片、故障轉移與熱點 key；資料庫是最終權威，靠索引、連線池與逾時保護。查不到的短碼可以把「查無此碼」這個結果本身也用短 TTL 快取起來，擋掉重複的無效查詢。</p>
+</section>
+<section>
+    <p class="era">BLOOM FILTER</p>
+    <h3 class="head">查快取之前，先排除「確定不存在」</h3>
+    <p><strong>一句話定義：</strong>Bloom Filter（布隆過濾器）用一長串位元加上幾個雜湊函式記錄「哪些東西加入過」，超省空間；代價是它說「可能有」的時候有小機率誤判，但它說「沒有」就真的沒有（前提是名單有更新完整）。</p>
+    <p class="q">面試官：它怎麼防快取穿透？</p>
+    <p>快取穿透＝有人拿一堆根本不存在的短碼狂查，快取永遠 miss，每發都直接打進資料庫。把 Bloom Filter 擋在最前面：「確定不存在」的直接回 404，只有「可能存在」的才進快取與資料庫。</p>
+    <p class="formula">誤判率由位元數、雜湊函式數、元素數三者決定——容量規劃錯了，誤判率會快速上升</p>
+    <p class="q">面試官：名單怎麼建、怎麼更新？</p>
+    <ul class="plainlist">
+      <li><strong>初始建置</strong>：從權威資料掃一輪建好，再原子切換上線。</li>
+      <li><strong>新增資料</strong>：主資料寫成功後，同步或用可靠事件把新短碼加進名單。新短碼還沒進名單前會被誤擋，這個時間差要治理——建碼時同步加入，或在窗口內放行繞過。</li>
+      <li><strong>刪除與重建</strong>：標準 Bloom Filter 不會刪——直接清位元會誤傷別的元素；短碼大量過期時靠定期重建、按時間分區，或改用支援刪除的變形（Counting Bloom Filter）。</li>
+    </ul>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記寫 Bloom Filter「只需要幾次簡單的數學計算（Hash），幾奈秒內就能知道答案」，查證後更正">在自己程序的記憶體裡查確實快，但也要做幾次雜湊與記憶體存取；放在 Redis 裡查的話，Redis 官方文件說伺服器處理多在次微秒等級、1 Gbit/s 網路的一趟來回卻約 200 微秒——網路才是大頭，「幾奈秒」到不了</mark><a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+<section>
+    <p class="era">限流</p>
+    <h3 class="head">先控制流量，再判斷資料存不存在</h3>
+    <p><strong>一句話定義：</strong>限流是按來源、租戶、短碼或 API，限制一段時間內接受的請求量，讓系統超載時的行為可預期，而不是整台垮掉。</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>演算法</th><th>白話</th><th>適合情境</th></tr></thead>
+      <tbody>
+        <tr><th>令牌桶</th><td>桶裡定速補代幣，有代幣才放行——平均速率有上限，短暫爆量可以吃庫存</td><td>一般 API 與使用者配額</td></tr>
+        <tr><th>漏桶</th><td>進來先排隊，出口固定速率往外滴——輸出最平滑</td><td>保護處理能力固定的下游</td></tr>
+        <tr><th>滑動窗口</th><td>精確數「最近這段時間」的請求數——邊界最準，但要記的狀態較多</td><td>需要精確限制的敏感操作</td></tr>
+      </tbody>
+    </table></div>
+    <pre><code>海量流量
+  → 邊緣防護／Gateway 限流
+      超額 → 429（請求太多）或降級
+      通過 → Bloom Filter
+               確定不存在 → 404
+               可能存在 → 本地快取 → Redis → 資料庫</code></pre>
+    <p>限流維度不要只看 IP——同一個公司或社區共用出口 IP，會誤傷正常使用者；可組合帳號、租戶、API 與風險訊號。回 429 時附上重試提示，客戶端則用「間隔越等越久＋隨機抖動」的重試。另外，應用層限流保護的是後端容量，擋不了大規模的阻斷服務攻擊——那要靠邊緣網路、WAF 與流量清洗。</p>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>系統設計題先問語意：自訂短碼、點擊統計、過期到底指什麼，答案會改變架構。</li><li>發號：號段模式把資料庫壓力除以 step，雙 Buffer 把配置延遲藏進背景——但資料庫掛掉只是多撐一陣，不是永遠無感。</li><li>寫入底線：回應成功前映射要耐久存好；要非同步就走交易式 Outbox，不是丟進佇列就回頭。</li><li>讀取：本地快取 → Redis → 資料庫層層擋；快取 TTL 是快取的事，業務到期要在資料庫驗。</li><li>防護兩件套：限流擋超量流量，Bloom Filter 擋「確定不存在」的查詢——它說沒有就沒有，說有要再查。</li></ul></div>
