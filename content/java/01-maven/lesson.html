@@ -1,0 +1,166 @@
+<!-- 來源：https://hackmd.io/@vxrpYkjKTMytFsxOado2rw/B1W-o_KGh · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講出 Maven 幫你扛掉的三件事：統一的目錄結構、統一的建置流程、依賴管理</li><li>分清「生命週期」和「階段」，說得出 <code>mvn clean package</code> 為什麼要寫兩個詞</li><li>用座標指到一包程式，並替每個依賴挑對 scope（依賴範圍）</li></ul></div>
+<section>
+    <p class="era">起點</p>
+    <h3 class="head">沒有它的時候，你在做什麼</h3>
+    <p>開一個 Java 專案，總要用到別人寫好的東西——連資料庫的 <code>mysql-connector-j</code>、處理 JSON 的 <code>Gson</code>。沒有工具幫忙時，這件事是這樣做的：上官網找到 jar 檔、下載、丟進專案的 <code>lib</code> 資料夾，再到 IDE 裡手動把它加進類別路徑（classpath——Java 執行時去哪些地方找 class 檔的清單）。</p>
+    <p>三個地方會出事：</p>
+    <ul class="plainlist">
+      <li><strong>依賴自己還有依賴</strong>：你抓的那包 jar 內部又要用別的 jar（傳遞依賴，transitive dependency）。你得一路追下去，漏抓一個，編譯時看不出來，執行到那一行才爆。</li>
+      <li><strong>換台機器就不一樣</strong>：組員的 <code>lib</code> 裡少一包、或版本差一號，就變成「在我電腦上明明可以跑」。</li>
+      <li><strong>每個 IDE 一套長相</strong>：Eclipse 建的專案結構跟 IntelliJ IDEA 不一樣，專案丟給別人，對方打不開。</li>
+    </ul>
+    <p>Maven 就是來收掉這三件事的。它是一個專案管理與建置工具，核心概念叫<strong>專案物件模型</strong>（POM，Project Object Model）——你在 <code>pom.xml</code> 裡描述「這個專案是誰、要用到什麼、怎麼建」，Maven 照著這份描述去做，不用你一步步下指令。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Maven專門用於管理和構建Java項目的工具」，「專門」太滿，查證後更正">Maven 最常用在 Java，但不限於 Java</mark><a class="fixsrc" href="https://maven.apache.org/about.html" target="_blank" rel="noopener">出處</a>——換上對應的外掛，C#、Ruby、Scala 的專案一樣建得起來。日常遇到它幾乎都在 Java 圈，知道它不是綁死在 Java 上就好。</p>
+    <div class="terms">
+      <div class="term"><b>標準目錄結構</b><span>規定原始碼、測試、資源檔各放哪個資料夾，所有 IDE 開出來都同一個長相。</span></div>
+      <div class="term"><b>標準建置流程</b><span>編譯、測試、打包、安裝、發佈串成固定順序，每個專案的建置指令都一樣。</span></div>
+      <div class="term"><b>依賴管理</b><span>你只寫「我要 Gson 2.10.1」，去哪抓、抓它自己的依賴、放哪裡，Maven 全包。</span></div>
+    </div>
+    <p class="muted">版本界線：這課講的是 Maven 3 的行為，也是 2026 年實務上的主流。Maven 4 目前還在候選版（release candidate）階段、尚未正式發佈；它主要動的是多模組專案的處理與 pom 格式，這課講的目錄結構、座標、生命週期、依賴範圍都照舊。</p>
+</section>
+<section>
+    <p class="era">規矩一</p>
+    <h3 class="head">東西放哪裡，不用再吵</h3>
+    <p>Maven 規定了每種檔案該放哪。這件事聽起來瑣碎，但它讓你拿到任何一個沒看過的 Maven 專案，都知道程式碼在 <code>src/main/java</code>：</p>
+    <figure>
+    <svg viewBox="0 0 780 300" role="img" aria-label="Maven 標準目錄結構樹狀圖">
+      <text class="mono" x="16" y="34" font-size="14" font-weight="700" fill="#22242A">my-app/</text>
+      <text class="mono" x="16" y="62" font-size="14" fill="#8A5809">├── pom.xml</text>
+      <text x="330" y="62" font-size="12.5" fill="#8A5809">這個專案的身分證兼說明書</text>
+      <text class="mono" x="16" y="90" font-size="14" fill="#22242A">├── src/</text>
+      <text class="mono" x="16" y="118" font-size="14" fill="#22242A">│   ├── main/</text>
+      <text x="330" y="118" font-size="12.5" fill="#55575E">正式的那一份</text>
+      <text class="mono" x="16" y="146" font-size="14" fill="#5E7A9B">│   │   ├── java/</text>
+      <text x="330" y="146" font-size="12.5" fill="#55575E">程式碼</text>
+      <text class="mono" x="16" y="174" font-size="14" fill="#5E7A9B">│   │   └── resources/</text>
+      <text x="330" y="174" font-size="12.5" fill="#55575E">設定檔、靜態檔（會一起打包進去）</text>
+      <text class="mono" x="16" y="202" font-size="14" fill="#22242A">│   └── test/</text>
+      <text x="330" y="202" font-size="12.5" fill="#55575E">測試的那一份（不會打包進成品）</text>
+      <text class="mono" x="16" y="230" font-size="14" fill="#5E7A9B">│       ├── java/</text>
+      <text x="330" y="230" font-size="12.5" fill="#55575E">測試程式碼</text>
+      <text class="mono" x="16" y="258" font-size="14" fill="#5E7A9B">│       └── resources/</text>
+      <text x="330" y="258" font-size="12.5" fill="#55575E">測試專用的設定檔</text>
+      <text class="mono" x="16" y="286" font-size="14" fill="#8A5809">└── target/</text>
+      <text x="330" y="286" font-size="12.5" fill="#8A5809">建置產物——每次重建，不進版本控制</text>
+    </svg>
+    <figcaption>原筆記的目錄圖是外站截圖，這裡照官方的標準佈局重畫。記法：<code>src</code> 底下先分 main／test，兩邊各自再分 java（程式碼）／resources（資源檔）。</figcaption>
+    </figure>
+    <p>放對位置還有一層意義：Maven 不用你交代「原始碼在哪、測試在哪」，它照約定去找。這叫<strong>慣例優於設定</strong>（convention over configuration——先給一套預設規矩，只有你要打破時才寫設定）。這也是為什麼一個最小的 <code>pom.xml</code> 可以短到只有座標那幾行。</p>
+    <p class="formula">目錄結構統一了，專案才能在不同 IDE、不同機器之間直接對開</p>
+    <p><code>target/</code> 是唯一一個「不要碰、也不要進 git」的資料夾——它每次建置都整個重新產生，塞進版本控制只會天天製造衝突。所以 Java 專案的 <code>.gitignore</code> 第一行通常就是它。</p>
+</section>
+<section>
+    <p class="era">規矩二</p>
+    <h3 class="head">座標：每一包程式的門牌</h3>
+    <p>Maven 要去<strong>倉庫</strong>（repository——存放 jar 的地方）幫你把依賴抓下來，就得有辦法唯一指到「就是那一包、那一版」。這組門牌叫<strong>座標</strong>（coordinates），三個欄位：</p>
+    <div class="terms">
+      <div class="term"><b>groupId</b><span>誰做的。慣例是把網域名反過來寫（<code>com.google.code.gson</code>、<code>org.springframework</code>），為的是全世界不撞名。</span></div>
+      <div class="term"><b>artifactId</b><span>這一包叫什麼。它同時決定產出的檔名——<code>gson</code> 建出來就是 <code>gson-2.10.1.jar</code>。</span></div>
+      <div class="term"><b>version</b><span>哪一版。結尾掛 <code>-SNAPSHOT</code> 代表「開發中、內容隨時會變」，正式版不會有這個尾巴。</span></div>
+    </div>
+    <p>兩個地方會用到座標。一個是宣告「<strong>我自己是誰</strong>」，寫在 <code>pom.xml</code> 最上面；另一個是宣告「<strong>我要用誰</strong>」，寫在 <code>&lt;dependencies&gt;</code> 裡：</p>
+    <pre><code>&lt;!-- 我自己是誰 --&gt;
+&lt;groupId&gt;com.hhtim&lt;/groupId&gt;
+&lt;artifactId&gt;my-app&lt;/artifactId&gt;
+&lt;version&gt;1.0-SNAPSHOT&lt;/version&gt;
+
+&lt;!-- 我要用誰 --&gt;
+&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.google.code.gson&lt;/groupId&gt;
+        &lt;artifactId&gt;gson&lt;/artifactId&gt;
+        &lt;version&gt;2.10.1&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+    <p>寫完這幾行，Maven 會自己去倉庫抓 Gson、連同 Gson 需要的東西一起抓、擺進本機倉庫、加到類別路徑上。你要做的只是把座標抄對。</p>
+    <p class="muted">座標其實還能再細：<code>packaging</code>（產出型別，預設是 jar，網頁專案常設成 war）和 <code>classifier</code>（同一版的不同變體，例如 <code>sources</code>、<code>javadoc</code>）。日常寫依賴，三個欄位就夠。</p>
+</section>
+<section>
+    <p class="era">規矩三</p>
+    <h3 class="head">生命週期與階段：先把詞分清楚</h3>
+    <p class="q">為什麼 <code>mvn clean package</code> 要寫兩個詞，<code>mvn package</code> 卻不用另外叫編譯？</p>
+    <p>要回答這題，得先把兩個常被混用的詞分開。<mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Maven常用命令：compile、clean、test、package、install」，把階段名當成命令名，查證後更正">指令其實只有一個，就是 <code>mvn</code>；compile、test、package、install 這些是<strong>階段</strong>（phase）的名字，你打 <code>mvn package</code> 是在跟 Maven 說「一路跑到 package 這個階段為止」</mark><a class="fixsrc" href="https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>這些階段被串成三套<strong>生命週期</strong>（lifecycle），各管各的一條路：</p>
+    <figure>
+    <svg viewBox="0 0 780 300" role="img" aria-label="Maven 三套生命週期與各自的階段">
+      <text x="14" y="26" font-size="13" font-weight="700" fill="#8A5809">clean 生命週期 — 把上次的產物清掉</text>
+      <rect x="14" y="40" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#B5730F"/>
+      <text x="62" y="60" font-size="12.5" fill="#22242A" text-anchor="middle">pre-clean</text>
+      <polygon points="116,50 124,56 116,62" fill="#8B8D94"/>
+      <rect x="122" y="40" width="96" height="32" rx="6" fill="#F6E9D2" stroke="#B5730F"/>
+      <text x="170" y="60" font-size="12.5" font-weight="700" fill="#22242A" text-anchor="middle">clean</text>
+      <polygon points="224,50 232,56 224,62" fill="#8B8D94"/>
+      <rect x="230" y="40" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#B5730F"/>
+      <text x="278" y="60" font-size="12.5" fill="#22242A" text-anchor="middle">post-clean</text>
+
+      <text x="14" y="112" font-size="13" font-weight="700" fill="#5E7A9B">default 生命週期 — 真正的建置，你最常用這一條</text>
+      <rect x="14" y="126" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#5E7A9B"/>
+      <text x="62" y="146" font-size="12.5" fill="#22242A" text-anchor="middle">validate</text>
+      <polygon points="116,136 124,142 116,148" fill="#8B8D94"/>
+      <rect x="122" y="126" width="96" height="32" rx="6" fill="#E2E8F2" stroke="#5E7A9B"/>
+      <text x="170" y="146" font-size="12.5" font-weight="700" fill="#22242A" text-anchor="middle">compile</text>
+      <polygon points="224,136 232,142 224,148" fill="#8B8D94"/>
+      <rect x="230" y="126" width="96" height="32" rx="6" fill="#E2E8F2" stroke="#5E7A9B"/>
+      <text x="278" y="146" font-size="12.5" font-weight="700" fill="#22242A" text-anchor="middle">test</text>
+      <polygon points="332,136 340,142 332,148" fill="#8B8D94"/>
+      <rect x="338" y="126" width="96" height="32" rx="6" fill="#E2E8F2" stroke="#5E7A9B"/>
+      <text x="386" y="146" font-size="12.5" font-weight="700" fill="#22242A" text-anchor="middle">package</text>
+      <polygon points="440,136 448,142 440,148" fill="#8B8D94"/>
+      <rect x="446" y="126" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#5E7A9B"/>
+      <text x="494" y="146" font-size="12.5" fill="#22242A" text-anchor="middle">verify</text>
+      <polygon points="548,136 556,142 548,148" fill="#8B8D94"/>
+      <rect x="554" y="126" width="96" height="32" rx="6" fill="#E2E8F2" stroke="#5E7A9B"/>
+      <text x="602" y="146" font-size="12.5" font-weight="700" fill="#22242A" text-anchor="middle">install</text>
+      <polygon points="656,136 664,142 656,148" fill="#8B8D94"/>
+      <rect x="662" y="126" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#5E7A9B"/>
+      <text x="710" y="146" font-size="12.5" fill="#22242A" text-anchor="middle">deploy</text>
+
+      <text x="14" y="198" font-size="13" font-weight="700" fill="#8B8D94">site 生命週期 — 產生專案的報告網站</text>
+      <rect x="14" y="212" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#8B8D94"/>
+      <text x="62" y="232" font-size="12.5" fill="#55575E" text-anchor="middle">pre-site</text>
+      <polygon points="116,222 124,228 116,234" fill="#8B8D94"/>
+      <rect x="122" y="212" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#8B8D94"/>
+      <text x="170" y="232" font-size="12.5" fill="#55575E" text-anchor="middle">site</text>
+      <polygon points="224,222 232,228 224,234" fill="#8B8D94"/>
+      <rect x="230" y="212" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#8B8D94"/>
+      <text x="278" y="232" font-size="12.5" fill="#55575E" text-anchor="middle">post-site</text>
+      <polygon points="332,222 340,228 332,234" fill="#8B8D94"/>
+      <rect x="338" y="212" width="96" height="32" rx="6" fill="#FFFFFF" stroke="#8B8D94"/>
+      <text x="386" y="232" font-size="12.5" fill="#55575E" text-anchor="middle">site-deploy</text>
+
+      <line x1="14" y1="264" x2="766" y2="264" stroke="#E4DCCB" stroke-width="1"/>
+      <text x="14" y="286" font-size="12.5" fill="#55575E">底色較深的是原筆記列為「常用」的那幾個。箭頭方向＝你叫後面的，前面的全部自動先跑；但跨生命週期不會自動接。</text>
+    </svg>
+    <figcaption>三套生命週期各自獨立。default 這條實際上有二十幾個階段，圖裡只挑出你會直接叫到的那幾個。</figcaption>
+    </figure>
+    <p class="formula">同一套生命週期裡，叫後面的階段，前面的階段全部自動先跑一遍</p>
+    <p>所以 <code>mvn package</code> 會自動先做 validate、compile、test 才打包——不用你另外叫編譯。這也解釋了一件日常會遇到的事：<strong>測試沒過，打包就停在那裡</strong>，因為 test 排在 package 前面，前面卡住後面不會跑。</p>
+    <p>而這條規則只在<strong>同一套</strong>裡成立。clean 和 default 是兩套，彼此不會自動接，所以「先清乾淨再打包」得兩個都講出來：</p>
+    <pre><code>mvn clean package     # clean 那套跑到 clean，default 那套跑到 package
+mvn package           # 只有 default 這套，上次的 target/ 還留著</code></pre>
+    <h4>install 是裝到哪裡</h4>
+    <p><code>install</code> 不是把程式裝進作業系統，而是把打包好的成品放進<strong>本機倉庫</strong>——你家目錄底下的 <code>~/.m2/repository</code><a class="fixsrc" href="https://maven.apache.org/plugins/maven-install-plugin/" target="_blank" rel="noopener">出處</a>。放進去之後，這台電腦上的其他專案就能用座標把它當依賴引用。再往外一步的 <code>deploy</code> 才是上傳到遠端倉庫（公司內部的 Nexus，或公開的 Maven Central），給別人用。</p>
+    <p class="muted">原筆記的常用清單停在 install，後面其實還有一個 deploy——那是 default 生命週期的最後一個階段。實務上 deploy 通常不是你在自己電腦上打，而是交給 CI／CD 流水線去做。</p>
+</section>
+<section>
+    <p class="era">規矩四</p>
+    <h3 class="head">依賴範圍：這包 jar 該在什麼場合出現</h3>
+    <p>不是每個依賴都該一路跟到底。測試用的 JUnit，沒道理跟著打包進上線的成品；Servlet API 由容器（Tomcat 那類）自己提供，你再塞一份進去只會撞版本。</p>
+    <p>控制這件事的欄位是 <code>&lt;scope&gt;</code>（依賴範圍）。它決定這包 jar 出現在哪幾條類別路徑上——Maven 分成編譯用、測試用、執行用三條：</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>scope</th><th>編譯</th><th>測試</th><th>執行</th><th>典型用途</th></tr></thead>
+      <tbody>
+        <tr><th>compile</th><td class="num">✓</td><td class="num">✓</td><td class="num">✓</td><td>預設值。一般的函式庫，例如 Gson。</td></tr>
+        <tr><th>provided</th><td class="num">✓</td><td class="num">✓</td><td class="num">✗</td><td>編譯時要、但執行環境會自己提供，例如 Servlet API、Lombok。</td></tr>
+        <tr><th>runtime</th><td class="num">✗</td><td class="num">✓</td><td class="num">✓</td><td>寫程式時碰不到、跑起來才需要，例如 JDBC 驅動。</td></tr>
+        <tr><th>test</th><td class="num">✗</td><td class="num">✓</td><td class="num">✗</td><td>只有測試要，例如 JUnit、Mockito。</td></tr>
+        <tr><th>system</th><td class="num">✓</td><td class="num">✓</td><td class="num">✗</td><td>直接指定本機檔案路徑——已不建議使用。</td></tr>
+        <tr><th>import</th><td class="num">—</td><td class="num">—</td><td class="num">—</td><td>只出現在 <code>&lt;dependencyManagement&gt;</code>，把別人整份版本清單拉進來用。</td></tr>
+      </tbody>
+    </table></div>
+    <p class="formula">不寫 <code>&lt;scope&gt;</code> 就是 compile——編譯、測試、執行三條路徑全都在</p>
+    <p class="muted">表裡的 <code>system</code> 要避開：它靠絕對路徑指到本機某個 jar，換台電腦就找不到，Maven 3.9 以後用了會跳警告。要引用一包不在公開倉庫的 jar，正解是先 <code>mvn install:install-file</code> 把它裝進本機倉庫，再用一般的座標引用。<a class="fixsrc" href="https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html" target="_blank" rel="noopener">出處</a></p>
+    <p><code>import</code> 是另一類東西：其他五個在講「這包 jar 跟不跟」，它在講「版本號聽誰的」。Spring Boot 專案最常見的用法就是把官方的版本清單（BOM，Bill of Materials——一份「這些套件彼此相容的版本組合」）整份匯進來，之後寫依賴連 <code>&lt;version&gt;</code> 都不用填。</p>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Maven 扛三件事：統一目錄結構、統一建置流程、依賴管理——對應的就是「換台機器跑不起來」這類老問題。</li><li>座標＝groupId（誰做的，網域反著寫）＋artifactId（叫什麼，也是檔名）＋version（哪一版）。</li><li>指令只有 <code>mvn</code>，後面接的是<strong>階段</strong>；階段被串成 clean／default／site 三套生命週期。</li><li>同一套裡叫後面的會自動跑前面的，跨套不會——所以是 <code>mvn clean package</code> 兩個詞。</li><li>scope 預設 compile；測試用 test、容器提供用 provided、只在執行期要用 runtime，system 已經不該再用。</li></ul></div>

@@ -1,0 +1,44 @@
+{
+ "questions": [
+  {
+   "q": "Maven 幫你解決的核心問題是什麼？",
+   "opts": ["統一目錄結構、統一建置流程、自動處理依賴——包含依賴自己的依賴", "把 Java 程式碼變快", "取代 IDE，讓你不用寫程式", "幫你把程式部署到 Kubernetes"],
+   "exp": "三件事一組記：目錄結構、建置流程、依賴管理。傳遞依賴（依賴的依賴）自動處理，是手動抓 jar 最容易漏的地方。"
+  },
+  {
+   "q": "你打 mvn package，Maven 實際上做了什麼？",
+   "opts": ["從 default 生命週期的第一個階段一路跑到 package——中途會編譯、跑測試", "只打包，不編譯也不測試", "同時跑 clean、default、site 三套生命週期", "把成品上傳到遠端倉庫"],
+   "exp": "同一套生命週期裡，叫後面的階段，前面的全部自動先跑。所以測試沒過就會卡在那裡，打包不會發生。"
+  },
+  {
+   "q": "為什麼常見寫法是 mvn clean package，而不是只寫 mvn package？",
+   "opts": ["clean 和 default 是兩套不同的生命週期，彼此不會自動接，要清就得另外講", "package 打錯字的時候要用 clean 修正", "clean 一定要放在最前面，這是指令的語法規定", "寫兩個詞只是習慣，效果跟 mvn package 完全一樣"],
+   "exp": "「叫後面自動跑前面」只在同一套生命週期內成立。clean 自成一套，所以得明講。"
+  },
+  {
+   "q": "Maven 座標的三個欄位是什麼？",
+   "opts": ["groupId（誰做的）、artifactId（叫什麼）、version（哪一版）", "name、path、size", "groupId、className、packageName", "repository、branch、tag"],
+   "exp": "groupId 慣例是網域名反著寫，為的是全世界不撞名；artifactId 同時決定產出的檔名。"
+  },
+  {
+   "q": "一個依賴沒有寫 <scope>，它的範圍是什麼？",
+   "opts": ["compile——編譯、測試、執行三條類別路徑上都會有它", "test——只有測試時才會載入", "provided——假設執行環境會自己提供", "沒有預設值，不寫會建置失敗"],
+   "exp": "compile 是預設值，也是最寬的一個。正因為它最寬，該收窄的依賴要自己記得寫。"
+  },
+  {
+   "q": "JUnit 這類只有測試才用得到的函式庫，scope 該設什麼？",
+   "opts": ["test——編譯正式程式碼時看不到它，也不會打包進上線的成品", "compile——反正預設就是這個，最保險", "provided——測試框架由執行環境提供", "runtime——測試是在執行階段跑的"],
+   "exp": "設 test 是為了不讓測試用的東西跟著出貨。scope 的重點就是「這包 jar 該在什麼場合出現」。"
+  },
+  {
+   "q": "mvn install 把東西裝到哪裡？",
+   "opts": ["本機倉庫（家目錄下的 ~/.m2/repository），讓這台電腦的其他專案能用座標引用它", "作業系統的應用程式資料夾，裝完就能當一般軟體執行", "公開的 Maven Central，全世界都抓得到", "專案的 src/main/resources 底下"],
+   "exp": "install 是「裝進本機倉庫」；再往外一步上傳到遠端倉庫的是 deploy。"
+  },
+  {
+   "q": "為什麼 system 這個 scope 不該再用？",
+   "opts": ["它靠本機的絕對路徑指到某個 jar，換台電腦就找不到，Maven 3.9 之後用了還會跳警告", "它已經從 Maven 移除，寫了會直接編譯失敗", "它會讓建置速度變慢", "它只能用在 Windows 上"],
+   "exp": "正解是先用 mvn install:install-file 把那包 jar 裝進本機倉庫，再用一般座標引用，建置才帶得走。"
+  }
+ ]
+}
