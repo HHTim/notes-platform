@@ -17,7 +17,7 @@
 <p>函數相依（Functional Dependency）寫成 <code>X → Y</code>，意思是：在業務規則下，X 相同時 Y 必須相同，也就是知道 X 就能決定 Y。</p>
 <pre><code>customer_id → customer_name, gender
 item_id     → item_name, price
-store_id    → store_name, address</code></pre>
+store_name  → address</code></pre>
 <p>相依關係來自業務規則，不是因為目前資料剛好沒重複。即使現在沒有同名顧客，也不能因此斷定姓名能決定顧客編號。</p>
 <div class="tablewrap"><table><thead><tr><th>名稱</th><th>判斷方式</th></tr></thead><tbody><tr><td>超級鍵（Super Key）</td><td>能唯一識別一筆資料，但可能帶有多餘欄位</td></tr><tr><td>候選鍵（Candidate Key）</td><td>最精簡、仍能唯一識別一筆資料的超級鍵</td></tr><tr><td>主鍵（Primary Key）</td><td>從候選鍵中選定的主要識別方式</td></tr><tr><td>外鍵（Foreign Key）</td><td>參照另一張表候選鍵的欄位或欄位組合</td></tr></tbody></table></div>
 <p>如果 <code>customer_id</code> 和 <code>email</code> 都各自保證唯一，兩者都是候選鍵；選 <code>customer_id</code> 當主鍵後，<code>email</code> 仍是候選鍵，也可稱替代鍵（Alternate Key）。</p>
@@ -28,7 +28,7 @@ store_id    → store_name, address</code></pre>
 <h3 class="head">第一正規化：消除多值欄位</h3>
 <p>第一正規化（First Normal Form，1NF）要求每個欄位只保存單一值，並讓每筆資料可以被唯一識別。</p>
 <p>原本把「鉛筆、橡皮擦」塞在同一個 <code>items</code> 欄位，會讓搜尋、計算與約束都變得困難。拆分後，每一列只代表一項交易明細：</p>
-<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>customer_name</th><th>item_id</th><th>item_name</th><th>date</th><th>count</th><th>store_id</th><th>store_name</th><th>address</th></tr></thead><tbody><tr><td>1</td><td>阿寶</td><td>1</td><td>鉛筆</td><td>2026-12-17</td><td>1</td><td>1</td><td>久成久</td><td>東區大學路</td></tr><tr><td>1</td><td>阿寶</td><td>2</td><td>橡皮擦</td><td>2026-12-17</td><td>2</td><td>1</td><td>久成久</td><td>東區大學路</td></tr></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>customer_name</th><th>item_id</th><th>item_name</th><th>date</th><th>count</th><th>store_name</th><th>address</th></tr></thead><tbody><tr><td>1</td><td>阿寶</td><td>1</td><td>鉛筆</td><td>2026-12-17</td><td>1</td><td>久成久</td><td>東區大學路</td></tr><tr><td>1</td><td>阿寶</td><td>2</td><td>橡皮擦</td><td>2026-12-17</td><td>2</td><td>久成久</td><td>東區大學路</td></tr></tbody></table></div>
 <p>本課沿用原筆記作業的假設：「同一顧客、同一天、同一商品只會有一筆紀錄」，因此用 <code>(customer_id, item_id, date)</code> 作複合主鍵。真實訂單可能同日重複購買，所以實務上通常會另設 <code>order_id</code> 與 <code>order_item_id</code>。</p>
 <p class="formula">1NF 看欄位：不要把清單塞進一格，並確保資料列能被識別。</p>
 </section>
@@ -58,19 +58,20 @@ order_details
 ├── item_id PK, FK
 ├── date PK
 ├── count
-├── store_id
+├── store_name
+├── address
 └── total_amount</code></pre>
-<p>拆分後，顧客改名只要更新 <code>customers</code> 一處；沒有任何交易時，也能先建立商品。</p>
+<p>拆分後，顧客改名只要更新 <code>customers</code> 一處；沒有任何交易時，也能先建立商品。注意交易表這時還留著店名與地址——這是下一步要處理的。</p>
 <p class="formula">2NF 看完整候選鍵：非鍵欄位不能只依賴複合鍵的一部分。</p>
 </section>
 
 <section>
 <p class="era">不要隔著中間人決定資料</p>
 <h3 class="head">第三正規化：消除傳遞相依</h3>
-<p>第二正規化後，交易表若仍同時保存店舖與地址，可能出現：</p>
-<pre><code>交易主鍵 → store_id → store_name, address</code></pre>
-<p>地址不是直接由交易本身決定，而是經由另一個非鍵欄位 <code>store_id</code> 決定。這是傳遞相依（Transitive Dependency）。</p>
-<p>第三正規化（Third Normal Form，3NF）要移除這類不適當的非鍵對非鍵依賴，因此再拆出店舖表：</p>
+<p>第二正規化後，交易表仍同時保存店舖與地址，於是出現：</p>
+<pre><code>交易主鍵 → store_name → address</code></pre>
+<p>地址不是直接由交易本身決定，而是經由另一個非鍵欄位 <code>store_name</code> 決定。這是傳遞相依（Transitive Dependency）。</p>
+<p>第三正規化（Third Normal Form，3NF）要移除這類不適當的非鍵對非鍵依賴，因此再拆出店舖表——並另設 <code>store_id</code> 當主鍵（店名實務上可能重複，用編號識別較穩），交易表改放 <code>store_id</code> 外鍵：</p>
 <pre><code>stores
 ├── store_id PK
 ├── store_name
@@ -102,7 +103,7 @@ JOIN stores AS s
 <p>Boyce–Codd 正規形式（BCNF）的規則是：對每一個非平凡函數相依 <code>X → Y</code>，X 都必須是超級鍵。</p>
 <p>平凡函數相依（Trivial Functional Dependency）是右側本來就包含在左側集合中的相依，例如：</p>
 <pre><code>(customer_id, item_id) → customer_id</code></pre>
-<p>它沒有提供新的業務資訊。正規化真正關心的是 <code>store_id → address</code> 這種非平凡相依。</p>
+<p>它沒有提供新的業務資訊。正規化真正關心的是 <code>store_name → address</code> 這種非平凡相依。</p>
 <p class="formula">BCNF 看所有決定因素：誰能決定新的資訊，誰就必須能唯一識別整筆資料。</p>
 </section>
 
