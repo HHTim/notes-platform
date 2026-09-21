@@ -24,17 +24,18 @@
 <h3 class="head">關聯式資料庫的核心物件</h3>
 <p>關聯式資料庫（Relational Database）以資料表表達資料與關係。MySQL、PostgreSQL、Oracle Database 與 Microsoft SQL Server 都屬於常見的關聯式資料庫管理系統（RDBMS）。</p>
 <div class="tablewrap"><table><thead><tr><th>物件</th><th>用途</th><th>例子</th></tr></thead><tbody><tr><td>資料庫／綱要</td><td>組織一組相關物件</td><td>商店系統</td></tr><tr><td>資料表（Table）</td><td>保存同類型的資料</td><td>customers</td></tr><tr><td>欄位（Column）</td><td>定義每項資料的名稱與型態</td><td>customer_name</td></tr><tr><td>資料列（Row）</td><td>代表一筆紀錄</td><td>某一位顧客</td></tr><tr><td>值（Value）</td><td>某筆紀錄在某欄位的內容</td><td>「阿寶」</td></tr><tr><td>檢視表（View）</td><td>以查詢定義的虛擬資料表</td><td>active_customers</td></tr><tr><td>索引（Index）</td><td>以額外空間換取特定查詢速度</td><td>email 索引</td></tr></tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「MySQL無Schema，等同於DB」，查證後更正：MySQL 有 SCHEMA 這個關鍵字，官方文件明訂 CREATE SCHEMA 是 CREATE DATABASE 的同義詞">在 MySQL 中，<code>SCHEMA</code> 與 <code>DATABASE</code> 是同義詞——不是「沒有 Schema」，而是兩個詞指同一層</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-database.html" target="_blank" rel="noopener">出處</a>；其他資料庫產品（例如 PostgreSQL、SQL Server）則把綱要（Schema）設計成資料庫之下的一層命名空間（namespace，同名物件靠它分隔、不打架）。</p>
+<p>在 MySQL 中，<code>SCHEMA</code> 與 <code>DATABASE</code> 是同義詞；其他資料庫產品（例如 PostgreSQL、SQL Server）則把綱要（Schema）設計成資料庫之下的一層命名空間（namespace，同名物件靠它分隔、不打架）。</p>
+<p class="muted">原筆記把綱要列為第 3 層並註明 MySQL 沒有這一層、等同於資料庫——這個講法是對的；補充：MySQL 連 SCHEMA 關鍵字都有，官方明訂 CREATE SCHEMA 是 CREATE DATABASE 的同義詞<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-database.html" target="_blank" rel="noopener">出處</a>。</p>
 <p class="q">一張資料表像試算表，但不只是格子：欄位有型態、資料可受約束，而且資料表之間能建立關聯。</p>
 </section>
 
 <section>
 <p class="era">資料型態是資料的使用說明</p>
 <h3 class="head">為欄位選擇合適的資料型態</h3>
-<p>電腦底層以位元（bit）表示 0 或 1，8 個位元組成 1 個位元組（byte）。資料型態則告訴 DBMS：這串位元應被當成整數、文字、日期，還是其他內容。</p>
+<p>電腦底層以位元（bit）表示 0 或 1，8 個位元合起來是 1 個位元組（byte）。資料型態則告訴 DBMS：這串位元應被當成整數、文字、日期，還是其他內容。</p>
 <div class="tablewrap"><table><thead><tr><th>類型</th><th>常見 MySQL 型態</th><th>適用資料</th></tr></thead><tbody><tr><td>整數</td><td>INT、BIGINT</td><td>數量、流水號</td></tr><tr><td>精確小數</td><td>DECIMAL</td><td>金額、需精確計算的比例</td></tr><tr><td>浮點數</td><td>FLOAT、DOUBLE</td><td>允許近似值的科學量測</td></tr><tr><td>文字</td><td>CHAR、VARCHAR、TEXT</td><td>代碼、姓名、文章內容</td></tr><tr><td>日期時間</td><td>DATE、DATETIME、TIMESTAMP</td><td>生日、訂單時間</td></tr><tr><td>真假值</td><td>BOOLEAN</td><td>啟用狀態；在 MySQL 中是 TINYINT(1) 的別名</td></tr></tbody></table></div>
 <p><code>CHAR(n)</code> 適合長度固定的內容，例如固定格式代碼；<code>VARCHAR(n)</code> 適合長度不固定的文字。<mark class="fixnote" tabindex="0" data-note="原筆記寫「每個英文字符的儲存空間只需要 1 Byte，非英文字符則需要 2 Bytes」，那是 SQL Server 舊字元集的規則；查證後更正：MySQL 的空間由欄位字元集決定，utf8mb4 每字元 1〜4 個位元組">實際占用空間由欄位的字元集決定：MySQL 建議的 <code>utf8mb4</code> 每個字元占 1〜4 個位元組（英文字母 1 個、常用中文字 3 個），不能用「英文 1 個位元組、非英文 2 個位元組」概括</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/charset-unicode-utf8mb4.html" target="_blank" rel="noopener">出處</a>。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記用 SQL Server 的 nchar、nvarchar、text、ntext 六種文字型態說明，並註記 nchar、nvarchar「MySQL沒有」；查證後更正：MySQL 其實接受 NCHAR、NVARCHAR 寫法，但會被當成已淘汰的 utf8mb3 字元集並發出警告，官方建議直接用 CHAR/VARCHAR 搭配 utf8mb4">那套「n 開頭型態存 Unicode」的分類是 SQL Server 的規則。MySQL 雖然也接受 <code>NCHAR</code>、<code>NVARCHAR</code> 寫法，但會被當成過時的 utf8mb3 字元集並發出警告；官方建議直接用 <code>CHAR</code>／<code>VARCHAR</code> 搭配 <code>utf8mb4</code>，即可完整保存中文與各國文字</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/charset-national.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記用 SQL Server 的 char、varchar、nchar、nvarchar、text、ntext 六種文字型態說明，並註記 nchar、nvarchar「MySQL沒有」；查證後更正：MySQL 其實接受 NCHAR、NVARCHAR 寫法，但會被當成已淘汰的 utf8mb3 字元集並發出警告，官方建議直接用 CHAR/VARCHAR 搭配 utf8mb4">那套「n 開頭型態存 Unicode」的分類是 SQL Server 的規則。MySQL 雖然也接受 <code>NCHAR</code>、<code>NVARCHAR</code> 寫法，但會被當成過時的 utf8mb3 字元集並發出警告；官方建議直接用 <code>CHAR</code>／<code>VARCHAR</code> 搭配 <code>utf8mb4</code>，即可完整保存中文與各國文字</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/charset-national.html" target="_blank" rel="noopener">出處</a>。</p>
 <p class="formula">金額用 DECIMAL；不要用 FLOAT 或 DOUBLE 承擔必須精確到分的帳務計算。</p>
 </section>
 
