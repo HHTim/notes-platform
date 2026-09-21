@@ -1,0 +1,200 @@
+<!-- 來源：HackMD 匯出「SQL大綱 (新、刪、修、查)」「DDL(Data Definition Language)資料定義語言」「DML(Data Manipulation Language)資料操作語言」「DQL(Data Query Language)」「補充」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>使用 DDL 建立與修改資料表，並設定常見約束</li><li>使用 DML 安全地新增、修改與刪除資料</li><li>使用 DQL 篩選、排序、分組、連接與分頁查詢</li></ul></div>
+
+<section>
+<p class="era">先分清楚你正在改什麼</p>
+<h3 class="head">DDL、DML、DQL 的分工</h3>
+<div class="tablewrap"><table><thead><tr><th>類別</th><th>操作對象</th><th>常見指令</th></tr></thead><tbody><tr><td>DDL（資料定義語言）</td><td>資料庫物件與結構</td><td>CREATE、ALTER、DROP、TRUNCATE</td></tr><tr><td>DML（資料操作語言）</td><td>資料表裡的紀錄</td><td>INSERT、UPDATE、DELETE</td></tr><tr><td>DQL（資料查詢語言）</td><td>想讀取的資料</td><td>SELECT</td></tr></tbody></table></div>
+<p>白話說，DDL 像裝潢店面，DML 像搬入或調整商品，DQL 像向店員提出查詢條件。實際資料庫產品在分類名稱、交易行為與語法細節上可能略有差異。</p>
+</section>
+
+<section>
+<p class="era">先蓋好容器</p>
+<h3 class="head">用 DDL 建立與維護資料表</h3>
+<pre><code>CREATE DATABASE shop
+  CHARACTER SET utf8mb4;
+
+USE shop;
+
+CREATE TABLE departments (
+    department_id INT PRIMARY KEY,
+    department_name VARCHAR(100) NOT NULL,
+    UNIQUE (department_name)
+);
+
+CREATE TABLE employees (
+    employee_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    employee_name VARCHAR(100) NOT NULL,
+    salary DECIMAL(10, 2) NOT NULL,
+    hired_on DATE,
+    department_id INT,
+    CONSTRAINT fk_employee_department
+        FOREIGN KEY (department_id)
+        REFERENCES departments(department_id)
+);</code></pre>
+<p><code>CREATE</code> 建立物件；<code>ALTER</code> 修改既有結構；<code>DROP</code> 移除物件本身；<code>TRUNCATE</code> 快速清空資料表內的資料，但保留資料表結構。</p>
+<pre><code>ALTER TABLE employees
+    ADD COLUMN email VARCHAR(255);
+
+ALTER TABLE employees
+    ADD CONSTRAINT uk_employee_email UNIQUE (email);
+
+DROP TABLE employees;</code></pre>
+<p class="q"><code>DROP TABLE</code> 會連資料表結構一起移除，風險遠高於一般查詢。執行前應確認環境、物件名稱、備份與復原方案。</p>
+<p><code>TRUNCATE</code> 在 MySQL 中歸類為 DDL 而非 DML：它會隱含提交（執行的當下就等於自動 COMMIT），所以不能像還沒提交的 DML 那樣用 <code>ROLLBACK</code> 反悔。</p>
+</section>
+
+<section>
+<p class="era">把錯誤擋在入口</p>
+<h3 class="head">約束是資料表的守門員</h3>
+<div class="tablewrap"><table><thead><tr><th>約束</th><th>作用</th><th>例子</th></tr></thead><tbody><tr><td>PRIMARY KEY</td><td>唯一識別每筆紀錄，且不可為 NULL</td><td>employee_id</td></tr><tr><td>UNIQUE</td><td>限制一欄或一組欄位不可出現重複值</td><td>email</td></tr><tr><td>FOREIGN KEY</td><td>要求值能對應到另一張表的識別值</td><td>department_id</td></tr><tr><td>NOT NULL</td><td>禁止缺值</td><td>employee_name</td></tr><tr><td>CHECK</td><td>要求資料符合條件</td><td>salary &gt;= 0</td></tr><tr><td>DEFAULT</td><td>未提供值時給予預設值</td><td>status 預設 active</td></tr></tbody></table></div>
+<p>主鍵可以由一個欄位或多個欄位組成；多欄組合稱為複合主鍵（Composite Primary Key）。</p>
+<pre><code>CREATE TABLE enrollments (
+    student_id BIGINT,
+    course_id BIGINT,
+    score DECIMAL(5, 2),
+    PRIMARY KEY (student_id, course_id)
+);</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫唯一鍵（UK）「值不可為NULL」，查證後更正：MySQL 官方文件明訂 UNIQUE 索引允許可為 NULL 的欄位存放多個 NULL 值">MySQL 的 <code>UNIQUE</code> 欄位可以是 NULL，而且允許多筆資料同時是 NULL——不可為 NULL 的是主鍵</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-index.html" target="_blank" rel="noopener">出處</a>。若業務要求該欄一定有值，要另外加上 <code>NOT NULL</code>。</p>
+<p>外鍵要用資料表層級的 <code>FOREIGN KEY ... REFERENCES ...</code> 子句宣告才會生效：把 <code>REFERENCES</code> 直接寫在欄位定義那一行，MySQL 會解析但直接忽略，不會建立外鍵，也不會報錯——這是很容易踩到的無聲陷阱。</p>
+</section>
+
+<section>
+<p class="era">新增時把欄位寫清楚</p>
+<h3 class="head">INSERT：加入資料</h3>
+<pre><code>INSERT INTO departments
+    (department_id, department_name)
+VALUES
+    (10, '工程部'),
+    (20, '業務部');
+
+INSERT INTO employees
+    (employee_name, salary, hired_on, department_id)
+VALUES
+    ('阿寶', 52000.00, '2026-09-01', 10);</code></pre>
+<p>即使要填入全部欄位，也建議明列欄位名稱。如此一來，SQL 比較容易閱讀，也不會過度依賴資料表當下的欄位順序。</p>
+<p><code>employee_id</code> 設為 <code>AUTO_INCREMENT</code> 後，新增時通常省略它，交由 MySQL 產生。自動編號的重點是提供識別值，不代表號碼必然連續。</p>
+</section>
+
+<section>
+<p class="era">修改與刪除前，先確認範圍</p>
+<h3 class="head">UPDATE 與 DELETE</h3>
+<pre><code>UPDATE employees
+SET salary = salary + 500
+WHERE department_id = 20;
+
+DELETE FROM employees
+WHERE employee_id = 105;</code></pre>
+<p><code>WHERE</code> 決定哪些資料列會被異動。少了它，<code>UPDATE</code> 或 <code>DELETE</code> 會影響整張表。</p>
+<p>安全做法是先用相同條件執行 <code>SELECT</code>，確認目標資料列，再於交易中執行異動。</p>
+<pre><code>SELECT employee_id, employee_name, salary
+FROM employees
+WHERE department_id = 20;</code></pre>
+<p class="formula">先 SELECT 看範圍，再 UPDATE 或 DELETE；條件與筆數都要符合預期。</p>
+</section>
+
+<section>
+<p class="era">查詢像組裝一條資料處理管線</p>
+<h3 class="head">SELECT、WHERE 與 ORDER BY</h3>
+<pre><code>SELECT
+    employee_id,
+    employee_name,
+    salary
+FROM employees
+WHERE salary &gt;= 50000
+  AND department_id IN (10, 20)
+ORDER BY salary DESC, employee_id ASC
+LIMIT 10;</code></pre>
+<ul class="plainlist"><li><code>SELECT</code>：指定輸出的欄位或運算結果。</li><li><code>FROM</code>：指定資料來源。</li><li><code>WHERE</code>：在分組前篩選資料列。</li><li><code>ORDER BY</code>：排序；<code>ASC</code> 為遞增，<code>DESC</code> 為遞減。</li><li><code>LIMIT</code>：限制回傳筆數。</li></ul>
+<p>常見條件還有 <code>BETWEEN</code>、<code>IN</code>、<code>LIKE</code> 與 <code>IS NULL</code>。NULL 表示未知或缺值，因此不能用 <code>= NULL</code> 判斷。</p>
+<pre><code>SELECT employee_name
+FROM employees
+WHERE email IS NULL;
+
+SELECT employee_name
+FROM employees
+WHERE employee_name LIKE '阿%';</code></pre>
+</section>
+
+<section>
+<p class="era">先分組，再回答群體問題</p>
+<h3 class="head">聚合函數、GROUP BY 與 HAVING</h3>
+<p>聚合函數（Aggregate Function，把多筆資料整理成一個摘要值）有 <code>COUNT</code>、<code>SUM</code>、<code>AVG</code>、<code>MIN</code> 與 <code>MAX</code>。</p>
+<pre><code>SELECT
+    department_id,
+    COUNT(*) AS employee_count,
+    AVG(salary) AS average_salary
+FROM employees
+WHERE hired_on &gt;= '2026-01-01'
+GROUP BY department_id
+HAVING COUNT(*) &gt;= 3
+ORDER BY average_salary DESC;</code></pre>
+<p><code>WHERE</code> 在分組前排除個別資料列；<code>HAVING</code> 在分組後篩選群組，因此可以用聚合結果作條件。<code>COUNT(*)</code> 這類條件不能寫在 <code>WHERE</code>，要寫在 <code>HAVING</code>。</p>
+<p class="formula">概念處理順序：FROM／JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT。</p>
+<p class="muted">資料庫實際的執行計畫可能與這個順序不同；這裡說的是理解查詢結果時的邏輯順序。</p>
+</section>
+
+<section>
+<p class="era">資料拆開保存，查詢時再接回來</p>
+<h3 class="head">JOIN 多表查詢</h3>
+<pre><code>SELECT
+    e.employee_name,
+    d.department_name
+FROM employees AS e
+JOIN departments AS d
+    ON e.department_id = d.department_id;</code></pre>
+<div class="tablewrap"><table><thead><tr><th>連接方式</th><th>結果</th></tr></thead><tbody><tr><td>INNER JOIN</td><td>只保留兩邊能配對的資料列</td></tr><tr><td>LEFT JOIN</td><td>保留左表全部資料；右表配不到時補 NULL</td></tr><tr><td>RIGHT JOIN</td><td>保留右表全部資料；左表配不到時補 NULL</td></tr></tbody></table></div>
+<pre><code>SELECT
+    d.department_name,
+    COUNT(e.employee_id) AS employee_count
+FROM departments AS d
+LEFT JOIN employees AS e
+    ON e.department_id = d.department_id
+GROUP BY d.department_id, d.department_name;</code></pre>
+<p>這裡使用 <code>LEFT JOIN</code>，即使某部門還沒有員工，也能出現在結果中。</p>
+</section>
+
+<section>
+<p class="era">查詢裡還能放查詢</p>
+<h3 class="head">子查詢、函數與分頁</h3>
+<pre><code>SELECT employee_name, salary
+FROM employees
+WHERE salary &gt; (
+    SELECT AVG(salary)
+    FROM employees
+);</code></pre>
+<p>子查詢（Subquery，包在另一個查詢裡的查詢）先算出一個值或一組資料，再供外層查詢使用。簡單需求可以直接用；複雜查詢則要留意可讀性與效能。</p>
+<pre><code>SELECT
+    UPPER(employee_name) AS display_name,
+    ROUND(salary, 0) AS rounded_salary,
+    CURRENT_DATE AS queried_on
+FROM employees
+ORDER BY employee_id
+LIMIT 20 OFFSET 40;</code></pre>
+<p>這段查詢跳過前 40 筆，再取 20 筆——這就是分頁查詢的基本寫法。翻到很後面的頁面時，資料庫仍得掃過前面所有資料，大資料量下要留意效能。</p>
+</section>
+
+<section>
+<p class="era">一組動作要一起成功</p>
+<h3 class="head">TCL、交易與 ACID</h3>
+<p>交易（Transaction）是一組視為整體的資料操作。例如轉帳必須同時扣除甲帳戶與增加乙帳戶，不能只完成一半。</p>
+<pre><code>START TRANSACTION;
+
+UPDATE accounts
+SET balance = balance - 1000
+WHERE account_id = 1;
+
+SAVEPOINT after_debit;
+
+UPDATE accounts
+SET balance = balance + 1000
+WHERE account_id = 2;
+
+COMMIT;</code></pre>
+<p><code>COMMIT</code> 確認提交交易；<code>ROLLBACK</code> 取消尚未提交的變更；<code>ROLLBACK TO SAVEPOINT</code> 則退回某個保存點。</p>
+<div class="tablewrap"><table><thead><tr><th>特性</th><th>意思</th></tr></thead><tbody><tr><td>原子性（Atomicity）</td><td>整組操作全成或全敗</td></tr><tr><td>一致性（Consistency）</td><td>交易前後都遵守資料規則</td></tr><tr><td>隔離性（Isolation）</td><td>並行交易之間看不看得到彼此的中間狀態，由隔離等級控制</td></tr><tr><td>持久性（Durability）</td><td>已提交的結果在斷電、當機後仍保留</td></tr></tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫持久性是「操作一旦提交或是還原，對資料庫中的改變就是永久的」，查證後更正：持久性只保證「已提交」的交易；還原（ROLLBACK）是取消尚未提交的變更，不會形成永久改變">持久性保證的是「已提交」的交易：一旦 <code>COMMIT</code> 成功，結果就不怕斷電或當機。<code>ROLLBACK</code> 則相反——它把尚未提交的變更整個取消，不會對資料庫留下永久改變</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_acid" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">交易能力也和儲存引擎有關：MySQL 預設的 InnoDB 引擎才有完整交易支援；另外 DDL（例如 TRUNCATE）會隱含提交，會把當下未提交的交易一併提交掉。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>DDL 管結構、DML 管資料異動、DQL 管查詢。</li><li>主鍵負責識別且不可為 NULL；UNIQUE 擋重複但允許多個 NULL；外鍵要用資料表層級語法宣告才生效。</li><li>執行 UPDATE 或 DELETE 前，先以相同 WHERE 條件 SELECT 確認影響範圍。</li><li>WHERE 篩資料列，HAVING 篩分組後的結果；聚合條件寫在 HAVING。</li><li>交易以 COMMIT、ROLLBACK 與 SAVEPOINT 控制；持久性保證的是已提交的結果。</li></ul></div>

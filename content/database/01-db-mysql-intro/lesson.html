@@ -1,0 +1,65 @@
+<!-- 來源：HackMD 匯出「資料庫&MySQL入門」「SQL大綱 (新、刪、修、查)」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分辨記憶體、硬碟、資料庫與資料庫管理系統的角色</li><li>看懂關聯式資料庫中的資料庫、資料表、欄位與資料列</li><li>了解 MySQL、SQL、資料型態與基本操作之間的關係</li></ul></div>
+
+<section>
+<p class="era">先從電腦怎麼放資料開始</p>
+<h3 class="head">記憶體像工作桌，硬碟像檔案櫃</h3>
+<p>程式執行時，資料會在不同儲存位置之間移動。中央處理器（Central Processing Unit，CPU）負責運算；主記憶體（Random Access Memory，RAM）暫放正在執行的程式與資料；硬碟或固態硬碟則負責長期保存。</p>
+<div class="tablewrap"><table><thead><tr><th>位置</th><th>白話比喻</th><th>特性</th></tr></thead><tbody><tr><td>CPU 暫存器與快取</td><td>手上正在看的便條紙</td><td>速度最快、容量很小</td></tr><tr><td>主記憶體</td><td>工作桌</td><td>方便快速取用，但斷電後內容會消失</td></tr><tr><td>硬碟或固態硬碟</td><td>檔案櫃</td><td>速度較慢，但可長期保存大量資料</td></tr></tbody></table></div>
+<p>例如開啟通訊軟體時，程式會從硬碟載入主記憶體，再由 CPU 執行。尚未存檔的圖片先放在記憶體；按下儲存後，才會寫入硬碟長期保存。</p>
+<p class="formula">由快到慢：CPU 暫存器與快取 → 主記憶體 → 硬碟等長期儲存裝置。</p>
+</section>
+
+<section>
+<p class="era">有資料，還要有人管理</p>
+<h3 class="head">資料庫不等於資料庫管理系統</h3>
+<p>資料庫（Database，DB）是有組織的資料集合；資料庫管理系統（Database Management System，DBMS）則是負責建立、讀取、修改、保護與備份資料庫的軟體。</p>
+<p>可以把資料庫想成倉庫裡的貨物與貨架，把 DBMS 想成倉儲管理中心。應用程式通常不會自行翻動硬碟上的資料，而是向 DBMS 提出要求，再由 DBMS 處理權限、並行操作與資料一致性。</p>
+<div class="terms"><div class="term"><b>DB</b><span>有組織地保存資料的集合。</span></div><div class="term"><b>DBMS</b><span>管理資料庫的軟體，例如 MySQL、PostgreSQL。</span></div><div class="term"><b>SQL</b><span>操作關聯式資料庫的語言。</span></div><div class="term"><b>資料庫伺服器</b><span>執行 DBMS、接受用戶端連線的主機或服務環境。</span></div></div>
+<p class="muted">原筆記說「一台電腦，安裝且開啟了 DBMS，即為資料庫伺服器」——這是最常見的情況，但資料庫伺服器不一定獨占一台實體電腦，也可能是虛擬機器、容器或雲端代管服務。</p>
+</section>
+
+<section>
+<p class="era">把資料排成有規則的表格</p>
+<h3 class="head">關聯式資料庫的核心物件</h3>
+<p>關聯式資料庫（Relational Database）以資料表表達資料與關係。MySQL、PostgreSQL、Oracle Database 與 Microsoft SQL Server 都屬於常見的關聯式資料庫管理系統（RDBMS）。</p>
+<div class="tablewrap"><table><thead><tr><th>物件</th><th>用途</th><th>例子</th></tr></thead><tbody><tr><td>資料庫／綱要</td><td>組織一組相關物件</td><td>商店系統</td></tr><tr><td>資料表（Table）</td><td>保存同類型的資料</td><td>customers</td></tr><tr><td>欄位（Column）</td><td>定義每項資料的名稱與型態</td><td>customer_name</td></tr><tr><td>資料列（Row）</td><td>代表一筆紀錄</td><td>某一位顧客</td></tr><tr><td>值（Value）</td><td>某筆紀錄在某欄位的內容</td><td>「阿寶」</td></tr><tr><td>檢視表（View）</td><td>以查詢定義的虛擬資料表</td><td>active_customers</td></tr><tr><td>索引（Index）</td><td>以額外空間換取特定查詢速度</td><td>email 索引</td></tr></tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「MySQL無Schema，等同於DB」，查證後更正：MySQL 有 SCHEMA 這個關鍵字，官方文件明訂 CREATE SCHEMA 是 CREATE DATABASE 的同義詞">在 MySQL 中，<code>SCHEMA</code> 與 <code>DATABASE</code> 是同義詞——不是「沒有 Schema」，而是兩個詞指同一層</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-database.html" target="_blank" rel="noopener">出處</a>；其他資料庫產品（例如 PostgreSQL、SQL Server）則把綱要（Schema）設計成資料庫之下的一層命名空間（namespace，同名物件靠它分隔、不打架）。</p>
+<p class="q">一張資料表像試算表，但不只是格子：欄位有型態、資料可受約束，而且資料表之間能建立關聯。</p>
+</section>
+
+<section>
+<p class="era">資料型態是資料的使用說明</p>
+<h3 class="head">為欄位選擇合適的資料型態</h3>
+<p>電腦底層以位元（bit）表示 0 或 1，8 個位元組成 1 個位元組（byte）。資料型態則告訴 DBMS：這串位元應被當成整數、文字、日期，還是其他內容。</p>
+<div class="tablewrap"><table><thead><tr><th>類型</th><th>常見 MySQL 型態</th><th>適用資料</th></tr></thead><tbody><tr><td>整數</td><td>INT、BIGINT</td><td>數量、流水號</td></tr><tr><td>精確小數</td><td>DECIMAL</td><td>金額、需精確計算的比例</td></tr><tr><td>浮點數</td><td>FLOAT、DOUBLE</td><td>允許近似值的科學量測</td></tr><tr><td>文字</td><td>CHAR、VARCHAR、TEXT</td><td>代碼、姓名、文章內容</td></tr><tr><td>日期時間</td><td>DATE、DATETIME、TIMESTAMP</td><td>生日、訂單時間</td></tr><tr><td>真假值</td><td>BOOLEAN</td><td>啟用狀態；在 MySQL 中是 TINYINT(1) 的別名</td></tr></tbody></table></div>
+<p><code>CHAR(n)</code> 適合長度固定的內容，例如固定格式代碼；<code>VARCHAR(n)</code> 適合長度不固定的文字。<mark class="fixnote" tabindex="0" data-note="原筆記寫「每個英文字符的儲存空間只需要 1 Byte，非英文字符則需要 2 Bytes」，那是 SQL Server 舊字元集的規則；查證後更正：MySQL 的空間由欄位字元集決定，utf8mb4 每字元 1〜4 個位元組">實際占用空間由欄位的字元集決定：MySQL 建議的 <code>utf8mb4</code> 每個字元占 1〜4 個位元組（英文字母 1 個、常用中文字 3 個），不能用「英文 1 個位元組、非英文 2 個位元組」概括</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/charset-unicode-utf8mb4.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記用 SQL Server 的 nchar、nvarchar、text、ntext 六種文字型態說明，並註記 nchar、nvarchar「MySQL沒有」；查證後更正：MySQL 其實接受 NCHAR、NVARCHAR 寫法，但會被當成已淘汰的 utf8mb3 字元集並發出警告，官方建議直接用 CHAR/VARCHAR 搭配 utf8mb4">那套「n 開頭型態存 Unicode」的分類是 SQL Server 的規則。MySQL 雖然也接受 <code>NCHAR</code>、<code>NVARCHAR</code> 寫法，但會被當成過時的 utf8mb3 字元集並發出警告；官方建議直接用 <code>CHAR</code>／<code>VARCHAR</code> 搭配 <code>utf8mb4</code>，即可完整保存中文與各國文字</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/charset-national.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="formula">金額用 DECIMAL；不要用 FLOAT 或 DOUBLE 承擔必須精確到分的帳務計算。</p>
+</section>
+
+<section>
+<p class="era">MySQL 是系統，SQL 是溝通語言</p>
+<h3 class="head">認識 MySQL 與 SQL</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在「MySQL 簡介」下寫「Structured Query Language 1970年由IBM開發」，把 MySQL 與 SQL 混為一談；查證後更正：MySQL 是 Oracle 開發維護的 RDBMS，SQL 才是語言，且自 1986 年起有 ANSI/ISO 標準">MySQL 是一套 RDBMS（現由 Oracle 開發維護）；結構化查詢語言（Structured Query Language，SQL）才是用來操作關聯式資料庫的語言，自 1986 年起有 ANSI/ISO 標準</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/what-is-mysql.html" target="_blank" rel="noopener">出處</a>。SQL 有共同標準，但不同資料庫產品仍有語法與功能差異。</p>
+<div class="tablewrap"><table><thead><tr><th>子語言</th><th>工作</th><th>常見指令</th></tr></thead><tbody><tr><td>DDL</td><td>定義結構</td><td>CREATE、ALTER、DROP</td></tr><tr><td>DML</td><td>新增、修改、刪除資料</td><td>INSERT、UPDATE、DELETE</td></tr><tr><td>DQL</td><td>查詢資料</td><td>SELECT</td></tr><tr><td>DCL</td><td>控制權限</td><td>GRANT、REVOKE</td></tr><tr><td>TCL</td><td>控制交易</td><td>COMMIT、ROLLBACK、SAVEPOINT</td></tr></tbody></table></div>
+<p class="muted">不同教材可能把 <code>SELECT</code> 歸入廣義 DML，而不是獨立列為 DQL；分類方式不同，不影響 SQL 的實際用途。下一課會把 DDL、DML、DQL 逐一展開。</p>
+</section>
+
+<section>
+<p class="era">先會觀察，再開始改資料</p>
+<h3 class="head">第一組 MySQL 指令</h3>
+<pre><code>SHOW DATABASES;
+
+USE shop;
+
+SHOW TABLES;
+
+SELECT customer_id, customer_name
+FROM customers;</code></pre>
+<p><code>SHOW DATABASES</code> 列出目前帳號可看見的資料庫；<code>USE</code> 選擇預設資料庫；<code>SHOW TABLES</code> 列出資料表；<code>SELECT</code> 則取得指定欄位。</p>
+<p>MySQL 安裝後會看到幾個系統資料庫：<code>information_schema</code>（記錄有哪些資料庫、資料表等描述性資訊）、<code>mysql</code>（帳號與權限）、<code>performance_schema</code> 與 <code>sys</code>（效能觀測）。它們是 MySQL 自己要用的，不要當成一般業務資料庫隨意修改。</p>
+<p class="q">看到 <code>SELECT *</code> 時，星號代表所有欄位。練習時很方便，但正式程式通常應明列需要的欄位，以降低不必要的資料傳輸與結構變動風險。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>資料庫保存有組織的資料，DBMS 負責管理它，SQL 則是操作關聯式資料庫的語言。</li><li>關聯式資料表由欄位與資料列組成，索引用額外空間協助特定查詢。</li><li>MySQL 是 RDBMS，不是 SQL 語言本身；在 MySQL 裡 SCHEMA 與 DATABASE 是同義詞。</li><li>資料型態會影響可存內容、驗證方式、空間與計算結果；金額用 DECIMAL。</li><li>文字欄位搭配 utf8mb4 字元集，即可保存中文與各國文字，不需要 SQL Server 式的 n 開頭型態。</li></ul></div>

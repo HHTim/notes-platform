@@ -1,0 +1,109 @@
+<!-- 來源：HackMD 匯出「NoSQL」「補充」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷一對一、一對多與多對多關係該如何建模</li><li>了解關聯類別，以及為什麼成績、數量、角色應放在關聯上</li><li>比較關聯式資料庫與常見 NoSQL 模型，並分辨分片與複寫</li></ul></div>
+
+<section>
+<p class="era">先描述現實世界，再決定資料表</p>
+<h3 class="head">實體、屬性與關係</h3>
+<p>資料庫設計通常先找出實體（Entity，要描述的「東西」）、屬性（Attribute，東西的特徵）與關係（Relationship，東西之間的關聯）。例如書籍與作者是實體；書名是書籍的屬性；「作者參與某本書」則是一種關係。</p>
+<p>不要急著問「要開幾張表」，先問：</p>
+<ul class="plainlist"><li>這筆資料在描述誰或什麼？</li><li>兩個實體之間可以各自對應幾筆？</li><li>某個欄位屬於實體本身，還是只在兩者關係成立時才有意義？</li></ul>
+<p class="formula">欄位放哪裡，取決於它描述的是「東西本身」，還是「東西之間的關係」。</p>
+</section>
+
+<section>
+<p class="era">先數兩邊各能有幾個</p>
+<h3 class="head">一對一、一對多與多對多</h3>
+<div class="tablewrap"><table><thead><tr><th>關係</th><th>例子</th><th>常見關聯式設計</th></tr></thead><tbody><tr><td>一對一</td><td>帳號與獨立的帳號設定</td><td>其中一表持有帶 UNIQUE 約束的外鍵，或兩表共用主鍵</td></tr><tr><td>一對多</td><td>一個部門有多位員工</td><td>在「多」的一方 employees 放 department_id</td></tr><tr><td>多對多</td><td>學生修多門課，每門課也有多位學生</td><td>建立中介表 enrollments</td></tr></tbody></table></div>
+<p>關係還有「是否必須存在」的差異。例如「一位作者可以尚未出版任何書」是零到多；「一本正式出版的合著書至少有一位作者」則是至少一位。</p>
+<p class="muted">一對一是否需要拆表，要看安全性、欄位使用頻率、生命週期及是否真的存在獨立概念；不是看到一對一就必須分表。</p>
+</section>
+
+<section>
+<p class="era">成績不屬於學生，也不屬於課程</p>
+<h3 class="head">用關聯類別承接多對多資訊</h3>
+<p>學生本身沒有單一的「成績」，課程本身也沒有單一的「成績」。只有當某位學生選了某門課，成績才有意義。因此成績應放在中介的關聯類別（Associative Entity，專門描述兩個實體之間關係的表）中。</p>
+<pre><code>students
+├── student_id PK
+└── student_name
+
+courses
+├── course_id PK
+└── course_name
+
+enrollments
+├── student_id PK, FK
+├── course_id PK, FK
+├── score
+└── enrolled_at</code></pre>
+<p>同理，訂單與商品之間的「數量」應放在訂單明細；書籍與作者之間的「主要作者、共同作者、編者」角色，也應放在書籍作者關聯上。</p>
+<pre><code>books
+├── book_id PK
+└── title
+
+authors
+├── author_id PK
+└── author_name
+
+book_authors
+├── book_id PK, FK
+├── author_id PK, FK
+├── role
+└── author_order</code></pre>
+<p class="q">原筆記問過：role 該填主要作者還是輔助作者的名字？答案是都不填名字——<code>role</code> 描述的是「這位作者在這本書的身分」，例如主要作者、共同作者或編者；名字在 authors 表裡。</p>
+</section>
+
+<section>
+<p class="era">關聯式不是唯一形狀</p>
+<h3 class="head">NoSQL 是一組不同的資料模型</h3>
+<p>NoSQL 常被解釋為「不只 SQL」（Not Only SQL）。它不是單一產品或單一模型，而是一組不以關聯式表格為核心的資料庫類型。</p>
+<div class="tablewrap"><table><thead><tr><th>模型</th><th>資料形狀</th><th>常見用途</th></tr></thead><tbody><tr><td>文件式</td><td>類似 JSON 的文件</td><td>內容管理、商品目錄</td></tr><tr><td>鍵值式</td><td>一個鍵對應一個值</td><td>快取、工作階段、快速查找</td></tr><tr><td>寬欄式</td><td>依列鍵與欄族組織</td><td>大量分散式寫入、時間序列資料</td></tr><tr><td>圖形式</td><td>節點與邊</td><td>社交關係、推薦、路徑查詢</td></tr></tbody></table></div>
+<p>選擇資料庫時不應只問哪一種「比較新」，而應評估資料關係、查詢模式、交易需求、一致性要求、資料規模與團隊維運能力。</p>
+</section>
+
+<section>
+<p class="era">彈性綱要不等於沒有規則</p>
+<h3 class="head">文件式資料庫的嵌入與參照</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「MongoDB內，兩筆資料欄位不一定要相同 → Schema free 彈性大」，查證後更正：MongoDB 官方稱之為彈性綱要（Flexible Schema），且支援綱要驗證，不是完全沒有規則">以 MongoDB 這類文件式資料庫為例，同一集合中的文件確實可以有不同欄位，但官方的說法是彈性綱要（Flexible Schema）而非「沒有綱要」——需要時可以對文件加上綱要驗證（Schema Validation），應用程式也仍需要清楚的資料契約</mark><a class="fixsrc" href="https://www.mongodb.com/docs/manual/data-modeling/" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>{
+  "_id": 1001,
+  "customer": {
+    "customer_id": 7,
+    "name": "阿寶"
+  },
+  "items": [
+    {"item_id": 11, "name": "鉛筆", "qty": 2, "unit_price": 20},
+    {"item_id": 12, "name": "橡皮擦", "qty": 1, "unit_price": 50}
+  ],
+  "total": 90
+}</code></pre>
+<p>把訂單明細嵌入同一份文件，適合資料通常一起讀取、明細數量有合理上限，而且生命週期跟著訂單走的情境。</p>
+<p>若資料會被大量文件共同參照、需要獨立更新，或清單可能無限制成長，則改用識別值參照。</p>
+<div class="tablewrap"><table><thead><tr><th>策略</th><th>適合情況</th><th>代價</th></tr></thead><tbody><tr><td>嵌入（Embedding）</td><td>資料總是一起讀、一起建立或刪除</td><td>可能重複，文件也可能持續膨脹</td></tr><tr><td>參照（Referencing）</td><td>資料被廣泛共用或獨立更新</td><td>讀取時可能需要額外查詢</td></tr></tbody></table></div>
+<p class="formula">關聯式設計常從「避免重複」出發；文件式設計更常從「一次操作需要拿到什麼」出發。</p>
+</section>
+
+<section>
+<p class="era">兩種架構都能處理複雜需求</p>
+<h3 class="head">關聯式與 NoSQL 的選擇</h3>
+<div class="tablewrap"><table><thead><tr><th>考量</th><th>關聯式資料庫常見優勢</th><th>NoSQL 常見優勢</th></tr></thead><tbody><tr><td>資料關係</td><td>外鍵、JOIN 與約束成熟</td><td>可直接保存應用程式常用的資料形狀</td></tr><tr><td>交易</td><td>跨資料表交易與一致性工具成熟</td><td>各產品能力不同，部分產品也支援多文件交易</td></tr><tr><td>綱要</td><td>結構明確、資料品質易集中管控</td><td>欄位演進通常較有彈性</td></tr><tr><td>擴充</td><td>可垂直或水平擴充，依產品與架構而定</td><td>部分產品從設計上就著重分散式水平擴充</td></tr><tr><td>查詢方式</td><td>SQL 與臨時分析能力強</td><td>通常針對既定存取模式設計資料形狀</td></tr></tbody></table></div>
+<p>「SQL 不能水平擴充」或「NoSQL 沒有交易」都是過度簡化。現代產品的能力有所重疊，必須檢查特定資料庫與版本，而不能只看分類標籤。</p>
+<p class="q">帳務核心若高度依賴跨資料的一致性與複雜查詢，關聯式資料庫通常是穩健起點；大量快取、文件聚合或圖形路徑問題，則可能由對應的 NoSQL 模型處理得更自然。</p>
+</section>
+
+<section>
+<p class="era">切開是為了容量，複製是為了韌性</p>
+<h3 class="head">分片與複寫解決不同問題</h3>
+<div class="tablewrap"><table><thead><tr><th>技術</th><th>做法</th><th>主要目標</th><th>主要難題</th></tr></thead><tbody><tr><td>分片（Sharding）</td><td>把不同資料分散到多個節點</td><td>擴充容量與吞吐量</td><td>分片鍵怎麼選、跨片查詢、重新平衡</td></tr><tr><td>複寫（Replication）</td><td>把同一份資料保留多個副本</td><td>提高可用性、容錯與讀取能力</td><td>複寫延遲、故障切換、一致性</td></tr></tbody></table></div>
+<p>分片像把不同姓氏的檔案分到多個櫃子；複寫像把同一份重要文件放在不同地點——雞蛋不放在同一個籃子。兩者可以同時使用，但不能互相取代。</p>
+<p>複寫能降低單一節點故障的風險，卻不代表備份可以省略。錯誤刪除、應用程式缺陷或勒索軟體可能同步影響所有副本；備份仍需獨立保存並演練復原。</p>
+<p class="formula">分片回答「資料怎麼分工存」；複寫回答「同一份資料怎麼留副本」。</p>
+</section>
+
+<section>
+<p class="era">從查詢反推模型</p>
+<h3 class="head">一套可落地的設計流程</h3>
+<ol><li>列出核心業務規則，例如一本書可有多位作者，且角色屬於書籍與作者的關係。</li><li>列出最重要的讀寫操作、交易邊界、資料量與成長速度。</li><li>判斷資料需要強關聯約束、文件聚合、鍵值查找，還是圖形遍歷。</li><li>決定主鍵、關聯方式與必要約束；不要用目前樣本取代業務規則。</li><li>用有代表性的資料量，實際量測查詢、寫入、故障復原與維運成本。</li><li>若要重複資料換取讀取速度，明確記錄哪一份是權威來源，以及如何同步。</li></ol>
+<p class="muted">同一套系統可以採用多種資料庫，各自負責適合的工作；但每增加一種技術，就會增加部署、監控、備份與一致性管理成本。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>一對多把外鍵放在多的一方；多對多需要中介表（關聯類別）。</li><li>成績、數量與作者角色描述的是兩個實體之間的關係，應放在關聯上。</li><li>NoSQL 是多種非關聯式資料模型的總稱，不等於沒有綱要或沒有交易。</li><li>文件式設計在嵌入與參照之間取捨，關鍵是讀寫模式與資料生命週期。</li><li>分片分散資料與負載，複寫建立副本提高可用性；備份仍不可省略。</li></ul></div>

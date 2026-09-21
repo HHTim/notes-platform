@@ -1,0 +1,152 @@
+<!-- 來源：HackMD 匯出「資料庫正規化（Database Normalization）」「NoSQL」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>辨認新增、更新與刪除異常，以及它們和資料重複的關係</li><li>用函數相依判斷 1NF、2NF、3NF 與 BCNF</li><li>把混雜的交易資料拆成職責清楚且能互相關聯的資料表</li></ul></div>
+
+<section>
+<p class="era">不是把表拆得越多越好</p>
+<h3 class="head">正規化在解決什麼問題</h3>
+<p>資料庫正規化（Database Normalization）是整理關聯式資料表的設計方法。核心想法是把不同種類的事實分開保存，減少重複，並避免一項修改必須散落在許多資料列。</p>
+<div class="tablewrap"><table><thead><tr><th>顧客</th><th>商品</th><th>價格</th><th>店舖</th><th>地址</th></tr></thead><tbody><tr><td>阿寶</td><td>鉛筆、橡皮擦</td><td>20、50</td><td>久成久</td><td>東區大學路</td></tr><tr><td>老皮</td><td>鉛筆、牛奶</td><td>20、70</td><td>久成久</td><td>東區大學路</td></tr></tbody></table></div>
+<p>這張表同時描述顧客、商品、店舖與交易，而且一個欄位內放了多項商品。當同一店舖出現在一千筆交易中，地址也可能重複一千次。</p>
+<div class="tablewrap"><table><thead><tr><th>異常</th><th>會發生什麼事</th></tr></thead><tbody><tr><td>新增異常</td><td>商品還沒被購買，就無法單獨建立商品資料</td></tr><tr><td>更新異常</td><td>店舖搬家要改很多筆，漏改便互相矛盾</td></tr><tr><td>刪除異常</td><td>刪掉最後一筆交易，也意外失去店舖資料</td></tr></tbody></table></div>
+<p class="formula">正規化不是為拆表而拆表，而是讓每項事實有明確且唯一的維護位置。</p>
+</section>
+
+<section>
+<p class="era">先問誰能決定誰</p>
+<h3 class="head">函數相依與各種鍵</h3>
+<p>函數相依（Functional Dependency）寫成 <code>X → Y</code>，意思是：在業務規則下，X 相同時 Y 必須相同，也就是知道 X 就能決定 Y。</p>
+<pre><code>customer_id → customer_name, gender
+item_id     → item_name, price
+store_id    → store_name, address</code></pre>
+<p>相依關係來自業務規則，不是因為目前資料剛好沒重複。即使現在沒有同名顧客，也不能因此斷定姓名能決定顧客編號。</p>
+<div class="tablewrap"><table><thead><tr><th>名稱</th><th>判斷方式</th></tr></thead><tbody><tr><td>超級鍵（Super Key）</td><td>能唯一識別一筆資料，但可能帶有多餘欄位</td></tr><tr><td>候選鍵（Candidate Key）</td><td>最精簡、仍能唯一識別一筆資料的超級鍵</td></tr><tr><td>主鍵（Primary Key）</td><td>從候選鍵中選定的主要識別方式</td></tr><tr><td>外鍵（Foreign Key）</td><td>參照另一張表候選鍵的欄位或欄位組合</td></tr></tbody></table></div>
+<p>如果 <code>customer_id</code> 和 <code>email</code> 都各自保證唯一，兩者都是候選鍵；選 <code>customer_id</code> 當主鍵後，<code>email</code> 仍是候選鍵，也可稱替代鍵（Alternate Key）。</p>
+</section>
+
+<section>
+<p class="era">一格只表達一件事</p>
+<h3 class="head">第一正規化：消除多值欄位</h3>
+<p>第一正規化（First Normal Form，1NF）要求每個欄位只保存單一值，並讓每筆資料可以被唯一識別。</p>
+<p>原本把「鉛筆、橡皮擦」塞在同一個 <code>items</code> 欄位，會讓搜尋、計算與約束都變得困難。拆分後，每一列只代表一項交易明細：</p>
+<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>item_id</th><th>date</th><th>count</th><th>store_id</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>2026-12-17</td><td>1</td><td>1</td></tr><tr><td>1</td><td>2</td><td>2026-12-17</td><td>2</td><td>1</td></tr></tbody></table></div>
+<p>本課沿用原筆記作業的假設：「同一顧客、同一天、同一商品只會有一筆紀錄」，因此用 <code>(customer_id, item_id, date)</code> 作複合主鍵。真實訂單可能同日重複購買，所以實務上通常會另設 <code>order_id</code> 與 <code>order_item_id</code>。</p>
+<p class="formula">1NF 看欄位：不要把清單塞進一格，並確保資料列能被識別。</p>
+</section>
+
+<section>
+<p class="era">整把鑰匙才打得開</p>
+<h3 class="head">第二正規化：消除部分相依</h3>
+<p>第二正規化（Second Normal Form，2NF）先要求符合 1NF，再要求每個非主鍵欄位都完整依賴每一組候選鍵，不能只依賴複合候選鍵的一部分。</p>
+<pre><code>複合主鍵 = (customer_id, item_id, date)
+
+customer_id → customer_name, gender
+item_id     → item_name, price</code></pre>
+<p><code>customer_name</code> 只靠 <code>customer_id</code> 就能決定；<code>item_name</code> 只靠 <code>item_id</code> 就能決定。這叫部分相依（Partial Dependency）。</p>
+<p>解法是把它們搬到各自負責的資料表：</p>
+<pre><code>customers
+├── customer_id PK
+├── customer_name
+└── gender
+
+items
+├── item_id PK
+├── item_name
+└── price
+
+order_details
+├── customer_id PK, FK
+├── item_id PK, FK
+├── date PK
+├── count
+├── store_id
+└── total_amount</code></pre>
+<p>拆分後，顧客改名只要更新 <code>customers</code> 一處；沒有任何交易時，也能先建立商品。</p>
+<p class="formula">2NF 看完整候選鍵：非鍵欄位不能只依賴複合鍵的一部分。</p>
+</section>
+
+<section>
+<p class="era">不要隔著中間人決定資料</p>
+<h3 class="head">第三正規化：消除傳遞相依</h3>
+<p>第二正規化後，交易表若仍同時保存店舖與地址，可能出現：</p>
+<pre><code>交易主鍵 → store_id → store_name, address</code></pre>
+<p>地址不是直接由交易本身決定，而是經由另一個非鍵欄位 <code>store_id</code> 決定。這是傳遞相依（Transitive Dependency）。</p>
+<p>第三正規化（Third Normal Form，3NF）要移除這類不適當的非鍵對非鍵依賴，因此再拆出店舖表：</p>
+<pre><code>stores
+├── store_id PK
+├── store_name
+└── address
+
+order_details
+├── customer_id PK, FK
+├── item_id PK, FK
+├── date PK
+├── count
+├── total_amount
+└── store_id FK</code></pre>
+<p>需要地址時再透過 <code>store_id</code> 連接：</p>
+<pre><code>SELECT
+    o.customer_id,
+    o.item_id,
+    s.store_name,
+    s.address,
+    o.date
+FROM order_details AS o
+JOIN stores AS s
+    ON s.store_id = o.store_id;</code></pre>
+<p class="formula">3NF 看非鍵欄位：不要讓一個非鍵欄位繞道決定另一個非鍵欄位。</p>
+</section>
+
+<section>
+<p class="era">能決定別人，就要有足夠資格</p>
+<h3 class="head">BCNF：檢查所有決定因素</h3>
+<p>Boyce–Codd 正規形式（BCNF）的規則是：對每一個非平凡函數相依 <code>X → Y</code>，X 都必須是超級鍵。</p>
+<p>平凡函數相依（Trivial Functional Dependency）是右側本來就包含在左側集合中的相依，例如：</p>
+<pre><code>(customer_id, item_id) → customer_id</code></pre>
+<p>它沒有提供新的業務資訊。正規化真正關心的是 <code>store_id → address</code> 這種非平凡相依。</p>
+<p class="formula">BCNF 看所有決定因素：誰能決定新的資訊，誰就必須能唯一識別整筆資料。</p>
+</section>
+
+<section>
+<p class="era">3NF 合格，BCNF 不一定放行</p>
+<h3 class="head">一個 3NF 但不符合 BCNF 的例子</h3>
+<p>假設選課表具有下列規則：</p>
+<pre><code>(student_id, course_id) → instructor
+instructor → course_id</code></pre>
+<p>並假設每位教師只教授一門課。候選鍵是 <code>(student_id, course_id)</code> 與 <code>(student_id, instructor)</code>。</p>
+<p>在 <code>instructor → course_id</code> 中，教師不能單獨識別某位學生的選課紀錄，因此不是超級鍵；但 <code>course_id</code> 屬於某組候選鍵的一部分（稱為主屬性）。它可以通過 3NF 的例外條件，卻不符合 BCNF。</p>
+<p>可分解為：</p>
+<pre><code>instructor_courses
+├── instructor PK
+└── course_id
+
+student_instructors
+├── student_id PK
+└── instructor PK, FK</code></pre>
+<p class="muted">分解時除了追求更高正規形式，也要檢查拆開後能不能靠 JOIN 無損接回原資料，以及重要相依是否仍容易由資料庫約束維護。</p>
+</section>
+
+<section>
+<p class="era">可算出的值，不一定要存</p>
+<h3 class="head">衍生資料與歷史事實</h3>
+<p>如果 <code>total_amount</code> 永遠等於目前商品價格乘以數量，它可以在查詢時計算，避免三者互相矛盾：</p>
+<pre><code>SELECT
+    d.item_id,
+    i.price,
+    d.count,
+    i.price * d.count AS total_amount
+FROM order_details AS d
+JOIN items AS i
+    ON i.item_id = d.item_id;</code></pre>
+<p>但訂單金額往往是成交當下的歷史事實，可能包含折扣、稅額或之後調價前的單價。此時應明確保存成交單價、折扣等必要欄位，而不是直接套用商品目前價格。</p>
+<p class="q">欄位該不該存，不能只看「是否算得出來」，還要問它是可重新推導的結果，還是需要保存的歷史事實。</p>
+</section>
+
+<section>
+<p class="era">正規化是起點，不是教條</p>
+<h3 class="head">實務中的取捨</h3>
+<div class="tablewrap"><table><thead><tr><th>形式</th><th>核心檢查</th><th>主要解決</th></tr></thead><tbody><tr><td>1NF</td><td>欄位是否為單一值</td><td>多值欄位</td></tr><tr><td>2NF</td><td>是否依賴完整候選鍵</td><td>部分相依</td></tr><tr><td>3NF</td><td>是否有不當的傳遞相依</td><td>非鍵欄位間的依賴</td></tr><tr><td>BCNF</td><td>每個決定因素是否為超級鍵</td><td>3NF 仍可能留下的特殊相依</td></tr></tbody></table></div>
+<p>多數交易型系統會以 3NF 作為常見設計目標，再依業務規則、查詢模式與效能量測決定是否進一步正規化，或刻意反正規化（為了讀取速度，故意保留一些重複資料）。反正規化會增加同步與一致性成本，應有具體需求與維護策略。</p>
+<p class="formula">記憶口訣：1NF 看欄位，2NF 看完整鍵，3NF 看非鍵，BCNF 看決定因素。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>正規化讓每項事實有清楚的維護位置，降低重複與新增、更新、刪除異常。</li><li>函數相依必須來自業務規則，不能只觀察眼前資料。</li><li>1NF 消除多值欄位，2NF 消除部分相依，3NF 處理傳遞相依。</li><li>BCNF 要求每個非平凡相依的決定因素都是超級鍵；符合 BCNF 必然符合 3NF。</li><li>正規化程度與衍生欄位是否保存，都要結合歷史需求與實際查詢模式判斷。</li></ul></div>
