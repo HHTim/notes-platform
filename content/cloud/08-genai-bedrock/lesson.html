@@ -1,0 +1,71 @@
+<!-- 來源：HackMD 匯出「Ultimate AWS Certified AI Practitioner AIF-C01 - Section2」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清楚生成式 AI、基礎模型與大型語言模型的包含關係</li><li>知道要補新知識該用 RAG、要改行為該用微調</li><li>說出 Bedrock 的評估、Guardrails 與三種推論方式各解決什麼問題</li></ul></div>
+
+<section>
+<p class="era">觀念地圖</p>
+<h3 class="head">生成式 AI、基礎模型與大型語言模型是什麼關係</h3>
+<p>人工智慧（AI）像一把大傘，機器學習（Machine Learning）與深度學習（Deep Learning）都在傘下；生成式 AI（Generative AI）則擅長依照學到的模式，產生新的文字、圖片、聲音或程式碼。</p>
+<p>基礎模型（Foundation Model，FM）像讀過大量通識教材的學生：先用大量資料預訓練，再被拿去處理摘要、問答、分類與內容生成等不同任務。預訓練常用自我監督學習（Self-supervised Learning），也就是由資料本身產生學習訊號，不必逐筆請人標答案。</p>
+<p>大型語言模型（Large Language Model，LLM）是專門處理語言任務的一類基礎模型。它不是從字典查出固定答案，而是依上下文預測接下來比較可能出現的詞，所以同一個提示詞也可能得到不同答案。</p>
+<div class="tablewrap"><table><thead><tr><th>概念</th><th>主要用途</th><th>直覺比喻</th></tr></thead><tbody><tr><td>生成式 AI</td><td>創造新內容</td><td>依照學過的作品創作新作品</td></tr><tr><td>基礎模型</td><td>支援多種通用任務</td><td>先接受廣泛教育的通才</td></tr><tr><td>LLM</td><td>理解與生成語言</td><td>很會接話的文字預測器</td></tr><tr><td>擴散模型</td><td>常用於影像生成</td><td>從滿是雜訊的畫布逐步擦出圖像</td></tr></tbody></table></div>
+</section>
+
+<section>
+<p class="era">生成原理</p>
+<h3 class="head">為什麼同一個問題會有不同答案</h3>
+<p>LLM 每一步都會替候選詞算機率，再依取樣設定選出下一個詞。加入隨機性可以增加多樣性，但也降低可重現性。所以生成式模型的輸出通常是非確定性的（Non-deterministic）。</p>
+<p>擴散模型（Diffusion Model）的訓練可以想成「先把照片弄髒，再學會擦乾淨」：</p>
+<pre><code>原始圖像 → 逐步加入雜訊 → 接近純雜訊
+純雜訊 → 模型逐步去除雜訊 → 生成清晰圖像</code></pre>
+</section>
+
+<section>
+<p class="era">Bedrock 平台</p>
+<h3 class="head">用同一個入口使用不同的基礎模型</h3>
+<p>Amazon Bedrock 是全託管的生成式 AI 服務。團隊可以透過一致的服務介面存取不同供應商的基礎模型，不必自己配置與維護模型伺服器。</p>
+<p>選模型時不要只看名氣，要一起比較：</p>
+<ul class="plainlist"><li>模態：只處理文字、只生成影像，還是能同時處理多種資料的多模態模型（Multimodal Model）。</li><li>語言與任務能力：支不支援你要的語言、摘要、推理、分類或程式碼任務。</li><li>上下文視窗（Context Window）：一次能納入多少對話與文件內容。</li><li>延遲、品質與成本：更大的模型不一定最適合所有工作。</li><li>客製化與部署需求：支不支援你需要的微調方式或吞吐量模式。</li></ul>
+<p>模型調用日誌（Model Invocation Logging）可以記錄模型請求、回應與相關中繼資料，送往 CloudWatch Logs 或 Amazon S3，供稽核、合規與問題排查使用。啟用前要先確認日誌裡會不會包含敏感資料。</p>
+</section>
+
+<section>
+<p class="era">模型客製化</p>
+<h3 class="head">微調與持續預訓練解決不同問題</h3>
+<p>微調（Fine-tuning）就像替一位通才安排「公司話術訓練」：用有標準答案的輸入與輸出配對，改變模型回答的格式、語氣或特定任務行為。這是一種監督式學習流程。</p>
+<p>持續預訓練（Continued Pre-training）則像讓模型進修整套專業教材：用大量沒有標註的領域內容，補強特定產業、語言或術語的知識。</p>
+<div class="tablewrap"><table><thead><tr><th>比較</th><th>微調</th><th>持續預訓練</th></tr></thead><tbody><tr><td>資料</td><td>提示與理想答案的配對</td><td>大量未標註的文字</td></tr><tr><td>主要目的</td><td>改變行為、格式與風格</td><td>補強領域知識</td></tr><tr><td>典型情境</td><td>固定的 JSON 格式、品牌語氣</td><td>醫療、法律或公司內部的技術文件</td></tr></tbody></table></div>
+<p>在 Bedrock 的客製化流程中，訓練資料通常放在 Amazon S3，並透過 IAM 角色授權服務讀取。各個模型支援的客製化方法、資料格式與使用方式都可能不同，動手前要先看那個模型當下的規格。</p>
+</section>
+
+<section>
+<p class="era">外部知識</p>
+<h3 class="head">RAG：先找小抄，再回答問題</h3>
+<p>檢索增強生成（Retrieval-Augmented Generation，RAG）不動模型參數，而是在回答前先從公司文件或知識庫找出相關片段，再把片段連同問題一起交給模型。它像讓考生先翻到正確那一頁，再根據資料作答。</p>
+<pre><code>文件進入知識庫：
+S3 文件 → 解析與切塊 → Embedding → 向量資料庫
+
+使用者查詢：
+問題 → 問題的 Embedding → 相似度搜尋
+     → 組合相關內容與問題 → LLM 生成答案與引用</code></pre>
+<p>嵌入（Embedding）會把文字轉成一串數值向量；語意相近的文字在向量空間中通常比較靠近。向量資料庫負責存這些向量，並快速找出相似的內容。</p>
+<div class="tablewrap"><table><thead><tr><th>需求</th><th>較適合 RAG</th><th>較適合微調</th></tr></thead><tbody><tr><td>更新公司文件後要立刻反映</td><td>是</td><td>否，通常要重新訓練</td></tr><tr><td>回答要能標出資料來源</td><td>是</td><td>不一定</td></tr><tr><td>固定品牌語氣或輸出格式</td><td>有限</td><td>是</td></tr><tr><td>改變模型的行為</td><td>不是主要目的</td><td>是</td></tr></tbody></table></div>
+<p class="muted">記法：RAG 是「補資料、不改模型」；微調是「改行為、動參數」。兩者也可以搭在一起用。</p>
+</section>
+
+<section>
+<p class="era">品質與治理</p>
+<h3 class="head">模型評估與 Guardrails</h3>
+<p>自動評估會準備測試問題與參考答案，再用統計指標衡量模型輸出。BLEU 常用來比較翻譯文字的詞組重疊，ROUGE 常用於摘要，Accuracy 適合有明確正解的分類任務，BERTScore 則著重語意相似度。</p>
+<p>「有沒有幫助」「語氣自不自然」這種難以只靠分數判斷的面向，可以交給員工或領域專家做人工評估，例如按讚、倒讚、排序，或依自訂準則打分。</p>
+<p>Bedrock Guardrails（防護機制）站在使用者與模型之間，可以依政策過濾有害內容、敏感主題或個人識別資訊（Personally Identifiable Information，PII）。它能降低風險，但不能保證模型永遠不出錯；重要答案還是需要資料依據、測試、監控與必要的人工確認。</p>
+</section>
+
+<section>
+<p class="era">容量與成本</p>
+<h3 class="head">依工作型態選推論方式</h3>
+<div class="tablewrap"><table><thead><tr><th>模式</th><th>概念</th><th>適合情境</th></tr></thead><tbody><tr><td>On-Demand</td><td>依實際使用量計費</td><td>流量不固定、先試做</td></tr><tr><td>Batch Inference</td><td>非同步處理成批資料</td><td>量大但不急著完成的工作</td></tr><tr><td>Provisioned Throughput</td><td>預先配置處理容量</td><td>需要穩定容量的持續工作負載</td></tr></tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Provisioned Throughtput(預配置輸送量)：使用 fine-tuned 模型時必須購買」，後面又寫「選擇這個是『使用微調模型的必要條件』」，查證後更正：Bedrock 已推出客製化模型的隨需部署，微調完的模型可以部署成隨需推論、依 token 計費，不再一定要先買預配置吞吐量">微調完的模型不一定要買 Provisioned Throughput</mark><a class="fixsrc" href="https://docs.aws.amazon.com/bedrock/latest/userguide/deploy-custom-model-on-demand.html" target="_blank" rel="noopener">出處</a>：Bedrock 現在支援把客製化模型部署成隨需推論，依處理的 token 數計費，需要時才呼叫。要注意這個部署方式有支援的模型與區域限制，選用前仍要查當下的文件。</p>
+<p>計價方式與模型的支援範圍都可能隨時間調整，上線前要依所選模型、區域與最新的官方定價重新估算。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>LLM 是專門處理語言的一類基礎模型，輸出帶有隨機性是正常的。</li><li>RAG 補充可更新的外部知識；微調改變行為與風格；兩者可以並用。</li><li>自動評估負責可量化的比較，人工評估負責語氣與適切性這類主觀面向。</li><li>Guardrails 是內容與隱私政策的控制層，不保證模型永不出錯。</li><li>On-Demand、Batch、Provisioned Throughput 對應不同的流量型態；微調模型現在也能走隨需部署。</li></ul></div>

@@ -1,0 +1,136 @@
+<!-- 來源：HackMD 匯出「Stephane Maarek AIF C01 Test 2」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看到題目時先抓出它在問哪一類問題，而不是急著比對服務名稱</li><li>把生成參數、資料切分、SageMaker 工具與治理服務各自的職責分清楚</li><li>排除掉那種「功能真的存在，但不適用於這個情境」的選項</li></ul></div>
+
+<section>
+<p class="era">這一課怎麼讀</p>
+<h3 class="head">先整理觀念，再看代表題</h3>
+<p>這一課把模擬考的題目按主題分成七組。每一組先整理觀念，再放一兩題改寫過的代表情境，說明正解、為什麼，以及誘答通常錯在哪裡。</p>
+<p class="muted">來源是付費的模擬考題庫，所以這裡不會照抄原始題目的文字。下面的情境都是用自己的話重述過的，重點放在判斷方式而不是背答案。</p>
+</section>
+
+<section>
+<p class="era">主題一｜生成式 AI 的模型與推論</p>
+<h3 class="head">從「模型怎麼學」到「回答怎麼產生」</h3>
+<p><b>觀念整理</b></p>
+<p>基礎模型（Foundation Model，FM）通常先用大量未標記資料做自我監督學習。做法像是把教材中的一部分遮起來，讓模型自己猜回來；答案直接從原始資料產生，不必逐筆請人標。</p>
+<p>模型參數（model parameters）是訓練時從資料學到的內部數值，例如神經網路的權重與偏置；超參數（hyperparameters）則是控制訓練方式的外部設定，例如學習率、批次大小與訓練輪數。前者像學生腦中裝進去的知識，後者像課程安排與讀書方法。</p>
+<p>模型在生成下一個 token 時，Temperature 調整機率分布的平坦程度，所以常用來控制隨機性；Top K 只保留固定數量的高機率候選；Top P 保留累積機率達到門檻的候選集合，所以候選數量是浮動的；Stop sequences 則是遇到指定內容就停止生成。</p>
+<div class="tablewrap"><table><thead><tr><th>題目裡的線索</th><th>對應概念</th><th>辨識重點</th></tr></thead><tbody><tr><td>回答更穩定或更有創意</td><td>Temperature</td><td>調的是隨機性，不是候選數量</td></tr><tr><td>固定保留幾個候選 token</td><td>Top K</td><td>K 就是那個固定數量</td></tr><tr><td>依累積機率形成候選池</td><td>Top P</td><td>候選數會隨機率分布浮動</td></tr><tr><td>遇到特定字串就結束</td><td>Stop sequences</td><td>控制停止條件，不控制創意</td></tr></tbody></table></div>
+<p class="q">代表題：客服模型的回答太制式，公司希望增加文字變化，但不需要指定停在哪裡，應該優先調哪個設定？</p>
+<p><b>正解：</b>Temperature。它直接影響取樣的隨機程度，調高之後輸出通常更多樣。</p>
+<p><b>為什麼：</b>題幹問的是「創意與變化」，不是候選池大小，也不是輸出要在哪裡結束。</p>
+<p><b>常見誘答：</b>Top P 也會影響多樣性，但題目直接用「創造力、隨機性」描述時，一般以 Temperature 最貼切；Stop sequences 只負責停止生成。</p>
+<p class="q">代表題：系統要依候選 token 的累積機率門檻來決定取樣範圍，該用什麼？</p>
+<p><b>正解：</b>Top P，也叫核心取樣（nucleus sampling）。</p>
+<p><b>為什麼：</b>Top P 從高機率的 token 開始累加，加到門檻為止，所以候選池大小不是固定的。</p>
+<p><b>常見誘答：</b>Top K 固定的是候選數量；Temperature 改的是分布形狀，不等於直接建立累積機率候選池。</p>
+</section>
+
+<section>
+<p class="era">主題二｜補充私有知識與多模態理解</p>
+<h3 class="head">先分清楚 RAG、微調與嵌入</h3>
+<p><b>觀念整理</b></p>
+<p>企業希望模型依照經常更新的內部文件回答問題時，可以用檢索增強生成（Retrieval Augmented Generation，RAG）。流程是先找出相關的文件片段，再連同問題交給模型作答，像開卷考先翻到相關那一頁，而不是重新訓練整個模型。</p>
+<p>Knowledge Bases for Amazon Bedrock 可以協助建立 RAG 流程。微調（fine-tuning）比較適合調整模型的行為、語氣或特定任務模式；來自人類回饋的強化學習（Reinforcement Learning from Human Feedback，RLHF）則是用人類偏好資料改善模型行為。這兩者都不等同於即時檢索企業文件。</p>
+<p>嵌入模型（embedding model）會把文字、影像等內容轉成可以互相比較的向量。多模態嵌入把不同資料型態放進同一個語意空間，適合跨文字與影像的搜尋、配對、推薦或分類；如果任務還要求直接理解複雜輸入並產生完整回答，那就要評估多模態生成模型，或用嵌入檢索搭配生成模型。</p>
+<p class="formula">企業文件 → 分段與嵌入 → 相似度檢索 → 把相關內容放進提示 → 基礎模型生成回答</p>
+<p class="q">代表題：保險公司的商品條款經常更新，希望聊天機器人依最新版的內部文件回答，又不想每次更新都重新訓練模型，該怎麼做？</p>
+<p><b>正解：</b>用 Knowledge Bases for Amazon Bedrock 建立 RAG。</p>
+<p><b>為什麼：</b>知識留在外部資料來源，更新後重新同步或重建索引就好，不必把每次變更都訓練進模型參數。</p>
+<p><b>常見誘答：</b>微調不是企業知識查詢的預設解法；RLHF 的重點是學人類偏好，不是檢索最新文件。</p>
+<p class="q">代表題：電商要用商品照片與文字描述，找出語意相近的商品，重點是跨模態搜尋而不是產生新影像，哪一類模型比較切題？</p>
+<p><b>正解：</b>多模態嵌入模型。</p>
+<p><b>為什麼：</b>它能讓相關的文字與影像在同一個向量空間中彼此靠近，方便搜尋與配對。</p>
+<p><b>常見誘答：</b>純文字模型沒辦法直接表示影像；卷積神經網路側重影像處理，未必能完成文字與影像的語意對齊；多模態生成模型功能更廣，但只需要檢索時未必是最精簡的方案。</p>
+</section>
+
+<section>
+<p class="era">主題三｜模型是不是真的學會了</p>
+<h3 class="head">偏差、變異、資料切分與過度擬合</h3>
+<p><b>觀念整理</b></p>
+<p>高偏差（high bias）表示模型的假設過度簡化，連訓練資料的重要規律都抓不到，常造成擬合不足（underfitting）。高變異（high variance）表示模型對訓練資料的小變動很敏感，容易把雜訊也記住，常造成過度擬合（overfitting）。</p>
+<p>訓練集用來學模型參數；驗證集用來比較模型與調整超參數，也可以用交叉驗證取代獨立的驗證集；測試集要留到最後，評估選定的模型對未見資料的泛化能力。如果反覆依測試結果修改模型，測試集也會被間接「學進去」。</p>
+<p>降低過度擬合的方法包括交叉驗證、正規化（regularization）、決策樹剪枝（pruning）、增加多樣化的資料，以及神經網路的 Dropout。核心精神都是不讓模型只記住訓練樣本裡的偶然細節。</p>
+<p>機器學習專案常見的瓶頸，是取得並準備高品質的資料。特徵工程（feature engineering）則是把原始資料選擇、轉換或組合成更有意義的模型輸入，例如從交易時間建立「是不是週末」這個特徵。</p>
+<p class="q">代表題：模型在訓練資料上幾乎完美，換到新資料表現卻大幅下降。這是哪種問題，該怎麼處理？</p>
+<p><b>正解：</b>高變異造成的過度擬合；可以用交叉驗證、正規化、剪枝或增加多樣化的資料。</p>
+<p><b>為什麼：</b>訓練好、未見資料差，是模型記住訓練細節而沒能泛化的典型訊號。</p>
+<p><b>常見誘答：</b>增加模型複雜度通常讓過度擬合更嚴重；縮小訓練資料也會讓模型更容易把少量樣本背起來。</p>
+<p class="q">代表題：團隊已經選好模型與超參數，要拿到比較公正的最終泛化評估，該用哪一份資料？</p>
+<p><b>正解：</b>從頭到尾沒參與訓練與調整的測試集。</p>
+<p><b>為什麼：</b>驗證集已經被拿去選模型或調超參數了，測試集才是最後的獨立評量。</p>
+<p><b>常見誘答：</b>訓練集只反映模型對已見資料的擬合；把測試集拿來調參會造成評估洩漏。</p>
+</section>
+
+<section>
+<p class="era">主題四｜學習方式與人類參與</p>
+<h3 class="head">標籤、互動回饋與人工審核，角色各不相同</h3>
+<p><b>觀念整理</b></p>
+<p>監督式學習（supervised learning）從已標記的輸入與答案學出預測關係。強化學習（reinforcement learning）則讓代理人（agent）在環境中採取行動，依獎勵或懲罰學出能提高長期累積報酬的策略。</p>
+<p>Amazon SageMaker Ground Truth 是機器學習的資料標記工作流程；Amazon Mechanical Turk 是可以承接各種人類智慧任務的眾包市場。Ground Truth 可以使用不同的人力來源，也能支援蒐集人類對模型回應的比較、排序等偏好資料，作為 RLHF 流程的一部分。</p>
+<p>Amazon Augmented AI（Amazon A2I）用來建立預測結果的人工審核流程，例如把低信心或高風險的個案交給人工確認。它處理的是推論流程中的人工監督，不等同於建立一般的訓練標籤資料集。</p>
+<p class="q">代表題：詐欺偵測模型需要持續監控，而且低信心的交易必須交給分析師覆核，該搭配哪些服務？</p>
+<p><b>正解：</b>Amazon SageMaker Model Monitor 搭配 Amazon A2I。</p>
+<p><b>為什麼：</b>Model Monitor 負責觀察上線模型與資料的狀況；A2I 負責把符合規則的預測送進人工審核。</p>
+<p><b>常見誘答：</b>Ground Truth 側重資料標記；Feature Store 管理特徵；Data Wrangler 處理資料準備，三個都取代不了「生產監控加人工覆核」這個組合。</p>
+<p class="q">代表題：團隊要蒐集標註員對兩個聊天機器人回答的偏好排序，作為訓練獎勵模型的資料，可以用什麼？</p>
+<p><b>正解：</b>Amazon SageMaker Ground Truth。</p>
+<p><b>為什麼：</b>Ground Truth 能組織人工標記工作，產出比較與排序這類高品質的標記資料。</p>
+<p><b>常見誘答：</b>把 Ground Truth 說成「會自動取代人類回饋」或「即時決策引擎」都不對，它做的就是把人力標記流程組織起來。</p>
+</section>
+
+<section>
+<p class="era">主題五｜SageMaker 工具怎麼分工</p>
+<h3 class="head">從資料準備、建模到治理的關鍵字配對</h3>
+<p><b>觀念整理</b></p>
+<p>SageMaker Canvas 面向想用視覺化介面建立預測流程的使用者；Data Wrangler 聚焦資料的選擇、清理、轉換、探索與視覺化。看到「不寫程式建立模型」偏 Canvas；看到「用單一視覺介面準備資料」偏 Data Wrangler。</p>
+<p>Feature Store 是集中儲存、共享與管理模型特徵的地方，可以降低訓練與推論用不同算法造成的訓練與服務落差（training-serving skew）。Model Dashboard 提供跨模型的集中檢視入口；Model Monitor 則持續檢查已部署模型的資料與品質問題。</p>
+<p>SageMaker Clarify 著重偏見偵測與模型說明；Ground Truth 著重資料標記；Model Dashboard 著重跨模型的集中治理。考題常把這些真實存在的功能混在一起，所以要先圈出題目的動詞：準備、儲存、標記、解釋、監控，還是集中查看。</p>
+<div class="tablewrap"><table><thead><tr><th>需求動詞</th><th>優先聯想到的工具</th></tr></thead><tbody><tr><td>用視覺化方式建立模型並產生預測</td><td>SageMaker Canvas</td></tr><tr><td>清理、探索、轉換與視覺化資料</td><td>SageMaker Data Wrangler</td></tr><tr><td>集中儲存與重複使用特徵</td><td>SageMaker Feature Store</td></tr><tr><td>建立標記資料集</td><td>SageMaker Ground Truth</td></tr><tr><td>偵測偏見、說明預測</td><td>SageMaker Clarify</td></tr><tr><td>持續觀察已部署的模型</td><td>SageMaker Model Monitor</td></tr><tr><td>集中查看與治理多個模型</td><td>SageMaker Model Dashboard</td></tr></tbody></table></div>
+<p class="q">代表題：業務分析師希望用點選的方式匯入資料、建立模型並產生預測，不想寫太多程式，該選哪個工具？</p>
+<p><b>正解：</b>Amazon SageMaker Canvas。</p>
+<p><b>為什麼：</b>題目涵蓋的是從資料到建模再到預測的完整視覺化流程，不只是資料清理。</p>
+<p><b>常見誘答：</b>Data Wrangler 主要解決資料準備；Clarify 解決偏見與說明；Model Dashboard 解決集中治理。</p>
+<p class="q">代表題：多個團隊必須共用顧客特徵，還要確保訓練與線上推論用的是一致的特徵定義，該選哪個服務？</p>
+<p><b>正解：</b>Amazon SageMaker Feature Store。</p>
+<p><b>為什麼：</b>它把特徵集中管理，方便發現、重用，並維持訓練與推論的一致性。</p>
+<p><b>常見誘答：</b>Data Wrangler 可以做出特徵，但它不是特徵的中央儲存與共享層；Ground Truth 管的是標記工作。</p>
+</section>
+
+<section>
+<p class="era">主題六｜負責任 AI、文件與內容安全</p>
+<h3 class="head">透明、公平、監控與防護不是同一件事</h3>
+<p><b>觀念整理</b></p>
+<p>可解讀性（interpretability）偏向理解模型內部如何由輸入形成輸出；可說明性（explainability）偏向把預測的原因轉成利害關係人聽得懂的說法。簡單的模型可能天生比較好解讀，複雜的模型則可以用事後說明技術提高可說明性。</p>
+<p>SageMaker Clarify 可以檢查偏見並說明模型預測；Model Monitor 負責觀察上線後資料或模型品質的變化。前者回答「模型為什麼這樣判斷、對群體公不公平」，後者回答「模型上線後有沒有逐漸偏離預期」。</p>
+<p>SageMaker Model Cards 是組織為自己某個特定模型建立的治理文件，可以記錄預期用途、風險、訓練與評估資訊；AWS AI Service Cards 則是由 AWS 說明它自己那些 AI 服務的用途、限制與潛在影響。兩者都是透明度工具，但建立者與描述的對象不同。</p>
+<p>公開的生成式 AI 應用如果需要比較不同基礎模型，可以用 Amazon Bedrock 的模型評估功能；如果要限制有害內容、敏感資訊或禁止的主題，則用 Guardrails for Amazon Bedrock。模型評估處理「選哪一個」，Guardrails 處理「哪些內容不能通過」。</p>
+<p class="q">代表題：團隊既要比較多個基礎模型的回答品質，也要擋住公開應用輸出有害內容，該用哪兩項能力？</p>
+<p><b>正解：</b>Amazon Bedrock 的模型評估功能，加上 Guardrails for Amazon Bedrock。</p>
+<p><b>為什麼：</b>前者支援模型之間的比較，後者對輸入與輸出套用安全政策。</p>
+<p><b>常見誘答：</b>SageMaker Clarify 偏向偏見與說明；Model Monitor 偏向生產監控；Amazon Comprehend 是文字分析服務，不是 Bedrock 生成內容的主要護欄。</p>
+<p class="q">代表題：公司要記錄自建信用模型的預期用途、風險評等、訓練指標與評估觀察，該用哪一種文件？</p>
+<p><b>正解：</b>SageMaker Model Cards。</p>
+<p><b>為什麼：</b>文件描述的是公司自己的那個特定模型，以及它的治理資訊。</p>
+<p><b>常見誘答：</b>AI Service Cards 說明的是 AWS 提供的 AI 服務的用途與限制，不是替客戶保存每個自建模型的生命週期紀錄。</p>
+</section>
+
+<section>
+<p class="era">主題七｜安全、合規與私有連線</p>
+<h3 class="head">先辨認是在找漏洞、蒐證，還是查報告</h3>
+<p><b>觀念整理</b></p>
+<p>Amazon Inspector 著重自動化的漏洞管理，以及非預期的網路暴露偵測；AWS Audit Manager 著重持續稽核、證據蒐集與合規評估；AWS Artifact 提供 AWS 自己的合規文件；AWS Config 則記錄與評估 AWS 資源的組態。</p>
+<p>AWS CloudTrail 記錄 API 與帳戶活動，可以當稽核證據的來源，但它本身不等於一套完整的自動化稽核管理流程。AWS Trusted Advisor 提供最佳實務建議，也不是專門用來建立合規證據與評估報告的。</p>
+<p>VPC 裡沒有網際網路連線的工作負載，如果要私下存取 Amazon S3，可以用適用於 S3 的 VPC 端點。NAT 閘道與網際網路閘道都是在提供網際網路路徑，不符合「不得經由公用網際網路」這個核心限制。</p>
+<div class="terms"><p><b>快速口訣：</b>掃漏洞找 Inspector；蒐證稽核找 Audit Manager；下載 AWS 合規文件找 Artifact；檢查資源組態找 Config。</p></div>
+<p class="q">代表題：法遵團隊想持續稽核 AWS 的使用情況、自動蒐集證據，並依框架整理風險評估，該用什麼？</p>
+<p><b>正解：</b>AWS Audit Manager。</p>
+<p><b>為什麼：</b>題幹的核心動詞是「稽核、蒐證、依框架評估」。</p>
+<p><b>常見誘答：</b>Artifact 提供的是 AWS 自己的合規報告；CloudTrail 提供活動紀錄；Inspector 掃的是工作負載漏洞，三個都只是其中一塊。</p>
+<p class="q">代表題：位在沒有網際網路的 VPC 裡的 SageMaker 工作負載要讀 S3，而且流量不能走公用網路，該怎麼設計？</p>
+<p><b>正解：</b>建立適用於 Amazon S3 的 VPC 端點，並搭配適當的路由與存取政策。</p>
+<p><b>為什麼：</b>VPC 端點讓工作負載透過 AWS 內部網路私下存取支援的服務。</p>
+<p><b>常見誘答：</b>NAT 閘道與網際網路閘道都是在建立網際網路路徑；SageMaker 的推論端點是提供模型推論，不是 S3 的私有連線方案。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>創意與隨機性看 Temperature；固定候選數看 Top K；累積機率候選池看 Top P。</li><li>要最新的私有知識先想 RAG；要調行為與語氣才評估微調。</li><li>高偏差常是擬合不足；高變異常是過度擬合。</li><li>驗證資料用來選模型與調參；測試資料留到最後評估泛化。</li><li>Canvas 建模、Data Wrangler 備料、Feature Store 管特徵、Ground Truth 做標記。</li><li>Clarify 看偏見與說明；Model Monitor 看上線後的變化；Model Dashboard 看集中治理。</li><li>Model Cards 描述自己的模型；AI Service Cards 描述 AWS 的 AI 服務。</li><li>Inspector 掃漏洞；Audit Manager 做稽核蒐證；S3 的私有存取用 VPC 端點。</li></ul></div>

@@ -1,0 +1,60 @@
+<!-- 來源：HackMD 匯出「Ultimate AWS Certified AI Practitioner AIF-C01 - Section5」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>依輸入是文字、文件、影像還是語音，挑到對的 AWS 託管服務</li><li>分清楚 Mechanical Turk、Ground Truth 與 A2I 各自出現在流程的哪一段</li><li>知道什麼時候該用託管服務，什麼時候該自己管運算資源</li></ul></div>
+
+<section>
+<p class="era">選型原則</p>
+<h3 class="head">先問要處理什麼，再選服務</h3>
+<p>AWS 的 AI 託管服務提供事先訓練好的能力，讓團隊不必自己蒐集資料、訓練模型、管理推論基礎設施。適合需求明確、想快速整合標準 AI 功能的情境。</p>
+<p>選型時先確認四件事：輸入是文字、文件、影像還是語音？輸出要分析、轉換還是互動？需不需要客製模型？有沒有延遲、隱私、合規與人工審核的要求？</p>
+</section>
+
+<section>
+<p class="era">文字與文件</p>
+<h3 class="head">Comprehend、Translate、Textract 與 Kendra 各司其職</h3>
+<div class="tablewrap"><table><thead><tr><th>服務</th><th>輸入與輸出</th><th>典型用途</th></tr></thead><tbody><tr><td>Amazon Comprehend</td><td>文字 → 語言、實體、關鍵詞、情緒或主題</td><td>評論分析、文件分類</td></tr><tr><td>Amazon Translate</td><td>來源語言文字 → 目標語言文字</td><td>即時或批次翻譯</td></tr><tr><td>Amazon Textract</td><td>掃描文件或圖片 → 文字、表格與表單欄位</td><td>發票、申請表、身分文件處理</td></tr><tr><td>Amazon Kendra</td><td>自然語言問題 → 排序後的企業搜尋結果</td><td>跨多個企業資料來源搜尋</td></tr></tbody></table></div>
+<p>Comprehend 的重點是「理解文字」；Textract 的重點是「從文件版面把內容取出來」；Kendra 則是「找到正確的文件」。它們可以串在一起用，不是互相取代。</p>
+</section>
+
+<section>
+<p class="era">影像與推薦</p>
+<h3 class="head">Rekognition 看影像，Personalize 排內容</h3>
+<p>Amazon Rekognition 用來分析影像與影片，可以做物件、場景、人臉、文字與不當內容偵測；要辨識企業自己特有的物件時，可以評估自訂標籤功能。</p>
+<p>Amazon Personalize 用來建立個人化推薦與排序。它利用使用者、項目與互動資料，對不同使用者呈現不同的商品、內容或行銷結果。</p>
+<p class="q">快速判斷：想知道「圖片裡有什麼」選 Rekognition；想知道「這位使用者下一個可能喜歡什麼」選 Personalize。</p>
+</section>
+
+<section>
+<p class="era">語音與對話</p>
+<h3 class="head">Transcribe、Polly、Lex 與 Connect 的分工</h3>
+<div class="tablewrap"><table><thead><tr><th>服務</th><th>核心工作</th></tr></thead><tbody><tr><td>Amazon Transcribe</td><td>語音轉文字（Speech-to-Text）</td></tr><tr><td>Amazon Polly</td><td>文字轉語音（Text-to-Speech）</td></tr><tr><td>Amazon Lex</td><td>辨識對話意圖與必要欄位，建立聊天或語音機器人</td></tr><tr><td>Amazon Connect</td><td>建立雲端聯絡中心與來電流程</td></tr></tbody></table></div>
+<p>典型的電話客服流程長這樣：</p>
+<pre><code>客戶來電
+→ Connect 接聽並執行聯絡流程
+→ Lex 理解意圖
+→ Lambda 或後端系統處理業務邏輯
+→ Polly 把文字結果轉成語音
+→ Connect 播放給客戶</code></pre>
+<p>只要會議逐字稿，用 Transcribe 就夠了；要聽懂「我要取消訂單」代表的意圖，才需要 Lex。</p>
+</section>
+
+<section>
+<p class="era">人力介入</p>
+<h3 class="head">MTurk、Ground Truth 與 A2I 出現的時間點不同</h3>
+<div class="tablewrap"><table><thead><tr><th>服務</th><th>定位</th><th>典型時間點</th></tr></thead><tbody><tr><td>Amazon Mechanical Turk</td><td>一般的群眾外包人力市場</td><td>任何可以拆分的人工任務</td></tr><tr><td>SageMaker Ground Truth</td><td>建立高品質的訓練標籤</td><td>模型訓練前的資料準備階段</td></tr><tr><td>Amazon Augmented AI（A2I）</td><td>把特定的模型預測交給真人審核</td><td>模型推論或生產流程當中</td></tr></tbody></table></div>
+<p>Ground Truth 像教材編輯部，負責在考試前整理好有答案的題庫；A2I 像上線後的品管站，遇到低信心或高風險的結果就轉交真人。</p>
+<pre><code>輸入 → AI 或自訂模型
+          ├─ 符合自動處理條件 → 回傳結果
+          └─ 需要人工判斷 → A2I 審核 → 最終結果</code></pre>
+</section>
+
+<section>
+<p class="era">基礎設施</p>
+<h3 class="head">託管 AI 服務與自己管運算資源</h3>
+<p>Amazon EC2 提供虛擬伺服器；EBS 是可以掛到 EC2 上的區塊儲存。自己在 EC2 上訓練或部署模型時，要選執行個體、裝框架、設定擴展並維護系統。</p>
+<p>訓練通常需要大量平行運算，可以選 GPU 或 AWS Trainium；推論工作則可依模型需求考慮 GPU 或 AWS Inferentia。硬體名稱只提供方向，實際效能與成本還是要靠自己的模型做基準測試。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「例如 Trn1 Instance 擁有超過 16 Trainium 加速器」，查證後更正：AWS 官方寫的是 Trn1 執行個體「最多」搭載 16 顆 Trainium 晶片，最大的 trn1.32xlarge 正好是 16 顆，不是超過 16 顆">Trn1 執行個體最多搭載 16 顆 Trainium 晶片</mark><a class="fixsrc" href="https://aws.amazon.com/ec2/instance-types/trn1/" target="_blank" rel="noopener">出處</a>，最大的規格正好是 16 顆。AWS 宣稱它相較同類執行個體最多可省下五成的訓練成本，這是供應商自己的比較基準，實際省多少要看你的模型。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在 AWS Inferentia 底下寫「吞吐量提升四倍，成本降低 70%」，查證後更正：這兩個數字來自不同世代——第一代 Inferentia 宣稱吞吐量最高提升 2.3 倍、每次推論成本最多降低 70%；四倍吞吐量是第二代 Inferentia2 相對於第一代 Inferentia 的比較">Inferentia 的兩個數字其實來自不同世代</mark><a class="fixsrc" href="https://aws.amazon.com/machine-learning/inferentia/" target="_blank" rel="noopener">出處</a>：第一代 Inferentia 宣稱吞吐量最高提升 2.3 倍、每次推論成本最多降低 70%；「四倍吞吐量」則是第二代 Inferentia2 相對於第一代的比較，不能把兩句併成同一句。</p>
+<blockquote>託管服務適合直接取得某項特定能力；EC2 或 SageMaker 適合需要自訂模型、框架與運算環境的工作。</blockquote>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>文字洞察找 Comprehend，文件擷取找 Textract，企業搜尋找 Kendra。</li><li>影像分析找 Rekognition，推薦排序找 Personalize。</li><li>語音轉文字找 Transcribe，文字轉語音找 Polly，聽懂意圖找 Lex。</li><li>訓練前做標註找 Ground Truth；上線後人工審核找 A2I。</li><li>硬體的效能與省錢數字都是供應商的比較基準，要用自己的模型實測。</li></ul></div>

@@ -1,0 +1,81 @@
+<!-- 來源：HackMD 匯出「Chapter 9：What is Google Cloud（GCP）？」「模組１：Google Cloud Platform 介紹」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清楚 Organization、Folder、Project 這條管理階層，和 Region、Zone 這條地理位置</li><li>說出 Global、Regional、Zonal 三種資源範圍各是什麼</li><li>知道 Compute Engine 跟 GKE、Cloud Run、App Engine、Cloud Functions 的定位差在哪</li></ul></div>
+
+<section>
+<p class="era">平台全貌</p>
+<h3 class="head">Google Cloud 是一組透過網路使用的雲端服務</h3>
+<p>Google Cloud Platform（GCP）是 Google 提供的雲端運算平台。不必先自己建好所有實體伺服器，就能用到運算、儲存、網路、資料庫、資料分析、容器與人工智慧等能力。</p>
+<div class="tablewrap"><table><thead><tr><th>需求</th><th>代表服務</th><th>用途</th></tr></thead><tbody><tr><td>虛擬機器</td><td>Compute Engine</td><td>建立並執行 VM。</td></tr><tr><td>物件儲存</td><td>Cloud Storage</td><td>存放圖片、影片、備份與其他物件。</td></tr><tr><td>虛擬網路</td><td>Virtual Private Cloud</td><td>管理 Subnet、路由與防火牆規則等網路設定。</td></tr><tr><td>關聯式資料庫</td><td>Cloud SQL</td><td>使用代管的關聯式資料庫。</td></tr><tr><td>Kubernetes</td><td>Google Kubernetes Engine</td><td>執行與管理容器化的工作負載。</td></tr><tr><td>身分與權限</td><td>Identity and Access Management</td><td>控制誰能對哪些資源做哪些操作。</td></tr></tbody></table></div>
+</section>
+
+<section>
+<p class="era">管理階層</p>
+<h3 class="head">Project 是管理資源的基本單位，不是地理位置</h3>
+<pre><code>Organization（組織，可選）
+└── Folder（資料夾，可選）
+    └── Project（專案）
+        ├── Compute Engine VM
+        ├── VPC Network
+        ├── Cloud Storage Bucket
+        └── 其他服務資源</code></pre>
+<p>Organization 通常代表一間公司或機構；Folder 可以依部門、系統或環境整理 Project；Project 則承載 API、IAM、計費關聯、配額與各種服務資源。</p>
+<p>可以想成公司的文件櫃：Organization 是整間公司，Folder 是部門抽屜，Project 是實際辦某件事的資料夾。這是管理關係，不是機房地圖，所以 Project 本身不是 Region 也不是 Zone。</p>
+<p>政策可以套在不同管理層級，並影響底下的資源。設計權限時要看完整階層，不能只看資源旁邊那一條設定。</p>
+</section>
+
+<section>
+<p class="era">地理位置</p>
+<h3 class="head">Region 是地理區域，Zone 是裡面的部署與故障隔離位置</h3>
+<p>Region 是 Google Cloud 的獨立地理區域；Zone 是 Region 內的部署位置，也是故障隔離單位。一般的 Compute Engine VM 屬於 Zonal Resource，所以建立時要選 Zone。</p>
+<p class="muted">原筆記寫「一個 Region 包含至少 3 個 Zones」——查證後這個講法是對的，Google 官方文件寫的是一個 Region 由三個或以上的 Zone 組成，分布在三座以上的實體資料中心<a class="fixsrc" href="https://cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。</p>
+<p>不過原筆記另外兩個延遲數字要修掉：<mark class="fixnote" tabindex="0" data-note="原筆記寫「同一 Region 內的 Zones 網路延遲：&lt; 5ms」「Zone 關鍵特性：網路延遲 &lt; 1ms」，查證後更正：Google 官方的區域與可用區文件只說 Zone 之間有高頻寬、低延遲的網路連線，並沒有給出 5ms 或 1ms 這類數值承諾">Google 官方文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線，沒有公布「小於 5 毫秒」或「小於 1 毫秒」這種具體數字</mark><a class="fixsrc" href="https://cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>。要規劃對延遲敏感的架構，應該實測自己那組 Region 與 Zone，不要拿記憶中的數字當保證。</p>
+<p>選位置時通常要一起考慮使用者延遲、資料落地、災難復原、那裡有沒有你要的服務或硬體，以及資料傳輸成本。把 VM 分散到不同 Zone 能降低單一 Zone 故障的影響，但要自動導流還是得搭配負載平衡、健康檢查或其他故障切換設計。</p>
+</section>
+
+<section>
+<p class="era">資源範圍</p>
+<h3 class="head">Global、Regional、Zonal 是資源的適用範圍，不是一條路徑</h3>
+<div class="tablewrap"><table><thead><tr><th>範圍</th><th>意義</th><th>常見例子</th></tr></thead><tbody><tr><td>Global</td><td>不隸屬單一 Region 或 Zone</td><td>VPC Network</td></tr><tr><td>Regional</td><td>隸屬一個 Region，但不綁定單一 Zone</td><td>Subnet</td></tr><tr><td>Zonal</td><td>隸屬一個 Zone</td><td>一般的 Compute Engine VM</td></tr></tbody></table></div>
+<pre><code>同一台 VM 可以同時這樣描述：
+管理上：屬於某個 Project
+地理上：建立在某個 Zone
+網路上：網路介面連到同一 Region 的 Subnet</code></pre>
+<p class="q">不要背成「Project → VPC → Region → Zone → Subnet → VM」。Region 與 Zone 是地理位置，不是建立在 VPC 裡面的子資源。</p>
+</section>
+
+<section>
+<p class="era">虛擬網路</p>
+<h3 class="head">VPC 像跨城市的私人道路網，Subnet 像各城市的地址區</h3>
+<p>Google Cloud 的 VPC Network 是 Global Resource，可以包含位於不同 Region 的 Subnet；每個 Subnet 只屬於一個 Region，而不屬於單一 Zone。</p>
+<pre><code>Project：shopping-project
+├── VPC：shopping-vpc（Global）
+│   ├── taiwan-subnet（Regional）
+│   └── tokyo-subnet（Regional）
+└── Compute Engine VM（Zonal）
+    └── 網路介面 → 與 VM 同一 Region 的 Subnet</code></pre>
+<p>所以同一 Region 不同 Zone 的 VM 可以連到同一個 Subnet；但 VM 的網路介面不能直接連到另一個 Region 的 Subnet。</p>
+</section>
+
+<section>
+<p class="era">Compute Engine</p>
+<h3 class="head">GCE 像向 Google 租一台可以遠端管理的虛擬電腦</h3>
+<p>Google Compute Engine（GCE）是基礎設施即服務（Infrastructure as a Service，IaaS）。Google 維護底層實體硬體，使用者選 VM 規格、作業系統、磁碟與網路，並負責作業系統更新、應用程式，以及多數 VM 內部的安全設定。</p>
+<p>GCE 適合需要控制作業系統、安裝特定軟體、跑傳統應用程式，或工作負載還不適合容器化的情況。它給你較高的控制度，也代表要承擔較多維運責任。</p>
+<p class="muted">原筆記把 GCE 的計費特色列為「Sub-hour billing（以秒計費）」與「Sustained-use discounts（持續使用折扣）」——查證後兩項都仍然存在，但要補兩個條件：官方說明是每分鐘起跳，滿一分鐘之後才以一秒為單位計費；而持續使用折扣只適用於部分機器系列（例如 N1、N2、N2D、C2、M1、M2），較新的機型不在其中<a class="fixsrc" href="https://cloud.google.com/compute/docs/sustained-use-discounts" target="_blank" rel="noopener">出處</a>。實際計價一律以當下的官方定價與帳務文件為準。</p>
+</section>
+
+<section>
+<p class="era">抽象層級</p>
+<h3 class="head">從 VM 到函式，管理責任一層層交給平台</h3>
+<div class="tablewrap"><table><thead><tr><th>服務</th><th>主要部署單位</th><th>適合情境</th></tr></thead><tbody><tr><td>Compute Engine</td><td>VM</td><td>需要作業系統與基礎設施的控制權。</td></tr><tr><td>Google Kubernetes Engine</td><td>容器化工作負載</td><td>需要 Kubernetes 編排能力，又希望平台代管部分叢集工作。</td></tr><tr><td>Cloud Run</td><td>容器</td><td>想執行容器，但不想直接管伺服器或叢集。</td></tr><tr><td>App Engine</td><td>應用程式</td><td>希望由平台處理較多執行環境與擴展工作。</td></tr><tr><td>Cloud Functions</td><td>事件驅動的函式</td><td>用事件觸發較小的程式單元。</td></tr></tbody></table></div>
+<p>選服務不是單純追求「越自動越好」。需要特殊作業系統設定時，GCE 可能比較合適；已經在用 Kubernetes 且需要編排控制時，可以考慮 GKE；想直接跑容器又不想管基礎設施時，Cloud Run 通常更貼近需求。</p>
+</section>
+
+<section>
+<p class="era">責任不會消失</p>
+<h3 class="head">用了代管服務，還是要管權限、資料與應用程式</h3>
+<p>Google 負責維護底層基礎設施，但客戶還是要正確設定 IAM、保護資料、限制網路存取，並維護自己控制的作業系統與程式。用的服務抽象程度越高，Google 負責的底層工作越多；客戶對自己資料與存取決策的責任並不會因此消失。</p>
+<blockquote>先問「我需要控制到哪一層」，再選服務；不要先挑流行的工具，再勉強把工作負載塞進去。</blockquote>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Organization、Folder、Project 是管理階層；Region、Zone 是地理位置，兩條線不要混在一起。</li><li>VPC 是 Global，Subnet 是 Regional，一般的 Compute Engine VM 是 Zonal。</li><li>VM 建立在 Zone，並透過網路介面連到同一 Region 的 Subnet。</li><li>GCE 控制度高，相對要管的系統層工作也多。</li><li>GKE、Cloud Run、App Engine、Cloud Functions 提供不同程度的代管與抽象。</li></ul></div>

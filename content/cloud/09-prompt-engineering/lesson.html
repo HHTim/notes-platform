@@ -1,0 +1,51 @@
+<!-- 來源：HackMD 匯出「Ultimate AWS Certified AI Practitioner AIF-C01 - Section3」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>寫出結構完整的提示詞：任務、上下文、輸入、輸出格式都交代清楚</li><li>分辨零樣本、單樣本、少樣本與分步推理各適合什麼場合</li><li>知道 Temperature、Top P、Top K 在調什麼，以及提示注入該怎麼防</li></ul></div>
+
+<section>
+<p class="era">提示設計</p>
+<h3 class="head">提示工程是把需求寫成一份可以執行的規格</h3>
+<p>提示工程（Prompt Engineering）是設計、測試與改善提示詞的過程。它不是堆華麗的形容詞，而是把腦中的期待翻成模型能照著做的工作說明。</p>
+<p>一個實用的提示通常有四個部分：</p>
+<div class="terms"><p><b>Instructions（指令）：</b>模型要完成什麼任務，以及該遵守哪些規則。</p><p><b>Context（上下文）：</b>完成任務需要的背景、政策或參考資料。</p><p><b>Input data（輸入資料）：</b>這一次真正要處理的文字、問題或紀錄。</p><p><b>Output indicator（輸出指示）：</b>指定格式、欄位、語言、語氣與長度。</p></div>
+<pre><code>角色：你是客服摘要助理。
+任務：摘要下列客訴，不可以加入原文沒有的事實。
+輸入：{{ticket}}
+輸出：JSON，包含 issue、impact、next_action 三個欄位。</code></pre>
+</section>
+
+<section>
+<p class="era">生成控制</p>
+<h3 class="head">Temperature、Top P 與 Top K 控制候選範圍</h3>
+<p>系統提示（System Prompt）用來設定模型的角色、規則與整體行為。其他生成參數則影響模型怎麼從候選詞中取樣。</p>
+<div class="tablewrap"><table><thead><tr><th>參數</th><th>低值傾向</th><th>高值傾向</th></tr></thead><tbody><tr><td>Temperature</td><td>保守、一致</td><td>多樣、有創意，但比較容易偏題</td></tr><tr><td>Top P</td><td>只保留累積機率較集中的候選</td><td>納入更廣的候選</td></tr><tr><td>Top K</td><td>只從少量高機率候選中選</td><td>允許更多候選詞</td></tr><tr><td>最大長度</td><td colspan="2">限制最多生成多少 Token</td></tr><tr><td>停止序列</td><td colspan="2">遇到指定文字或符號就停止生成</td></tr></tbody></table></div>
+<p>客服、事實查詢與程式碼生成通常偏好保守設定；腦力激盪與創意文案則可以容許更多變化。要注意的是，這些取樣參數調的是輸出分布，不等於直接提高模型知識的正確性。</p>
+</section>
+
+<section>
+<p class="era">提示策略</p>
+<h3 class="head">Zero-shot、Few-shot 與分步推理</h3>
+<div class="tablewrap"><table><thead><tr><th>方法</th><th>做法</th><th>適合情境</th></tr></thead><tbody><tr><td>Zero-shot（零樣本）</td><td>直接交代任務，不附範例</td><td>翻譯、摘要等常見任務</td></tr><tr><td>One-shot（單樣本）</td><td>提供一個完整範例</td><td>只需要簡單示範格式</td></tr><tr><td>Few-shot（少樣本）</td><td>提供數個輸入與理想輸出的範例</td><td>意圖分類、固定格式與一致語氣</td></tr><tr><td>分步推理提示</td><td>要求模型拆解問題，並呈現必要步驟或可驗證的結果</td><td>多階段計算、規劃與比較</td></tr></tbody></table></div>
+<p>Few-shot 像先給模型幾張「答案範本」，讓它照著模式完成新題目。範例必須同時呈現輸入與正確輸出；只放問題不放答案，模型不知道要模仿什麼。</p>
+<p>遇到複雜問題，可以要求模型拆解任務、列出假設、顯示關鍵計算，或在回答前自我檢查。實務上應該要求可驗證的步驟摘要，不必依賴模型揭露它看不見的內部推理。</p>
+</section>
+
+<section>
+<p class="era">模板與安全</p>
+<h3 class="head">提示模板讓應用一致，也要防提示注入</h3>
+<p>提示模板（Prompt Template）會保留固定指令，中間留下佔位符，使用者只需要提供必要資料。它能統一格式，也方便應用程式在模型、工具與知識庫之間傳遞資訊。</p>
+<p>使用者輸入可能夾帶「忽略前面的規則」這類惡意文字，這種攻擊叫提示注入（Prompt Injection）。只在模板裡寫一句「不准忽略規則」是不夠的，還要搭配：</p>
+<ul class="plainlist"><li>把系統指令與不可信的資料清楚分隔。</li><li>限制模型能用的工具、資料與操作權限。</li><li>驗證結構化輸出，不把模型產生的文字直接當成可執行指令。</li><li>對敏感操作加上授權檢查、內容過濾與人工確認。</li><li>用正常輸入和攻擊案例持續測試模板。</li></ul>
+</section>
+
+<section>
+<p class="era">企業應用</p>
+<h3 class="head">Amazon Q 把提示、模型與企業知識接起來</h3>
+<p>Amazon Q Business 是面向組織員工的全託管生成式 AI 助理，可以依照員工有權限看到的企業內容做問答、摘要、內容生成與工作流程操作。資料連接器（Data Connectors）負責把企業資料抓進來；外掛或動作整合則用來跟其他系統互動。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「連接到 40 多個熱門企業資料來源」，查證後更正：AWS 官方的支援連接器清單目前約 25 項（S3、SharePoint、Confluence、Jira、Slack、Salesforce、ServiceNow、Google Drive、GitHub 等），不到 40 個；連接器數量會隨版本增減，不該當成固定數字記">官方的支援連接器清單目前大約二十多項</mark><a class="fixsrc" href="https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/connectors-list.html" target="_blank" rel="noopener">出處</a>，涵蓋 S3、SharePoint、Confluence、Jira、Slack、Salesforce、ServiceNow、Google Drive、GitHub 等常見來源。連接器的數量本來就會隨版本增減，記個數字沒有意義，要用的時候直接查清單。</p>
+<p class="muted">另外要補一件原筆記寫成當下時，還沒發生的事：Amazon Q Business 現在已經不再對新客戶開放，AWS 會繼續替既有客戶提供錯誤修正與安全更新，但不再接受新功能需求，並建議改用 Amazon Quick<a class="fixsrc" href="https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/qbusiness-availability-change.html" target="_blank" rel="noopener">出處</a>。這一段留著是因為它的觀念仍然值得學——企業助理怎麼接資料、怎麼設限制——但要開新專案的話，得先確認手上的服務還開不開放。</p>
+<p>管理控制（Admin Controls）可以限制回答的主題、封鎖特定內容，或要求回答只能依據內部資訊。這些控制像企業版的交通規則，決定助理可以在哪些道路上行駛。</p>
+<p>Amazon Q Apps 讓使用者用自然語言建立會使用企業資料的小型應用。Amazon Q Developer 則偏向軟體開發與 AWS 的工作：回答開發問題、協助理解程式碼、提出程式碼建議，以及協助操作雲端環境。</p>
+<p>PartyRock 是由生成式 AI 模型驅動的應用體驗環境，適合用視覺化方式快速試生成式 AI 應用的概念；它跟正式企業應用需要的權限、治理與部署流程並不一樣。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>好提示要交代四件事：任務、上下文、輸入資料、輸出格式。</li><li>Few-shot 教格式，分步推理處理複雜問題，Zero-shot 處理常見明確的任務。</li><li>Temperature、Top P、Top K 調的是輸出多樣性，不是知識正確性。</li><li>防提示注入靠的是權限限制與輸出驗證，不是在提示裡多寫一句叮嚀。</li><li>企業助理的重點在於接得到哪些資料、以及管理控制能設多細。</li></ul></div>

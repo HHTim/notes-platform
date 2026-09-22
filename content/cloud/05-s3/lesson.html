@@ -1,0 +1,65 @@
+<!-- 來源：HackMD 匯出「Chapter 5 AWS S3 儲存資源」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說清楚物件儲存和區塊儲存差在哪</li><li>看懂 Bucket、Object Key 與前綴的關係，知道「資料夾」其實是什麼</li><li>用版本控制處理誤刪，並依存取頻率選對儲存類別</li></ul></div>
+
+<section>
+<p class="era">先選對儲存模型</p>
+<h3 class="head">S3 與 EBS 的根本差異</h3>
+<p>S3 是物件儲存（Object Storage）：每個物件由資料、Key 與中繼資料組成。一般操作是上傳、讀取、複製或刪除一整個物件；要改內容，通常是產生新內容後把整個物件重新上傳。</p>
+<p>EBS 是區塊儲存（Block Storage），像交給作業系統用的虛擬硬碟。作業系統先建立檔案系統，再透過檔案系統讀寫底層區塊，所以能像一般磁碟那樣改檔案。</p>
+<div class="tablewrap"><table><thead><tr><th>比較項目</th><th>S3</th><th>EBS</th></tr></thead><tbody><tr><td>模型</td><td>物件儲存</td><td>區塊儲存</td></tr><tr><td>識別方式</td><td>Bucket 與 Object Key</td><td>區塊裝置與檔案系統</td></tr><tr><td>典型操作</td><td>上傳、取得、替換、刪除整個物件</td><td>由作業系統讀寫與修改檔案</td></tr><tr><td>常見用途</td><td>圖片、備份、日誌、靜態內容</td><td>EC2 開機磁碟、資料庫磁碟</td></tr></tbody></table></div>
+</section>
+
+<section>
+<p class="era">看起來像資料夾，其實是一串 Key</p>
+<h3 class="head">Bucket、Object 與 Prefix</h3>
+<p>Bucket（儲存貯體）是物件的容器。Bucket 名稱除了要符合命名規則，還必須跟別人取的名字不重複——別人先取走的名字你就不能用。</p>
+<p class="muted">原筆記寫「Bucket naming 是一個跨 Region 的資源，也就是一個 Global 的資源，必須避免跟全球的使用者重複同一個名字」——查證後這個方向是對的，官方的說法再精確一點：名稱要在同一個分區（partition）內的所有 AWS 帳號、所有 Region 之間唯一<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html" target="_blank" rel="noopener">出處</a>。分區指的是一群 Region 的集合，AWS 目前有四個：一般商用 Region、中國 Region、美國政府雲、歐洲主權雲。平常只用一般商用 Region 的話，「全球唯一」這個理解不會出錯。</p>
+<p>Object Key 是物件在 Bucket 內的完整識別名稱。例如：</p>
+<pre><code>s3://my-example-bucket/config/app.json
+
+Bucket：my-example-bucket
+Object Key：config/app.json
+Prefix：config/</code></pre>
+<p>S3 底層不是傳統磁碟的目錄樹。主控台顯示的「資料夾」多半是依 Key 裡的斜線與共同前綴（Prefix）整理出來的視覺效果。</p>
+<p>S3 以分散式架構處理資料，並提供強一致性（Strong Consistency）：成功寫入或刪除物件之後，後續的讀取與列出操作會反映最新狀態。</p>
+</section>
+
+<section>
+<p class="era">讓覆寫與刪除有回頭路</p>
+<h3 class="head">Versioning 版本控制</h3>
+<p>開啟 Versioning 之後，同一個 Key 被重新上傳時，S3 會保留不同版本，而不是只留最後一次的內容。這像文件櫃保留每一次修訂稿，能降低手誤覆寫的風險。</p>
+<p>在已開啟版本控制的 Bucket 中，對物件做一般刪除時，S3 通常會加上一個 Delete Marker（刪除標記），讓這個 Key 看起來消失了，舊版本其實還在。把那個 Delete Marker 移除，先前的版本就會重新變成目前可見的版本。</p>
+<p class="muted">Versioning 不是免費的復原魔法：舊版本仍然佔儲存空間，也會產生費用。如果是永久刪除某個特定版本，那個版本就不是靠移除 Delete Marker 找得回來的。</p>
+<pre><code>同一個 Object Key
+├─ Version A：原始內容
+├─ Version B：後來覆寫的內容
+└─ Delete Marker：目前看起來已刪除</code></pre>
+</section>
+
+<section>
+<p class="era">公開網址不代表公開權限</p>
+<h3 class="head">S3 的存取控制</h3>
+<p>知道 Object URL，不代表任何人都有權讀它。能不能存取，取決於 Block Public Access、Bucket Policy、IAM Policy，以及這個環境有沒有啟用 ACL 等設定。</p>
+<p>ACL（存取控制清單）是比較舊、比較細碎的管理方式。一般設計應該優先集中使用 IAM Policy 與 Bucket Policy，並保留 Block Public Access，除非業務上真的需要公開內容。</p>
+<blockquote>「網址打得開」是結果；真正的安全設計，是先說清楚誰能對哪些 Key 執行哪些動作。</blockquote>
+<p>內容要給外部使用者時，也不必馬上把整個 Bucket 公開。可以評估限定範圍的 Bucket Policy、有時效的預先簽署 URL，或乾脆由應用程式控制下載。</p>
+</section>
+
+<section>
+<p class="era">資料不消失，和現在讀得到，是兩件事</p>
+<h3 class="head">Durability 與 Availability</h3>
+<p>Durability（耐久性）關心資料長期存放後還在不在；Availability（可用性）關心你要用的時候，服務能不能即時回應。</p>
+<p class="formula">耐久性：資料會不會不見；可用性：現在能不能順利讀到。</p>
+<p class="muted">原筆記寫 S3 的耐久性是「11 個 9（99.999999999%）」——查證後這個數字是對的，AWS 官方對 S3 Standard、Standard-IA、One Zone-IA 與 Glacier 系列列出的設計耐久性都是 99.999999999%<a class="fixsrc" href="https://aws.amazon.com/s3/storage-classes/" target="_blank" rel="noopener">出處</a>。要注意的是耐久性高不等於永遠讀得到，也不表示可以不做版本控制、權限保護和備份。</p>
+</section>
+
+<section>
+<p class="era">讓資料自動搬到合適的倉庫</p>
+<h3 class="head">儲存類別與 Lifecycle</h3>
+<p>選儲存類別不要只看每 GB 的單價，要一起看存取頻率、可接受的取回時間、取回費用，以及資料放在幾個可用區。</p>
+<div class="tablewrap"><table><thead><tr><th>儲存類別</th><th>適合情境</th><th>主要取捨</th></tr></thead><tbody><tr><td>S3 Standard</td><td>經常讀取、要立刻用的資料</td><td>即時存取，儲存成本較高</td></tr><tr><td>S3 Standard-IA</td><td>比較少存取，但需要立刻取回</td><td>通常有取回費用與最低計費條件</td></tr><tr><td>S3 One Zone-IA</td><td>可重建、較少存取的資料</td><td>只放在單一 AZ，不適合當唯一的重要副本</td></tr><tr><td>S3 Glacier 系列</td><td>封存與長期備份</td><td>取回時間與費用依方案而異</td></tr><tr><td>S3 Glacier Deep Archive</td><td>極少取用的長期封存</td><td>用較長的取回時間換較低的儲存成本</td></tr></tbody></table></div>
+<p class="muted">原筆記寫「Standard 與 Standard-IA 會存到三個以上的 AZ，One Zone-IA 如其名只會存在一個 AZ」——查證後這個講法是對的，AWS 的儲存類別對照表把 Standard、Standard-IA 與 Glacier 系列列為「≥3 個可用區」，One Zone-IA 列為「1 個」<a class="fixsrc" href="https://aws.amazon.com/s3/storage-classes/" target="_blank" rel="noopener">出處</a>。One Zone-IA 的設計耐久性數字雖然一樣，但整個可用區出事時仍可能遺失資料。</p>
+<p>Lifecycle（生命週期規則）可以依物件年齡或版本狀態，自動把物件轉到別的儲存類別或到期刪除。例如近期日誌放 Standard，變舊了轉進封存類別，超過保存期限再刪掉。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>S3 操作的是完整物件；EBS 提供可以建立檔案系統的區塊裝置。</li><li>S3 的「資料夾」多半是 Object Key 前綴造成的視覺效果。</li><li>Versioning 保留覆寫前的版本，Delete Marker 只是把目前版本藏起來。</li><li>知道 Object URL 不等於有讀取權限。</li><li>Lifecycle 可以自動轉換儲存類別或清掉過期物件。</li></ul></div>

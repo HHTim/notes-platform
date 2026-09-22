@@ -1,0 +1,73 @@
+<!-- 來源：HackMD 匯出「Chapter 3 AWS VPC 網路架構」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清楚 Region、Availability Zone、VPC 與 Subnet 的包含關係</li><li>判斷一個子網路算公開還是私有，以及流量會怎麼走出去</li><li>說出 Security Group 與 Network ACL 差在哪、各自貼在什麼東西上</li></ul></div>
+
+<section>
+<p class="era">先建立空間感</p>
+<h3 class="head">從地理區域一路縮小到子網路</h3>
+<p>可以把 AWS 的網路想成一座城市：Region（區域）是城市所在的地理範圍，Availability Zone（可用區，AZ）是彼此隔離的基礎設施區域，VPC（虛擬私有雲）是你在城市裡圈出來的私人園區，Subnet（子網路）則是園區裡的分區。</p>
+<div class="tablewrap"><table><thead><tr><th>層級</th><th>白話比喻</th><th>重點</th></tr></thead><tbody><tr><td>Region</td><td>一座城市所在的地理範圍</td><td>AWS 資源所屬的區域</td></tr><tr><td>Availability Zone</td><td>彼此隔離的基礎設施區域</td><td>一個 Region 內有多個 AZ（至少三個）</td></tr><tr><td>VPC</td><td>私人園區</td><td>由你自己規劃的虛擬網路邊界</td></tr><tr><td>Subnet</td><td>園區內的分區</td><td>每個 Subnet 只屬於單一 AZ</td></tr></tbody></table></div>
+<p>高可用（High Availability，HA）的常見做法，是把同一套服務分散部署到不同 AZ。這樣單一 AZ 出事時，其他 AZ 還有機會繼續提供服務。</p>
+</section>
+
+<section>
+<p class="era">道路決定去向</p>
+<h3 class="head">Route Table 與公開、私有子網路</h3>
+<p>Route Table（路由表）像路標：它不負責准不准過，只決定封包下一站往哪走。每個 Subnet 都會關聯一張路由表，多個 Subnet 也可以共用同一張。</p>
+<p>同一個 VPC 內通常有一條本地路由（local route），所以不同 Subnet 的資源可以透過 VPC 的路由功能互通；但流量還是要通過相關的安全規則才算過關。</p>
+<div class="terms"><p><b>公開子網路（Public Subnet）</b>：它的路由表有一條通往 Internet Gateway 的路由。EC2 要直接跟網際網路來往，通常還需要公有 IPv4 位址或 Elastic IP，以及放行的安全規則。</p><p><b>私有子網路（Private Subnet）</b>：沒有讓執行個體直接經由 Internet Gateway 對外通訊的路由。需要主動連外時，可以把預設路由指向放在公開子網路裡的 NAT Gateway。</p></div>
+<p class="formula">公開子網路 ≠ 裡面的資源自動公開；路由、公有位址與安全規則，三個缺一不可。</p>
+</section>
+
+<section>
+<p class="era">三條常見流量路徑</p>
+<h3 class="head">封包實際上怎麼走</h3>
+<p class="q">情境一：同一個 VPC 內，兩個私有子網路怎麼互通？</p>
+<pre><code>來源 EC2
+→ 來源 ENI 的 Security Group 出站檢查
+→ 來源 Subnet 的 Network ACL 出站檢查
+→ 路由表的 local 路由
+→ VPC 路由功能
+→ 目的 Subnet 的 Network ACL 入站檢查
+→ 目的 ENI 的 Security Group 入站檢查
+→ 目的 EC2</code></pre>
+<p class="q">情境二：公開子網路中的 EC2 怎麼連到網際網路？</p>
+<pre><code>有公有位址的 EC2
+→ ENI
+→ Security Group 與 Network ACL
+→ 路由表：預設路由指向 Internet Gateway
+→ Internet Gateway
+→ 網際網路</code></pre>
+<p class="q">情境三：私有子網路中的 EC2 怎麼主動連外？</p>
+<pre><code>私有 EC2
+→ 私有 Subnet 的安全檢查與路由表
+→ NAT Gateway（位於公開 Subnet）
+→ 公開 Subnet 的路由表
+→ Internet Gateway
+→ 網際網路</code></pre>
+<p>NAT Gateway 會把來源的私有位址換成它對外使用的位址（來源網路位址轉換，SNAT），並記住連線狀態。它是讓私有資源「主動連出去」用的，不等於允許網際網路任意主動連進來。</p>
+</section>
+
+<section>
+<p class="era">網卡才是網路身分</p>
+<h3 class="head">ENI、EC2 與 Security Group 的關係</h3>
+<p>ENI（Elastic Network Interface，彈性網路介面）就是虛擬網卡。EC2 是運算資源，它透過掛上 ENI 才取得私有 IP、所屬 Subnet 這些網路身分。</p>
+<p>Security Group（安全群組）是 VPC 層級的資源，實際上關聯到 ENI，而不是「住在 Subnet 裡」。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的。</p>
+<p>在條件允許時，ENI 可以從一台 EC2 卸下來，再掛到另一台 EC2。這樣就能保留部分網路設定，只換掉背後的運算資源。</p>
+</section>
+
+<section>
+<p class="era">兩道不同的門禁</p>
+<h3 class="head">Security Group 與 Network ACL</h3>
+<div class="tablewrap"><table><thead><tr><th>比較項目</th><th>Security Group</th><th>Network ACL</th></tr></thead><tbody><tr><td>保護範圍</td><td>ENI（資源層級）</td><td>Subnet 邊界</td></tr><tr><td>規則種類</td><td>只有允許規則</td><td>允許與拒絕規則都有</td></tr><tr><td>狀態</td><td>有狀態（Stateful）</td><td>無狀態（Stateless）</td></tr><tr><td>回程流量</td><td>已允許連線的回應可自動通過</td><td>入站、出站都要分別允許</td></tr><tr><td>評估方式</td><td>綜合所有適用的規則</td><td>依規則編號由小到大比對</td></tr></tbody></table></div>
+<p>Network ACL 是無狀態的，所以跨 Subnet 邊界時，要分別想來源端的出站規則與目的端的入站規則，回程流量也必須有對應規則才通得過。</p>
+<p class="muted">預設規則會因為你用的是預設還是自訂 Network ACL 而不同；判讀現有環境時要直接去看實際規則，不要靠印象。</p>
+</section>
+
+<section>
+<p class="era">建置順序</p>
+<h3 class="head">建立一個可以直接連外的基本網路</h3>
+<ol><li>建立 VPC，並規劃 CIDR（位址範圍）。</li><li>在指定的 AZ 建立 Subnet。</li><li>建立 Internet Gateway，掛載到 VPC，不是掛在某個 Subnet 上。</li><li>在公開 Subnet 關聯的路由表中，加一條指向 Internet Gateway 的預設路由。</li><li>建立 EC2 放進該 Subnet，配置需要的公有位址與安全規則。</li></ol>
+<p class="formula">一個 Subnet 算不算公開，主要看它關聯的路由表能不能把網際網路流量送到 Internet Gateway。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Subnet 只位於單一 AZ；跨 AZ 部署是提高可用性的常見做法。</li><li>Route Table 決定下一站怎麼走，Security Group 與 Network ACL 決定流量過不過得去。</li><li>Internet Gateway 讓公開資源連外；NAT Gateway 讓私有資源主動連外。</li><li>Security Group 有狀態、只有允許規則；Network ACL 無狀態，而且可以明確拒絕。</li><li>Security Group 關聯在 ENI 上，EC2 是透過 ENI 取得網路身分的。</li></ul></div>

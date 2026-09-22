@@ -1,0 +1,83 @@
+<!-- 來源：HackMD 匯出「Chapter 6 AWS RDS 資料庫儲存資源」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出自己在 EC2 上架資料庫和用 RDS 的責任差在哪</li><li>分清楚 Primary、Standby 與 Read Replica 各自解決什麼問題</li><li>知道 Multi-AZ 為什麼不等於備份，以及誤刪資料該怎麼救</li></ul></div>
+
+<section>
+<p class="era">先決定自己要管多少</p>
+<h3 class="head">EC2 自建資料庫與 RDS</h3>
+<p>在 EC2 上自己裝資料庫，像租下一間空屋後自己維護所有設備：AWS 提供底層運算資源，但作業系統修補、資料庫安裝與修補、備份、複寫和容錯移轉，多半得自己規劃。</p>
+<p>RDS（Relational Database Service，關聯式資料庫服務）則像請物業代管重要設備。AWS 幫忙處理比較多例行工作，例如基礎設施維護、備份功能、資料庫軟體的維護選項，以及 Multi-AZ 容錯機制；使用者還是要負責資料模型、帳號權限、網路安全、參數設定、容量選擇與成本控管。</p>
+<div class="tablewrap"><table><thead><tr><th>工作</th><th>EC2 自建資料庫</th><th>RDS</th></tr></thead><tbody><tr><td>資料庫安裝與例行修補</td><td>自己處理</td><td>由服務提供管理機制</td></tr><tr><td>備份功能</td><td>自己設計與驗證</td><td>提供自動備份與 Snapshot</td></tr><tr><td>高可用與容錯移轉</td><td>自己建置</td><td>可以使用 Multi-AZ 部署</td></tr><tr><td>資料與查詢設計</td><td>自己負責</td><td>仍由使用者負責</td></tr><tr><td>網路與存取權限</td><td>自己負責</td><td>仍由使用者負責</td></tr></tbody></table></div>
+</section>
+
+<section>
+<p class="era">同樣是副本，任務不一樣</p>
+<h3 class="head">Primary、Standby 與 Read Replica</h3>
+<div class="terms"><p><b>Primary</b>：主要的資料庫執行個體，承接一般應用程式的讀寫流量。</p><p><b>Standby</b>：Multi-AZ 架構中的備援副本，目的是高可用與容錯移轉，通常不拿來承接一般查詢。</p><p><b>Read Replica</b>：用來分擔讀取流量的副本，通常透過非同步複寫取得資料，所以可能有複寫延遲。</p></div>
+<p class="formula">Standby 解決「主資料庫壞了怎麼辦」；Read Replica 解決「讀取流量太大怎麼辦」。</p>
+<p>Read Replica 不該被當成完全即時的資料來源。應用程式寫入 Primary 之後馬上查 Read Replica，可能暫時看不到最新資料；需要「寫完立刻讀得到」的流程要謹慎選擇查詢端點。</p>
+</section>
+
+<section>
+<p class="era">跨可用區準備接班人</p>
+<h3 class="head">Multi-AZ 與 Failover</h3>
+<p>典型的 Multi-AZ 部署會把主要資料庫與備援資源放在不同 AZ，並維持同步或由該部署類型定義的高可用複寫。主要端故障或進行特定維護時，RDS 可以執行 Failover（容錯移轉），由備援端接手。</p>
+<p>應用程式要用 RDS 給的 Endpoint（端點 DNS 名稱），不要把底層主機 IP 寫死。容錯移轉之後 AWS 會更新 DNS 指向新的主要端；應用程式仍然要能重新解析 DNS、重試連線，並處理短暫中斷。</p>
+<pre><code>平常：
+應用程式 → RDS Endpoint → Primary
+                         ↔ Standby（高可用複寫）
+
+故障後：
+應用程式 → 同一個 Endpoint → 新的 Primary</code></pre>
+<p>Multi-AZ 提升的是可用性，不等於備份。使用者誤刪資料時，這個錯誤也可能被複寫到備援端，所以備份與復原策略還是省不掉。</p>
+</section>
+
+<section>
+<p class="era">資料庫通常躲在內網</p>
+<h3 class="head">Subnet Group 與 Security Group</h3>
+<p>資料庫通常部署在私有子網路，避免直接暴露在網際網路上。DB Subnet Group 告訴 RDS 可以在哪些 Subnet 裡配置資料庫資源。</p>
+<p class="muted">原筆記寫「每一個 RDS 的創建，都會去分配到兩個（含）以上的 Subnet，以達到 RDS 的 High Availability」——查證後這個方向是對的，AWS 官方的要求寫得更精確：每個 DB Subnet Group 必須在同一 Region 的至少兩個可用區各有一個 Subnet，而且建議每個可用區都放一個<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html" target="_blank" rel="noopener">出處</a>。重點不是「兩個 Subnet」這個數字，而是這些 Subnet 要分布在兩個以上的可用區，RDS 才有地方建新的備援端。</p>
+<p>Security Group 只該放行真的需要連線的來源。例如讓應用程式 EC2 所屬的 Security Group 連到資料庫連接埠，就比開放給所有 IPv4 位址安全得多。</p>
+<blockquote>不要因為「先測通再說」就把資料庫連接埠開給 0.0.0.0/0；那等於把門對整個網際網路打開。</blockquote>
+<pre><code>管理者
+→ 經受控方式登入應用程式或管理主機
+→ 使用資料庫用戶端
+→ RDS Endpoint
+→ RDS 的 Security Group 驗證來源
+→ Primary Database</code></pre>
+</section>
+
+<section>
+<p class="era">備份有兩種時間尺度</p>
+<h3 class="head">自動備份、時間點復原與 Snapshot</h3>
+<p>RDS 的自動備份會搭配儲存磁碟快照與資料庫交易日誌（Transaction Log），支援在保留期間內做時間點復原（Point-in-Time Recovery）。復原時通常不是把原資料庫直接倒轉，而是建立一個新的資料庫執行個體。</p>
+<p>手動 DB Snapshot 是由使用者主動建立的復原點。從 Snapshot 復原時，同樣會產生新的資料庫執行個體，再由你去檢查資料、網路與參數設定。</p>
+<div class="tablewrap"><table><thead><tr><th>方式</th><th>適用需求</th><th>復原結果</th></tr></thead><tbody><tr><td>時間點復原</td><td>回到保留期間內比較精確的某個時間</td><td>建立新的資料庫執行個體</td></tr><tr><td>手動 Snapshot</td><td>保留明確的里程碑或長期復原點</td><td>由 Snapshot 建立新的資料庫執行個體</td></tr><tr><td>Multi-AZ Standby</td><td>主要端故障時快速接手</td><td>執行容錯移轉，救不回誤刪的資料</td></tr></tbody></table></div>
+<p class="muted">原筆記寫「RDS 會定期去備份 Standby Instance，這個備份以天為單位」「Transaction Log 的自動備份是以分鐘為單位」——查證後方向沒錯：AWS 官方說自動備份是在你指定的備份時段建立儲存磁碟快照，另外持續備份交易日誌以支援時間點復原<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html" target="_blank" rel="noopener">出處</a>。但官方文件並沒有把頻率固定寫成「天」和「分鐘」，實際的備份時段、保留期間與可復原的時間範圍會因資料庫引擎與設定而不同，要以主控台顯示的為準。</p>
+</section>
+
+<section>
+<p class="era">讀取壓力大，就把讀分出去</p>
+<h3 class="head">Read Replica 怎麼用</h3>
+<p>工作負載主要卡在讀取時，可以建立 Read Replica，讓報表、查詢或其他能接受短暫延遲的流量走副本端點。寫入仍然要送往可寫的主要資料庫。</p>
+<pre><code>寫入請求 ───────────────→ Primary
+                         │
+                         └─ 非同步複寫 → Read Replica
+讀取請求（可接受延遲）────────────────→ Read Replica</code></pre>
+<p>建了副本不會讓應用程式自動把查詢分流。應用程式、資料存取層或中介服務還是要知道哪些查詢可以走副本，並處理複寫延遲與副本暫時不可用的情況。</p>
+</section>
+
+<section>
+<p class="era">從 EC2 驗證資料庫連線</p>
+<h3 class="head">基本操作流程</h3>
+<ol><li>建立 VPC、私有子網路，以及符合部署需求的 DB Subnet Group。</li><li>建立 RDS，把 Security Group 限制成只允許應用程式或管理來源。</li><li>在能安全連到 RDS 的主機上，安裝相容的資料庫用戶端。</li><li>用 RDS Endpoint、資料庫帳號與密碼連線。</li><li>建立測試資料，再驗證 Snapshot、時間點復原與 Read Replica 的行為。</li></ol>
+<pre><code># 套件名稱依作業系統版本與套件庫而異
+sudo dnf install -y mariadb105
+
+# 連接 MySQL 相容的 RDS
+mysql -u admin -p -h &lt;rds-endpoint&gt;
+
+SHOW DATABASES;</code></pre>
+<p class="muted">不要把資料庫密碼直接寫進指令稿、AMI 或版本庫；正式環境要用適當的祕密管理方式保存。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>RDS 減少基礎設施維護工作，但資料、權限與網路安全仍由使用者負責。</li><li>Standby 是為了高可用；Read Replica 是為了分擔讀取。</li><li>Read Replica 通常有複寫延遲，不能假設寫完立刻讀得到。</li><li>應用程式要連 RDS Endpoint，並具備重新連線與重試的能力。</li><li>Multi-AZ 不是備份；誤刪要靠自動備份或 Snapshot 救回來。</li></ul></div>

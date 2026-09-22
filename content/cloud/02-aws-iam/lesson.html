@@ -1,0 +1,74 @@
+<!-- 來源：HackMD 匯出「AWS」「Chapter 7 AWS IAM 權限管理」「20251019」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清楚 Region、Availability Zone 與 Edge Location 各自在做什麼</li><li>知道 IAM 的 User、User Group、Role、Policy 怎麼組合成一句授權</li><li>判斷一個請求會被放行還是被擋下，並說出為什麼</li></ul></div>
+
+<section>
+<p class="era">全球基礎設施</p>
+<h3 class="head">Region 是地理區域，Availability Zone 是故障隔離位置</h3>
+<p>AWS Region 是 AWS 在某個地理範圍提供服務的區域。很多 AWS 資源會建立在你選的 Region 裡；切到另一個 Region 時，不要預期原本那個 Region 的區域性資源會自動跟著出現。</p>
+<p>一個 Region 裡面有多個可用區（Availability Zone，AZ）。AZ 之間用低延遲網路互連，同時保有故障隔離能力。把工作負載分散到多個 AZ，可以降低單一位置壞掉就整個服務中斷的風險。</p>
+<p class="muted">原筆記寫「要成為一個 Region，必須包含三個以上的 AZ」——查證後這個講法是對的，AWS 官方寫的是每個 Region 至少由三個彼此隔離、實體分開的 AZ 組成<a class="fixsrc" href="https://aws.amazon.com/about-aws/global-infrastructure/regions_az/" target="_blank" rel="noopener">出處</a>。AWS 的另一份白皮書補充了為什麼要這樣切：同一 Region 內的 AZ 最遠相距約 100 公里，遠到不會一起遭災，又近到延遲夠低、可以用同步複寫<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/availability-zones.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>要注意的是：跨 AZ 擺放資源只是把隔離的地基打好；要讓流量自動轉向，還是得搭配健康檢查、負載平衡和資料備援設計。</p>
+</section>
+
+<section>
+<p class="era">靠近使用者</p>
+<h3 class="head">Edge Location 用來加速內容，不等於 Region</h3>
+<p>邊緣站點（Edge Location）設在靠近使用者的位置，常拿來快取與傳送內容。可以想成在各地設超商取貨點：常用的東西先放到離客戶近的地方，不必每次都跑回主倉庫。</p>
+<p>選 Region 時要一起看：法規與資料落地要求、使用者延遲、那個 Region 有沒有提供你要的服務，以及成本。Edge Location 能改善內容傳遞，但不能拿來取代「工作負載要放在哪個 Region」這個決定。</p>
+</section>
+
+<section>
+<p class="era">責任邊界</p>
+<h3 class="head">AWS 保護雲端本身，客戶保護放進雲端的東西</h3>
+<p>AWS 共享責任模型可以想成租辦公大樓：房東負責建築結構、公共設施與大樓的底層安全；租戶還是要管自己的門禁名單、室內資料和自己那些設備的設定。</p>
+<ul class="plainlist"><li><b>AWS：</b>負責底層機房、硬體、網路與代管服務的基礎設施安全。</li><li><b>客戶：</b>依服務模式管理資料、身分權限、加密選項、網路規則、作業系統與應用程式。</li></ul>
+<p>用 IaaS 時，客戶要管的層數比較多；用全託管服務時供應商管得多，但客戶對自己的資料與存取權限還是跑不掉。</p>
+</section>
+
+<section>
+<p class="era">IAM 骨架</p>
+<h3 class="head">先回答三件事：誰、對哪個資源、做什麼</h3>
+<p>AWS Identity and Access Management（IAM）管兩件事：身分驗證（authentication）確認「你是誰」，授權（authorization）決定「你能做什麼」。</p>
+<div class="terms"><p><b>IAM User：</b>長期存在於 AWS 帳號中的身分，可以搭配主控台密碼或程式用的憑證。</p><p><b>User Group：</b>IAM User 的集合，方便把共同權限集中管理；群組本身不是一個可以登入的身分。</p><p><b>IAM Role：</b>可以被人員、應用程式或 AWS 服務「承接」的身分，通常搭配短期憑證。</p><p><b>Policy：</b>一份政策文件，寫清楚允許或拒絕哪些動作、作用在哪些資源、有什麼條件。</p></div>
+<p>日常管理不該長期使用 AWS 帳號的根使用者（root user）。根使用者權限極高，應該設強密碼、開啟多重要素驗證（Multi-Factor Authentication，MFA），而且只在真的需要根權限的工作才動用。</p>
+</section>
+
+<section>
+<p class="era">Policy 結構</p>
+<h3 class="head">Effect、Action、Resource 與 Condition 組成一句授權</h3>
+<p>把政策陳述（Statement）想成一條法規：「允許或拒絕誰，在什麼條件下，對哪個資源執行哪些動作。」</p>
+<div class="tablewrap"><table><thead><tr><th>欄位</th><th>用途</th></tr></thead><tbody><tr><td>Effect</td><td>指定 Allow 或 Deny。</td></tr><tr><td>Action</td><td>指定可以執行或被拒絕的 AWS API 動作。</td></tr><tr><td>Resource</td><td>指定動作作用在哪些 AWS 資源，通常寫成 ARN。</td></tr><tr><td>Condition</td><td>限制政策何時生效，例如來源位址、標籤或請求情境。</td></tr><tr><td>Principal</td><td>指出誰是被授權或被限制的主體，常見於資源型政策與信任政策。</td></tr></tbody></table></div>
+<p class="formula">授權判斷 ≈ 主體（Principal）＋動作（Action）＋資源（Resource）＋條件（Condition）＋效果（Effect）</p>
+<p class="muted">身分型政策是附加在既有的 User、Group 或 Role 上，所以政策內容通常不另外寫 Principal；資源型政策則要指出誰能存取這個資源。</p>
+</section>
+
+<section>
+<p class="era">兩種政策</p>
+<h3 class="head">身分型說「這個身分能做什麼」，資源型說「誰能碰我」</h3>
+<div class="tablewrap"><table><thead><tr><th>比較</th><th>身分型政策</th><th>資源型政策</th></tr></thead><tbody><tr><td>附加位置</td><td>IAM User、User Group 或 Role</td><td>支援這類政策的 AWS 資源</td></tr><tr><td>思考方向</td><td>這個身分可以做什麼</td><td>哪些主體可以存取這項資源</td></tr><tr><td>Principal</td><td>通常不寫在政策裡</td><td>通常要指定</td></tr><tr><td>常見用途</td><td>授權角色讀取特定儲存貯體</td><td>Bucket Policy、Lambda 函式的呼叫權限</td></tr></tbody></table></div>
+<p>例如 EC2 上的應用程式要讀 S3，做法是把適當的 Role 指派給這個工作負載，讓程式拿到短期憑證，而不是把長期存取金鑰寫死在程式碼裡。</p>
+</section>
+
+<section>
+<p class="era">誰呼叫誰</p>
+<h3 class="head">S3 觸發 Lambda 時，授權要放在被呼叫的 Lambda 上</h3>
+<pre><code>使用者上傳物件
+        ↓
+S3 收到事件
+        ↓ 呼叫 Lambda
+Lambda 的資源型政策
+        ↓ 檢查 Principal、Action 與來源條件
+允許後才執行函式</code></pre>
+<p>這個情境裡呼叫的人是 S3 服務，被呼叫的資源是 Lambda 函式。所以要在 Lambda 的資源型政策中允許 S3 執行呼叫動作，並用條件限制只能由預期的那個 Bucket 觸發。</p>
+<p>Lambda 的執行角色回答的是另一個問題：「函式開始跑之後，可以存取哪些資源」。它不回答「誰可以呼叫這個函式」。這兩個方向不能混在一起。</p>
+</section>
+
+<section>
+<p class="era">安全判斷</p>
+<h3 class="head">沒被允許就是不行，明確 Deny 會蓋過 Allow</h3>
+<p>AWS 的權限判斷不是挑一份看起來權限最大的政策來用。一般觀念是：沒有任何適用的 Allow，請求會被隱含拒絕；只要出現適用的明確 Deny，就算別的政策有 Allow，請求還是會被拒絕。</p>
+<p>所以授權要照最小權限原則（principle of least privilege）：只給完成工作需要的動作與資源範圍，能加條件就加。權限需求變了之後，也要定期檢查、把不再使用的授權拿掉。</p>
+<p class="q">ARN（Amazon Resource Name）像 AWS 資源的完整地址。政策應該盡量指向真正需要的那些資源，沒有充分理由就不要把 Resource 寫成涵蓋全部的萬用字元。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Region 是地理區域；AZ 是 Region 內的故障隔離位置；Edge Location 著重把內容送到離使用者近的地方。</li><li>IAM User 與 Group 管既有身分；Role 適合可被承接的權限與短期憑證。</li><li>身分型政策附加在身分上；資源型政策附加在資源上並要寫出 Principal。</li><li>預設是隱含拒絕，適用的明確 Deny 會蓋過 Allow。</li><li>優先採用最小權限、MFA 與短期憑證，不要在程式裡放長期金鑰。</li></ul></div>

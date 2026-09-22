@@ -1,0 +1,78 @@
+<!-- 來源：HackMD 匯出「Chapter 4 AWS EC2 運算資源」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>拆開一台 EC2，說出 AMI、Instance Type、ENI、Instance Profile、EBS 各管什麼</li><li>判斷資料該放 Instance Store 還是 EBS</li><li>知道 EBS 效能為什麼不是只看磁碟規格，以及快照怎麼還原</li></ul></div>
+
+<section>
+<p class="era">先拆解一台虛擬機</p>
+<h3 class="head">EC2 由哪些零件組成</h3>
+<div class="tablewrap"><table><thead><tr><th>元件</th><th>角色</th><th>白話比喻</th></tr></thead><tbody><tr><td>AMI</td><td>決定作業系統、開機磁碟配置等啟動內容</td><td>裝機範本</td></tr><tr><td>Instance Type</td><td>決定 vCPU、記憶體、網路與儲存能力</td><td>硬體規格單</td></tr><tr><td>Instance Metadata</td><td>提供執行個體 ID、主機名稱等執行環境資訊</td><td>機器的身分證</td></tr><tr><td>ENI</td><td>提供 IP、所屬 Subnet 與 Security Group 等網路身分</td><td>虛擬網卡</td></tr><tr><td>Instance Profile</td><td>把 IAM Role 交給這台 EC2 使用</td><td>權限識別證的套子</td></tr><tr><td>EBS Volume</td><td>透過網路連接的區塊儲存</td><td>外接硬碟</td></tr></tbody></table></div>
+<p>IAM Role 不是「寫在主機設定裡」就會自動生效。EC2 是透過 Instance Profile（執行個體設定檔）取得角色憑證，應用程式才能在權限範圍內呼叫 AWS 服務，不必把長期金鑰塞進程式。</p>
+</section>
+
+<section>
+<p class="era">快，但不一定留得住</p>
+<h3 class="head">Instance Store 與 EBS</h3>
+<p>Instance Store（執行個體儲存）就在承載這台 EC2 的實體主機旁邊，適合暫存資料、快取，或是弄丟了可以重新產生的高速工作資料。它是短暫性儲存（Ephemeral Storage），不該拿來放唯一一份重要資料。</p>
+<p>EBS（Elastic Block Store）是獨立於 EC2 生命週期的區塊儲存。EBS Volume 和掛它的 EC2 必須在同一個 AZ；執行個體停掉或換了底層主機，EBS 裡的資料還在。</p>
+<div class="tablewrap"><table><thead><tr><th>比較項目</th><th>Instance Store</th><th>EBS</th></tr></thead><tbody><tr><td>位置</td><td>與實體主機緊密相連</td><td>經 AWS 內部網路連接</td></tr><tr><td>生命週期</td><td>可能隨執行個體終止或主機故障消失</td><td>可以獨立於執行個體保留</td></tr><tr><td>適合放什麼</td><td>快取、暫存、可重建的資料</td><td>系統磁碟、資料檔與要長期保存的資料</td></tr><tr><td>備份方式</td><td>要由應用程式自己另外複製</td><td>可以建立 EBS Snapshot</td></tr></tbody></table></div>
+<p class="muted">EBS 會不會在 EC2 終止時一起被刪掉，還要看那個裝置的 Delete on termination 設定；不能因為它是 EBS 就假設一定留得下來。</p>
+</section>
+
+<section>
+<p class="era">效能不是只看一個數字</p>
+<h3 class="head">IOPS、I/O 大小與 Throughput</h3>
+<p>IOPS 是每秒能處理幾次輸入輸出操作；I/O 大小是每次操作搬多少資料；Throughput（吞吐量）則是每秒搬運的資料總量。</p>
+<p class="formula">概念上的吞吐量 ≈ IOPS × 每次 I/O 大小</p>
+<p>大量小型、隨機存取的工作通常重視 IOPS；次數少但每次搬很多資料的循序工作，則比較看吞吐量。實際效能還會同時受到 EBS 類型、磁碟設定、工作負載，以及這台 EC2 本身的 EBS 頻寬上限限制。</p>
+<p>原筆記在開機碟的設定畫面旁寫了一條公式，那條要修掉：<mark class="fixnote" tabindex="0" data-note="原筆記在 EC2 建立流程的 Storage 段寫「IOPS = Size(GB) * 500，所以 Size 8GB，IOPS 最高為 4000」，查證後更正：500 這個比例是 gp3 額外加購 IOPS 時的上限比（每 GiB 最多 500 IOPS、整顆最多 80,000），不是一顆磁碟實際拿得到的 IOPS 公式；而且 gp3 不論容量多小，基準就有 3,000 IOPS">磁碟容量乘以 500 不是 IOPS 的計算公式</mark><a class="fixsrc" href="https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html" target="_blank" rel="noopener">出處</a>。正確的是：gp3 不論容量大小，基準就給 3,000 IOPS；要再多才另外加購，加購時的上限是每 GiB 500 IOPS、整顆最多 80,000。老一代的 gp2 則是另一套算法，效能隨容量走，每 GiB 3 IOPS、最低 100、最高 16,000。所以一顆 8 GiB 的 gp3 開機碟拿到的是 3,000 IOPS，不是 4,000。</p>
+<blockquote>磁碟規格像水管的一端，EC2 的 EBS 能力像另一端；水流速度會被比較窄的那一端卡住。</blockquote>
+</section>
+
+<section>
+<p class="era">新硬碟不能直接當資料夾</p>
+<h3 class="head">建立檔案系統並掛載 EBS</h3>
+<p>把新的 EBS Volume 掛到 EC2，只代表作業系統看得到這個區塊裝置。如果它還沒有檔案系統，得先格式化，再掛載到某個目錄。</p>
+<pre><code># 列出區塊裝置與完整路徑
+lsblk -p
+
+# 檢查裝置上是否已經有檔案系統
+sudo file -s &lt;device-path&gt;
+
+# 只對確認是空白的新磁碟建立 XFS；這個動作會清掉既有資料
+sudo mkfs -t xfs &lt;device-path&gt;
+
+# 建立掛載點並掛載
+sudo mkdir -p /my_data
+sudo mount &lt;device-path&gt; /my_data
+
+# 檢查容量使用狀況
+df -h</code></pre>
+<p>重新開機後要自動掛載，還得依裝置的 UUID 正確設定作業系統的掛載表。裝置名稱會因環境而異，不要把畫面上看到的名稱當成永遠不變。</p>
+</section>
+
+<section>
+<p class="era">備份不必每次整顆複製</p>
+<h3 class="head">EBS Snapshot 與復原</h3>
+<p>EBS Snapshot 是 EBS Volume 的區塊層級備份。後續的快照是漸進式備份（Incremental Backup）：概念上只加上前次快照之後變動的區塊，但每一個快照仍然都能單獨當成復原點使用。</p>
+<p>快照是 Region 層級的資源，可以拿它在目標 AZ 建立新的 EBS Volume，再掛到那個 AZ 的 EC2。這也說明了「Volume 屬於 AZ、Snapshot 屬於 Region」的差別。</p>
+<pre><code>EBS Volume
+→ 建立 Snapshot
+→ 從 Snapshot 建立新的 Volume
+→ 把新 Volume 掛到同一 AZ 的 EC2
+→ 檢查檔案系統與原有資料</code></pre>
+<p>想拿到應用程式層級一致的備份，建立快照前通常還要考慮停止寫入、把檔案系統快取刷回磁碟，或改用資料庫本身的備份機制來協調。</p>
+</section>
+
+<section>
+<p class="era">把配置做成可重複使用的範本</p>
+<h3 class="head">AMI 裝了什麼</h3>
+<p>AMI（Amazon Machine Image）是啟動 EC2 的範本。它描述作業系統、根裝置與區塊裝置對應（Block Device Mapping），也能設定哪些帳號可以使用這個 AMI（Launch Permissions）。</p>
+<p>如果你先在一台用 EBS 開機的 EC2 上裝好套件、建好檔案，再由這台執行個體建立 AMI，AWS 會用相關的磁碟快照把映像內容留下來。之後從這個 AMI 開的新機器，就會帶著同一套基礎環境。</p>
+<pre><code>基礎 AMI
+→ 啟動 EC2
+→ 安裝套件與建立檔案
+→ 建立新 AMI 與相關 Snapshot
+→ 由新 AMI 啟動多台一致的 EC2</code></pre>
+<p>建立映像時如果允許重新開機，通常比較容易拿到一致的磁碟狀態；選擇不重新開機的話，就要自己評估當下正在寫入的資料完不完整。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>AMI 管啟動範本，Instance Type 管運算規格，ENI 管網路身分。</li><li>EC2 透過 Instance Profile 使用 IAM Role，不該把長期憑證寫進主機或程式。</li><li>Instance Store 適合可重建的暫存資料；EBS 適合要留住的資料。</li><li>EBS Volume 屬於某個 AZ，EBS Snapshot 是 Region 層級的備份資源。</li><li>最終的 EBS 效能同時受磁碟規格與 EC2 本身能力限制。</li></ul></div>
