@@ -1,5 +1,5 @@
 <!-- 來源：HackMD 匯出「Spring Boot UnitTest」 · 收錄日期：2026-09-22 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用「準備、執行、驗證」三段式組織一個單元測試</li><li>分辨替身物件、被測物件與各種生命週期註解</li><li>正確使用 stub、verify 與參數比對器</li><li>設計正向、負向、異常與邊界四個方向的案例</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用「準備、執行、驗證」三段式組織一個單元測試</li><li>分辨替身物件、被測物件與各種生命週期註解</li><li>正確使用 stub、verify 與參數比對器</li><li>設計正向、負向、例外與邊界四個方向的案例</li></ul></div>
 
 <section>
 <p class="era">只測一小塊，不把整個系統搬進來</p>
@@ -77,8 +77,8 @@ when(client.call("exact", anyInt())).thenReturn("OK");</code></pre>
 <section>
 <p class="era">不只證明會成功，也要證明怎麼失敗</p>
 <h3 class="head">測試案例的四個方向</h3>
-<div class="tablewrap"><table><thead><tr><th>方向</th><th>例子</th><th>要驗證的重點</th></tr></thead><tbody><tr><td>正向</td><td>合法訂單編號成功刪除一筆資料</td><td>結果正確，必要的相依方法被呼叫</td></tr><tr><td>負向</td><td>必填欄位是 <code>null</code> 或空字串</td><td>系統拒絕這個輸入，而且沒有真的去刪資料</td></tr><tr><td>異常</td><td>SQL 產生器或資料存取元件丟出例外</td><td>例外被正確傳遞或轉換，後續操作停下來</td></tr><tr><td>邊界</td><td>零、最大值、空集合、單一元素、跨月日期</td><td>臨界點以及它前後的行為符合規則</td></tr></tbody></table></div>
-<p class="muted">原筆記的負向測試值得單獨拿出來看：它把必填欄位設成 <code>null</code>，然後安排「假設空契約號會產生不同的 SQL」、刪除回傳 0 筆，最後驗證刪除方法有被呼叫一次。這裡沒有測到任何驗證規則——它證明的只是「空值也會照跑一次刪除」。負向測試要先定義預期是什麼：丟出驗證例外、回傳錯誤，還是允許查無資料，再據此寫斷言。這是判斷而不是事實更正，所以沒有附出處。</p>
+<div class="tablewrap"><table><thead><tr><th>方向</th><th>例子</th><th>要驗證的重點</th></tr></thead><tbody><tr><td>正向</td><td>合法訂單編號成功刪除一筆資料</td><td>結果正確，必要的相依方法被呼叫</td></tr><tr><td>負向</td><td>必填欄位是 <code>null</code> 或空字串</td><td>系統拒絕這個輸入，而且沒有真的去刪資料</td></tr><tr><td>例外</td><td>SQL 產生器或資料存取元件丟出例外</td><td>例外被正確傳遞或轉換，後續操作停下來</td></tr><tr><td>邊界</td><td>零、最大值、空集合、單一元素、跨月日期</td><td>臨界點以及它前後的行為符合規則</td></tr></tbody></table></div>
+<p class="muted">原筆記的負向測試值得單獨拿出來看：它把必填欄位設成 <code>null</code>，然後安排成必填欄位為空時會產生另一段 SQL、刪除回傳 0 筆，最後驗證刪除方法有被呼叫一次。這裡沒有測到任何驗證規則——它證明的只是「空值也會照跑一次刪除」。負向測試要先定義預期是什麼：丟出驗證例外、回傳錯誤，還是允許查無資料，再據此寫斷言。這是判斷而不是事實更正，所以沒有附出處。</p>
 <blockquote>好的測試案例是在保存業務規則，不是在替目前的實作湊出綠燈。</blockquote>
 </section>
 
@@ -92,7 +92,7 @@ void cancelOrder_當SQL產生失敗_不執行刪除() {
 
     IllegalStateException error = assertThrows(
         IllegalStateException.class,
-        () -&gt; orderService.cancelOrder(validRequest)
+        () -&gt; orderService.cancelOrder("A001")
     );
 
     assertEquals("樣板讀取失敗", error.getMessage());
@@ -114,4 +114,4 @@ cancelOrder_當序號為最大值_原樣傳遞</code></pre>
 <p>覆蓋率能指出哪些程式碼還沒被執行過，但不能證明斷言是對的。高覆蓋率是線索，不是測試品質的保證。</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>單元測試要隔離外部相依，專注驗證一個小行為。</li><li>三段式分別是準備、執行、驗證。</li><li><code>when</code> 安排替身的回應，<code>verify</code> 檢查重要的互動。</li><li>同一次呼叫只要用了比對器，其他參數也要用比對器；混用不會編譯失敗，是執行時才爆。</li><li>案例要涵蓋正向、負向、異常與邊界，負向測試必須真的對到需求裡的規則。</li><li>覆蓋率取代不了有意義的斷言。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>單元測試要隔離外部相依，專注驗證一個小行為。</li><li>三段式分別是準備、執行、驗證。</li><li><code>when</code> 安排替身的回應，<code>verify</code> 檢查重要的互動。</li><li>同一次呼叫只要用了比對器，其他參數也要用比對器；混用不會編譯失敗，是執行時才爆。</li><li>案例要涵蓋正向、負向、例外與邊界，負向測試必須真的對到需求裡的規則。</li><li>覆蓋率取代不了有意義的斷言。</li></ul></div>
