@@ -87,7 +87,25 @@ export class CourseService {
 }</code></pre>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul>
+<section>
+<p class="era">新寫法概覽</p>
+<h3 class="head">訊號（signals）：這幾年 Angular 最大的寫法轉向</h3>
+<p>原筆記寫於裝飾器當道的年代，所以上面講的都是 <code>@Input</code>／<code>@Output</code>／<code>EventEmitter</code>。官方文件現在已經改用<strong>訊號（signal，一個「會通知誰在用我」的值）</strong>當主要寫法——元件輸入的官方指南通篇示範的是 <code>input()</code> 而不是 <code>@Input</code>。這一課的內容忠於原筆記，但你維護新專案時會直接遇到訊號，所以這裡給一張對照表當地圖。</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>要做的事</th><th>裝飾器寫法（原筆記）</th><th>訊號寫法（官方現行）</th></tr></thead>
+  <tbody>
+    <tr><th>接收父元件的值</th><td><code>@Input() value = 0;</code></td><td><code>value = input(0);</code>（讀值要加括號：<code>this.value()</code>）</td></tr>
+    <tr><th>必填的輸入</th><td><code>@Input({ required: true }) id!: string;</code></td><td><code>id = input.required&lt;string&gt;();</code></td></tr>
+    <tr><th>往父元件送事件</th><td><code>@Output() saved = new EventEmitter&lt;void&gt;();</code></td><td><code>saved = output&lt;void&gt;();</code></td></tr>
+    <tr><th>自己管一個會變的值</th><td>普通屬性，靠變更偵測掃描</td><td><code>count = signal(0);</code>，改值用 <code>this.count.set(1)</code> 或 <code>update()</code></td></tr>
+    <tr><th>由其他值算出來的值</th><td>getter 或在樣板裡算</td><td><code>double = computed(() =&gt; this.count() * 2);</code>——來源變了才重算</td></tr>
+  </tbody>
+</table></div>
+<p class="muted">三個名詞一次講完：<code>signal()</code> 建立一個可讀可寫、會通知使用者的值；<code>computed()</code> 從其他訊號算出唯讀的值，來源沒變就不重算；<code>effect()</code> 在訊號變動時做副作用（例如寫入瀏覽器儲存）。<code>input()</code> 回傳的是唯讀訊號，所以只能讀、不能在子元件裡改。</p>
+<p class="formula">舊專案看得懂裝飾器，新專案直接寫訊號</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>官方現行寫法已轉向訊號：<code>input()</code>／<code>output()</code>／<code>signal()</code>／<code>computed()</code>，本課的裝飾器寫法用於維護既有專案。</li>
 <li>初始化寫在 <code>ngOnInit</code>、清理寫在 <code>ngOnDestroy</code>；<code>ngOnChanges</code> 只在有綁定輸入值時執行。</li>
 <li>父傳子用 Input（<code>[子元件變數]="父元件變數"</code>），子傳父用 Output＋<code>$event</code>。</li>
 <li><code>@ViewChild</code> 預設在 <code>ngAfterViewInit</code> 前解析；<code>static: true</code> 才能在 <code>ngOnInit</code> 前拿到。</li>
