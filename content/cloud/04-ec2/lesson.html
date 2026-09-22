@@ -23,7 +23,7 @@
 <p>IOPS 是每秒能處理幾次輸入輸出操作；I/O 大小是每次操作搬多少資料；Throughput（吞吐量）則是每秒搬運的資料總量。</p>
 <p class="formula">概念上的吞吐量 ≈ IOPS × 每次 I/O 大小</p>
 <p>大量小型、隨機存取的工作通常重視 IOPS；次數少但每次搬很多資料的循序工作，則比較看吞吐量。實際效能還會同時受到 EBS 類型、磁碟設定、工作負載，以及這台 EC2 本身的 EBS 頻寬上限限制。</p>
-<p>原筆記在開機碟的設定畫面旁寫了一條公式，那條要修掉：<mark class="fixnote" tabindex="0" data-note="原筆記在 EC2 建立流程的 Storage 段寫「IOPS = Size(GB) * 500，所以 Size 8GB，IOPS 最高為 4000」，查證後更正：500 這個比例是 gp3 額外加購 IOPS 時的上限比（每 GiB 最多 500 IOPS、整顆最多 80,000），不是一顆磁碟實際拿得到的 IOPS 公式；而且 gp3 不論容量多小，基準就有 3,000 IOPS">磁碟容量乘以 500 不是 IOPS 的計算公式</mark><a class="fixsrc" href="https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html" target="_blank" rel="noopener">出處</a>。正確的是：gp3 不論容量大小，基準就給 3,000 IOPS；要再多才另外加購，加購時的上限是每 GiB 500 IOPS、整顆最多 80,000。老一代的 gp2 則是另一套算法，效能隨容量走，每 GiB 3 IOPS、最低 100、最高 16,000。所以一顆 8 GiB 的 gp3 開機碟拿到的是 3,000 IOPS，不是 4,000。</p>
+<p class="muted">原筆記在 EC2 建立流程的 Storage 段寫「IOPS = Size(GB) * 500，所以 Size 8GB，IOPS 最高為 4000」——查證後這個算法是對的，講的是 gp3 的上限：AWS 官方寫的是 gp3 可以額外加購 IOPS，比例是每 GiB 最多 500 IOPS、整顆最多 80,000，所以 8 GiB 的上限正好是 500 × 8 = 4,000<a class="fixsrc" href="https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html" target="_blank" rel="noopener">出處</a>。要補的是兩件原筆記沒講的事：第一，那 4,000 是「最多可以買到」的數字，不是預設就有；gp3 不論容量大小，基準都先給你 3,000 IOPS，多出來的才要另外付錢。第二，這條算法只適用 gp3；老一代的 gp2 是另一套，效能隨容量走，每 GiB 3 IOPS、最低 100、最高 16,000，所以同樣 8 GiB 的 gp2 基準只有 100 IOPS。</p>
 <blockquote>磁碟規格像水管的一端，EC2 的 EBS 能力像另一端；水流速度會被比較窄的那一端卡住。</blockquote>
 </section>
 

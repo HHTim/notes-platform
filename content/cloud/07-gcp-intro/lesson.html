@@ -28,7 +28,8 @@
 <h3 class="head">Region 是地理區域，Zone 是裡面的部署與故障隔離位置</h3>
 <p>Region 是 Google Cloud 的獨立地理區域；Zone 是 Region 內的部署位置，也是故障隔離單位。一般的 Compute Engine VM 屬於 Zonal Resource，所以建立時要選 Zone。</p>
 <p class="muted">原筆記寫「一個 Region 包含至少 3 個 Zones」——查證後這個講法是對的，Google 官方文件寫的是一個 Region 由三個或以上的 Zone 組成，分布在三座以上的實體資料中心<a class="fixsrc" href="https://cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。</p>
-<p>不過原筆記另外兩個延遲數字要修掉：<mark class="fixnote" tabindex="0" data-note="原筆記寫「同一 Region 內的 Zones 網路延遲：&lt; 5ms」「Zone 關鍵特性：網路延遲 &lt; 1ms」，查證後更正：Google 官方的區域與可用區文件只說 Zone 之間有高頻寬、低延遲的網路連線，並沒有給出 5ms 或 1ms 這類數值承諾">Google 官方文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線，沒有公布「小於 5 毫秒」或「小於 1 毫秒」這種具體數字</mark><a class="fixsrc" href="https://cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>。要規劃對延遲敏感的架構，應該實測自己那組 Region 與 Zone，不要拿記憶中的數字當保證。</p>
+<p>不過原筆記另外兩個延遲數字要小心：<mark class="fixnote" tabindex="0" data-note="原筆記寫「同一 Region 內的 Zones 網路延遲：&lt; 5ms」「Zone 關鍵特性：網路延遲 &lt; 1ms」，查證後更正：Google 官方的區域與可用區文件只說 Zone 之間有高頻寬、低延遲的網路連線，並沒有把 5ms 或 1ms 寫成承諾。這不是說實測跑不出這種數字，而是說它不是可以拿來當設計保證的官方規格">Google 官方文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線，並沒有把「小於 5 毫秒」或「小於 1 毫秒」寫成承諾</mark><a class="fixsrc" href="https://cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>。</p>
+<p>講清楚一點：這不代表實測跑不出那種數字。Google 唯一公開的延遲換算法則是選區域指南裡的「每 100 公里約 1 毫秒來回延遲」，而同一 Region 的 Zone 通常只隔幾公里到幾十公里，所以實際延遲很低是合理的<a class="fixsrc" href="https://cloud.google.com/solutions/best-practices-compute-engine-region-selection" target="_blank" rel="noopener">出處</a>。差別在於：那是推估，不是可以拿來當設計保證的規格。要規劃對延遲敏感的架構，就實測自己那組 Region 與 Zone，別把記憶中的數字當承諾。</p>
 <p>選位置時通常要一起考慮使用者延遲、資料落地、災難復原、那裡有沒有你要的服務或硬體，以及資料傳輸成本。把 VM 分散到不同 Zone 能降低單一 Zone 故障的影響，但要自動導流還是得搭配負載平衡、健康檢查或其他故障切換設計。</p>
 </section>
 
