@@ -10,9 +10,11 @@ Content-Type: application/json
 
 {"name":"小安","age":20}</code></pre>
 <pre><code>HTTP/1.1 201 Created
+Location: /api/students/42
 Content-Type: application/json
 
 {"id":42,"name":"小安","age":20}</code></pre>
+<p>回應裡那個 <code>Location</code> 不是裝飾。HTTP 規格說 201 建立出來的主要資源，「由回應中的 <code>Location</code> 標頭指出；如果沒有收到 <code>Location</code> 標頭，就以目標網址為準」——而這次的目標網址是 <code>/api/students</code> 這個集合，不是剛建好的那一筆。所以用 POST 對集合新增時，要自己把新資源的網址放進 <code>Location</code>，用戶端才知道去哪裡拿它<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-201-created" target="_blank" rel="noopener">出處</a>。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記把 GET 比喻成明信片、POST 比喻成信封，寫「POST 傳遞的參數不會被別人看見，安全性較高」，查證後更正：POST 的請求本體一樣是明文，沒有 TLS 保護時整段都看得到；POST 的差別只在資料不會出現在網址、瀏覽紀錄與伺服器存取紀錄裡，不等於加密">POST 的請求本體一樣是明文傳送。MDN 說 HTTP 訊息「設計上就是人看得懂的」，而且它「送在 TCP 上，或送在一條受 TLS 加密的 TCP 連線上」——加密來自 TLS 而不是方法。POST 跟 GET 的差別只在資料不會出現在網址、瀏覽紀錄與伺服器存取紀錄裡</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview" target="_blank" rel="noopener">出處</a>。機密資料要不要安全，取決於 HTTPS、權限控管與資料處理方式；GET 也不該帶密碼或權杖。</p>
 </section>
 
@@ -75,8 +77,11 @@ public class StudentController {
 public ResponseEntity&lt;StudentResponse&gt; create(
         @Valid @RequestBody CreateStudentRequest request) {
     StudentResponse created = studentService.create(request);
-    return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    return ResponseEntity
+            .created(URI.create("/api/students/" + created.id()))
+            .body(created);
 }</code></pre>
+<p class="muted"><code>ResponseEntity.created(...)</code> 會一次把狀態碼設成 201 並填好 <code>Location</code>，比自己寫 <code>status(HttpStatus.CREATED)</code> 再補標頭不容易漏。</p>
 <div class="terms"><div class="term"><b>@NotNull</b><span>不可以是 null，但空字串會過。</span></div><div class="term"><b>@NotEmpty</b><span>字串、集合或陣列不可以是空的。</span></div><div class="term"><b>@NotBlank</b><span>字串去掉前後空白後還要有內容，最適合姓名這類欄位。</span></div><div class="term"><b>@Min</b><span>數值的下限。</span></div></div>
 <p class="muted">驗證註解的套件名也跟著 Jakarta 改過：Spring Boot 2 以前是 <code>javax.validation</code>，Spring Boot 3 起是 <code>jakarta.validation</code>。原筆記沒有標版本，抄程式碼時要對一下自己專案的版本。</p>
 </section>
