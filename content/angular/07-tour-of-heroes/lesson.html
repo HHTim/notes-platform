@@ -1,0 +1,158 @@
+<!-- 來源：HackMD「[英雄之旅](https://angular.tw/tutorial/tour-of-heroes)」（官方教學筆記，Angular 19） · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>照官方「英雄之旅」七步，用 standalone 寫法完成一個小型應用</li><li>把前六課的元件、綁定、服務、路由串在一起實際用一遍</li><li>用 RxJS 把搜尋輸入整理成防抖、去重、只留最新的資料流</li></ul></div>
+
+<section>
+<p class="era">Step 1，建立專案</p>
+<h3 class="head">應用骨架</h3>
+<pre><code>npx @angular/cli new tour-of-heroes
+cd tour-of-heroes
+npm start</code></pre>
+<p>確認根元件能顯示標題，再清掉產生器附帶的示範內容。舊版教材以 <code>AppModule</code> 啟動；新版對應到 <code>bootstrapApplication</code> 與 <code>app.config.ts</code>。</p>
+</section>
+
+<section>
+<p class="era">Step 2，英雄編輯器</p>
+<h3 class="head">建立 Hero 型別並雙向編輯名稱</h3>
+<pre><code>export interface Hero {
+  id: number;
+  name: string;
+}
+
+hero: Hero = { id: 1, name: '疾風俠' };</code></pre>
+<pre><code>&lt;h2&gt;{{ hero.name | uppercase }} 詳細資料&lt;/h2&gt;
+&lt;label&gt;
+  名稱：
+  &lt;input [(ngModel)]="hero.name" placeholder="英雄名稱"&gt;
+&lt;/label&gt;</code></pre>
+<p>元件的 <code>imports</code> 要加 <code>FormsModule</code> 才能用 <code>ngModel</code>。<span class="muted">原筆記寫「必須 import <code>CommonModule</code> 才能使用內建 pipe」——匯入 <code>CommonModule</code> 可行，但 standalone 元件也可以只匯入用到的那個管道（如 <code>UpperCasePipe</code>），打包更精準。</span></p>
+</section>
+
+<section>
+<p class="era">Step 3，顯示清單</p>
+<h3 class="head">列出英雄並選取一位</h3>
+<pre><code>@for (hero of heroes; track hero.id) {
+  &lt;button
+    [class.selected]="hero.id === selectedHero?.id"
+    (click)="select(hero)"&gt;
+    &lt;span&gt;{{ hero.id }}&lt;/span&gt; {{ hero.name }}
+  &lt;/button&gt;
+}</code></pre>
+<p>穩定的英雄 ID 讓 Angular 重用 DOM；點擊只更新選取狀態，頁面不重載——第 2 課的 <code>track</code> 與事件綁定在這裡合體。</p>
+</section>
+
+<section>
+<p class="era">Step 4，拆出詳細資料元件</p>
+<h3 class="head">責任拆分，不是搬 HTML</h3>
+<pre><code>@Component({
+  selector: 'app-hero-detail',
+  standalone: true,
+  imports: [FormsModule],
+  templateUrl: './hero-detail.component.html'
+})
+export class HeroDetailComponent {
+  @Input() hero?: Hero;
+}</code></pre>
+<pre><code>&lt;app-hero-detail [hero]="selectedHero" /&gt;</code></pre>
+<p>父元件管清單與選取狀態，詳細資料元件經 Input 接英雄。這一步的重點是責任拆分：誰擁有狀態、誰只負責呈現。</p>
+</section>
+
+<section>
+<p class="era">Step 5，建立服務</p>
+<h3 class="head">資料取得移出元件</h3>
+<pre><code>@Injectable({ providedIn: 'root' })
+export class HeroService {
+  getHeroes(): Observable&lt;Hero[]&gt; {
+    return of(HEROES);
+  }
+}</code></pre>
+<pre><code>heroes: Hero[] = [];
+
+ngOnInit(): void {
+  this.heroService.getHeroes()
+    .subscribe(heroes =&gt; this.heroes = heroes);
+}</code></pre>
+<p>服務像資料櫃台：元件只提需求，不管資料現在是寫死的陣列、記憶體模擬還是真正的後端。之後換資料來源，元件一行都不用改。</p>
+</section>
+
+<section>
+<p class="era">Step 6，新增導覽</p>
+<h3 class="head">Dashboard、Heroes 與 Detail 路由</h3>
+<pre><code>export const routes: Routes = [
+  { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
+  { path: 'dashboard', component: DashboardComponent },
+  { path: 'heroes', component: HeroesComponent },
+  { path: 'detail/:id', component: HeroDetailComponent }
+];</code></pre>
+<pre><code>export const appConfig: ApplicationConfig = {
+  providers: [provideRouter(routes)]
+};</code></pre>
+<pre><code>&lt;h1&gt;英雄之旅&lt;/h1&gt;
+&lt;nav&gt;
+  &lt;a routerLink="/dashboard"&gt;儀表板&lt;/a&gt;
+  &lt;a routerLink="/heroes"&gt;英雄清單&lt;/a&gt;
+&lt;/nav&gt;
+&lt;router-outlet /&gt;</code></pre>
+<p>詳細頁從 <code>ActivatedRoute</code> 讀 <code>id</code>，再請服務拿英雄。舊教材把 <code>RouterModule.forRoot(routes)</code> 放進 NgModule；standalone 寫法改由 <code>provideRouter(routes)</code> 提供。<code>pathMatch: 'full'</code> 表示整段路徑完全相符才轉址，空路徑的轉址一定要配它。</p>
+</section>
+
+<section>
+<p class="era">Step 7，從伺服器取資料</p>
+<h3 class="head">HttpClient、刪除與搜尋</h3>
+<pre><code>export const appConfig: ApplicationConfig = {
+  providers: [
+    provideRouter(routes),
+    provideHttpClient()
+  ]
+};</code></pre>
+<pre><code>private heroesUrl = 'api/heroes';
+
+getHeroes(): Observable&lt;Hero[]&gt; {
+  return this.http.get&lt;Hero[]&gt;(this.heroesUrl)
+    .pipe(catchError(() =&gt; of([])));
+}
+
+deleteHero(id: number): Observable&lt;unknown&gt; {
+  return this.http.delete(`${this.heroesUrl}/${id}`);
+}
+
+searchHeroes(term: string): Observable&lt;Hero[]&gt; {
+  const value = term.trim();
+  return value
+    ? this.http.get&lt;Hero[]&gt;(`${this.heroesUrl}/?name=${value}`)
+    : of([]);
+}</code></pre>
+<p>教學用 <code>angular-in-memory-web-api</code> 模擬伺服器：安裝後在 <code>app.config.ts</code> 設定，它會在瀏覽器端攔截 HTTP 請求、回傳假資料，讓你沒有後端也能練完整的增刪改查；正式產品改接真正的 API。<span class="muted">這個套件與各 Angular 版本的相容性、standalone 的設定細節，動手前照套件目前的文件確認。</span></p>
+<p>搜尋輸入交給 RxJS 的 <code>Subject&lt;string&gt;</code>（可以手動塞值進去的 Observable），再串三個運算子：<code>debounceTime(300)</code> 等使用者停頓 300 毫秒才動作、<code>distinctUntilChanged()</code> 忽略跟上次相同的字串、<code>switchMap</code> 一有新搜尋就改訂最新的請求，舊請求的結果不會蓋掉新的。</p>
+<pre><code>private searchTerms = new Subject&lt;string&gt;();
+
+heroes$ = this.searchTerms.pipe(
+  debounceTime(300),
+  distinctUntilChanged(),
+  switchMap(term =&gt; this.heroService.searchHeroes(term))
+);
+
+search(term: string): void {
+  this.searchTerms.next(term);
+}</code></pre>
+<p><code>searchTerms</code> 是元件內部實作，設 private；<code>heroes$</code> 要在樣板搭配 <code>async</code> 管道使用，所以保持可存取。名稱結尾的 <code>$</code> 是「這是 Observable」的命名慣例，不是 TypeScript 語法。</p>
+</section>
+
+<section>
+<p class="era">完成檢查</p>
+<h3 class="head">沿著使用者流程驗收</h3>
+<ul class="plainlist">
+<li>從儀表板能進到英雄詳細頁。</li>
+<li>英雄清單能選取、新增、修改與刪除。</li>
+<li>重新導覽後，路由參數仍載入正確的英雄。</li>
+<li>搜尋有防抖，且舊請求不會覆蓋較新的結果。</li>
+<li>HTTP 錯誤有可理解的處理方式。</li>
+<li>正式建置與測試都通過。</li>
+</ul>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>七步依序練：骨架、雙向編輯、清單、子元件、服務、路由、HTTP。</li>
+<li>standalone 把舊 NgModule 的設定拆到元件 <code>imports</code> 與應用層 providers。</li>
+<li>資料取得放服務，元件不管來源是假資料還是真後端。</li>
+<li>搜尋資料流三件套：<code>debounceTime</code> 防抖、<code>distinctUntilChanged</code> 去重、<code>switchMap</code> 只留最新。</li>
+</ul></div>

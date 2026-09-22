@@ -1,0 +1,93 @@
+<!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) Chapter 20 ~ 28」，樣式穿透與公共樣式取自「Chapter 37 ~ 42」「Chapter 43 ~ End」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>知道靜態資產與圖示怎麼放、全域樣式與元件樣式怎麼分工</li><li>理解樣式封裝，客製第三方元件時知道為什麼不該把 <code>::ng-deep</code> 當預設解法</li><li>用 localStorage 保存主題偏好，並在應用啟動時套回來</li></ul></div>
+
+<section>
+<p class="era">資產與圖示</p>
+<h3 class="head">靜態資產放哪裡</h3>
+<p>圖片、字型等靜態資產放在專案設定指定的資產目錄。<mark class="fixnote" tabindex="0" data-note="原筆記寫「我們經常需要添加靜態資源到專案內，通常會將其存放在 ./src/assets 中」，查證後更正：Angular 18 起新專案預設改用 public/ 目錄">Angular 18 起，新專案的預設資產目錄是與 <code>src/</code> 同層的 <code>public/</code>（<code>angular.json</code> 的 assets 設定指向它）；<code>src/assets</code> 是舊版預設，既有專案仍可沿用或在 <code>angular.json</code> 自行設定</mark><a class="fixsrc" href="https://angular.dev/reference/configs/file-structure" target="_blank" rel="noopener">出處</a>。改了 <code>angular.json</code> 的建置設定後，記得重新啟動開發伺服器才會生效。</p>
+<p>圖示套件也一樣：只註冊真正用到的圖示，像出門只帶會用到的工具，避免把整套圖示全部打包進產出檔、讓專案越長越肥。</p>
+</section>
+
+<section>
+<p class="era">樣式架構</p>
+<h3 class="head">全域樣式與元件樣式各司其職</h3>
+<p>全域樣式（<code>styles.css</code> 或 <code>styles.less</code>）放色彩變數、文字規格、間距與重設規則；元件樣式只描述該元件自己。預處理器（SCSS 或 Less，先寫變數與巢狀再編譯成 CSS 的工具）在建立專案時選定最省事，之後也能改檔名並同步修改 <code>angular.json</code> 的 styles 設定。</p>
+<pre><code>:root {
+  --color-bg: #ffffff;
+  --color-text: #202124;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #171717;
+  --color-text: #f3f3f3;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}</code></pre>
+<p>用第三方 UI 套件（如 Ant Design）時，還要照套件文件載入它的基礎樣式；把基礎樣式拿掉，元件功能還在、外觀卻會整個失靈。</p>
+</section>
+
+<section>
+<p class="era">樣式封裝</p>
+<h3 class="head">為何父元件的 CSS 套不到子元件</h3>
+<p>Angular 預設做檢視封裝（View Encapsulation）：編譯時替每個元件的元素加上專屬的屬性選擇器，像替每間房間的油漆貼上房號，元件樣式就不會外洩污染別的區域。這也是為什麼在父元件寫 <code>p { color: red }</code>，子元件的 <code>&lt;p&gt;</code> 不會變紅。</p>
+<p><code>:host</code> 用來選取元件自己的宿主元素（元件標籤本身，例如 <code>&lt;app-card&gt;</code>）：</p>
+<pre><code>:host {
+  display: block;
+}
+
+:host .title {
+  font-weight: 700;
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記以「:host 搭配 ::ng-deep 達到樣式穿透」作為客製第三方元件的解法，查證後補充：官方明言強烈不建議新程式使用 ::ng-deep，它只為回溯相容而保留"><code>::ng-deep</code> 會拆掉封裝、讓選擇器穿透到子元件，Angular 官方強烈不建議新程式使用，保留它只是為了回溯相容</mark><a class="fixsrc" href="https://angular.dev/guide/components/styling" target="_blank" rel="noopener">出處</a>。要客製第三方元件的外觀，優先順序是：套件提供的主題 API、CSS 變數、可設定的 class，再來才是範圍收窄的全域樣式。</p>
+</section>
+
+<section>
+<p class="era">偏好保存</p>
+<h3 class="head">localStorage、sessionStorage、Cookie 與 Session</h3>
+<p>HTTP 本身無狀態（伺服器不記得上一個請求是誰發的），要讓「使用者選的主題」或「登入狀態」留下來，得靠瀏覽器端或伺服器端的保存機制：</p>
+<div class="tablewrap"><table>
+<thead><tr><th>機制</th><th>生命週期與範圍</th><th>適合用途</th></tr></thead>
+<tbody>
+<tr><td><code>localStorage</code></td><td>同源下持續保存，同源的各分頁都讀得到</td><td>主題、語言等非敏感偏好</td></tr>
+<tr><td><code>sessionStorage</code></td><td>只限單一分頁的工作階段，關閉即消失</td><td>單次流程的暫存狀態</td></tr>
+<tr><td>Cookie</td><td>可設過期時間，符合規則時隨每次 HTTP 請求送出</td><td>由伺服器讀取的識別資訊（單顆約 4KB）</td></tr>
+<tr><td>伺服器 Session</td><td>資料放伺服器，瀏覽器通常只拿一個識別碼</td><td>登入狀態與敏感的工作階段資料</td></tr>
+</tbody>
+</table></div>
+<p class="muted">Web Storage（localStorage 與 sessionStorage 的統稱）只能存字串，物件要先用 JSON 轉換。敏感憑證不要只因為方便就放 localStorage。</p>
+</section>
+
+<section>
+<p class="era">主題初始化</p>
+<h3 class="head">在第一個畫面出現前套回偏好</h3>
+<p>主題存進 localStorage 之後還差一步：重新整理頁面時，要在畫面出現前把它讀回來套用，不然會先閃一下預設主題。Angular 的應用初始化機制就是做這件事。原筆記記的是對的：<code>APP_INITIALIZER</code> 這個舊寫法自 Angular 19 起標記為棄用，官方建議改用 <code>provideAppInitializer</code>（<a class="fixsrc" href="https://angular.dev/api/core/APP_INITIALIZER" target="_blank" rel="noopener">出處</a>）：</p>
+<pre><code>import { provideAppInitializer, inject } from '@angular/core';
+
+export const appConfig = {
+  providers: [
+    provideAppInitializer(() =&gt; {
+      const theme = inject(ThemeService);
+      theme.apply(localStorage.getItem('theme') ?? 'light');
+    })
+  ]
+};</code></pre>
+<p>啟動流程概念上是：執行進入點 <code>main.ts</code> → 讀取應用設定 <code>app.config.ts</code> → 執行所有初始化函式 → 建立根元件。初始化函式回傳 Promise 或 Observable 時，Angular 會等它完成才往下走。</p>
+</section>
+
+<section>
+<p class="era">瀏覽器安全邊界</p>
+<h3 class="head">同源政策與 CORS</h3>
+<p>兩個網址要通訊協定、主機、埠號三者都相同才算同源（路徑不同沒關係）。localStorage 與 sessionStorage 都受同源邊界限制：別的網站讀不到你網站存的東西。CORS（跨來源資源共享）不是把同源政策關掉，而是伺服器透過回應標頭，明確允許特定來源讀取跨來源的回應。</p>
+<p class="formula">同源＝通訊協定相同＋主機相同＋埠號相同</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>Angular 18 起新專案的靜態資產預設放 <code>public/</code>；改建置設定要重啟開發伺服器。</li>
+<li>全域樣式管變數與規格，元件樣式管自己；檢視封裝靠編譯期的屬性選擇器隔離。</li>
+<li>客製第三方元件優先用正式主題 API；<code>::ng-deep</code> 官方強烈不建議新用。</li>
+<li>主題偏好放 localStorage，啟動時用 <code>provideAppInitializer</code> 套回（<code>APP_INITIALIZER</code> 自 v19 起棄用）。</li>
+<li>同源＝協定＋主機＋埠號都相同；CORS 是伺服器開白名單，不是前端片面放行。</li>
+</ul></div>

@@ -1,0 +1,95 @@
+<!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) Chapter 43 ~ End」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>知道元件從建立到銷毀的時機點，初始化與清理各該寫在哪個 hook</li><li>用 Input、Output 完成父子元件的資料傳遞，用 ViewChild 存取子元件</li><li>用管道（Pipe）做顯示轉換、用服務（Service）共用邏輯</li></ul></div>
+
+<section>
+<p class="era">元件的一生</p>
+<h3 class="head">生命週期 hook：在對的時機做對的事</h3>
+<p>Angular 建立元件後會反覆進行變更偵測（檢查綁定的資料有沒有變、需不需要更新畫面），直到元件被移除、銷毀。生命週期 hook（掛勾函式，Angular 在特定時機自動呼叫的方法）讓你把程式掛在這些時機上。常用的四個：</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Hook</th><th>適合用途</th></tr></thead>
+<tbody>
+<tr><td><code>ngOnChanges</code></td><td>回應輸入值的變化；元件有綁定的輸入值時才會被呼叫。</td></tr>
+<tr><td><code>ngOnInit</code></td><td>輸入初值都就緒後，執行一次初始化。</td></tr>
+<tr><td><code>ngAfterViewInit</code></td><td>檢視與子元件都建立完成後，使用檢視查詢的結果。</td></tr>
+<tr><td><code>ngOnDestroy</code></td><td>元件退場前，取消訂閱、清計時器、釋放資源。</td></tr>
+</tbody>
+</table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「就生命週期而言：constructor => ngOnchanges() => ngOninit() => ngOnDestroy()」，查證後更正：這份順序漏了中間一整段，且 ngOnChanges 只在元件有綁定輸入值時執行">完整的初始化順序是 constructor → <code>ngOnChanges</code> → <code>ngOnInit</code> → <code>ngDoCheck</code> → <code>ngAfterContentInit</code> → <code>ngAfterContentChecked</code> → <code>ngAfterViewInit</code> → <code>ngAfterViewChecked</code>，銷毀時才是 <code>ngOnDestroy</code>；而且 <code>ngOnChanges</code> 只有在元件有綁定的輸入值時才會執行</mark><a class="fixsrc" href="https://angular.dev/guide/components/lifecycle" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted"><code>constructor</code> 是 TypeScript 類別本身的建構函式，不算 Angular 的生命週期 hook；依賴注入在這裡發生，但初始化邏輯建議放 <code>ngOnInit</code>。</p>
+</section>
+
+<section>
+<p class="era">父傳子</p>
+<h3 class="head">Input 是子元件的資料入口</h3>
+<p>子元件能被多個父元件重用（例如課程卡片），資料就不能寫死在子元件裡，而是由父元件傳進來。</p>
+<pre><code>// 子元件
+@Input({ required: true }) course!: Course;</code></pre>
+<pre><code>&lt;!-- 父元件樣板 --&gt;
+&lt;app-course-card [course]="selectedCourse" /&gt;</code></pre>
+<p>方括號左側的 <code>course</code> 是子元件公開的輸入名稱，右側的 <code>selectedCourse</code> 是父元件的運算式——「子元件的變數＝父元件的變數」。新版 Angular 另有以 signal 為基礎的 <code>input()</code> 寫法；讀舊程式時看到的多半是 <code>@Input</code>。</p>
+</section>
+
+<section>
+<p class="era">子傳父</p>
+<h3 class="head">Output 把事件送回父元件</h3>
+<pre><code>// 子元件
+@Output() selected = new EventEmitter&lt;Course&gt;();
+
+choose(): void {
+  this.selected.emit(this.course);
+}</code></pre>
+<pre><code>&lt;app-course-card
+  [course]="course"
+  (selected)="openCourse($event)" /&gt;</code></pre>
+<p>父元件用圓括號接子元件的輸出事件，<code>$event</code> 就是 <code>emit</code> 送出來的資料。事件名稱描述「發生了什麼」（selected、deleted），不要取成命令句。</p>
+<p class="muted">新版 Angular 也提供 <code>output()</code> 寫法；<code>EventEmitter</code> 仍是最常見、必須看懂的形式。</p>
+</section>
+
+<section>
+<p class="era">呼叫子元件</p>
+<h3 class="head">樣板參照變數與 ViewChild</h3>
+<p>只在樣板裡呼叫子元件的公開方法時，樣板參照變數（<code>#</code> 開頭，替樣板中的元素取名）最簡單：</p>
+<pre><code>&lt;app-counter #counter /&gt;
+&lt;button (click)="counter.increment()"&gt;加一&lt;/button&gt;</code></pre>
+<p>父元件的 TypeScript 要拿到子元件實例時，用檢視查詢 <code>@ViewChild</code>：</p>
+<pre><code>@ViewChild(CounterComponent)
+counter?: CounterComponent;
+
+ngAfterViewInit(): void {
+  this.counter?.increment();
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「如果要使用 @ViewChild，必須要在父元件的整個視圖渲染完後，才有辦法取得子元件的方法，所以必須寫在 ngAfterViewInit()，否則在 constructor、ngOnInit() 去調用子組件方法時，會是 undefined」，查證後更正：那是預設（static: false）的行為，static: true 時 ngOnInit 前就可取得">查詢結果何時可用取決於 <code>static</code> 設定：預設（<code>static: false</code>）在 <code>ngAfterViewInit</code> 之前解析，所以 <code>ngOnInit</code> 拿到的是 undefined；設 <code>static: true</code> 則在 <code>ngOnInit</code> 之前就解析好，但結果不會隨檢視變動更新</mark><a class="fixsrc" href="https://angular.dev/api/core/ViewChild" target="_blank" rel="noopener">出處</a>。能用 Input／Output 描述父子關係時，通常比直接呼叫子元件方法更鬆耦合。</p>
+</section>
+
+<section>
+<p class="era">顯示轉換</p>
+<h3 class="head">Pipe 專心把值轉成適合顯示的樣子</h3>
+<pre><code>&lt;p&gt;{{ today | date:'yyyy-MM-dd' }}&lt;/p&gt;
+&lt;p&gt;{{ price | currency:'TWD':'symbol':'1.0-0' }}&lt;/p&gt;</code></pre>
+<p>管道（Pipe）像水管末端的濾嘴：值流過去、以另一種樣子呈現，來源資料不動。standalone 元件可直接匯入需要的管道（<code>DatePipe</code>、<code>CurrencyPipe</code>…），或匯入包含常用管道的 <code>CommonModule</code>。自訂管道適合可重複、無副作用的顯示轉換，不適合發 HTTP 請求或改資料。</p>
+<pre><code>@Pipe({ name: 'initials', standalone: true })
+export class InitialsPipe implements PipeTransform {
+  transform(name: string): string {
+    return name.split(/\s+/).map(part =&gt; part[0]).join('');
+  }
+}</code></pre>
+</section>
+
+<section>
+<p class="era">共用能力</p>
+<h3 class="head">Service 與依賴注入</h3>
+<p>跨多個元件的共用邏輯、資料存取或狀態，抽成服務（Service）。服務經由依賴注入（Dependency Injection，需要什麼由框架送進來，不用自己 new）提供給元件，比元件之間層層呼叫更容易測試與替換。</p>
+<pre><code>@Injectable({ providedIn: 'root' })
+export class CourseService {
+  getCourses(): Course[] {
+    return [];
+  }
+}</code></pre>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>初始化寫在 <code>ngOnInit</code>、清理寫在 <code>ngOnDestroy</code>；<code>ngOnChanges</code> 只在有綁定輸入值時執行。</li>
+<li>父傳子用 Input（<code>[子元件變數]="父元件變數"</code>），子傳父用 Output＋<code>$event</code>。</li>
+<li><code>@ViewChild</code> 預設在 <code>ngAfterViewInit</code> 前解析；<code>static: true</code> 才能在 <code>ngOnInit</code> 前拿到。</li>
+<li>Pipe 只做無副作用的顯示轉換；跨元件的共用邏輯交給 Service 與依賴注入。</li>
+</ul></div>

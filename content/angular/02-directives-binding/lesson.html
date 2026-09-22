@@ -1,0 +1,82 @@
+<!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) Chapter 37 ~ 42」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用 Angular 17+ 的 <code>@for</code>、<code>@if</code> 控制流程寫清單與條件，懂 <code>track</code> 為什麼是效能關鍵</li><li>分清楚插值、屬性綁定、事件綁定、雙向綁定四種語法</li><li>用 class 綁定表達畫面狀態，並理解單向資料流</li></ul></div>
+
+<section>
+<p class="era">Angular 17+ 控制流程</p>
+<h3 class="head">@for 與 track</h3>
+<pre><code>@for (course of courses; track course.id;
+      let i = $index;
+      let first = $first;
+      let count = $count) {
+  &lt;article [class.first-item]="first"&gt;
+    {{ i + 1 }} / {{ count }}：{{ course.name }}
+  &lt;/article&gt;
+} @empty {
+  &lt;p&gt;目前沒有課程&lt;/p&gt;
+}</code></pre>
+<p><code>track</code> 像每件行李上的固定識別牌：清單重新排序或更新時，Angular 靠它認出哪個 DOM 節點仍代表同一筆資料，只更新有變的項目，不必整批拆掉重建。沒有穩定識別值時，資料一變就重建所有 DOM，清單一大就慢。</p>
+<p>資料有穩定 ID 就用 <code>item.id</code>；只有「不會插入、刪除、重新排序」的靜態清單，才適合用 <code>$index</code> 追蹤。<code>$index</code>、<code>$first</code>、<code>$count</code> 這些開頭的 <code>$</code> 表示是 Angular 提供的內建變數，跟你自己資料裡的變數區隔開來。</p>
+</section>
+
+<section>
+<p class="era">舊式結構指令</p>
+<h3 class="head">看懂 *ngIf、*ngFor 與 *ngSwitch</h3>
+<p>既有專案仍到處是星號語法。結構型指令會新增、移除 DOM 元素：<code>*ngIf</code>、<code>*ngFor</code>、<code>*ngSwitchCase</code>、<code>*ngSwitchDefault</code> 都要加星號；容器上的 <code>[ngSwitch]</code> 本身不加。</p>
+<pre><code>&lt;div [ngSwitch]="status"&gt;
+  &lt;p *ngSwitchCase="'ready'"&gt;可以開始&lt;/p&gt;
+  &lt;p *ngSwitchDefault&gt;準備中&lt;/p&gt;
+&lt;/div&gt;</code></pre>
+<p class="muted">新程式優先用 <code>@if</code>、<code>@for</code>、<code>@switch</code>；星號寫法是維護舊專案時要認得的字彙。</p>
+</section>
+
+<section>
+<p class="era">資料與事件</p>
+<h3 class="head">四種常用綁定</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>語法</th><th>方向</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>{{ title }}</code></td><td>類別 → 畫面</td><td>文字插值。</td></tr>
+<tr><td><code>[src]="imageUrl"</code></td><td>類別 → DOM 屬性</td><td>屬性綁定。</td></tr>
+<tr><td><code>(click)="select(id)"</code></td><td>畫面 → 類別</td><td>事件綁定。</td></tr>
+<tr><td><code>[(ngModel)]="name"</code></td><td>雙向</td><td>表單值同步。</td></tr>
+</tbody>
+</table></div>
+<p class="formula">方括號綁資料、圓括號接事件；雙向綁定＝屬性綁定＋事件綁定</p>
+<p><code>[(ngModel)]</code> 的值從類別流向畫面靠屬性綁定，使用者改了輸入框再流回類別靠事件綁定，兩者合起來就是雙向。standalone 元件要在 <code>imports</code> 加入 <code>FormsModule</code> 才能用 <code>ngModel</code>。雙向綁定方便，但欄位多、驗證複雜的表單通常更適合響應式表單（Reactive Forms，在 TypeScript 裡明確定義表單結構與驗證）。</p>
+</section>
+
+<section>
+<p class="era">屬性指令</p>
+<h3 class="head">用 class 表達狀態</h3>
+<pre><code>&lt;button
+  [class.course-type]="i === selectedIndex"
+  (click)="selectedIndex = i"&gt;
+  {{ course.name }}
+&lt;/button&gt;</code></pre>
+<p>只切換單一 class 時，<code>[class.名稱]</code> 配一個布林值最清楚；要一次管理多個 class 再用 <code>[ngClass]</code>。</p>
+<pre><code>&lt;article [ngClass]="{
+  selected: course.id === selectedId,
+  disabled: !course.available
+}"&gt;...&lt;/article&gt;</code></pre>
+</section>
+
+<section>
+<p class="era">設計觀念</p>
+<h3 class="head">單向資料流與 MVVM</h3>
+<p>Angular 的常態是：元件類別的狀態推動畫面更新（類別 → 畫面），畫面上的操作透過事件通知類別改狀態（畫面 → 類別）。只綁資料不綁事件時，在畫面上怎麼點，類別裡的值都不會變——這就是單向資料流；方向清楚，出問題時才追得到源頭。</p>
+<p>MVVM 是一種理解方式（Model–View–ViewModel，資料層、畫面層、居中銜接層）：</p>
+<ul class="plainlist">
+<li><b>Model：</b>應用的資料與規則。</li>
+<li><b>View：</b>使用者看到的樣板。</li>
+<li><b>ViewModel：</b>把狀態與操作提供給 View；在 Angular 裡，元件類別扮演相近的角色。</li>
+</ul>
+<p class="muted">MVVM 是幫助理解的地圖，不必把 Angular 每個機制硬套進去。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li><code>@for</code> 的 <code>track</code> 要用穩定識別值，Angular 才能重用 DOM；靜態清單才用 <code>$index</code>。</li>
+<li>方括號綁資料（類別 → 畫面）、圓括號接事件（畫面 → 類別）。</li>
+<li><code>[(ngModel)]</code>＝屬性綁定＋事件綁定，要匯入 <code>FormsModule</code>。</li>
+<li>單一 class 用 <code>[class.名稱]</code>，多個才用 <code>[ngClass]</code>。</li>
+<li>新程式用 <code>@if</code>／<code>@for</code>／<code>@switch</code>；星號結構指令是讀舊專案的必備字彙。</li>
+</ul></div>

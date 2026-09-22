@@ -1,0 +1,80 @@
+<!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) 總結」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>從零建立一個現代 Angular 專案，或正確接手別人的既有專案</li><li>拿到一張「需求 → Angular 工具」的對照地圖，涵蓋表單、HTTP 與路由</li><li>知道交付前至少要做哪些品質檢查</li></ul></div>
+
+<section>
+<p class="era">開始之前</p>
+<h3 class="head">準備工具與版本</h3>
+<p>需要 Node.js、隨附的套件管理工具 npm、Git，以及支援 TypeScript 的編輯器（VS Code 加 Angular Language Service 擴充是常見組合）。<mark class="fixnote" tabindex="0" data-note="原筆記寫「檢查 Node.js 版本（建議 16+ 版本）」，查證後更正：Angular 17 就要求 Node 18.13 以上，16 帶不動">Node.js 的版本要看目標 Angular 版本的相容性表：Angular 17 要求 <code>^18.13.0 || ^20.9.0</code>，Angular 20 要求 <code>^20.19.0 || ^22.12.0 || ^24.0.0</code>，「16+」已經不夠</mark><a class="fixsrc" href="https://angular.dev/reference/versions" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>node -v
+npm -v
+git --version</code></pre>
+</section>
+
+<section>
+<p class="era">建立與執行</p>
+<h3 class="head">用 CLI 建立 standalone 專案</h3>
+<pre><code>npx @angular/cli new notes-app
+cd notes-app
+npm start</code></pre>
+<p><code>npx</code> 會直接執行指定版本的 CLI，避免「全域裝的版本」和「專案要的版本」不一致。已全域安裝 Angular CLI 的話，<code>ng new</code>、<code>ng serve</code> 也一樣能用。開發伺服器常用參數：</p>
+<pre><code>ng serve --open        # 啟動後自動開瀏覽器
+ng serve --port 8888   # 換連接埠
+ng serve --host 0.0.0.0  # 讓同網路的其他裝置連入</code></pre>
+<p class="muted">綁 <code>0.0.0.0</code> 等於向整個區域網路開放開發伺服器，只在確有需要（例如給後端同事連）且網路可信時使用。</p>
+</section>
+
+<section>
+<p class="era">接手既有專案</p>
+<h3 class="head">先照 lockfile 安裝相依套件</h3>
+<pre><code>git clone &lt;repository-url&gt;
+cd &lt;project-directory&gt;
+npm ci
+npm start</code></pre>
+<p>lockfile（<code>package-lock.json</code>，記錄每個套件確切版本的鎖定檔）同步且可信時，乾淨安裝優先用 <code>npm ci</code>——照鎖定檔一字不差地重現；日常新增或調整套件才用 <code>npm install</code>。</p>
+</section>
+
+<section>
+<p class="era">專案能力地圖</p>
+<h3 class="head">從需求找到 Angular 工具</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>需求</th><th>常用工具</th></tr></thead>
+<tbody>
+<tr><td>拆分畫面</td><td>standalone 元件、Input、Output</td></tr>
+<tr><td>切換頁面</td><td>Router、routerLink、router-outlet</td></tr>
+<tr><td>呼叫 API</td><td><code>provideHttpClient()</code>、HttpClient、Observable</td></tr>
+<tr><td>簡單表單</td><td>FormsModule、ngModel（樣板驅動表單）</td></tr>
+<tr><td>複雜表單</td><td>響應式表單（Reactive Forms）＋驗證器</td></tr>
+<tr><td>共用邏輯</td><td>Service、依賴注入</td></tr>
+<tr><td>顯示轉換</td><td>Pipe</td></tr>
+</tbody>
+</table></div>
+<pre><code>bootstrapApplication(AppComponent, {
+  providers: [
+    provideRouter(routes),
+    provideHttpClient()
+  ]
+});</code></pre>
+<p>樣板驅動表單直接在 HTML 上用 <code>ngModel</code> 疊，欄位少最快；響應式表單在 TypeScript 裡明確建立結構與驗證器，欄位多、驗證嚴的表單好測試也好維護。</p>
+</section>
+
+<section>
+<p class="era">品質與效能</p>
+<h3 class="head">完成不等於畫面能動</h3>
+<ul class="plainlist">
+<li>用 <code>ng build</code> 驗證正式建置能過。</li>
+<li>跑專案設定的測試指令（預設 <code>ng test</code>）。</li>
+<li>大型功能用路由層級的延遲載入（<code>loadComponent</code>），首包不揹全部程式。</li>
+<li>清單用穩定的 <code>track</code> 值。</li>
+<li>驗證輸入並使用 HTTPS；前端驗證擋不住直接打 API 的人，後端驗證不能省。</li>
+</ul>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記的常用命令表寫「ng build --prod」，查證後更正：--prod 於 CLI v12 棄用、v14 移除，現在會報 Unknown argument">舊教材的 <code>ng build --prod</code> 已經不能用：這個參數在 CLI v12 棄用、v14 移除，現代 CLI 的 <code>ng build</code> 預設就是正式組態，要指定時用 <code>ng build --configuration production</code></mark><a class="fixsrc" href="https://blog.angular.dev/angular-v12-is-now-available-32ed51fbfd49" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">原筆記也列了 <code>ng lint</code>：新專案預設沒有安裝 lint（程式碼風格與常見錯誤的靜態檢查）工具，第一次執行會問你要不要裝 angular-eslint，裝好才有得跑。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>Node.js 版本照目標 Angular 版本的相容性表挑，Angular 17 起最低 18.13。</li>
+<li>新專案用 <code>npx @angular/cli new</code>；接手專案乾淨安裝用 <code>npm ci</code>。</li>
+<li>API 用 <code>provideHttpClient()</code>、路由用 <code>provideRouter(routes)</code> 在應用層明確提供。</li>
+<li>簡單表單用 ngModel、複雜表單用響應式表單。</li>
+<li><code>ng build --prod</code> 已移除；交付前至少過正式建置與測試。</li>
+</ul></div>

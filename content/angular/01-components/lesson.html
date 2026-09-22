@@ -1,0 +1,122 @@
+<!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) Chapter 01 ~ 19」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把畫面拆成可重用的元件，看懂 <code>@Component</code> 的四個組成</li><li>分辨 standalone 元件與 NgModule 舊寫法，維護舊專案時知道要看哪裡</li><li>用 ng-container、ng-template、ng-content 組合樣板</li></ul></div>
+
+<section>
+<p class="era">畫面的積木</p>
+<h3 class="head">元件（Component）是 Angular 的基本單位</h3>
+<p>Angular 應用由元件組成：大到一整頁、小到一顆按鈕，都能做成獨立元件。每個元件通常包含四個部分：</p>
+<ul class="plainlist">
+<li><b>樣板（Template）：</b>畫面的 HTML 結構。</li>
+<li><b>類別（Class）：</b>用 TypeScript 寫的狀態與行為。</li>
+<li><b>樣式（Styles）：</b>元件自己的 CSS、SCSS 或 Less。</li>
+<li><b>中繼資料（Metadata）：</b>寫在 <code>@Component</code> 裝飾器裡，說明選擇器、匯入項目與檔案位置。</li>
+</ul>
+<pre><code>import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-user-profile',
+  standalone: true,
+  templateUrl: './user-profile.component.html',
+  styleUrl: './user-profile.component.css'
+})
+export class UserProfileComponent {
+  userName = '王小明';
+
+  onButtonClick(): void {
+    console.log('按鈕被點擊了');
+  }
+}</code></pre>
+<p>建立元件可以用指令 <code>ng generate component user-profile</code>，或簡寫 <code>ng g c user-profile</code>。新版 CLI 產生的元件預設就是 standalone。</p>
+<p class="muted">Angular 19 起 <code>standalone: true</code> 是預設值，可以不寫；這裡寫出來是讓新舊寫法的差異一眼可見。</p>
+</section>
+
+<section>
+<p class="era">新舊架構對照</p>
+<h3 class="head">standalone 與 NgModule</h3>
+<p>standalone 元件像自己帶行李清單的旅客：需要哪些元件、指令或管道，直接列在自己的 <code>imports</code>，不必先登記到某個 NgModule。</p>
+<pre><code>@Component({
+  standalone: true,
+  imports: [UserCardComponent],
+  template: '&lt;app-user-card /&gt;'
+})
+export class HomeComponent {}</code></pre>
+<p>NgModule 則像傳統的功能包裹（模組容器），舊專案用它把相關的元件與相依項目集中組織。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Angular 應用至少需要一個根模組（AppModule）」，查證後更正：那是 NgModule 時代的規則，standalone 應用不需要任何 NgModule">現代 Angular 官方建議所有新程式改用 standalone 元件；standalone 應用由 <code>bootstrapApplication</code> 直接啟動根元件，不需要 AppModule</mark><a class="fixsrc" href="https://angular.dev/guide/ngmodules/overview" target="_blank" rel="noopener">出處</a>。維護既有專案時，下面四個 NgModule 屬性仍要看得懂：</p>
+<div class="tablewrap"><table>
+<thead><tr><th>屬性</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>declarations</code></td><td>宣告屬於這個模組的非 standalone 元件、指令與管道；同模組內可以互相使用。</td></tr>
+<tr><td><code>imports</code></td><td>匯入其他模組或 standalone 項目，取得它們提供的功能。</td></tr>
+<tr><td><code>exports</code></td><td>把自己的項目公開，讓匯入這個模組的一方使用。</td></tr>
+<tr><td><code>providers</code></td><td>註冊服務，讓依賴注入系統可以取得。</td></tr>
+</tbody>
+</table></div>
+<pre><code>@NgModule({
+  declarations: [LegacyCardComponent],
+  imports: [CommonModule],
+  exports: [LegacyCardComponent],
+  providers: [UserService]
+})
+export class SharedModule {}</code></pre>
+<p class="muted">NgModule 是舊寫法、不是錯誤寫法；公司裡的既有專案很可能整包都是這個樣子。新專案通常改用 standalone 元件，服務註冊移到應用層的 providers。</p>
+</section>
+
+<section>
+<p class="era">樣板結構</p>
+<h3 class="head">不留下外殼的 ng-container</h3>
+<p><code>ng-container</code> 像透明資料夾（邏輯容器）：能把多個節點包成一組，卻不會在頁面上產生真正的 DOM 元素，所以不會多出一層標籤去干擾版面或樣式。</p>
+<pre><code>@for (item of menuList; track item.id) {
+  &lt;ng-container&gt;
+    &lt;a&gt;{{ item.name }}&lt;/a&gt;
+    &lt;span&gt;{{ item.description }}&lt;/span&gt;
+  &lt;/ng-container&gt;
+}</code></pre>
+</section>
+
+<section>
+<p class="era">先寫好、等著上場</p>
+<h3 class="head">ng-template 與 ngTemplateOutlet</h3>
+<p><code>ng-template</code> 像先搭好、還沒推上舞台的布景（樣板片段）：Angular 不會直接顯示它，必須由控制流程或 <code>ngTemplateOutlet</code> 把它實例化才會出現。<code>ngTemplateOutlet</code> 的 outlet 意思是「放置的出口」，看到 xxxOutlet 都可以想成「某個東西被放到這裡」，跟路由的 <code>router-outlet</code> 是同一種命名。</p>
+<pre><code>&lt;ng-template #emptyState let-message="message"&gt;
+  &lt;p&gt;{{ message }}&lt;/p&gt;
+&lt;/ng-template&gt;
+
+&lt;ng-container
+  *ngTemplateOutlet="emptyState; context: { message: '目前沒有資料' }"&gt;
+&lt;/ng-container&gt;</code></pre>
+<p>舊式的 <code>*ngIf</code>、<code>*ngFor</code> 這些結構型指令，會在編譯時展開成樣板；Angular 17 之後有了內建控制流程，新程式優先用 <code>@if</code>、<code>@for</code> 與 <code>@switch</code>（下一課細講）。</p>
+<pre><code>@if (isLoggedIn) {
+  &lt;p&gt;歡迎回來&lt;/p&gt;
+} @else {
+  &lt;p&gt;請先登入&lt;/p&gt;
+}</code></pre>
+</section>
+
+<section>
+<p class="era">組合元件</p>
+<h3 class="head">ng-content 內容投影</h3>
+<p>內容投影（Content Projection）像子元件預留插槽、由呼叫端決定塞什麼進去：子元件定版型，父元件供內容。</p>
+<pre><code>&lt;!-- panel.component.html --&gt;
+&lt;header&gt;&lt;ng-content select="[panel-title]" /&gt;&lt;/header&gt;
+&lt;main&gt;&lt;ng-content /&gt;&lt;/main&gt;
+
+&lt;!-- 使用元件 --&gt;
+&lt;app-panel&gt;
+  &lt;h2 panel-title&gt;課程公告&lt;/h2&gt;
+  &lt;p&gt;今天開始學 Angular。&lt;/p&gt;
+&lt;/app-panel&gt;</code></pre>
+<p>要投影的節點如果被額外的容器（例如 <code>ng-container</code>）包住，<code>select</code> 選擇器會配對不到，內容就掉進沒有選擇器的預設插槽。這時可以在該節點加 <code>ngProjectAs</code>，明確告訴 Angular 要把它當成哪種選擇器來配對。</p>
+</section>
+
+<div class="terms">
+<div class="term"><b>Component</b><span>元件，負責一塊畫面與它的互動。</span></div>
+<div class="term"><b>Template</b><span>樣板，描述元件的畫面結構。</span></div>
+<div class="term"><b>Content Projection</b><span>內容投影，把父層準備的內容放進子元件的插槽。</span></div>
+<div class="term"><b>NgModule</b><span>傳統的模組容器；standalone 架構下不再需要。</span></div>
+</div>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>元件＝樣板＋類別＋樣式＋中繼資料；新版 Angular 以 standalone 元件為預設，官方建議新程式不再用 NgModule。</li>
+<li>NgModule 四屬性：declarations 宣告自有項目、imports 拿別人的、exports 給別人用、providers 註冊服務。</li>
+<li><code>ng-container</code> 分組但不產生 DOM 外殼；<code>ng-template</code> 是等著被實例化的樣板片段。</li>
+<li><code>ng-content</code> 接收父層投影的內容；被容器包住配對不到時用 <code>ngProjectAs</code>。</li>
+</ul></div>

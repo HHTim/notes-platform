@@ -1,0 +1,94 @@
+<!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) Chapter 29 ~ 36」 · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把 Ajax、SPA、Angular Router 串成一條脈絡：資料在背景取得、網址由路由管理、畫面只換需要的區塊</li><li>設定路由與 <code>router-outlet</code>，知道萬用路由為什麼要放最後</li><li>分清楚路徑參數與查詢參數，會用 <code>routerLink</code> 與程式式導覽</li></ul></div>
+
+<section>
+<p class="era">網路互動基礎</p>
+<h3 class="head">Ajax 不是某一套函式庫</h3>
+<p>Ajax（Asynchronous JavaScript and XML）是一組「在瀏覽器裡非同步交換資料、局部更新畫面」的做法，不是單一技術。名稱裡的 XML 是歷史痕跡，現代更常交換 JSON；實作可以用瀏覽器原生的 Fetch API、Angular 的 <code>HttpClient</code>，或其他 HTTP 工具。</p>
+<p>同步請求像站在櫃台前傻等，等到回覆前什麼都不能做；非同步請求像先抽號碼牌，等待期間照常做別的事，結果送到再更新畫面。</p>
+<p class="formula">非同步不保證回應更快，它讓應用不必在等待期間卡住其他工作</p>
+</section>
+
+<section>
+<p class="era">單頁應用</p>
+<h3 class="head">SPA 只換內容、不重載整頁</h3>
+<p>單頁應用程式（Single-Page Application，SPA）先載入一個應用外殼（版面骨架），之後的頁面切換由 JavaScript 依操作更新內容，不再整頁重新載入。Gmail 是經典例子：讀信、回信都在同一頁完成。</p>
+<p>SPA 帶來流暢切換與前後端分工，但別誤會成「之後都不需要伺服器」：API 資料、按路由切割的程式碼檔、圖片仍會經由網路載入。初次載入速度、搜尋引擎收錄與錯誤處理也要另外設計。<span class="muted">原筆記把「更佳的離線功能支援」列為 SPA 天生優勢——那要另外實作 Service Worker（瀏覽器背景腳本，可攔截請求做快取）之類的機制才有，不是 SPA 內建。</span></p>
+</section>
+
+<section>
+<p class="era">現代 Angular Router</p>
+<h3 class="head">設定路由與出口</h3>
+<p>SPA 的網址管理靠路由（Router）：它比對目前網址，把對應的元件放進樣板裡的 <code>router-outlet</code>。</p>
+<pre><code>import { Routes } from '@angular/router';
+
+export const routes: Routes = [
+  { path: '', redirectTo: 'home', pathMatch: 'full' },
+  { path: 'home', loadComponent: () =&gt;
+      import('./home.component').then(m =&gt; m.HomeComponent) },
+  { path: 'users/:id', loadComponent: () =&gt;
+      import('./user.component').then(m =&gt; m.UserComponent) },
+  { path: '**', loadComponent: () =&gt;
+      import('./not-found.component').then(m =&gt; m.NotFoundComponent) }
+];</code></pre>
+<pre><code>bootstrapApplication(AppComponent, {
+  providers: [provideRouter(routes)]
+});</code></pre>
+<pre><code>&lt;nav&gt;...&lt;/nav&gt;
+&lt;router-outlet /&gt;</code></pre>
+<p>路由由上而下、先到先得地配對，所以萬用路由 <code>**</code>（什麼都能配的 404 路由）一定放最後，不然所有網址都會被它搶走、永遠顯示 404。</p>
+</section>
+
+<section>
+<p class="era">導覽</p>
+<h3 class="head">routerLink 與程式式導覽</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>方式</th><th>適用情境</th></tr></thead>
+<tbody>
+<tr><td><code>routerLink="/home"</code></td><td>固定路徑，字串就夠。</td></tr>
+<tr><td><code>[routerLink]="['/users', user.id]"</code></td><td>路徑帶參數時用陣列語法。</td></tr>
+<tr><td><code>router.navigate(...)</code></td><td>在 TypeScript 裡，事件或邏輯完成後導覽。</td></tr>
+<tr><td><code>router.navigateByUrl(...)</code></td><td>手上已有完整的網址字串。</td></tr>
+</tbody>
+</table></div>
+<pre><code>&lt;a
+  [routerLink]="['/users', user.id]"
+  routerLinkActive="active"&gt;
+  {{ user.name }}
+&lt;/a&gt;</code></pre>
+<p>一句話分工：<code>routerLink</code> 決定要去哪裡，<code>routerLinkActive</code> 決定「到了」之後套什麼 CSS class，<code>routerLinkActiveOptions</code> 決定什麼條件算「到了」。首頁 <code>/</code> 這種短路徑預設用部分比對、很容易永遠是「到了」，可設 <code>{ exact: true }</code> 改成精確比對；新版 Router 還接受更細的 <code>IsActiveMatchOptions</code>（可分別指定路徑、查詢參數、fragment 的比對方式）。</p>
+</section>
+
+<section>
+<p class="era">路由資料</p>
+<h3 class="head">路徑參數、查詢參數與巢狀路由</h3>
+<pre><code>// /users/42?tab=history
+this.router.navigate(['/users', userId], {
+  queryParams: { tab: 'history' }
+});
+
+// 只讀一次
+const id = this.route.snapshot.paramMap.get('id');
+
+// 跟著變化
+this.route.paramMap.subscribe(params =&gt; {
+  const currentId = params.get('id');
+});</code></pre>
+<p>路徑參數識別「哪一筆資源」（例如使用者 ID），查詢參數描述「怎麼看」（篩選、排序、分頁）。同一個元件會在參數改變時被重用（例如從 /users/42 切到 /users/43），這時訂閱 <code>paramMap</code> 才收得到新值，只讀一次 snapshot 會停在舊的。</p>
+<p>巢狀路由讓子頁面顯示在父路由元件裡的另一個 <code>router-outlet</code>，適合「課程／章節」「設定／分頁」這種層級結構。</p>
+</section>
+
+<section>
+<p class="era">載入順序</p>
+<h3 class="head">從 index.html 到路由元件</h3>
+<p class="formula">index.html → 啟動根元件 → 版面元件 → Router 比對網址 → 頁面元件放進 router-outlet</p>
+<p>再往下一層，瀏覽器拿到網址後還要做 DNS 查詢、建立連線、送出 HTTP 請求、解析 HTML 與 JavaScript——完整流程見網頁與網路基礎模組的〈從輸入網址到看到網頁〉。<mark class="fixnote" tabindex="0" data-note="原筆記寫「2. 建立 TCP 連線(三次握手)…5. 關閉 TCP 連線(四次握手)」，查證後更正：HTTP/1.1 起連線預設保持重用，不會每次請求後都關閉；HTTP/3 甚至沒有獨立的 TCP 交握">「每次請求都做 TCP 三向交握、回應後四次揮手關閉」是舊教材的簡化：HTTP/1.1 起連線預設保持並重用（keep-alive），HTTP/2 在同一條連線上多工，HTTP/3 走 QUIC、連線建立和加密合在同一套交握</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>Ajax＝非同步取資料＋局部更新畫面；SPA 靠它與路由維持單一應用外殼。</li>
+<li>路由先到先得，萬用路由 <code>**</code> 放最後。</li>
+<li><code>routerLink</code> 去哪裡、<code>routerLinkActive</code> 到了套什麼、<code>routerLinkActiveOptions</code> 什麼算到了。</li>
+<li>路徑參數識別資源、查詢參數描述檢視；元件被重用時要訂閱 <code>paramMap</code>。</li>
+<li>現代 HTTP 連線會保持重用，不是一請求一連線。</li>
+</ul></div>
