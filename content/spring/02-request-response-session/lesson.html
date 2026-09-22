@@ -1,0 +1,113 @@
+<!-- 來源：HackMD 匯出「Servlet隨手記-黑馬程序員-Day3」「會話跟蹤技術」「JDBC(Java DataBase Connectivity)」「JDBC(Java DataBase Connectivity)-案例研討」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用 HttpServletRequest 讀請求、用 HttpServletResponse 設定回應</li><li>分辨請求轉送與重新導向，知道什麼時候該用哪一個</li><li>選擇 Cookie 或 Session 保存狀態，並知道各自的風險</li><li>說明 JDBC 與連線池各自負責什麼</li></ul></div>
+
+<section>
+<p class="era">HTTP 文字進入 Java 世界</p>
+<h3 class="head">Request 與 Response 物件</h3>
+<p>瀏覽器送來的是一串 HTTP 文字。Tomcat 解析完，把內容裝進 <code>HttpServletRequest</code>，像把散落的寄件資訊整理成一張表格；Servlet 再透過 <code>HttpServletResponse</code> 設定狀態碼、標頭與本體，最後由 Tomcat 組成 HTTP 回應送回去。</p>
+<p>這兩個都是介面，實際物件由容器提供。程式只依賴介面，所以不必自己拆解原始的 HTTP 封包。</p>
+<div class="tablewrap"><table><thead><tr><th>部分</th><th>Request 常見操作</th><th>Response 常見操作</th></tr></thead><tbody><tr><td>起始列</td><td><code>getMethod()</code>、<code>getRequestURI()</code></td><td><code>setStatus()</code></td></tr><tr><td>標頭</td><td><code>getHeader(name)</code></td><td><code>setHeader(name, value)</code></td></tr><tr><td>本體</td><td><code>getReader()</code>、<code>getInputStream()</code></td><td><code>getWriter()</code>、<code>getOutputStream()</code></td></tr></tbody></table></div>
+</section>
+
+<section>
+<p class="era">讀懂使用者送來的資料</p>
+<h3 class="head">取得路徑、參數與請求本體</h3>
+<p><code>getContextPath()</code> 取得應用程式的情境路徑，避免把部署名稱寫死；<code>getRequestURI()</code> 取得請求目標的路徑部分；<code>getQueryString()</code> 取得還沒拆開的查詢字串。</p>
+<p>處理一般表單時，直接用參數 API 就好，容器會依請求格式把資料整理好：</p>
+<ul class="plainlist"><li><code>getParameter("username")</code>：取得單一參數值。</li><li><code>getParameterValues("hobby")</code>：取得同名參數的多個值，回傳字串陣列。</li><li><code>getParameterMap()</code>：取得全部參數及其值陣列。</li></ul>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 getParameterMap() 時說「可以看到同樣的key(hobby)，會將值放在一起做字串相加(hobby: 1 2)」，查證後更正：getParameterMap() 的值型別是 String[]，同名參數是陣列裡的多個元素，不是把字串接在一起；畫面上看起來像接在一起，只是把陣列印出來的樣子">同名參數是以字串陣列保存的，不是把值串成一個字串。規格裡 <code>getParameterMap()</code> 的宣告就是 <code>Map&lt;String, String[]&gt; getParameterMap()</code>，而 <code>getParameterValues(String name)</code> 的說明是「回傳一個 <code>String</code> 陣列，裡面裝著這個請求參數的所有值」</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequest" target="_blank" rel="noopener">出處</a>。原筆記在同一段把「取多個值」的方法名寫成 <code>String[] req.getParameter(...)</code>，正確的方法名是 <code>getParameterValues(...)</code>。</p>
+<p>要讀純文字本體用 <code>getReader()</code>；圖片、壓縮檔這類二進位資料用 <code>getInputStream()</code>。兩者讀的是同一個請求本體，通常不能混用，也不能重複讀。</p>
+<p>字元編碼要在讀參數或本體之前設定；回應的內容型態與編碼也要在取得 Writer、送出回應之前確定。</p>
+<pre><code>request.setCharacterEncoding("UTF-8");
+
+String username = request.getParameter("username");
+
+response.setContentType("text/html;charset=UTF-8");
+response.getWriter().println("你好，" + username);</code></pre>
+<p class="muted">把使用者輸入直接串進 HTML 會產生跨網站指令碼攻擊（Cross-Site Scripting，XSS）。正式系統要依輸出情境做編碼，並同時做輸入驗證。</p>
+</section>
+
+<section>
+<p class="era">站內交棒，或請瀏覽器重走一次</p>
+<h3 class="head">請求轉送與重新導向</h3>
+<p>請求轉送（Forward）像餐廳內部把同一張點菜單交給另一位廚師：瀏覽器沒有再送一次請求，所以網址通常不變，後續資源也讀得到同一個 request 範圍的資料。</p>
+<pre><code>request.setAttribute("result", data);
+request.getRequestDispatcher("/result.jsp")
+       .forward(request, response);</code></pre>
+<p>重新導向（Redirect）則像櫃台請客人換個地址重排一次：伺服器先回一個重新導向回應，瀏覽器再發出第二次請求。所以網址會變，原本 request 範圍的資料也不會自動留著。</p>
+<pre><code>response.sendRedirect(
+    request.getContextPath() + "/products"
+);</code></pre>
+<div class="tablewrap"><table><thead><tr><th>比較</th><th>轉送</th><th>重新導向</th></tr></thead><tbody><tr><td>請求次數</td><td>一次</td><td>通常兩次</td></tr><tr><td>瀏覽器網址</td><td>通常不變</td><td>會改變</td></tr><tr><td>request 屬性</td><td>可共用</td><td>不會自動保留</td></tr><tr><td>目標</td><td>目前應用程式內的伺服器端資源</td><td>站內或其他可存取的網址都行</td></tr></tbody></table></div>
+<p>要不要加情境路徑，判斷的方法不是看有沒有斜線，而是看「下一個請求是誰發出的」：由瀏覽器發出的站內路徑要加情境路徑；容器內部的 <code>RequestDispatcher</code> 路徑照 Servlet API 的路徑規則解析，不用加。</p>
+</section>
+
+<section>
+<p class="era">讓無狀態的 HTTP 記得上下文</p>
+<h3 class="head">Cookie：由瀏覽器保管的小紙條</h3>
+<p>Cookie 是伺服器請瀏覽器保存的一小段名稱與值。伺服器用 <code>Set-Cookie</code> 回應標頭設定，之後瀏覽器在符合網域、路徑、安全與期限等條件時，用 <code>Cookie</code> 請求標頭帶回來。</p>
+<pre><code>Cookie cookie = new Cookie("theme", "dark");
+cookie.setMaxAge(7 * 24 * 60 * 60);
+cookie.setHttpOnly(true);
+cookie.setSecure(true);
+response.addCookie(cookie);</code></pre>
+<p><code>setMaxAge()</code> 設正數是保存秒數，設零表示要求刪除，負數（預設值）表示不指定持久期限、瀏覽器關掉就沒了。刪除時還要用與原本相符的 Path、Domain 等屬性，瀏覽器才找得到正確的那一筆。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Cookie最大3KB」，查證後更正：RFC 6265 要求一般用途的瀏覽器每個 Cookie 至少支援 4096 位元組，而且這個長度是名稱、值與所有屬性加起來算的；3KB 不是規格數字">RFC 6265 第 6.1 節的原話是：一般用途的使用者代理程式「每個 Cookie 應至少支援 4096 位元組（以 Cookie 名稱、值與屬性的長度總和計算）」。3KB 不是規格數字，而且計法也不只算值</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-6.1" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「默認情況下，Cookie是不能儲存中文的」，查證後補充原因：這不是 Java 的限制，而是 RFC 6265 把 cookie 值的合法字元限定在 US-ASCII 的一個子集，所以中文要先做 URL 編碼等轉換才放得進去">Cookie 值放不了中文不是 Java 的限制。RFC 6265 的 <code>Set-Cookie</code> 語法把 <code>cookie-octet</code> 定義成一組指定的位元組範圍，並註明那是「排除控制字元、空白、雙引號、逗號、分號與反斜線的 US-ASCII 字元」——中文根本不在合法字元裡，所以要先做 URL 編碼這類轉換</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-4.1.1" target="_blank" rel="noopener">出處</a>。</p>
+<p>Cookie 存在使用者那端，使用者看得到、改得動、刪得掉，所以不能把它當成可信的資料來源。敏感資訊不應該明文放進去；識別資訊也要搭配 HTTPS、<code>Secure</code>、<code>HttpOnly</code> 與合適的 <code>SameSite</code> 設定。</p>
+</section>
+
+<section>
+<p class="era">資料留在伺服器，瀏覽器只帶識別證</p>
+<h3 class="head">Session：伺服器端的會話空間</h3>
+<p><code>HttpSession</code> 讓同一次會話的多次請求之間共用伺服器端的資料。它像寄物櫃：東西放在伺服器，瀏覽器只帶一把會話識別碼當鑰匙，容器再用這把鑰匙找到對應的 Session。</p>
+<pre><code>HttpSession session = request.getSession();
+session.setAttribute("username", "Tim");
+
+String username =
+    (String) session.getAttribute("username");
+
+// 登出時讓整個 Session 失效
+session.invalidate();</code></pre>
+<p class="muted">原筆記在 Cookie 與 Session 的比較裡寫「安全性: Cookie不安全；Session較安全」。這個相對比較沒有錯，但容易讓人放心過頭：會話識別碼一樣要在網路上來回傳，被偷到就能冒用整個會話。OWASP 的工作階段管理建議是登入後更換識別碼、使用安全的 Cookie 屬性、走 HTTPS，並設定閒置逾時。這是補充而不是事實更正，所以沒有標成更正。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「默認情況下，Session存活時間為30分鐘」，查證後更正：Servlet 規格沒有規定預設逾時，交給容器決定；30 分鐘是 Tomcat 自己在 conf/web.xml 裡設的值，換一個容器或改設定就不是 30 分鐘">Servlet 規格第 7.5 節的原話是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身沒有訂數字；30 分鐘是 Tomcat 在自己的 <code>conf/web.xml</code> 裡設的值，換一個容器或改設定就不是這個數字</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.1/jakarta-servlet-spec-6.1.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">原筆記提到的「鈍化、活化」（伺服器正常關閉時把 Session 寫進磁碟、重啟時讀回來）確實是 Tomcat 預設管理員的行為，但那是容器層的實作與設定，不是規格保證。所以程式不該假設重啟後 Session 一定還在，也不該把大型物件塞進去。</p>
+</section>
+
+<section>
+<p class="era">從 Java 通往關聯式資料庫</p>
+<h3 class="head">JDBC：統一的資料庫操作介面</h3>
+<p>JDBC（Java Database Connectivity，Java 資料庫連線）是一套標準 API。Java 程式只依賴 JDBC 這組介面，各家資料庫廠商提供驅動程式（Driver）處理自家的通訊細節。就像統一插座規格：應用程式用共同介面，驅動程式負責轉接。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記以 Class.forName(&quot;com.mysql.cj.jdbc.Driver&quot;) 作為註冊驅動的標準步驟，查證後更正：DriverManager 的 javadoc 寫明它在初始化時就會嘗試載入可用的 JDBC 驅動，方式之一是「透過服務提供者載入機制載入的 java.sql.Driver 服務提供者」，所以一般情況不必再手動呼叫 Class.forName"><code>DriverManager</code> 的 javadoc 寫明它在初始化時就會自己去找驅動程式，管道之一是「透過服務提供者載入機制載入的 <code>java.sql.Driver</code> 服務提供者」。換句話說，現代的驅動程式只要在 classpath 上就會被找到，一般情況不必再手動呼叫 <code>Class.forName(...)</code> 註冊</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/DriverManager.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「在url資料庫後面加上?useSSL=false可以提高效能」，查證後更正：useSSL=false 是關掉傳輸加密，屬於安全性降級而不是效能調校；MySQL Connector/J 8 已改用 sslMode 參數，正式環境應維持加密連線">把 <code>useSSL=false</code> 寫進連線網址是關掉傳輸加密，屬於安全性降級，不是效能調校。而且 MySQL 官方文件已經把 <code>useSSL</code> 標成「DEPRECATED：詳見 <code>sslMode</code> 屬性的說明」，現在該用的是 <code>sslMode</code>（預設值 <code>PREFERRED</code>），正式環境應該維持加密連線</mark><a class="fixsrc" href="https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-security.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>典型流程是取得 <code>Connection</code>、建立 <code>PreparedStatement</code>、設定參數、執行 SQL、處理 <code>ResultSet</code>，最後關閉資源。</p>
+<pre><code>String sql =
+    "SELECT id, username FROM member WHERE email = ?";
+
+try (Connection conn = dataSource.getConnection();
+     PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+    stmt.setString(1, email);
+
+    try (ResultSet rs = stmt.executeQuery()) {
+        while (rs.next()) {
+            long id = rs.getLong("id");
+            String username = rs.getString("username");
+        }
+    }
+}</code></pre>
+<p><code>PreparedStatement</code> 把 SQL 結構與參數值分開處理，可以降低 SQL 注入（SQL Injection）的風險，也方便重複套用不同參數。它取代不了權限控管與輸入驗證，但一定比自己拼字串安全。</p>
+<p><code>ResultSet</code> 用來逐列讀查詢結果；要知道欄位數量、名稱或型別這類結構資訊時，才用 <code>ResultSetMetaData</code>。更新資料則是取得受影響的列數，不一定有 <code>ResultSet</code>。</p>
+<p>多個 SQL 必須一起成功或一起失敗時就要用交易（Transaction）：關掉自動提交，成功後 <code>commit()</code>，失敗時 <code>rollback()</code>。</p>
+</section>
+
+<section>
+<p class="era">別為每位客人現挖一口井</p>
+<h3 class="head">資料庫連線池：重複利用昂貴的連線</h3>
+<p>建立一條資料庫連線要網路交握、驗證與配置資源，每次請求都重開成本很高。連線池會先準備或按需維護一批連線；程式借出來用，用完歸還，下一個請求就能接著用。</p>
+<p><code>DataSource</code> 是 JDBC 的標準介面，連線池的實作通常透過它供應 <code>Connection</code>。對使用端來說，呼叫 <code>close()</code> 通常代表把連線還回池子，而不是關掉底層那條實體連線。</p>
+<ul class="plainlist"><li>省掉頻繁建立連線的成本，縮短等待時間。</li><li>限制同時使用的連線數，避免資料庫被大量請求壓垮。</li><li>用逾時、健康檢查與洩漏偵測管理連線。</li><li>還是要確實關閉 Connection、Statement 與 ResultSet，不然池子會被借光。</li></ul>
+<p class="muted">連線池不是越大越快。池子大小要配合資料庫的容量、SQL 的執行時間與應用程式的並行量調整。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Request 用來讀請求，Response 用來設定狀態碼、標頭與回應內容。</li><li>轉送沿用同一次請求；重新導向會要瀏覽器再送一次請求。</li><li>Cookie 存在瀏覽器端，不可信任；Session 資料在伺服器端，靠 Cookie 裡的識別碼串起多次請求。</li><li>Session 一樣要防識別碼被偷，不能因為資料在伺服器就當成絕對安全。</li><li>每個 Cookie 至少支援 4096 位元組，計的是名稱、值與屬性的總長度。</li><li>JDBC 提供共同介面，驅動程式負責實際通訊；SQL 參數要用 PreparedStatement。</li><li>連線池重複利用連線，但借出來的資源仍然必須確實關閉歸還。</li></ul></div>

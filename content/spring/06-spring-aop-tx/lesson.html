@@ -1,0 +1,90 @@
+<!-- 來源：HackMD 匯出「AOP(Aspect-Oriented Programing) 切面導向程式設計」「Spring - AOP(Aspect Oriented Programming)切面導向設計」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分辨商業邏輯與橫切關注點</li><li>看懂切面、切入點、通知與代理物件各自負責什麼</li><li>依時機選擇 Before、After、Around 等通知</li><li>用宣告式交易劃出正確的交易邊界，並知道代理機制的限制</li></ul></div>
+
+<section>
+<p class="era">共同功能不該散在各處</p>
+<h3 class="head">AOP 解決的是橫切問題</h3>
+<p>會員註冊、下單、修改資料屬於商業邏輯；日誌、執行時間、權限檢查與交易控制則會同時出現在很多功能裡。後者像一條橫跨各個房間的消防管線，所以叫橫切關注點（cross-cutting concern）。</p>
+<p>如果每個方法都自己複製一份計時或日誌程式碼，不只難讀，規則一改還很容易漏改。原筆記那個印表機的例子講的正是這件事：本來 <code>print()</code> 只要印出訊息，為了記錄執行時間塞進一堆計時程式碼，換一台印表機就要再複製一次。</p>
+<p>切面導向程式設計（Aspect-Oriented Programming，AOP）把這些共同邏輯抽出來，再套用到符合條件的方法上。</p>
+<blockquote>AOP 是用來補充物件導向設計的，不是把所有商業邏輯都搬進切面。</blockquote>
+</section>
+
+<section>
+<p class="era">先認識幾個角色</p>
+<h3 class="head">切面、連接點、切入點、通知與代理</h3>
+<div class="terms"><div class="term"><b>切面（Aspect）</b><span>集中放共同功能的模組，例如計時切面。</span></div><div class="term"><b>連接點（Join Point）</b><span>程式執行中可以套用額外行為的位置；Spring AOP 主要處理方法執行。</span></div><div class="term"><b>切入點（Pointcut）</b><span>描述哪些連接點要被選中。</span></div><div class="term"><b>通知（Advice）</b><span>在選中的位置，什麼時候、怎麼執行共同邏輯。</span></div><div class="term"><b>代理（Proxy）</b><span>包在目標物件外層的替身，先攔下呼叫，再安排通知與目標方法。</span></div></div>
+<p>代理可以想成大樓櫃檯：訪客以為自己直接在找住戶，但會先經過櫃檯登記與檢查，再由櫃檯放行。</p>
+</section>
+
+<section>
+<p class="era">讓切面在對的時機介入</p>
+<h3 class="head">常見的通知類型</h3>
+<div class="tablewrap"><table><thead><tr><th>通知</th><th>執行時機</th><th>適合做什麼</th></tr></thead><tbody><tr><td><code>@Before</code></td><td>目標方法執行前</td><td>前置檢查、記錄輸入摘要</td></tr><tr><td><code>@After</code></td><td>目標方法結束後，不論正常或丟出例外</td><td>一定要做的收尾紀錄</td></tr><tr><td><code>@AfterReturning</code></td><td>目標方法正常回傳後</td><td>記錄成功結果</td></tr><tr><td><code>@AfterThrowing</code></td><td>目標方法丟出例外後</td><td>失敗稽核、例外紀錄</td></tr><tr><td><code>@Around</code></td><td>包住整次方法呼叫</td><td>計時、重試，或需要決定要不要繼續執行的情況</td></tr></tbody></table></div>
+<p><code>@Around</code> 的權限最大，也最容易用錯。它必須呼叫 <code>ProceedingJoinPoint.proceed()</code> 才會繼續執行目標方法，而且要正確回傳結果或把例外傳出去。</p>
+<p class="muted">原筆記把這個註解打成「@Arround」，正確拼法是 <code>@Around</code>。另外原筆記把 <code>@After</code> 寫成「在切入點的方法被呼叫後執行」，補充一句更精確的說法：它像 <code>finally</code>，方法丟例外時一樣會執行。</p>
+</section>
+
+<section>
+<p class="era">動手做一個計時切面</p>
+<h3 class="head">切入點要精準，切面本身也得是 Bean</h3>
+<pre><code>@Aspect
+@Component
+public class TimingAspect {
+    @Around("execution(* com.example.service..*(..))")
+    public Object measure(ProceedingJoinPoint joinPoint) throws Throwable {
+        long start = System.nanoTime();
+        try {
+            return joinPoint.proceed();
+        } finally {
+            long elapsed = System.nanoTime() - start;
+            log.info("{} 花了 {} 奈秒", joinPoint.getSignature(), elapsed);
+        }
+    }
+}</code></pre>
+<p><code>@Aspect</code> 宣告這個類別是切面，<code>@Component</code> 讓 Spring 管理它——原筆記特別強調兩個要一起加，因為不是 Bean 就不會生效。範例的切入點表示選取 <code>com.example.service</code> 套件及其子套件裡的方法，其中的 <code>*</code> 是任意回傳型別。</p>
+<p>切入範圍太寬會攔到不該被影響的方法，太窄又會漏掉目標。切入點應該搭配套件、類別、方法或自訂註解把意圖講清楚。</p>
+</section>
+
+<section>
+<p class="era">代理機制帶來的邊界</p>
+<h3 class="head">寫了註解不一定會被攔截</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Spring-AOP則是AOP的實作，底層依靠JavaSE的Reflection/Proxy API」，查證後更正：Spring AOP 有兩種代理機制——目標型別有介面時可用 JDK 動態代理，沒有介面時用 CGLIB 產生子類別代理；而且 Spring Boot 自 2.0 起預設把 proxyTargetClass 設為 true，也就是預設走 CGLIB">Spring AOP 有兩種代理機制，不是只靠 Java SE 的 Proxy API。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a>（<code>spring.aop.proxy-target-class</code> 的預設值是 <code>true</code>，意思就是用 CGLIB 子類別代理）。</p>
+<p>不論哪一種代理，攔截的都是「從外部進入 Bean」的呼叫。如果同一個物件裡的 A 方法直接呼叫自己的 B 方法，這次呼叫沒有經過代理，B 上的 AOP 行為就不會生效。這個狀況叫自我呼叫（self-invocation）。</p>
+<p>常見的改善方式是重新切分 Bean，讓呼叫真的跨過代理邊界。不要為了繞過設計問題，到處自己去拿代理物件。</p>
+</section>
+
+<section>
+<p class="era">交易是一組不能拆散的操作</p>
+<h3 class="head">送交、回復與 ACID</h3>
+<p>交易（transaction）把多個資料庫操作當成一個工作單位。轉帳要先扣款再入帳：兩步都成功才送交（commit），中途失敗就回復（rollback），避免只做一半。</p>
+<div class="tablewrap"><table><thead><tr><th>ACID 特性</th><th>意義</th></tr></thead><tbody><tr><td>原子性（Atomicity）</td><td>整組操作全部完成，否則全部不算。</td></tr><tr><td>一致性（Consistency）</td><td>交易前後都符合資料規則。</td></tr><tr><td>隔離性（Isolation）</td><td>並行交易之間互相影響的程度受控制。</td></tr><tr><td>持久性（Durability）</td><td>送交之後的結果能持續保存。</td></tr></tbody></table></div>
+<p>隔離層級用來在一致性與並行效能之間取捨，會影響髒讀（dirty read）、不可重複讀（non-repeatable read）與幻讀（phantom read）這些讀現象。</p>
+</section>
+
+<section>
+<p class="era">交給 Spring 管理交易邊界</p>
+<h3 class="head">用 @Transactional 宣告交易</h3>
+<p>程式化交易是在程式碼裡手動開始、送交與回復；宣告式交易則是描述哪些方法需要交易，再由 Spring 透過 AOP 與交易管理器處理。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫程式化交易是「較舊的使用方式,現今Spring已不使用」，查證後更正：程式化交易到現在仍是 Spring 官方正式支援的做法，官方文件為它保留專章，並提供 TransactionTemplate 與反應式的 TransactionalOperator；只是一般服務在多數情境下會先選宣告式交易">程式化交易到現在仍是官方正式支援的做法。文件的原話是「Spring Framework 提供兩種程式化交易管理的方式」，並且「團隊一般建議命令式流程用 <code>TransactionTemplate</code>、反應式程式碼用 <code>TransactionalOperator</code>」。它不是被淘汰，只是一般服務在多數情境下會先選宣告式交易</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/programmatic.html" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>@Service
+public class TransferService {
+    @Transactional
+    public void transfer(long fromId, long toId, BigDecimal amount) {
+        accountDao.withdraw(fromId, amount);
+        accountDao.deposit(toId, amount);
+    }
+}</code></pre>
+<p><code>@Transactional</code> 可以放在類別或方法上。交易邊界通常放在服務層，因為一件商業操作往往要協調好幾個 DAO。如果只在各個 DAO 方法上各開一個交易，整件商業操作就被切成好幾段，失去「一起成功或一起失敗」的意義。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記只寫「發生例外、邏輯不合理 => Rollback」，沒有區分例外型別；查證後補充：Spring 的宣告式交易預設只對 RuntimeException 與 Error 回復，受檢例外（checked exception）預設不會觸發回復，要回復得自己設定 rollbackFor">官方文件列 <code>@Transactional</code> 的預設值時寫得很直接：「任何 <code>RuntimeException</code> 或 <code>Error</code> 會觸發回復，任何受檢的 <code>Exception</code> 則不會。」要讓受檢例外也回復，得自己設 <code>rollbackFor</code></mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a>。所以不要只憑「有丟例外」就假設一定回復。</p>
+</section>
+
+<section>
+<p class="era">交易也受代理限制</p>
+<h3 class="head">避免 @Transactional 看得到卻攔不到</h3>
+<p>宣告式交易同樣靠代理，所以要從外部呼叫受管理 Bean 的交易方法，才會經過交易攔截器。自我呼叫、自己手動 <code>new</code> 出服務物件，或把交易邊界放錯層，都會讓設定失效。</p>
+<p class="q">想一下：如果 <code>checkout()</code> 先寫入訂單，再呼叫庫存 DAO，而扣庫存失敗了，哪一層最適合包住整個交易？</p>
+<p>答案通常是協調「建單加扣庫存」的那個服務方法，因為只有它掌握完整的商業工作單位。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>AOP 把日誌、計時、交易這類橫切關注點集中管理。</li><li>切入點決定套用位置，通知決定執行時機，代理負責攔截呼叫。</li><li>Spring AOP 有 JDK 動態代理與 CGLIB 兩種，Spring Boot 預設走 CGLIB。</li><li><code>@Around</code> 必須呼叫 <code>proceed()</code>，並處理好回傳值與例外。</li><li>宣告式交易預設只對執行期例外回復，受檢例外要自己設 <code>rollbackFor</code>。</li><li>交易邊界放在能涵蓋完整商業操作的服務層，並要留意自我呼叫會繞過代理。</li></ul></div>

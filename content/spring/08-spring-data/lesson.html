@@ -1,0 +1,102 @@
+<!-- 來源：HackMD 匯出「Spring JDBC」「Spring Data JPA」「Spring - JDBC支援」「Spring - Hibernate支援」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用 NamedParameterJdbcTemplate 執行新增、修改、刪除與查詢</li><li>用 RowMapper 把資料列轉成 Java 物件</li><li>說清楚 JPA、Hibernate 與 Spring Data JPA 三者的關係</li><li>用 Repository、方法名稱衍生查詢與 @Query 表達資料操作</li><li>依查詢需求在 Spring JDBC 與 Spring Data JPA 之間選擇</li></ul></div>
+
+<section>
+<p class="era">Spring JDBC 幫你收掉重複的流程</p>
+<h3 class="head">還是寫 SQL，但不用處理樣板程式碼</h3>
+<p>原生 JDBC 要一直重複取得連線、建立敘述、綁參數、走訪結果、釋放資源。Spring JDBC 把 SQL 的控制權留給你，只替你處理這些固定流程。</p>
+<p><code>DataSource</code> 提供資料庫連線；<code>JdbcTemplate</code> 或 <code>NamedParameterJdbcTemplate</code> 用它執行 SQL。後者以名稱綁定參數，比一排問號好讀很多。</p>
+<pre><code>String sql = """
+    update student
+       set name = :name
+     where id = :id
+    """;
+
+MapSqlParameterSource params = new MapSqlParameterSource()
+    .addValue("name", student.name())
+    .addValue("id", student.id());
+
+int affected = jdbcTemplate.update(sql, params);</code></pre>
+<p>命名參數不是把字串接進 SQL，而是交給模板做參數綁定，所以不會有自己串接輸入值造成的注入風險與格式問題。</p>
+</section>
+
+<section>
+<p class="era">修改與查詢走不同流程</p>
+<h3 class="head">update、batchUpdate 與 query</h3>
+<div class="tablewrap"><table><thead><tr><th>方法</th><th>用途</th><th>常見結果</th></tr></thead><tbody><tr><td><code>update</code></td><td>執行 INSERT、UPDATE、DELETE</td><td>受影響的資料筆數</td></tr><tr><td><code>batchUpdate</code></td><td>批次執行多組修改參數</td><td>各批次受影響的筆數</td></tr><tr><td><code>query</code></td><td>查詢多筆資料</td><td>由 RowMapper 轉出來的物件集合</td></tr><tr><td><code>queryForObject</code></td><td>預期剛好一筆結果</td><td>單一值或單一物件</td></tr></tbody></table></div>
+<p>主鍵由資料庫產生時，可以搭配 <code>KeyHolder</code> 取得新增後的鍵值。批次處理適合「同一段 SQL、每次參數不同」而且量很大的情境。</p>
+</section>
+
+<section>
+<p class="era">資料列需要一位翻譯</p>
+<h3 class="head">用 RowMapper 建立領域物件</h3>
+<pre><code>public class StudentRowMapper implements RowMapper&lt;Student&gt; {
+    @Override
+    public Student mapRow(ResultSet rs, int rowNum) throws SQLException {
+        return new Student(
+            rs.getLong("id"),
+            rs.getString("name"),
+            rs.getInt("age")
+        );
+    }
+}</code></pre>
+<p><code>ResultSet</code> 是查詢結果；<code>RowMapper</code> 定義每一列怎麼變成 Java 物件。欄位名稱、SQL 型別與 Java 型別要合理對應，資料庫的 <code>NULL</code> 也要明確處理。</p>
+<p>查詢本來就可能沒有結果時，不要把「查無資料」和真正的資料庫故障混為一談。資料存取層應該把底層狀況轉成上層看得懂的結果或例外。</p>
+</section>
+
+<section>
+<p class="era">從資料列走向物件關聯</p>
+<h3 class="head">ORM、JPA、Hibernate 與 Spring Data JPA</h3>
+<div class="terms"><div class="term"><b>JPA</b><span>持久化的規格，定義實體、關聯與 EntityManager 等 API；已改名 Jakarta Persistence。</span></div><div class="term"><b>Hibernate</b><span>最常見的 JPA 實作，同時也提供自己的 Session API。</span></div><div class="term"><b>Spring Data JPA</b><span>站在 JPA 之上的 Spring Data 模組，用 Repository 把常見的資料操作抽象化。</span></div></div>
+<p>所以三者不是同一層的替代品，而是疊起來的：JPA 定規格，Hibernate 負責實作，Spring Data JPA 再幫你把 Repository 的重複程式碼省掉——原筆記那句「JPA 負責定義，Hibernate 負責實作」抓到了前兩層的關係。</p>
+</section>
+
+<section>
+<p class="era">用 Repository 表達資料操作</p>
+<h3 class="head">基本操作與方法名稱衍生查詢</h3>
+<pre><code>public interface StudentRepository
+        extends JpaRepository&lt;Student, Long&gt; {
+
+    List&lt;Student&gt; findByNameContainingAndAgeGreaterThan(
+        String keyword,
+        int age
+    );
+}</code></pre>
+<p>常用操作有 <code>save</code>、<code>findById</code>、<code>findAll</code> 與 <code>deleteById</code>。<code>findById</code> 回傳 <code>Optional&lt;T&gt;</code>，提醒呼叫端資料可能不存在。</p>
+<p class="muted">原筆記把刪除的方法名寫成 <code>deleteByID(Id id)</code>，正確的是 <code>deleteById(ID id)</code>，大小寫不同會找不到方法。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「save() 集insert() + update()」，查證後更正：save 會先判斷這個實體是不是新的（預設看識別值是否為 null，或看實體有沒有實作 Persistable），是新的就走 persist、不是就走 merge；實際發出什麼 SQL 還會受實體狀態與 JPA 實作影響，不是固定的「先 insert 再 update」"><code>save</code> 會先判斷這個實體是不是新的：預設看識別值是不是 <code>null</code>，是新的就走 <code>persist</code>、不是就走 <code>merge</code>。實際發出什麼 SQL 還會受實體狀態影響，不是固定的「先 insert 再 update」</mark><a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/jpa/entity-persistence.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>方法名稱衍生查詢適合簡單條件。名稱長到看不懂，或需求變複雜時，就該換一種比較清楚的查詢寫法。</p>
+</section>
+
+<section>
+<p class="era">複雜查詢要講清楚用哪種語言</p>
+<h3 class="head">@Query 預設不是原生 SQL</h3>
+<pre><code>@Query("""
+    select s
+      from Student s
+     where s.active = true
+       and s.age &gt;= :minAge
+    """)
+List&lt;Student&gt; findActiveAdults(@Param("minAge") int minAge);</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 @Query 的用途是「在Spring Data JPA中，執行原生的SQL語法」，查證後更正：@Query 預設使用 JPQL，查的是實體與屬性；要用資料庫原生 SQL 必須明確寫 nativeQuery = true"><code>@Query</code> 預設使用 JPQL，查的是實體與它的屬性，不是資料表與欄位名。它的 javadoc 寫得很清楚：<code>value</code> 是「要執行的 JPA 查詢」，而 <code>nativeQuery</code> 用來「設定這個查詢是不是原生查詢，預設為 false」</mark><a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/docs/current/api/org/springframework/data/jpa/repository/Query.html" target="_blank" rel="noopener">出處</a>。這是很容易踩到的一個坑：把資料表名當成實體名寫進去，執行時就會直接失敗。</p>
+<p>原生 SQL 能用到特定資料庫的功能，但換資料庫的成本比較高；JPQL 與衍生查詢則比較貼近實體模型。選哪一種要看查詢複雜度、效能、可讀性，以及你願意跟資料庫綁多緊。</p>
+</section>
+
+<section>
+<p class="era">同一個容器管理資料基礎設施</p>
+<h3 class="head">DataSource、EntityManagerFactory 與交易</h3>
+<p>走 JDBC 這條路時，Spring 管的是 <code>DataSource</code> 與 JDBC 模板；走 JPA 這條路時，管的是 <code>EntityManagerFactory</code>、Repository 與交易管理器。直接整合 Hibernate 時，也可以由 Spring 建立並注入 <code>SessionFactory</code>，這樣就不必再自己寫一個 <code>HibernateUtil</code>。</p>
+<p>Web 容器提供的 JNDI DataSource 也可以交給 Spring 查找並註冊成 Bean，服務就不必自己到全域目錄找連線來源，改用注入取得。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「因為Controller是由Web容器管理（Tomcat)，而要使用DI的@AutoWired必須將該類別也託管在IoC容器(@Component)，這時候Controller就只能使用DL的方式(Dependency Lookup)取得Service物件」，查證後更正：那是純 Servlet 專案的權宜做法；在 Spring MVC 裡，@Controller 本身就是 Spring 容器建立與管理的 Bean，可以直接用建構式注入拿到 Service，不需要 Dependency Lookup">在 Spring MVC 裡，<code>@Controller</code> 本身就是 Spring 容器管理的 Bean。官方文件說明 <code>@Repository</code>、<code>@Service</code>、<code>@Controller</code> 都是 <code>@Component</code> 的特化，而且「Spring 能自動偵測這些標了原型註解的類別，並向 ApplicationContext 註冊對應的 Bean 定義」——既然是容器管理的 Bean，直接用建構式注入拿到 Service 就好，不需要靠 Dependency Lookup 去撈</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/classpath-scanning.html" target="_blank" rel="noopener">出處</a>。原筆記講的是「Servlet 由 Tomcat 建立」的那個舊情境。</p>
+<p>資料存取技術與交易管理必須配套。多步驟的寫入流程要由服務層建立清楚的交易邊界，而不是讓每個 Repository 各自送交。</p>
+<p class="muted">原筆記用 <code>web.xml</code> 加 <code>ContextLoaderListener</code> 載入 Spring 組態，那是 Spring Boot 普及之前的做法。現在的專案多半靠自動組態與註解掃描，不會再寫這份部署描述檔。</p>
+</section>
+
+<section>
+<p class="era">工具沒有高下，只有合不合適</p>
+<h3 class="head">Spring JDBC 與 Spring Data JPA 怎麼選？</h3>
+<div class="tablewrap"><table><thead><tr><th>考量</th><th>Spring JDBC</th><th>Spring Data JPA</th></tr></thead><tbody><tr><td>SQL 控制</td><td>SQL 明白寫在程式裡，控制最直接</td><td>透過實體操作、JPQL 或原生 SQL 間接控制</td></tr><tr><td>物件關聯</td><td>要自己組裝</td><td>可以宣告關聯與載入策略</td></tr><tr><td>簡單的增刪改查</td><td>還是要寫 SQL 與對映</td><td>Repository 能省掉大量樣板程式碼</td></tr><tr><td>複雜報表</td><td>通常能直接精準寫出 SQL</td><td>用 JPQL、原生查詢，或另外搭 JDBC</td></tr><tr><td>學習重點</td><td>SQL、參數與 RowMapper</td><td>實體狀態、關聯、交易與查詢策略</td></tr></tbody></table></div>
+<p>同一個系統也可以兩者並用：一般實體的增刪改查用 Spring Data JPA，複雜報表用 Spring JDBC。關鍵是交易與分層的邊界要清楚。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Spring JDBC 保留 SQL 的控制力，並省掉連線與資源釋放的樣板程式碼。</li><li><code>update</code> 處理資料異動，<code>query</code> 搭配 <code>RowMapper</code> 處理查詢對映。</li><li>JPA 是規格，Hibernate 是實作，Spring Data JPA 提供 Repository 抽象。</li><li><code>save</code> 依實體是不是新的決定走 persist 還是 merge，不是固定的 insert 加 update。</li><li><code>@Query</code> 預設是 JPQL；要原生 SQL 得寫 <code>nativeQuery = true</code>。</li><li>JDBC 與 JPA 可以並用，選擇依據是 SQL 控制、物件關聯、查詢複雜度與維護成本。</li></ul></div>

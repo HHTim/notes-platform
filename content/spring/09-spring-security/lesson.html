@@ -1,0 +1,77 @@
+<!-- 來源：HackMD 匯出「Spring security」「Spring Security 認證」「Spring Security 授權」「Spring Security Filter」「Cookie & Session 介紹」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分辨認證與授權，並知道它們各自在哪裡失敗</li><li>看懂請求怎麼通過 Spring Security 的 Filter 鏈</li><li>用路徑規則與方法層級規則限制存取</li><li>說明 Cookie、Session 與權杖式認證的差別</li></ul></div>
+
+<section>
+<p class="era">先確認身分，再判斷權限</p>
+<h3 class="head">認證與授權是兩道不同的門</h3>
+<p>Spring Security 是 Spring 生態系的安全框架，處理登入、權限控制、密碼驗證、工作階段與常見的網站攻擊防護。它像大樓的門禁系統：先在櫃檯確認「你是誰」（認證，Authentication），再判斷這張門禁卡能不能開某個房間（授權，Authorization）。</p>
+<div class="tablewrap"><table><thead><tr><th>概念</th><th>要回答的問題</th><th>失敗時的狀況</th></tr></thead><tbody><tr><td>認證</td><td>你是誰？提供的憑證有效嗎？</td><td>帳號或密碼錯、權杖失效，通常要求重新登入</td></tr><tr><td>授權</td><td>已登入的你可以做什麼？</td><td>身分有效，但角色或權限不足</td></tr></tbody></table></div>
+<p>原筆記用了一個很好懂的例子：一般會員看免費影片，VIP 會員看付費影片。還沒登入就要看影片是認證問題；已登入的一般會員要看 VIP 影片是授權問題。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「所有網站，一定都是「先認證、再授權」」，查證後更正：公開資源不需要先認證。Spring Security 官方文件說明 permitAll 的路徑「requires no authorization and is a public endpoint」，而且在這種情況下根本不會去工作階段裡取出 Authentication">公開資源不需要先認證。Spring Security 官方文件說明，標成 <code>permitAll</code> 的路徑不需要授權判斷，而且根本不會去工作階段裡取出身分</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html" target="_blank" rel="noopener">出處</a>。所以「先認證再授權」是理解一般流程的好方法，但不是所有請求都這樣走。</p>
+</section>
+
+<section>
+<p class="era">把登入資料包成框架看得懂的物件</p>
+<h3 class="head">Spring Security 的認證流程</h3>
+<p>帳號密碼登入時，請求先由負責認證的 Filter 接住，再把憑證交給認證管理元件。它透過使用者資料服務查出帳號，用密碼編碼器比對密碼。成功之後，已認證的身分會放進安全內容保存區。</p>
+<div class="terms"><div class="term"><b>Authentication</b><span>代表目前的身分與憑證，也可以帶著角色或權限。</span></div><div class="term"><b>AuthenticationManager</b><span>接收認證要求，協調整個認證流程。</span></div><div class="term"><b>UserDetailsService</b><span>依使用者名稱載入帳號資料。</span></div><div class="term"><b>UserDetails</b><span>描述帳號、密碼雜湊值與權限的介面。</span></div><div class="term"><b>SecurityContextHolder</b><span>讓目前這次請求取得已認證身分的入口。</span></div></div>
+<p>帳號可以先放在記憶體裡方便示範或測試（原筆記用的 <code>InMemoryUserDetailsManager</code> 就是這個用途），正式系統通常改從資料庫、LDAP 或其他身分服務載入。密碼不應該存明文，要存適合密碼用途的單向雜湊結果，這點第 10 課會細談。</p>
+</section>
+
+<section>
+<p class="era">每個請求都先走檢查站</p>
+<h3 class="head">Filter 鏈怎麼保護 API</h3>
+<p>Servlet Filter（過濾器）像機場一連串的檢查站，能在請求進 Controller 之前檢查或補資料。Spring Security 會建立自己的安全 Filter 鏈，依序處理安全內容、登入、例外轉換與授權判斷。</p>
+<ul class="plainlist"><li>讀 Session、Basic 憑證或權杖，試著建立使用者身分。</li><li>把認證結果放進安全內容保存區。</li><li>判斷目標資源允不允許目前這個身分存取。</li><li>把未登入或權限不足的錯誤轉成適當的 HTTP 回應。</li></ul>
+<p>自訂 Filter 可以直接實作 <code>Filter</code>，也可以繼承 <code>OncePerRequestFilter</code>。後者的重點是：一次請求的分派流程裡，同一個 Filter 不會重複執行。</p>
+<p>把 Filter 加進安全鏈時是指定相對位置，例如放在某個既有 Filter 前面或後面，而不是指定「第五個位置」。原筆記提醒的那個坑也很實際：同一個 Filter 如果既被 <code>@Component</code> 掃描自動註冊進 Servlet 容器，又被手動 <code>addFilterBefore()</code> 加進 Spring Security 鏈，它就會對同一次請求執行兩次。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在「SpringSecurity完整流程」寫「FilterSecurityInterceptor: 負責權限校驗的過濾器」，查證後更正：Spring Security 官方文件明講 AuthorizationFilter supersedes FilterSecurityInterceptor，而且只要用 authorizeHttpRequests 設定授權規則，走的就是 AuthorizationFilter；Spring Security 6 起 authorizeRequests 已被移除，實際生效的是前者">現在負責授權判斷的是 <code>AuthorizationFilter</code>，官方文件直接寫它取代了 <code>FilterSecurityInterceptor</code>；只要用 <code>authorizeHttpRequests</code> 設定授權規則，走的就是新的那個</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">把路徑規則寫成看得懂的門禁表</p>
+<h3 class="head">用 HttpSecurity 設定路徑授權</h3>
+<p><code>HttpSecurity</code> 可以設定路徑授權、表單登入、HTTP Basic、CSRF、CORS、Session 與 OAuth 相關功能。授權規則由「比對哪些請求」加上「採取什麼限制」兩部分組成。</p>
+<pre><code>@Bean
+SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.authorizeHttpRequests(auth -&gt; auth
+        .requestMatchers("/welcome", "/register").permitAll()
+        .requestMatchers("/admin/**").hasRole("ADMIN")
+        .requestMatchers("/member/**").hasAnyRole("USER", "ADMIN")
+        .anyRequest().authenticated()
+    );
+    return http.build();
+}</code></pre>
+<div class="tablewrap"><table><thead><tr><th>規則</th><th>意義</th></tr></thead><tbody><tr><td><code>permitAll()</code></td><td>所有人都能存取，包含還沒登入的人</td></tr><tr><td><code>denyAll()</code></td><td>所有人都不能存取</td></tr><tr><td><code>authenticated()</code></td><td>必須完成認證</td></tr><tr><td><code>hasRole("ADMIN")</code></td><td>必須具備指定角色</td></tr><tr><td><code>hasAnyRole("USER", "ADMIN")</code></td><td>具備其中一個角色就行</td></tr></tbody></table></div>
+<p>規則照宣告順序比對，所以比較明確的路徑要放前面，最後再用 <code>anyRequest()</code> 收尾。</p>
+<p class="muted">原筆記用的是新版寫法，但網路上大量教學仍停在 Spring Security 5：<code>WebSecurityConfigurerAdapter</code> 在 6.0 已移除，改成宣告一個 <code>SecurityFilterChain</code> 的 Bean；<code>authorizeRequests()</code> 換成 <code>authorizeHttpRequests()</code>，<code>antMatchers()</code>、<code>mvcMatchers()</code> 換成 <code>requestMatchers()</code>，<code>@EnableGlobalMethodSecurity</code> 換成 <code>@EnableMethodSecurity</code>。抄範例前先看它是哪個版本。</p>
+</section>
+
+<section>
+<p class="era">角色像職稱，權限像可以做的動作</p>
+<h3 class="head">RBAC 與方法層級授權</h3>
+<p>角色存取控制（Role-Based Access Control，RBAC）不是逐一把權限發給每個使用者，而是先把一組權限指派給角色，再讓使用者擁有角色。例如 ADMIN 可以管理會員，USER 只能讀自己的資料。</p>
+<p>路徑授權守在 HTTP 入口；方法層級授權則直接守住 Service 或 Controller 的方法。後者適合保護那些可能被多個入口呼叫的核心操作。</p>
+<pre><code>@PreAuthorize("hasRole('ADMIN')")
+public void deleteMember(long memberId) {
+    // 只有符合授權條件的身分才能執行
+}</code></pre>
+<p>不要只靠前端把按鈕藏起來做權限控制。使用者還是可以自己呼叫 API，真正的授權判斷必須在後端執行。</p>
+</section>
+
+<section>
+<p class="era">瀏覽器拿號碼牌，伺服器保管登入狀態</p>
+<h3 class="head">Cookie、Session 與權杖</h3>
+<p>Cookie 是瀏覽器保存、依規則附在請求上的一小段資料，格式像 <code>名稱=值</code>。Session（工作階段）是伺服器端維護的狀態；瀏覽器通常只保存一個識別碼，例如 <code>JSESSIONID</code>。</p>
+<pre><code>登入成功
+  → 伺服器建立 Session
+  → 回應用 Cookie 交付 JSESSIONID
+  → 瀏覽器後續請求都帶著 JSESSIONID
+  → 伺服器用它找到 Session 與登入身分
+  → 登出或逾時後讓 Session 失效</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Session 是後端程式的一種數據儲存方式，實作方式不限，Spring Security 預設是使用 Java 的 map 變數來實作」，查證後更正：Session 本身是 Servlet 容器（例如 Tomcat）提供的 HttpSession，Spring Security 並沒有自己實作一套 Session；它預設做的是把安全內容存進 HttpSession，這件事由 HttpSessionSecurityContextRepository 負責，也可以換成 Redis 等外部儲存">Session 本身是 Servlet 容器提供的 <code>HttpSession</code>，Spring Security 沒有自己實作一套。官方文件的說法是「<code>HttpSessionSecurityContextRepository</code> 把 <code>SecurityContext</code> 關聯到 <code>HttpSession</code>」——它負責的是安全內容要放在哪裡，而放的地方就是容器的工作階段；換成 Redis 這類外部儲存也是換掉這個儲存庫，不是換掉 Session 本身</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/authentication/persistence.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>Cookie 不只用來登入，也可以保存個人化設定、購物車識別資訊或表單進度。但敏感內容不該直接明文放進去。</p>
+<p>另一種架構是登入後發出 JWT 這類權杖，之後由自訂 Filter 解析權杖並建立安全內容。要不要再把使用者狀態放進 Redis 是架構選擇，不是 JWT 的必要條件。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>認證確認身分，授權判斷這個身分能不能做某件事；公開資源兩者都不需要。</li><li>Spring Security 透過 Filter 鏈在請求到達 Controller 前做安全檢查。</li><li>授權判斷現在由 <code>AuthorizationFilter</code> 負責，搭配 <code>authorizeHttpRequests</code> 設定。</li><li>路徑規則與方法層級規則互補，但後端才是權限判斷的最後防線。</li><li>RBAC 用角色承接一組權限，省掉逐一管理使用者權限的成本。</li><li>Session 由 Servlet 容器維護，Spring Security 只是把安全內容存進去。</li></ul></div>

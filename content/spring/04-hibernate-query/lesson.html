@@ -1,0 +1,126 @@
+<!-- 來源：HackMD 匯出「HQL」「Criteria & Native SQL」「Association」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分辨 HQL 與 SQL 分別在查什麼</li><li>用具名參數、投影與分頁寫出常見的 HQL 查詢</li><li>依需求在 HQL、Criteria API 與原生 SQL 之間選擇</li><li>設定一對一、一對多、多對一與雙向關聯，並知道兩端都要維護</li></ul></div>
+
+<section>
+<p class="era">物件導向的查詢語言</p>
+<h3 class="head">HQL 查的是實體，不是資料表</h3>
+<p>HQL（Hibernate Query Language）長得很像 SQL，但操作的是實體類別與它的屬性。Hibernate 再依資料庫方言把它翻成對應的 SQL，所以換資料庫時查詢字串通常不用改。</p>
+<div class="tablewrap"><table><thead><tr><th>比較項目</th><th>HQL</th><th>SQL</th></tr></thead><tbody><tr><td>資料來源</td><td>實體類別，例如 <code>Member</code></td><td>資料表，例如 <code>member</code></td></tr><tr><td>欄位表示</td><td>實體屬性，例如 <code>username</code></td><td>資料表欄位，例如 <code>user_name</code></td></tr><tr><td>關聯導覽</td><td>可沿著對映屬性 JOIN</td><td>依欄位與外來鍵條件 JOIN</td></tr><tr><td>跨資料庫</td><td>由 Hibernate 翻譯方言</td><td>語法差異要自己處理</td></tr></tbody></table></div>
+<pre><code>FROM Member m
+WHERE m.username = :username
+ORDER BY m.id DESC</code></pre>
+<p>HQL 的 <code>SELECT</code> 可以省略，省略時回傳 <code>FROM</code> 指定的完整實體。實體類別名與屬性名要正確對應 Java 這邊的對映，不能拿資料表或欄位名代替。</p>
+<p class="muted">原筆記同時寫了「HQL 不區分大小寫」和「操作的對象是實體物件及其屬性，且有區分大小寫」，這兩句其實不衝突：關鍵字（SELECT、FROM、WHERE）不分大小寫，類別名與屬性名分大小寫。把關鍵字寫成大寫只是閱讀習慣，不影響查詢意義。</p>
+</section>
+
+<section>
+<p class="era">安全傳值</p>
+<h3 class="head">用參數，不要把使用者輸入拼進去</h3>
+<p>具名參數像預留座位：HQL 先用 <code>:username</code> 標出位置，再由 API 把真正的值放進去。這樣比串字串清楚，查詢引擎也能正確處理值的型別與跳脫。</p>
+<pre><code>List&lt;Member&gt; members = session
+    .createQuery(
+        "FROM Member m WHERE m.username = :username",
+        Member.class
+    )
+    .setParameter("username", input)
+    .getResultList();</code></pre>
+<p class="q">如果 input 是外部輸入，能不能寫成 <code>"... = '" + input + "'"</code>？</p>
+<p>不行。字串拼接會抬高注入攻擊與語法錯誤的風險。不論用 HQL、Criteria 還是原生 SQL，值都應該透過參數綁定傳進去。</p>
+</section>
+
+<section>
+<p class="era">回傳什麼形狀</p>
+<h3 class="head">投影與 DTO</h3>
+<p>查完整實體會把所有對映屬性都載入；如果畫面只要姓名與狀態，可以用投影（Projection）限制回傳內容。</p>
+<pre><code>SELECT new com.example.MemberSummary(m.username, m.status)
+FROM Member m
+WHERE m.status = :status</code></pre>
+<p>建構式投影需要目標類別提供參數型別與順序相符的建構式。如果只挑了多個零散屬性又沒指定 DTO，回傳的每一列會以陣列之類的形式表示，用起來很容易寫錯索引——原筆記寫的「預設會使用 <code>List&lt;Object[]&gt;</code> 型態」講的就是這件事。</p>
+<p class="formula">完整實體：後續需要實體行為與關聯時用；DTO 投影：唯讀畫面與固定欄位時用</p>
+</section>
+
+<section>
+<p class="era">資料很多的時候</p>
+<h3 class="head">分頁交給查詢 API 控制</h3>
+<p>各家資料庫的分頁語法不一樣（MySQL 用 <code>LIMIT</code>、Oracle 有自己的寫法、SQL Server 用 <code>TOP</code>）。HQL 不把這些寫進字串，而是透過查詢 API 指定起點與筆數，差異由 Hibernate 在底層轉換。</p>
+<pre><code>List&lt;Member&gt; page = session
+    .createQuery("FROM Member m ORDER BY m.id", Member.class)
+    .setFirstResult(20)
+    .setMaxResults(10)
+    .getResultList();</code></pre>
+<p>這段的意思是略過前 20 筆，再取最多 10 筆。正式的分頁要搭配穩定的排序條件，否則資料一有異動，各頁內容就可能重複或漏掉。</p>
+</section>
+
+<section>
+<p class="era">新增、修改、刪除也能用 HQL</p>
+<h3 class="head">批次敘述與它的邊界</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「HQL的INSERT敘述,不支援 INSERT INTO..VALUES(..) 語法」，查證後更正：現行 HQL 已支援 values 子句，官方查詢語言文件的例子是 insert Person (id, name) values (100L, 'Jane Doe'), (200L, 'John Roe')，而且 values 裡給多組值就會插入多列">現行的 HQL 已經支援 <code>values</code> 子句，官方文件的例子是 <code>insert Person (id, name) values (100L, 'Jane Doe'), (200L, 'John Roe')</code>，給多組值就會插入多列</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/6.6/querylanguage/html_single/Hibernate_Query_Language.html" target="_blank" rel="noopener">出處</a>。原筆記的說法是舊版本的限制。</p>
+<p>要留意的是：這類批次敘述直接對資料庫動手，不會走實體的狀態追蹤。執行完之後，Session 裡既有的實體可能還留著舊值，必要時要重新整理或清掉受影響的實體。</p>
+</section>
+
+<section>
+<p class="era">條件會變的查詢</p>
+<h3 class="head">Criteria API：用物件組出查詢</h3>
+<p>Criteria API 適合條件數量隨使用者輸入改變的查詢。它把查詢拆成建構器、查詢定義、資料來源與條件物件，不必手動接一堆 HQL 片段。</p>
+<pre><code>CriteriaBuilder cb = session.getCriteriaBuilder();
+CriteriaQuery&lt;Member&gt; cq = cb.createQuery(Member.class);
+Root&lt;Member&gt; member = cq.from(Member.class);
+
+cq.select(member)
+  .where(cb.equal(member.get("status"), "ACTIVE"))
+  .orderBy(cb.asc(member.get("username")));
+
+List&lt;Member&gt; result = session.createQuery(cq).getResultList();</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 Criteria「只支援查詢動作，不支援新刪修動作」，查證後更正：JPA 2.1（2013 年）就加入了 CriteriaUpdate 與 CriteriaDelete，可以用 Criteria 的方式表達批次更新與刪除">Criteria 也能做更新與刪除。規格裡就有 <code>CriteriaUpdate</code>，它的介面說明是「<code>CriteriaUpdate</code> 介面定義了用 Criteria API 執行批次更新操作的功能」，刪除則有對應的 <code>CriteriaDelete</code></mark><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/criteria/criteriaupdate" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 Criteria「此方式 是type-safe(編譯器會檢查)」，查證後更正：像上面這樣以字串 get(&quot;status&quot;) 指定屬性時，屬性名打錯或改名編譯器抓不到，要搭配靜態中繼模型（Static Metamodel，例如 Member_.status）才會有完整的型別檢查">用字串 <code>get("status")</code> 指定屬性時，屬性名打錯或改名編譯器是抓不到的。規格的 <code>Path.get(String)</code> 明講屬性名不存在時是在執行時丟 <code>IllegalArgumentException</code>；要有編譯期檢查得改用吃靜態中繼模型（Static Metamodel，例如 <code>Member_.status</code>）的那個多載</mark><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/criteria/path" target="_blank" rel="noopener">出處</a>。</p>
+<p>Criteria 本身也不是防注入的魔法。查詢的值仍然要以參數或 API 的值節點傳入，不要把不可信的內容拿去當欄位名或 SQL 片段。</p>
+</section>
+
+<section>
+<p class="era">資料庫專屬的能力</p>
+<h3 class="head">原生 SQL：直接對資料表說話</h3>
+<p>原生 SQL 適合用資料庫專屬函式、複雜報表、既有 SQL，或 HQL 不好表達的查詢。代價是和資料庫結構與方言綁得更緊。</p>
+<pre><code>List&lt;Member&gt; members = session
+    .createNativeQuery(
+        "SELECT * FROM member WHERE status = :status",
+        Member.class
+    )
+    .setParameter("status", "ACTIVE")
+    .getResultList();</code></pre>
+<div class="tablewrap"><table><thead><tr><th>工具</th><th>適合情境</th><th>主要代價</th></tr></thead><tbody><tr><td>HQL</td><td>以實體為中心的一般查詢</td><td>要熟悉對映與 HQL 語法</td></tr><tr><td>Criteria API</td><td>條件高度動態、需要用程式組出來</td><td>程式碼較長，可讀性要自己顧</td></tr><tr><td>原生 SQL</td><td>資料庫專屬功能或複雜的既有 SQL</td><td>換資料庫困難，要自己留意快取一致性</td></tr></tbody></table></div>
+</section>
+
+<section>
+<p class="era">模型之間的關聯</p>
+<h3 class="head">Relationship 與 Association</h3>
+<p>資料庫用外來鍵描述資料表之間的關係（Relationship）；Java 實體用物件參照描述關聯（Association）。概念相通，但對映時還是要明確指定哪一方持有外來鍵。</p>
+<div class="terms"><div class="term"><b>一對一</b><span>一本書對應一筆商品明細，兩端最多各一筆。</span></div><div class="term"><b>多對一</b><span>多名員工屬於同一個部門；員工這端持有一個 Department 屬性。</span></div><div class="term"><b>一對多</b><span>一個部門有多名員工；部門這端持有員工集合。</span></div><div class="term"><b>多對多</b><span>多名學生修多門課，通常由中介資料表保存兩端的外來鍵。</span></div></div>
+<pre><code>@Entity
+public class Employee {
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;
+}
+
+@Entity
+public class Department {
+    @OneToMany(mappedBy = "department")
+    private List&lt;Employee&gt; employees = new ArrayList&lt;&gt;();
+}</code></pre>
+<p><code>mappedBy = "department"</code> 表示 <code>Employee.department</code> 才是維護這段關聯的那一側。它指的是 Java 屬性名，不是資料庫欄位名。</p>
+<p>原筆記把關聯分成數量性（1 對 1、1 對 N、N 對 1、N 對 N）與方向性（單向只有一方找得到對方，雙向兩方都找得到），這兩個分法直接對應到上面的註解設定。</p>
+</section>
+
+<section>
+<p class="era">雙向關聯的陷阱</p>
+<h3 class="head">資料庫一致，不代表記憶體兩端也一致</h3>
+<p>雙向關聯讓兩個實體都找得到對方，但兩邊的物件參照要自己同時維護。可以在 Department 提供一個輔助方法，避免只更新其中一側。</p>
+<pre><code>public void addEmployee(Employee employee) {
+    employees.add(employee);
+    employee.setDepartment(this);
+}</code></pre>
+<p>關聯的數量性與載入策略是兩件事：<code>@OneToMany</code> 說的是一對多，<code>LAZY</code> 或 <code>EAGER</code> 說的才是什麼時候載入。級聯操作（Cascade）也要依生命週期需求設定，不要把「刪除部門」誤設成無條件刪掉所有員工。</p>
+<p class="muted">把雙向關聯直接序列化成 JSON 時，兩端互相參照會造成無限遞迴。API 回應通常該用 DTO，不要直接把完整的實體圖丟出去。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>HQL 用的是實體類別名與 Java 屬性名，不是資料表與欄位名。</li><li>外部輸入一律參數化，不要拼接到 HQL 或 SQL 裡。</li><li>DTO 投影能限制回傳欄位；分頁要搭配穩定的排序。</li><li>現行 HQL 支援 <code>insert ... values</code>；Criteria 也支援批次更新與刪除。</li><li>Criteria 要搭配靜態中繼模型才有完整型別檢查，用字串指定屬性沒有。</li><li>原生 SQL 適合資料庫專屬需求，但換資料庫的成本比較高。</li><li>雙向關聯的兩端都要維護，<code>mappedBy</code> 指向持有關聯的 Java 屬性。</li></ul></div>

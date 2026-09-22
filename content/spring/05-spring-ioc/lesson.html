@@ -1,0 +1,114 @@
+<!-- 來源：HackMD 匯出「初探Spring」「IoC(Inversion of Control)控制反轉」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看出「在類別裡直接 new 相依物件」會造成什麼問題</li><li>說明控制反轉與依賴注入的關係</li><li>用元件掃描或 Java 組態建立 Bean，並在有多個候選者時指定要哪一個</li><li>讀取設定檔的值，並分辨 <code>${...}</code> 與 <code>#{...}</code></li></ul></div>
+
+<section>
+<p class="era">先從綁太緊講起</p>
+<h3 class="head">為什麼不該到處直接 new？</h3>
+<p>假設 <code>MemberService</code> 在類別裡直接寫 <code>new MemberDaoImpl()</code>。這就像店長把某一家供應商的電話焊死在櫃檯上：想換供應商時，不只換供應端，連店長的流程也得改。</p>
+<pre><code>public class MemberService {
+    private MemberDao memberDao = new MemberDaoImpl();
+}</code></pre>
+<p>此時 <code>MemberService</code> 同時負責商業邏輯與相依物件的建立，而且直接知道具體的實作類別。要換另一種 DAO、要在測試裡放替身，或要調整建構方式，使用端都得跟著改。</p>
+<p>改善方向是讓使用端依賴介面這類抽象型別，再由外部決定實際要給哪一個物件。這種降低類別之間綁定程度的設計叫鬆耦合（loose coupling）。</p>
+</section>
+
+<section>
+<p class="era">把建立物件的責任交出去</p>
+<h3 class="head">IoC、DI 與 Spring 容器</h3>
+<p>控制反轉（Inversion of Control，IoC）是把物件的建立、組裝與生命週期的控制權，從應用程式交給容器。過去由類別自己 <code>new</code>；改用 IoC 之後，由 Spring 的 IoC 容器把物件準備好。</p>
+<p>由 Spring 容器管理的物件叫 Bean。容器負責它的實例化、相依關係組裝、初始化，以及容器關閉時的銷毀處理。</p>
+<p>依賴注入（Dependency Injection，DI）是實作 IoC 最常見的方式：容器把某個物件需要的相依物件送進去，像中央廚房把備好的食材送到各工作站。</p>
+<div class="tablewrap"><table><thead><tr><th>名詞</th><th>重點</th></tr></thead><tbody><tr><td>IoC</td><td>一種設計原則：把物件控制權交給外部容器。</td></tr><tr><td>DI</td><td>一種實作方式：由外部注入物件需要的相依項目。</td></tr><tr><td>Bean</td><td>由 Spring 容器建立與管理的物件。</td></tr><tr><td>ApplicationContext</td><td>常用的 Spring 容器介面，除了管理 Bean 還提供其他應用功能。</td></tr></tbody></table></div>
+<p class="muted">原筆記提到 IoC 的實作方式還有 DL（Dependency Lookup，依賴查找）與 Service Locator，並說 Java EE Web 容器提供的 JNDI 就是 DL 的實作。這個對照仍然成立，但現在的 Spring 專案幾乎一律走 DI 這條路。</p>
+</section>
+
+<section>
+<p class="era">讓相依關係看得見</p>
+<h3 class="head">必要的相依優先用建構式注入</h3>
+<p>相依物件可以透過建構式、setter 或欄位注入。對「非有不可」的相依來說，建構式注入通常最清楚：物件一建立就必須拿到完整相依，也方便在單元測試裡直接把替身傳進去。</p>
+<pre><code>public interface MemberDao {
+    Member findById(long id);
+}
+
+@Repository
+public class JdbcMemberDao implements MemberDao {
+    // 資料存取實作
+}
+
+@Service
+public class MemberService {
+    private final MemberDao memberDao;
+
+    public MemberService(MemberDao memberDao) {
+        this.memberDao = memberDao;
+    }
+}</code></pre>
+<p><code>@Component</code> 以及語意更明確的 <code>@Service</code>、<code>@Repository</code>、<code>@Controller</code>，可以讓類別在元件掃描時變成 Bean。只有落在掃描範圍內的類別才會被找到。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 @Autowired「用法: 通常加在實體變數上(class變數、類別變數...)」，查證後更正：Spring 官方文件寫明團隊一般提倡建構式注入，因為它讓元件成為不可變物件並確保必要相依不會是 null；另外只有一個建構式時，官方文件說那個建構式上不需要再加 @Autowired">Spring 官方文件的原話是：團隊「一般提倡建構式注入，因為它讓你把應用程式元件寫成不可變物件，並確保必要的相依不會是 <code>null</code>」，而且建構式注入出來的元件交到呼叫端手上時一定已經完全初始化好了</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a>。文件也說明，目標 Bean 只有一個建構式時，那個建構式上「不需要再加 <code>@Autowired</code>」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired.html" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">同一個介面有好幾個候選者</p>
+<h3 class="head">用 @Qualifier 講清楚要哪一個</h3>
+<p>如果容器裡有兩個以上的 Bean 都實作 <code>Printer</code>，只照型別注入就會出現歧義。這時可以用 <code>@Qualifier</code> 指定 Bean 名稱，或用 <code>@Primary</code> 標出預設的那一個。</p>
+<pre><code>@Service
+public class ReportService {
+    private final Printer printer;
+
+    public ReportService(@Qualifier("hpPrinter") Printer printer) {
+        this.printer = printer;
+    }
+}</code></pre>
+<p><code>@Qualifier</code> 適合表達「這裡明確就是要某一種實作」；<code>@Primary</code> 適合表達「整個應用程式通常用這一個」。</p>
+<p class="muted">元件掃描產生的 Bean 名稱預設是把類別名的第一個字母改小寫，所以 <code>HpPrinter</code> 會變成 <code>hpPrinter</code>——這就是原筆記那個例子裡名稱的來源。</p>
+</section>
+
+<section>
+<p class="era">三種設定風格</p>
+<h3 class="head">元件掃描、Java 組態與 XML</h3>
+<p>Spring 可以用註解元件掃描、Java 組態或 XML 設定 Bean。實務上會混用，但要避免同一項相依關係散在太多地方。</p>
+<pre><code>@Configuration
+public class PrinterConfig {
+    @Bean
+    public Printer hpPrinter() {
+        return new HpPrinter();
+    }
+}</code></pre>
+<p><code>@Configuration</code> 表示這是組態類別；<code>@Bean</code> 表示這個方法回傳的物件要交給容器管理。它特別適合你改不到原始碼的第三方類別，也適合需要明確建構流程的物件。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@Bean = < Bean /> = @Component => 託管Bean元件」，查證後更正：三者雖然都會產生 Bean，但層級不同——@Component 加在類別上、靠元件掃描發現；@Bean 加在組態類別的方法上，由該方法自己負責建構物件，適合你改不到原始碼的第三方類別">三者都會產生 Bean，但不是同一件事：<code>@Component</code> 加在類別上靠掃描發現；<code>@Bean</code> 加在組態類別的方法上，由那個方法自己負責建構物件</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/java/bean-annotation.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>XML 的 <code>&lt;bean&gt;</code> 也能達成一樣的目的，而且不必改目標類別；不過 Java 組態通常比較容易得到型別檢查與程式碼導覽。原筆記整個章節都以 XML 組態為主，那是 Spring Boot 普及之前的常態。</p>
+</section>
+
+<section>
+<p class="era">Bean 從出生到離開容器</p>
+<h3 class="head">初始化、銷毀與相依順序</h3>
+<p>容器會先建立 Bean、完成相依注入，再呼叫初始化回呼。應用程式正常關閉時，容器會執行銷毀回呼。如果 A 依賴 B，容器必須先把 B 準備好，才能完成 A。</p>
+<pre><code>@Component
+public class CacheClient {
+    @PostConstruct
+    void connect() {
+        // 相依注入完成後執行
+    }
+
+    @PreDestroy
+    void close() {
+        // 容器關閉時釋放資源
+    }
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@PostConsturct 1. 方法必須為public 2. 沒有返回值(void) 3. 方法不能有參數」，查證後更正：Jakarta Annotations 規格明講這個註解可以標在 public、protected、套件私有或 private 的方法上，不要求 public；沒有參數、沒有回傳值這兩點則成立">規格的原話是這個註解「可以標在 public、protected、套件私有或 private 的方法上」，所以不必是 public；沒有參數、沒有回傳值這兩點則成立</mark><a class="fixsrc" href="https://jakarta.ee/specifications/annotations/3.0/apidocs/jakarta.annotation/jakarta/annotation/postconstruct" target="_blank" rel="noopener">出處</a>。另外這個註解現在住在 <code>jakarta.annotation</code>：Spring 的文件說明 <code>javax.annotation</code> 整包在 JDK 9 從核心模組分出去、JDK 11 移除，Jakarta EE 9 起改到新套件<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/postconstruct-and-predestroy-annotations.html" target="_blank" rel="noopener">出處</a>。原筆記把註解名打成「@PostConsturct」，正確拼法是 <code>@PostConstruct</code>。</p>
+<p>初始化方法不是用來遮掩循環依賴的。如果 A 需要 B、B 又需要 A，通常代表責任切得不清楚，應該先重新設計，而不是想辦法讓容器勉強把它們建出來。</p>
+</section>
+
+<section>
+<p class="era">把環境值移出程式碼</p>
+<h3 class="head">properties、@Value 與 SpEL</h3>
+<p><code>application.properties</code> 可以保存連線網址、功能開關這類設定。用預留位置（placeholder）語法 <code>${key}</code> 讀取屬性，冒號後面可以放預設值。</p>
+<pre><code>printer.max-pages=100
+
+@Value("${printer.max-pages:50}")
+private int maxPages;</code></pre>
+<p>外部設定有 <code>printer.max-pages</code> 時就用外部的值，找不到才用 <code>50</code>——這跟原筆記那題「設定檔裡也有值時採用哪一個」的答案一致：設定檔優先。</p>
+<p>Spring 表達式語言（Spring Expression Language，SpEL）用的是 <code>#{...}</code>，可以存取 Bean 或做運算，跟單純讀設定值的 <code>${...}</code> 用途不同。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>IoC 把物件的建立與管理交給容器；DI 把相依物件注入使用端。</li><li>依賴介面這類抽象型別，可以縮小換實作時要改的範圍。</li><li>必要的相依優先用建構式注入；多個候選 Bean 用 <code>@Qualifier</code> 或 <code>@Primary</code> 處理。</li><li>Bean 可以由元件掃描、Java 組態或 XML 建立，但 <code>@Bean</code> 與 <code>@Component</code> 不是同一個東西。</li><li><code>@PostConstruct</code> 不要求 public，套件名在 Spring 6 起改成 <code>jakarta.annotation</code>。</li><li><code>${...}</code> 讀屬性，<code>#{...}</code> 執行 SpEL 運算式。</li></ul></div>

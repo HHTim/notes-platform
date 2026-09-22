@@ -1,0 +1,109 @@
+<!-- 來源：HackMD 匯出「Spring MVC」「Spring MVC總結」「設計RESTful API」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把路徑、HTTP 方法與參數對應到 Spring MVC 的 Controller</li><li>知道資料可能藏在路徑、查詢字串、標頭或本體，各自用哪個註解取得</li><li>依 REST 風格設計資源網址與狀態碼</li><li>在進入商業邏輯前擋掉不合法的輸入，並統一處理例外</li></ul></div>
+
+<section>
+<p class="era">一次 Web 溝通的基本單位</p>
+<h3 class="head">HTTP 請求與回應</h3>
+<p>用戶端先送出 HTTP 請求，伺服器處理後傳回 HTTP 回應。請求包含方法、網址、標頭與可能存在的本體；回應包含狀態碼、標頭與可能存在的本體。</p>
+<pre><code>POST /api/students HTTP/1.1
+Content-Type: application/json
+
+{"name":"小安","age":20}</code></pre>
+<pre><code>HTTP/1.1 201 Created
+Content-Type: application/json
+
+{"id":42,"name":"小安","age":20}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把 GET 比喻成明信片、POST 比喻成信封，寫「POST 傳遞的參數不會被別人看見，安全性較高」，查證後更正：POST 的請求本體一樣是明文，沒有 TLS 保護時整段都看得到；POST 的差別只在資料不會出現在網址、瀏覽紀錄與伺服器存取紀錄裡，不等於加密">POST 的請求本體一樣是明文傳送。MDN 說 HTTP 訊息「設計上就是人看得懂的」，而且它「送在 TCP 上，或送在一條受 TLS 加密的 TCP 連線上」——加密來自 TLS 而不是方法。POST 跟 GET 的差別只在資料不會出現在網址、瀏覽紀錄與伺服器存取紀錄裡</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview" target="_blank" rel="noopener">出處</a>。機密資料要不要安全，取決於 HTTPS、權限控管與資料處理方式；GET 也不該帶密碼或權杖。</p>
+</section>
+
+<section>
+<p class="era">把請求送到正確的方法</p>
+<h3 class="head">Controller 與路徑對應</h3>
+<p><code>@RestController</code> 讓類別成為 Web 控制器，而且方法的回傳值預設會直接寫進回應本體。可以把它看成 <code>@Controller</code> 加 <code>@ResponseBody</code> 的便利組合。</p>
+<pre><code>@RestController
+@RequestMapping("/api/students")
+public class StudentController {
+    @GetMapping("/{id}")
+    public StudentResponse find(@PathVariable long id) {
+        return studentService.find(id);
+    }
+}</code></pre>
+<p><code>@RequestMapping</code> 可以同時設定路徑與方法；<code>@GetMapping</code>、<code>@PostMapping</code>、<code>@PutMapping</code>、<code>@DeleteMapping</code> 則是語意更清楚的快捷寫法。</p>
+</section>
+
+<section>
+<p class="era">資料可能藏在四個地方</p>
+<h3 class="head">路徑、查詢字串、標頭與本體</h3>
+<div class="tablewrap"><table><thead><tr><th>請求裡的位置</th><th>Spring 註解</th><th>適合放什麼</th></tr></thead><tbody><tr><td>路徑 <code>/students/42</code></td><td><code>@PathVariable</code></td><td>特定資源的識別碼</td></tr><tr><td>查詢字串 <code>?page=2</code></td><td><code>@RequestParam</code></td><td>篩選、排序、分頁等條件</td></tr><tr><td>請求標頭</td><td><code>@RequestHeader</code></td><td>媒體格式、驗證資訊、追蹤資訊</td></tr><tr><td>請求本體</td><td><code>@RequestBody</code></td><td>新增或更新所需的結構化資料</td></tr></tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「request body => POST方法限定」，查證後更正：PUT 與 PATCH 同樣常帶請求本體，@RequestBody 也可以用在這些方法上；原筆記自己在〈設計RESTful API〉那篇也寫了 PUT 要同時用 @PathVariable 與 @RequestBody，前後其實互相矛盾">請求本體不是 POST 專屬。HTTP 規格定義 PUT 的語意就是「用請求訊息裡附上的內容去建立或取代目標資源的狀態」，本體是它的必要組成，PATCH 同理，<code>@RequestBody</code> 在這些方法上都用得上</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-put" target="_blank" rel="noopener">出處</a>。原筆記在另一篇也寫了 PUT 要同時用 <code>@PathVariable</code> 與 <code>@RequestBody</code>，前後其實是矛盾的。</p>
+<p>缺少必填的 <code>@RequestParam</code> 通常會直接變成用戶端錯誤（400），要讓它非必填就加 <code>required=false</code> 或 <code>defaultValue</code>。JSON 少了欄位時能不能接受，則應該由型別與驗證規則明確決定，不要依賴 Java 欄位自動變成 <code>null</code>——原筆記觀察到的「若前端送出的請求，省略了必須設置的屬性，則後端不會報錯 => 顯示null」，就是沒有加驗證時的預設行為。</p>
+</section>
+
+<section>
+<p class="era">網址描述資源，方法表達動作</p>
+<h3 class="head">RESTful API 的基本設計</h3>
+<p>REST 是一種架構風格。常見做法是用名詞式網址表示資源，再用 HTTP 方法表達操作，避免把動作名稱重複塞進網址。</p>
+<div class="tablewrap"><table><thead><tr><th>需求</th><th>方法與路徑</th><th>常見的成功狀態</th></tr></thead><tbody><tr><td>取得學生清單</td><td><code>GET /api/students</code></td><td><code>200 OK</code></td></tr><tr><td>取得單一學生</td><td><code>GET /api/students/{id}</code></td><td><code>200 OK</code></td></tr><tr><td>新增學生</td><td><code>POST /api/students</code></td><td><code>201 Created</code></td></tr><tr><td>完整更新學生</td><td><code>PUT /api/students/{id}</code></td><td><code>200 OK</code> 或 <code>204 No Content</code></td></tr><tr><td>刪除學生</td><td><code>DELETE /api/students/{id}</code></td><td><code>204 No Content</code></td></tr></tbody></table></div>
+<p>資源有階層關係時可以設計成 <code>/students/{studentId}/courses</code>。層級不宜無限加深；子資源本身如果可以獨立識別，也可以提供比較扁平的網址。</p>
+</section>
+
+<section>
+<p class="era">JSON 的值不只四種</p>
+<h3 class="head">輸入與輸出的資料結構</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 JSON 的「Value四種類型: 整數、浮點數、字串、Boolean」，查證後更正：RFC 8259 定義 JSON 的值可以是物件、陣列、數字、字串，以及 true、false、null 這三個字面值；原筆記漏掉了物件、陣列與 null，而且數字在 JSON 裡不分整數與浮點數兩型">JSON 的值可以是物件、陣列、數字、字串，以及 <code>true</code>、<code>false</code>、<code>null</code> 這三個字面值。原筆記漏掉了物件、陣列與 <code>null</code>，而且 JSON 的數字並不分整數與浮點數兩型</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8259#section-3" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>{
+  "id": 42,
+  "name": "小安",
+  "active": true,
+  "tags": ["java", "spring"],
+  "address": {
+    "city": "臺北市"
+  }
+}</code></pre>
+<p>Spring MVC 會透過訊息轉換器在 JSON 與 Java 物件之間轉換。API 的輸入輸出建議用專用的 DTO（Data Transfer Object，資料傳輸物件），不要直接把資料庫實體的所有欄位暴露出去，驗證與版本調整也會比較清楚。</p>
+</section>
+
+<section>
+<p class="era">不合法的資料在入口就擋下</p>
+<h3 class="head">Bean Validation 與 @Valid</h3>
+<pre><code>public record CreateStudentRequest(
+    @NotBlank String name,
+    @Min(0) int age
+) {}
+
+@PostMapping
+public ResponseEntity&lt;StudentResponse&gt; create(
+        @Valid @RequestBody CreateStudentRequest request) {
+    StudentResponse created = studentService.create(request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(created);
+}</code></pre>
+<div class="terms"><div class="term"><b>@NotNull</b><span>不可以是 null，但空字串會過。</span></div><div class="term"><b>@NotEmpty</b><span>字串、集合或陣列不可以是空的。</span></div><div class="term"><b>@NotBlank</b><span>字串去掉前後空白後還要有內容，最適合姓名這類欄位。</span></div><div class="term"><b>@Min</b><span>數值的下限。</span></div></div>
+<p class="muted">驗證註解的套件名也跟著 Jakarta 改過：Spring Boot 2 以前是 <code>javax.validation</code>，Spring Boot 3 起是 <code>jakarta.validation</code>。原筆記沒有標版本，抄程式碼時要對一下自己專案的版本。</p>
+</section>
+
+<section>
+<p class="era">成功與失敗都要說清楚</p>
+<h3 class="head">ResponseEntity 與統一的例外處理</h3>
+<p><code>ResponseEntity</code> 可以明確指定狀態碼、標頭與本體。找不到資源要回適當的 4xx，不要把所有情況都包成 <code>200 OK</code>。</p>
+<pre><code>@RestControllerAdvice
+public class ApiExceptionHandler {
+    @ExceptionHandler(StudentNotFoundException.class)
+    public ResponseEntity&lt;ErrorResponse&gt; handleNotFound(
+            StudentNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("STUDENT_NOT_FOUND", ex.getMessage()));
+    }
+}</code></pre>
+<p><code>@ControllerAdvice</code> 搭配 <code>@ExceptionHandler</code> 可以集中處理多個 Controller 的例外；純 API 的專案常直接用 <code>@RestControllerAdvice</code>。處理器可以針對具體的例外給精準回應，再留一個比較一般的例外處理當最後防線。</p>
+<p>原筆記提到的「例外處理有繼承關係」是對的：找不到處理 <code>IllegalArgumentException</code> 的方法時，會往上找 <code>RuntimeException</code>，一路到 <code>Exception</code>。所以最後防線寫到 <code>Exception</code> 就夠了。</p>
+</section>
+
+<section>
+<p class="era">每一層只做好自己的事</p>
+<h3 class="head">Controller、Service、Repository 與攔截器</h3>
+<div class="tablewrap"><table><thead><tr><th>元件</th><th>主要責任</th></tr></thead><tbody><tr><td>Controller</td><td>接收 HTTP 請求、轉換輸入、建立 HTTP 回應。</td></tr><tr><td>Service</td><td>執行商業規則、協調資料操作與交易。</td></tr><tr><td>DAO／Repository</td><td>把資料存取細節包起來。</td></tr><tr><td>Interceptor（攔截器）</td><td>在 Controller 前後執行 Web 層的共同處理。</td></tr></tbody></table></div>
+<p>Spring MVC 的攔截器實作 <code>HandlerInterceptor</code>，再透過 <code>WebMvcConfigurer.addInterceptors</code> 註冊。<code>preHandle()</code> 回傳 <code>true</code> 代表繼續往下走，回傳 <code>false</code> 就停在這裡、不送到 Controller。</p>
+<p>攔截器適合請求追蹤、地區判斷這類 MVC 流程的需求。完整的身分驗證與授權應該用專門的安全框架，不要在一般攔截器裡自己拼一套安全規則——第 9 課會談這件事。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>路徑識別資源，HTTP 方法表達操作；POST 本身不代表資料已加密。</li><li><code>@PathVariable</code>、<code>@RequestParam</code>、<code>@RequestHeader</code>、<code>@RequestBody</code> 分別取請求裡不同位置的資料。</li><li>請求本體不是 POST 專屬，PUT 與 PATCH 也常帶。</li><li>JSON 的值有物件、陣列、數字、字串、true、false、null 七種。</li><li>用 DTO 搭配 <code>@Valid</code> 與驗證註解，在進入商業邏輯前就檢查輸入。</li><li>Controller 處理 HTTP，Service 處理商業規則，Repository 處理資料存取。</li></ul></div>

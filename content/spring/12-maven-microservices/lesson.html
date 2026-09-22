@@ -1,0 +1,146 @@
+<!-- 來源：HackMD 匯出「Maven概述 - 黑馬程序員」「何謂微服務?」「Global Exception Handler」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看懂 Maven 的 POM、座標、相依範圍與生命週期</li><li>比較單體式架構與微服務，知道各自付出什麼代價</li><li>認出請求在 Filter、DispatcherServlet 與 Controller 之間怎麼流動</li><li>分別處理 Controller 層與 Filter 層丟出的例外</li></ul></div>
+
+<section>
+<p class="era">專案建置</p>
+<h3 class="head">Maven 解決什麼問題？</h3>
+<p>Maven 是 Java 專案的建置與管理工具。它像一份標準化的施工圖：用 POM（Project Object Model，專案物件模型）描述專案資訊、相依套件與建置規則，讓不同開發工具與自動化環境都能用同一套方式處理專案。</p>
+<ul class="plainlist"><li>提供標準目錄，正式程式、測試程式與資源各有固定位置。</li><li>提供編譯、測試、打包與安裝等建置流程。</li><li>用座標宣告第三方程式庫，並自動解析它們的相依套件。</li></ul>
+<div class="tablewrap"><table><thead><tr><th>目錄</th><th>用途</th></tr></thead><tbody><tr><td><code>src/main/java</code></td><td>正式的 Java 原始碼</td></tr><tr><td><code>src/main/resources</code></td><td>正式環境的資源與組態</td></tr><tr><td><code>src/test/java</code></td><td>測試的 Java 原始碼</td></tr><tr><td><code>src/test/resources</code></td><td>測試需要的資源</td></tr></tbody></table></div>
+<p class="muted">原筆記說「不同的 IDE 之間，目錄結構不一樣，無法互通」，正是這套標準目錄要解決的事——所有 IDE 用 Maven 產生的結構都一樣，專案就能互相通用。</p>
+</section>
+
+<section>
+<p class="era">套件的身分證</p>
+<h3 class="head">Maven 座標與相依範圍</h3>
+<p>Maven 座標像套件的收件地址，用來唯一辨識你要用的成品。</p>
+<div class="terms"><div class="term"><b>groupId</b><span>所屬的組織或命名空間。</span></div><div class="term"><b>artifactId</b><span>專案或模組名稱。</span></div><div class="term"><b>version</b><span>成品版本。</span></div></div>
+<pre><code>&lt;dependency&gt;
+  &lt;groupId&gt;com.example&lt;/groupId&gt;
+  &lt;artifactId&gt;order-client&lt;/artifactId&gt;
+  &lt;version&gt;1.2.0&lt;/version&gt;
+  &lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+<p>相依範圍（scope）決定套件在哪些階段可用。沒寫的時候預設是 <code>compile</code>；<code>test</code> 只在測試的編譯與執行時可用；<code>runtime</code> 表示執行時需要、但正式原始碼編譯時不直接依賴它的 API；<code>provided</code> 表示編譯時需要，執行環境會提供——第 1 課講的 Servlet API 就是這一類。</p>
+</section>
+
+<section>
+<p class="era">建置流程</p>
+<h3 class="head">生命週期與階段</h3>
+<p>Maven 主要有 clean、default 與 site 三套生命週期。常用的 <code>compile</code>、<code>test</code>、<code>package</code>、<code>install</code> 是 default 生命週期裡的階段；執行比較後面的階段時，同一套生命週期裡排在前面的階段會依序先跑。</p>
+<div class="tablewrap"><table><thead><tr><th>指令</th><th>主要效果</th></tr></thead><tbody><tr><td><code>mvn clean</code></td><td>執行 clean 生命週期，清掉先前的建置產出。</td></tr><tr><td><code>mvn compile</code></td><td>編譯正式程式碼。</td></tr><tr><td><code>mvn test</code></td><td>先完成必要的前置階段，再執行測試。</td></tr><tr><td><code>mvn package</code></td><td>測試後產生 JAR 或 WAR 等成品。</td></tr><tr><td><code>mvn install</code></td><td>把成品裝進本機的 Maven 儲存庫，供其他本機專案引用。</td></tr></tbody></table></div>
+<p class="q">執行 <code>mvn package</code> 是不是只做打包？</p>
+<p>不是。它會照 default 生命週期的順序先完成前置階段，例如編譯與測試，才進到 package。</p>
+<p class="muted">原筆記在介紹 default 生命週期時把「測試」打成了「攝氏」，那是輸入法的錯字，內容本身沒問題。</p>
+</section>
+
+<section>
+<p class="era">架構選擇</p>
+<h3 class="head">單體式系統與微服務</h3>
+<p>單體式系統把會員、商品、付款與報表都部署在同一個應用程式裡；微服務則依業務能力拆成可以各自部署的服務。重點是切出清楚的業務邊界，不是把每個類別都變成一個服務。</p>
+<div class="tablewrap"><table><thead><tr><th>面向</th><th>單體式架構</th><th>微服務架構</th></tr></thead><tbody><tr><td>部署</td><td>整包一起部署</td><td>各服務可以獨立部署</td></tr><tr><td>擴充</td><td>通常擴充整個應用程式</td><td>可以只針對高流量的服務擴充</td></tr><tr><td>開發協調</td><td>程式集中，起步比較直接</td><td>團隊自主性高，但介面協調變多</td></tr><tr><td>失敗影響</td><td>共用同一個行程，故障容易擴大</td><td>可以隔離部分故障，但要設計逾時與降級</td></tr><tr><td>資料一致性</td><td>本機交易好處理</td><td>跨服務的一致性複雜得多</td></tr><tr><td>維運成本</td><td>服務數少，初期較低</td><td>需要監控、追蹤、部署與服務治理的能力</td></tr></tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把微服務的好處寫成「壓力分散：各功能獨立運行，某個模組出問題不會影響其他模組」，查證後更正：Martin Fowler 的微服務一文明講「把功能做成服務的後果之一，是應用程式必須被設計成能夠容忍服務的失敗」；會需要這樣設計就代表故障不會自己隔離，要隔離得另外做逾時、重試上限、斷路器與降級">拆開不等於自動隔離。把功能做成服務之後，「應用程式必須被設計成能夠容忍服務的失敗」——會需要這樣設計，正是因為一個服務掛掉會影響呼叫它的人。要真的隔離，得另外做逾時、重試上限、斷路器與降級</mark><a class="fixsrc" href="https://martinfowler.com/articles/microservices.html" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">拆分的思維</p>
+<h3 class="head">微服務不是免費的效能按鈕</h3>
+<p>原筆記用了全聯收銀台的例子：本來收銀員要結帳又要裝袋，現在只負責結帳，裝袋交給顧客。微服務也用類似方式讓團隊與元件各自負責清楚的業務能力。差別在於軟體服務之間還多了網路延遲、失敗重試與資料一致性的問題。</p>
+<p>微服務可能帶來的好處包括獨立部署、個別擴充、技術選擇的彈性，以及把單次變更的範圍縮小。但這些好處要成立，前提是邊界劃得合理、介面穩定，而且有足夠的自動化測試與維運能力。</p>
+<p>主要的挑戰包括：</p>
+<ul class="plainlist"><li>切得太細，網路呼叫與跨團隊溝通的成本反而變高。</li><li>API 或訊息格式一改，就要處理版本相容與團隊協調。</li><li>跨服務的交易、追蹤、日誌彙整與故障排查都更難。</li><li>某個服務故障，仍可能透過同步依賴連鎖影響其他服務。</li></ul>
+<blockquote>短期的活動網站、小型團隊，或業務還在快速變動的時候，模組化的單體通常比太早拆成微服務更好維護。</blockquote>
+</section>
+
+<section>
+<p class="era">一次 Web 請求的完整路徑</p>
+<h3 class="head">Filter 為什麼比 Controller 更早看到請求？</h3>
+<p>瀏覽器送出的請求先進 Servlet 容器，再通過 Filter 鏈，之後才到 Spring MVC 的 <code>DispatcherServlet</code>。DispatcherServlet 找到對應的 Controller，完成參數解析與方法呼叫，回應再反向穿過 Filter 鏈出去。</p>
+<pre><code>用戶端
+  ↓
+Servlet 容器
+  ↓
+Filter 鏈（可能包含 Spring Security）
+  ↓
+DispatcherServlet
+  ↓
+HandlerMapping／Interceptor
+  ↓
+Controller
+  ↓
+回應反向通過 Filter 鏈
+  ↓
+用戶端</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在「主要區別」寫「執行順序：Servlet Filter 最先執行，然後是 Spring Security Filter，最後是 Spring 內建 Filter」，查證後更正：Filter 的執行順序由註冊順序與 order 值決定，不是照「種類」排；而且 Spring Security 是以一個 FilterChainProxy 這個 Servlet Filter 的身分被註冊進容器的 Filter 鏈，它裡面才是安全 Filter 的內部順序，兩層不能混在同一條順序上比較">這三種東西沒辦法排成一條線。官方文件的原話是「Spring Security 的 Servlet 支援包含在 <code>FilterChainProxy</code> 之內。<code>FilterChainProxy</code> 是 Spring Security 提供的一個特殊 <code>Filter</code>」，而且因為它是一個 Bean，「通常會被包在 <code>DelegatingFilterProxy</code> 裡」再用容器自己的標準機制註冊。也就是說，「Spring Security Filter」在容器眼中只是那條鏈上的其中一格，安全 Filter 彼此的順序是那一格內部的事，不能跟容器那條鏈上的 Filter 放在同一條順序上比大小</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/architecture.html" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">MVC 範圍內的錯誤</p>
+<h3 class="head">用全域例外處理器統一 Controller 的回應</h3>
+<p><code>@RestControllerAdvice</code> 可以集中處理 Spring MVC 方法執行期間傳出的例外，把它們轉成一致的 HTTP 狀態與回應格式。</p>
+<pre><code>@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity&lt;ApiError&gt; handleBusiness(
+            BusinessException ex) {
+        ApiError body = new ApiError(
+            ex.getCode(),
+            ex.getMessage()
+        );
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(body);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity&lt;ApiError&gt; handleUnexpected(
+            Exception ex) {
+        ApiError body = new ApiError(
+            "INTERNAL_ERROR",
+            "系統暫時無法處理請求"
+        );
+        return ResponseEntity
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(body);
+    }
+}</code></pre>
+<p>對外的回應不要直接吐出堆疊追蹤、資料庫語法、權杖或內部主機資訊。詳細例外記進受控的日誌，回應只給穩定的錯誤碼與使用者看得懂的訊息。</p>
+<p class="muted">原筆記的範例程式來自一個工作專案，類別名、錯誤碼列舉與例外型別都是內部命名。本課換成通用示例，程式碼裡的名稱不對應任何實際系統。</p>
+</section>
+
+<section>
+<p class="era">MVC 範圍外的錯誤</p>
+<h3 class="head">Filter 丟的例外為什麼常常抓不到？</h3>
+<p><code>@ControllerAdvice</code> 只參與 DispatcherServlet 內部的例外解析。Filter 跑在 DispatcherServlet 外圍，所以它在呼叫下游之前或期間丟出的例外，不會自然進到 MVC 的全域例外處理器——這正是原筆記整篇的出發點。</p>
+<p>常見的處理策略有三種：</p>
+<ul class="plainlist"><li>在 Filter 裡自己接住例外，直接設定 HTTP 狀態、內容型態與 JSON 回應。</li><li>把可共用的錯誤轉換邏輯抽成一個獨立服務，讓 Filter 與全域例外處理器共用。</li><li>把例外交給適當的例外解析器或容器的錯誤處理流程，但要避免重複寫入已經送出的回應。</li></ul>
+<pre><code>try {
+    filterChain.doFilter(request, response);
+} catch (BusinessException ex) {
+    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    response.setContentType("application/json;charset=UTF-8");
+    response.getWriter().write(
+        errorJson(ex.getCode(), ex.getMessage())
+    );
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把「使用 ServletRequestListener：這可以在請求開始和結束時執行代碼,你可以在這裡捕獲異常」列為四種處理方式之一，查證後更正：ServletRequestListener 的 requestDestroyed 只收到一個 ServletRequestEvent，裡面沒有例外物件，而且此時回應多半已經送出、改不動了，所以拿它捕捉並改寫錯誤回應行不通">原筆記列出的四種方式裡，<code>ServletRequestListener</code> 這一條行不通。它只宣告兩個方法，兩個都只吃一個 <code>ServletRequestEvent</code> 參數，沒有任何例外物件；<code>requestDestroyed</code> 的說明是「收到通知：某個 ServletRequest 即將離開這個 Web 應用程式的範圍」——那時候回應多半也已經送出、改不動了</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequestlistener" target="_blank" rel="noopener">出處</a>。</p>
+<p>如果是 Spring Security 的認證或授權錯誤，應該用安全框架自己提供的認證進入點與拒絕存取處理器，而不是把所有錯誤都包成一般的 Controller 例外。</p>
+</section>
+
+<section>
+<p class="era">錯誤端點</p>
+<h3 class="head">用 /error 之前要理解它的轉送條件</h3>
+<p>容器或 Spring Boot 可以把未處理的錯誤分派到 <code>/error</code>，再由錯誤控制器建立回應。但這不是「Filter 一丟例外就一定會呼叫你的自訂方法」：會不會進到錯誤分派、能拿到哪些請求屬性、回應是不是已經送出，都會影響結果。</p>
+<p>採用自訂錯誤控制器時，至少要檢查狀態碼、例外物件、原始路徑與回應是否已送出，並且不要把未知例外的內部訊息直接丟給用戶端。</p>
+<p class="formula">Controller 例外 → MVC 例外解析；Filter 例外 → Filter、安全框架或容器的錯誤流程</p>
+</section>
+
+<section>
+<p class="era">串起來看</p>
+<h3 class="head">建置、架構與錯誤契約其實互相牽動</h3>
+<p>Maven 讓每個服務都能用一致的方式編譯、測試與打包；微服務讓服務可以各自部署；全域例外處理讓 API 的錯誤格式保持一致。如果各服務各自回傳不同的錯誤結構，即使部署已經拆開，用戶端整合起來還是很痛苦。</p>
+<p>所以可以把錯誤碼規則、追蹤識別碼與共用回應模型整理成明確的契約。共用程式庫可以透過 Maven 發布，但要控制相容性，別讓所有服務被迫同時升級。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Maven 用 POM 管理座標、相依套件與標準化的建置流程。</li><li>執行生命週期後段的階段時，同一套生命週期的前置階段會先跑。</li><li>微服務能獨立部署與擴充，但網路、資料一致性與維運成本都會增加。</li><li>同步依賴會讓故障連鎖，隔離要靠逾時、斷路器與降級自己設計。</li><li>Filter 的順序由註冊順序與 order 決定，不是照種類排。</li><li><code>@RestControllerAdvice</code> 只管得到 Spring MVC 範圍內的例外。</li><li>錯誤回應要穩定且不洩漏內部資訊，細節留在受控日誌。</li></ul></div>

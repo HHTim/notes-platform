@@ -1,0 +1,93 @@
+<!-- 來源：HackMD 匯出「Servlet隨手記」「Servlet隨手記-黑馬程序員-Day1」「Servlet隨手記-黑馬程序員-Day2」「JSP (Java Server Pages)」「MVC模式&三層架構」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明瀏覽器、Web 伺服器與 Servlet 三者怎麼合作完成一次請求</li><li>看懂 Servlet 的生命週期，以及路徑是怎麼對應到程式的</li><li>知道 JSP、EL、JSTL 各自負責什麼</li><li>分辨 MVC 與三層式架構在解決哪兩件不同的事</li></ul></div>
+
+<section>
+<p class="era">先看全貌</p>
+<h3 class="head">JavaWeb 是什麼？</h3>
+<p>JavaWeb 是「用 Java 寫、透過瀏覽器使用」的那一整套技術。使用者這端只需要瀏覽器，畫面、商業規則與資料的主要處理都在伺服器上，所以這類系統常被稱為瀏覽器／伺服器架構（Browser/Server，簡稱 B/S）。</p>
+<p>可以把網站想成餐廳：瀏覽器是顧客，HTTP 請求是點菜單，伺服器是餐廳，HTTP 回應是送上桌的餐點。Servlet 就是接單並安排後續流程的那個人，必要時還會去資料庫拿料。</p>
+<div class="tablewrap"><table><thead><tr><th>角色</th><th>主要工作</th><th>常見內容</th></tr></thead><tbody><tr><td>瀏覽器</td><td>送出請求並把結果畫出來</td><td>HTML、CSS、JavaScript</td></tr><tr><td>Web 伺服器／Servlet 容器</td><td>收 HTTP、找資源、管理 Servlet</td><td>Tomcat</td></tr><tr><td>Servlet</td><td>處理請求、控制應用程式流程</td><td>Java 類別</td></tr><tr><td>資料庫</td><td>保存與查詢長期資料</td><td>MySQL、Oracle Database</td></tr></tbody></table></div>
+<p class="muted">原筆記另外提到 Java 分成 Java SE（標準版）、Java EE（企業版）、Java ME（手持裝置版）三種版本，其中對 Java ME 使用裝置的形容詞帶有貶義，這裡不照抄。Java ME 現在幾乎沒有新專案在用，本課只談企業版這條線。</p>
+</section>
+
+<section>
+<p class="era">兩端的共同語言</p>
+<h3 class="head">HTTP 的請求與回應</h3>
+<p>HTTP（Hypertext Transfer Protocol，超文字傳輸協定）規範瀏覽器與伺服器怎麼交換資料。它採一問一答的請求—回應模型，而且協定本身不會自動記住上一次互動，這個性質叫無狀態（Stateless）。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「HTTP協議是基於TCP協議，面向連接、安全」，查證後更正：HTTP 本身不提供任何加密或身分驗證，安全來自外加的 TLS；而且 HTTP/3 已改跑在以 UDP 為基礎的 QUIC 上，不再是「一定基於 TCP」">HTTP 本身不提供加密，MDN 的說法是它「送在 TCP 上，或送在一條受 TLS 加密的 TCP 連線上」——加密是外加的那一層，也就是 HTTPS；而且只有 HTTP/1.1 與 HTTP/2 通常跑在 TCP 上，HTTP/3 改用以 UDP 為基礎的 QUIC</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">HTTP/3</a>。原筆記在「HTTP ?」這個標題底下直接解釋成 HTTPS，兩者其實是不同層的東西。</p>
+<div class="tablewrap"><table><thead><tr><th>訊息</th><th>組成</th><th>用途</th></tr></thead><tbody><tr><td>HTTP 請求</td><td>請求列、請求標頭、可有可無的訊息本體</td><td>說明方法、目標路徑與送出的資料</td></tr><tr><td>HTTP 回應</td><td>狀態列、回應標頭、可有可無的訊息本體</td><td>說明處理結果與傳回的內容</td></tr></tbody></table></div>
+<p>GET 通常用來取得資源，參數放在網址的查詢字串；POST 通常用來提交資料，資料多半放在請求本體。但 HTTP 方法描述的是語意，不代表 GET 天生安全或 POST 會自動加密。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Get傳送的參數有限制,當需要的參數內容較多,server不見得可以有效使用」，查證後更正：HTTP 規格沒有替網址訂長度上限，RFC 9110 只建議所有發送端與接收端至少支援 8000 位元組的網址；實際的長度限制來自各家瀏覽器與伺服器的實作">HTTP 規格沒有替網址訂長度上限，只建議所有發送端與接收端至少支援 8000 位元組；實務上碰到的限制來自各家瀏覽器與伺服器的實作，不是協定規定</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-uri-references" target="_blank" rel="noopener">出處</a>。</p>
+<p class="formula">瀏覽器 → HTTP 請求 → Web 伺服器／Servlet 容器 → Servlet → HTTP 回應 → 瀏覽器</p>
+<p>狀態碼看首位數字就能分類：2xx 成功、3xx 重新導向、4xx 請求端的情境無法完成、5xx 伺服器處理失敗。200 是成功、404 是找不到資源、500 是伺服器內部錯誤。</p>
+</section>
+
+<section>
+<p class="era">把通訊細節交給容器</p>
+<h3 class="head">Tomcat 與 Servlet 的分工</h3>
+<p>Servlet 是在 Servlet 容器裡執行的伺服器端 Java 元件。它不像一般 Java 程式靠自己的 <code>main()</code> 啟動，而是由容器建立物件、呼叫方法，並把請求與回應物件傳進來。</p>
+<p>Tomcat 同時提供 HTTP 連線處理與 Servlet 容器功能。它把收到的 HTTP 文字解析成 <code>HttpServletRequest</code>，再建立 <code>HttpServletResponse</code> 讓程式設定；處理完成後，容器再把回應物件轉回 HTTP 送給瀏覽器。</p>
+<ul class="plainlist"><li><b>通訊支援：</b>處理連線與 HTTP 訊息解析。</li><li><b>生命週期管理：</b>載入、建立、初始化、銷毀 Servlet。</li><li><b>並行處理：</b>讓多個請求可能同時進入同一個 Servlet 實例。</li><li><b>設定與安全管理：</b>依部署設定套用路徑、權限與其他規則。</li><li><b>JSP 支援：</b>把 JSP 轉換並編譯成 Servlet。</li></ul>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫容器的「多執行緒支援: 每一個Servlet都會執行Java的執行緒(Thread)，而Container也負責建立及管理多的執行緒問題，已解決Synchronization(同步)的問題」，查證後更正：容器只負責分配執行緒，執行緒安全仍是應用程式自己的責任，Servlet 規格要求開發者自行處理共享資源的同步">容器只負責分配與管理執行緒，不會替你把同步問題解決掉。規格第 2.3.3.1 節的原話是：容器可能把並行的請求送進同一個 <code>service</code> 方法，「開發者必須為多執行緒的並行處理做好足夠的準備」</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.1/jakarta-servlet-spec-6.1.html" target="_blank" rel="noopener">出處</a>。同一個 Servlet 通常只有一個實例服務所有請求，所以不要把每位使用者的請求資料存進可變的實例欄位，否則兩個請求會互相覆寫。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Web服務器 = Servlet Container = Sevlet Context = Servlet環境」，查證後更正：ServletContext 是規格裡的一個 API 物件，代表一個 Web 應用程式在容器中的執行環境，和「Web 伺服器」「Servlet 容器」不是同義詞">ServletContext 是規格裡的一個具體 API 物件。它的 javadoc 說它「定義了一組方法，讓 Servlet 用來跟它的 Servlet 容器溝通」，而且「每個 Web 應用程式在每個 Java 虛擬機器裡各有一個 context」——它是應用程式用來對容器說話的那個物件，不是容器本身，更不是 Web 伺服器的同義詞</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletcontext" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">套件名換過一次</p>
+<h3 class="head">javax.servlet 已經改叫 jakarta.servlet</h3>
+<p>原筆記把 Servlet 歸在 Java EE（Java Enterprise Edition）底下，列出 JDBC、Servlet、JSP 等十三項技術規範。這個歸屬本身沒錯，但名字與套件名後來整批換過。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Servlet 屬於J2EE的架構」「JavaEE: Java Enterprise Edition (Java企業版)」，查證後補充：2017 年 Oracle 把 Java EE 移交 Eclipse 基金會，因商標問題改名 Jakarta EE；Jakarta EE 9（2020 年）把所有 javax.* 套件改成 jakarta.*，Tomcat 10 起只認 jakarta.servlet">Java EE 移交 Eclipse 基金會後因為商標問題改名為 Jakarta EE，Jakarta EE 9 把所有 <code>javax.*</code> 套件整批改成 <code>jakarta.*</code>。Tomcat 的遷移指南講得很白：Tomcat 10「把 Tomcat 9 裡所有位於 <code>javax.*</code> 命名空間的套件搬到 <code>jakarta.*</code> 命名空間」，而且「在 Tomcat 9 以前能跑的應用程式，不修改就不能在 Tomcat 10 上執行」</mark><a class="fixsrc" href="https://tomcat.apache.org/migration-10.html" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>// Tomcat 9 以前（原筆記的年代）
+import javax.servlet.http.HttpServlet;
+
+// Tomcat 10 之後
+import jakarta.servlet.http.HttpServlet;</code></pre>
+<p class="muted">看到教學文章或 Stack Overflow 的答案時，先確認它是哪個時代寫的。套件名寫錯是初學者最常卡住的地方之一，錯誤訊息通常是找不到類別，看起來像相依套件沒加好。</p>
+</section>
+
+<section>
+<p class="era">容器掌管程式的一生</p>
+<h3 class="head">Servlet 生命週期</h3>
+<p>Servlet 的一生像店員上班：先報到一次（初始化），接著反覆接待客人（處理請求），最後下班收尾（銷毀）。</p>
+<ol><li><b>載入與建立：</b>容器載入 Servlet 類別並建立實例。預設在第一次收到對應請求時發生，也可以設定成啟動時就載入。</li><li><b>初始化：</b>容器呼叫 <code>init()</code>，只呼叫一次，適合讀設定或準備共用資源。</li><li><b>服務請求：</b>每次請求都進 <code>service()</code>；對 <code>HttpServlet</code> 來說，再依 HTTP 方法分派到 <code>doGet()</code>、<code>doPost()</code> 等方法。</li><li><b>結束服務：</b>應用程式停止、重新部署或容器關閉時，容器呼叫 <code>destroy()</code>，讓程式釋放自己持有的資源。</li></ol>
+<pre><code>@WebServlet("/hello")
+public class HelloServlet extends HttpServlet {
+    @Override
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response)
+            throws IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        response.getWriter().println("&lt;h1&gt;你好，Servlet！&lt;/h1&gt;");
+    }
+}</code></pre>
+<p><code>@WebServlet("/hello")</code> 是容器找到這個 Servlet 的門牌（URL Pattern，路徑樣式）。使用者實際打的網址還會包含主機、連接埠，以及應用程式的情境路徑（Context Path）。</p>
+<p class="muted">原筆記寫「只要一個 Servlet Reloading，所有都一起 Reloading」「每次 Reloading 會更換一個 class loader，才會有此現象」——查證後這樣寫是對的，而且原因就是它自己講的類別載入器。Tomcat 的文件說明「部署到同一個 Tomcat 實例的每一個 Web 應用程式都會建立一個類別載入器」，<code>WEB-INF/classes</code> 與 <code>WEB-INF/lib</code> 的類別只對這個應用程式可見。換掉這個載入器，整個應用程式的類別就一起換掉了。要補的只有一句：這裡的「所有」指的是同一個 Web 應用程式裡的所有 Servlet，不會波及其他應用程式。</p>
+</section>
+
+<section>
+<p class="era">相依套件與部署</p>
+<h3 class="head">Web 應用程式怎麼交給 Tomcat</h3>
+<p>傳統 JavaWeb 應用程式會打包成 WAR 檔部署。編譯後的類別放在 <code>WEB-INF/classes</code>，應用程式專用的 JAR 放在 <code>WEB-INF/lib</code>，部署描述檔是 <code>WEB-INF/web.xml</code>。改用註解設定路徑時，就不一定要在 <code>web.xml</code> 裡逐一登記 Servlet。</p>
+<p>建置工具裡的 Servlet API 相依套件通常設成 <code>provided</code>：編譯時需要這組介面，執行時由 Tomcat 提供。如果又把另一份不相容的 API 打包進應用程式，就可能發生類別衝突。</p>
+<p class="muted">現在的 Spring Boot 專案多半改成內嵌伺服器、打包成可執行的 JAR，不再手動丟 WAR 到 Tomcat 的 webapps 資料夾。WAR 這條路仍然可用，但已不是預設做法。</p>
+</section>
+
+<section>
+<p class="era">動態畫面的傳統做法</p>
+<h3 class="head">JSP、EL 與 JSTL</h3>
+<p>JSP（JavaServer Pages）讓你在以 HTML 為主的頁面裡產生動態內容。它第一次被使用時，容器會把 JSP 轉成 Servlet 原始碼再編譯，所以 JSP 骨子裡還是靠 Servlet 機制執行。</p>
+<p>早期 JSP 可以用腳本元素直接塞 Java 程式碼進去，但那會讓畫面與邏輯糾纏在一起。比較清楚的做法是：Servlet 把資料準備好，JSP 再用 EL（Expression Language，運算式語言）與 JSTL（JSP Standard Tag Library，JSP 標準標籤函式庫）把資料顯示與迭代出來。</p>
+<div class="terms"><div class="term"><b>${brands}</b><span>從範圍物件裡找名稱叫 brands 的資料。</span></div><div class="term"><b>page 範圍</b><span>只在目前這一頁有效。</span></div><div class="term"><b>request 範圍</b><span>只在目前這次請求中有效，適合 Servlet 轉送給 JSP 的資料。</span></div><div class="term"><b>session 範圍</b><span>在同一次會話的多次請求之間有效。</span></div><div class="term"><b>application 範圍</b><span>整個 Web 應用程式共用。</span></div></div>
+<p class="muted">同名屬性可能同時存在不同範圍。沒有明確指定範圍時，EL 會依序往上找，所以大型專案要避免意義不清的同名資料。</p>
+</section>
+
+<section>
+<p class="era">別讓程式擠成一團</p>
+<h3 class="head">MVC 與三層式架構</h3>
+<p>MVC 像餐廳前場的分工：控制器接單（Controller）、模型處理規則與資料（Model）、視圖負責擺盤呈現（View）。在傳統 Servlet／JSP 應用程式裡，Servlet 常當控制器，JSP 當視圖，Java 物件與服務構成模型。</p>
+<div class="tablewrap"><table><thead><tr><th>觀點</th><th>組成</th><th>在回答什麼問題</th></tr></thead><tbody><tr><td>MVC</td><td>Model、View、Controller</td><td>一次 Web 互動怎麼接收、處理與呈現</td></tr><tr><td>三層式架構</td><td>展示層、商業邏輯層、資料存取層</td><td>整個應用程式的責任怎麼分層</td></tr></tbody></table></div>
+<p>兩者不是二選一。Servlet 與 JSP 位在展示層；控制器呼叫商業邏輯層的 Service；Service 再呼叫資料存取層的 DAO（Data Access Object，資料存取物件）。這樣做可以降低類別之間的綁定程度，讓測試、分工與抽換實作都容易一些。</p>
+<p class="formula">瀏覽器 → Controller（Servlet）→ Service → DAO → 資料庫<br>瀏覽器 ← View（JSP）← Controller</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>HTTP 是瀏覽器與伺服器的溝通規則；加密來自外掛的 TLS，協定本身不保證安全。</li><li>Tomcat 解析 HTTP、管理 Servlet，把請求與回應包成 Java 物件交給程式。</li><li>Servlet 由容器建立，依序經歷初始化、反覆服務請求、銷毀。</li><li>同一個 Servlet 實例可能同時處理多個請求，容器不會替你處理同步，別用實例欄位存單次請求的狀態。</li><li>Jakarta EE 9 起套件名從 <code>javax.*</code> 改成 <code>jakarta.*</code>，Tomcat 10 之後只認新的。</li><li>JSP 負責呈現畫面，EL 與 JSTL 讓頁面少寫 Java 程式碼。</li><li>MVC 描述互動角色，三層式架構描述應用程式責任，兩者可以一起用。</li></ul></div>
