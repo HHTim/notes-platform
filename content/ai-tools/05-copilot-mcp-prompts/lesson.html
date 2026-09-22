@@ -1,5 +1,5 @@
 <!-- 來源：HackMD 匯出「全面掌握 GitHub Copilot 代理人模式：整合 MCP 伺服器到開發流程的技巧」「GitHub Copilot Ultimate Cheat Sheet (2026 Edition)」 · 收錄日期：2026-09-22 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明 MCP 在這裡扮演什麼角色，以及它不負責解決哪些問題</li><li>分清楚指示檔、提示檔、聊天模式與工具各自放什麼</li><li>把外部內容當成不可信的資料，避開提示注入</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明 MCP 在這裡扮演什麼角色，以及它不負責解決哪些問題</li><li>分清楚指示檔、提示檔、自訂代理人與工具各自放什麼</li><li>把外部內容當成不可信的資料，避開提示注入</li></ul></div>
 
 <section>
 <p class="era">先講 MCP</p>
@@ -30,8 +30,8 @@
 <tr><td>提示模板（Prompts）</td><td>提供可重複使用的互動樣板</td><td>樣板夾帶不當指示或已不符現況</td></tr>
 <tr><td>取樣（Sampling）</td><td>讓伺服器反過來請主機用模型生成內容</td><td>互相呼叫、成本、資料邊界不清</td></tr>
 </tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">現行 VS Code 的官方文件已經列出支援工具、資源與提示模板三項（另外還有可互動的 MCP 介面元件）</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">出處</a>，取樣則仍未在該頁列為支援項目。</p>
-<p class="muted">協定這邊也長了：除了取樣，用戶端還能提供 Roots（告訴伺服器可以在哪些路徑或網址範圍內作業）與 Elicitation（伺服器中途向使用者要一項補充資訊）兩種能力。不要從「協定有這項能力」推論「我手上這套產品一定支援」，兩者是不同層次。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示模板列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示），並有 <code>chat.mcp.serverSampling</code> 這個設定可以控管</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">不過取樣與 Roots 這兩項已經準備退場：MCP 規格在 2026-07-28 版把它們標為淘汰，新的實作不該再採用，現有實作應該改用別的做法（取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑），最快會在 2027-07-28 之後的版本被移除。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>另外用戶端還有 Elicitation（伺服器中途向使用者要一項補充資訊）。不要從「協定有這項能力」推論「我手上這套產品一定支援」，兩者是不同層次。</p>
 </section>
 
 <section>
@@ -47,7 +47,7 @@
     }
   }
 }</code></pre>
-<p>原筆記寫的專案設定檔位置 <code>.vscode/mcp.json</code> 與命令列的 <code>--add-mcp</code> 參數查證後都還在，<mark class="fixnote" tabindex="0" data-note="原筆記寫「安裝擴充套件：使用 code-insiders 安裝 GitHub Copilot Pre-release 版本」「指令：code-insiders --add-mcp」，查證後更正">但現在正式版的 VS Code 就支援，不必再裝預覽版</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">出處</a>。管理指令也換過一輪：<mark class="fixnote" tabindex="0" data-note="原筆記列的管理指令是 MCP: Add Server、MCP: List Servers、MCP: Reset Cached Tools，查證後更正">現行清單是 MCP: Add Server、MCP: List Servers、MCP: Open User Configuration、MCP: Browse Resources、MCP: Reset Trust，已經沒有 Reset Cached Tools 這一項</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">出處</a>。</p>
+<p>原筆記寫的專案設定檔位置 <code>.vscode/mcp.json</code> 與命令列的 <code>--add-mcp</code> 參數查證後都還在，<mark class="fixnote" tabindex="0" data-note="原筆記寫「安裝擴充套件：使用 code-insiders 安裝 GitHub Copilot Pre-release 版本」「指令：code-insiders --add-mcp」，查證後更正">但現在正式版的 VS Code 就支援，不必再裝預覽版</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" rel="noopener">出處</a>。原筆記列的三個管理指令（<code>MCP: Add Server</code>、<code>MCP: List Servers</code>、<code>MCP: Reset Cached Tools</code>）查證後也都還在；另外還多了幾個：<code>MCP: Open User Configuration</code>、<code>MCP: Open Workspace Folder MCP Configuration</code>、<code>MCP: Browse Resources</code>、<code>MCP: Reset Trust</code>、<code>MCP: Show Installed Servers</code>。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li>優先用唯讀帳號、測試環境與範圍受限的權杖。</li>
 <li>寫入、刪除、付款、部署、對外發訊這類動作，保留人工確認。</li>
@@ -76,7 +76,7 @@
 <div class="tablewrap"><table><thead><tr><th>元件</th><th>像什麼</th><th>適合放什麼</th><th>檔案形式</th></tr></thead><tbody>
 <tr><td>指示檔</td><td>常設規章</td><td>團隊風格、架構界線、安全與測試政策</td><td><code>.github/copilot-instructions.md</code>、<code>.github/instructions/*.instructions.md</code></td></tr>
 <tr><td>提示檔</td><td>可以重跑的工作單</td><td>建介面、審弱點、產遷移計畫等任務流程</td><td><code>.github/prompts/*.prompt.md</code></td></tr>
-<tr><td>聊天模式</td><td>角色與工作環境</td><td>規劃者、文件編輯、唯讀審查等模式與工具限制</td><td><code>*.chatmode.md</code></td></tr>
+<tr><td>自訂代理人</td><td>角色與工作環境</td><td>規劃者、文件編輯、唯讀審查等模式與工具限制</td><td><mark class="fixnote" tabindex="0" data-note="原筆記寫這類檔案是 .chatmode.md（聊天模式），查證後更正">已改名為 <code>*.agent.md</code>，工作區放在 <code>.github/agents</code>；官方說「自訂代理人的前身就是聊天模式」，舊的 <code>.chatmode.md</code> 要改名搬過去</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><td>工具</td><td>可以操作的器材</td><td>讀檔、搜尋、查資料庫、呼叫外部服務、執行指令</td><td>內建或由 MCP 伺服器提供</td></tr>
 </tbody></table></div>
 <p>提示檔可以要求遵循指示檔，也可以建議用哪些工具，但它本身不是工具。就像工作單可以寫「用扳手鎖緊」，工作單不會變成扳手。</p>
@@ -106,7 +106,7 @@ description: 審查指定介面的授權風險
 2. 每項發現對應的程式碼依據
 3. 建議修正與待確認的假設</code></pre>
 <p>不要把整段聊天原封不動存起來；刪掉當時才有的偶然資訊，留下用途、必要輸入、允許範圍、禁止事項、輸出格式與完成條件。流程長的話拆成幾份小提示、明確傳遞中間產物，比做一份越長越大的提示好維護。</p>
-<p class="muted">原筆記提到要先把 <code>chat.promptFiles</code> 這個設定打開才能用。現行官方頁面的啟用說明已經不是這樣寫，實際步驟請以該頁為準。原筆記另外提到可以把對話存成提示檔、或匯出成一份檔案給別人匯入；如果產品提供這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">現行官方頁面已經沒有 <code>chat.promptFiles</code> 這個設定，不必再手動開啟；同一頁還標示提示檔在 Agent Host 工作階段已淘汰、不會被載入，只有本機代理還讀得到，而本機代理未來也會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a>——所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。原筆記另外提到可以把對話存成提示檔、或匯出成一份檔案給別人匯入；如果產品提供這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
 </section>
 
 <section>
@@ -134,7 +134,7 @@ description: 審查指定介面的授權風險
 <div class="keys"><p class="lbl">重點整理</p><ul>
 <li>MCP 讓 AI 與外部工具、資料的連接方式標準化，但不會自動解決安全問題。</li>
 <li>協定有哪些能力，跟某套產品實際支援哪些，是兩件要分開確認的事。</li>
-<li>指示檔管長期規則，提示檔管可重複的任務，聊天模式管角色與工具邊界。</li>
+<li>指示檔管長期規則，提示檔管可重複的任務，自訂代理人管角色與工具邊界。</li>
 <li>外部內容可能夾帶提示注入，一律當成資料而不是命令。</li>
 <li>有副作用的工具呼叫都照最小權限給、留紀錄、設人工核准點。</li>
 </ul></div>
