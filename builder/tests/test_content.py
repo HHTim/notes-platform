@@ -40,6 +40,20 @@ class TestContent(unittest.TestCase):
                     self.assertIn('class="keys"', html)
                     self.assertTrue((ldir / 'quiz.json').exists())
 
+    def test_quiz_no_raw_html(self):
+        """測驗文字由 course.js 用 innerHTML 渲染，裸角括號會被當標籤吃掉、讀者看不見。"""
+        import re
+        _, mods = load_modules()
+        for mod in mods:
+            for L in mod['lessons']:
+                qf = CONTENT / mod['id'] / L['dir'] / 'quiz.json'
+                qs = json.loads(qf.read_text(encoding='utf-8'))['questions']
+                for q in qs:
+                    for s in [q['q'], q['exp']] + q['opts']:
+                        with self.subTest(lesson=str(qf), text=s[:40]):
+                            self.assertIsNone(re.search(r'<[a-zA-Z/?]', s),
+                                              '角括號要寫成 &lt; &gt;')
+
     def test_quiz_format(self):
         _, mods = load_modules()
         for mod in mods:
