@@ -59,8 +59,8 @@ docker container run --name app-a -v app-data:/app/data myapp:1.0
 docker container rm -f app-a
 docker container run --name app-b -v app-data:/app/data myapp:1.0   # 資料還在</code></pre>
 <p>只要沒把 <code>app-data</code> 刪掉，第二個容器掛上去就接回同一份資料。這就是「容器可以換、資料自己活」的做法。</p>
-<p class="q">一個容易中的坑：Dockerfile 裡寫了 <code>VOLUME ["/app"]</code>，但 <code>docker run</code> 的時候沒指定名字，Docker 每開一次容器就幫你生一個<strong>隨機名字的 Volume</strong>（匿名 Volume）。原筆記就是這樣累積出一堆看不出用途的 Volume。解法是每次都用 <code>-v 名字:路徑</code> 明確命名。</p>
-<p class="muted"><code>docker volume inspect</code> 印出來的 Mountpoint（通常長得像 <code>/var/lib/docker/volumes/app-data/_data</code>）是<strong>那層 Linux 裡面的路徑</strong>。在 Windows 和 macOS 上你用檔案總管或 Finder 找不到它，因為它在 Docker 的虛擬機裡——原筆記的觀察是對的，這一層是什麼，第 17 課會拆開。</p>
+<p class="q">一個容易中的坑：Dockerfile 裡寫了 <code>VOLUME ["/app"]</code>，但 <code>docker run</code> 的時候沒指定名字，Docker 每開一次容器就幫你生一個<strong>隨機名字的 Volume</strong>（正式名稱：匿名 Volume；官方文件寫「Anonymous volumes are given a random name」）。<a class="fixsrc" href="https://docs.docker.com/engine/storage/volumes/" target="_blank" rel="noopener">出處</a> 原筆記就是這樣累積出一堆看不出用途的 Volume。解法是每次都用 <code>-v 名字:路徑</code> 明確命名。</p>
+<p class="muted"><code>docker volume inspect</code> 印出來的 Mountpoint（通常長得像 <code>/var/lib/docker/volumes/app-data/_data</code>）是<strong>那層 Linux 裡面的路徑</strong>。在 Windows 和 macOS 上你用檔案總管或 Finder 找不到它，因為它在 Docker 那層 Linux 裡面（原筆記也是這樣觀察的）。那一層是誰開的、長什麼樣，第 17 課會拆開，那裡有出處。</p>
 <blockquote>
 <p>Volume 有自己的生命週期，但<strong>它不是備份</strong>。誤刪、磁碟壞掉、資料本身損毀，Volume 一樣救不了你。重要資料另外規畫備份和還原。</p>
 </blockquote>

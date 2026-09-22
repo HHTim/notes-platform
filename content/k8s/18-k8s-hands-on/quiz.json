@@ -53,12 +53,12 @@
   {
    "q": "requests 和 limits 填成一樣的數字，會得到什麼？",
    "opts": [
-    "這個 Pod 的服務品質等級是 Guaranteed，排班時會比其他 Pod 優先",
+    "這個 Pod 的服務品質等級是 Guaranteed，節點資源不夠要趕 Pod 走的時候最後才輪到它",
     "Pod 會被禁止排到任何節點上",
     "Kubernetes 會自動把它改成 Deployment",
     "容器就不會再被健康檢查監看"
    ],
-   "exp": "填得不一樣（requests 小於 limits）則是可以超用，但要有餘力才超得到。"
+   "exp": "QoS 決定的是節點資源不夠時的驅逐順序（先趕 BestEffort、再 Burstable、最後 Guaranteed），不是排班順序——排班先後是 PriorityClass 在管。填得不一樣（requests 小於 limits）則是可以超用，但要有餘力才超得到。"
   },
   {
    "q": "Deployment 寫 replicas: 2，HPA 寫 minReplicas: 3，最後會跑幾份？",
@@ -66,7 +66,7 @@
     "3 份——HPA 接手之後，Deployment 那個數字不是最終答案",
     "2 份——Deployment 的設定優先",
     "5 份——兩個數字會相加",
-    "會直接報錯，兩者不能並存"
+    "會直接出錯，兩者不能並存"
    ],
    "exp": "minReplicas 是 HPA 維持的下限，會蓋過 Deployment 原本寫的數字。"
   },
