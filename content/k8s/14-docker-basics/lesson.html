@@ -1,0 +1,142 @@
+<!-- 來源：HackMD 匯出「Docker 容器技術從入門到精通 - 第一章」「Docker 容器技術從入門到精通 - 第二章」「Docker 問題集」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>知道 Docker 裝在 Mac、Windows、Linux 上分別是什麼狀況</li><li>用一行指令把第一個容器跑起來，並看懂那一行的每個參數</li><li>分清前景、背景、互動三種跑法，以及 run 與 exec 的差別</li><li>用停止、刪除、看紀錄這幾招把容器收乾淨</li></ul></div>
+
+<section>
+<p class="era">實作篇・開場</p>
+<h3 class="head">前面講的是道理，這一課開始動手</h3>
+<p>第 4 課已經把 Docker 的三個東西講完了：Dockerfile 是食譜、映像檔（image）是成品、容器是跑起來的那一份。這一課不重講那三個詞，只補上手指頭的部分——實際要打哪些指令、每個參數在做什麼。</p>
+<p>動手前先記住一句原筆記講了三次的話：<strong>容器是一種技術，Docker 只是這個技術的其中一個實作品。</strong>常常把兩個字當同義詞用，是因為 Docker 是最成功、用得最廣的那一個。這件事背後有一整套標準在撐著，那是第 20 課的內容。</p>
+<div class="terms">
+  <div class="term"><b>Docker Engine</b><span>真正在做事的那一支程式（正式名稱：容器引擎）。它負責建映像檔、開容器、管網路。</span></div>
+  <div class="term"><b>Docker CLI</b><span>你在終端機打 <code>docker</code> 時用的那個介面。它自己不做事，只把你的要求送給 Engine。</span></div>
+  <div class="term"><b>Registry</b><span>映像檔倉庫，大家共用的架子（第 4 課提過）。預設是 Docker Hub。</span></div>
+</div>
+</section>
+
+<section>
+<p class="era">裝之前</p>
+<h3 class="head">Linux 容器要的是 Linux 核心，所以 Mac 和 Windows 得墊一層</h3>
+<p>容器靠的是 Linux 核心內建的兩個機制（第 3 課說過：一個讓你只看得到自己的東西，一個限制你能吃多少資源）。在 Linux 上這兩個機制本來就在，Docker Engine 直接用就好；在 macOS 和 Windows 上沒有 Linux 核心，所以得先有一個 Linux 環境，容器再跑在那裡面。</p>
+<p class="muted">原筆記在這裡用粗體連寫三次「Docker Engine 只能 run 在 Linux 環境」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Engine 只能 run 在 Linux 環境!!」（連寫三次），查證後更正：Docker 官方文件寫 Docker Engine 透過 Docker Desktop 也能在 Windows 與 macOS 上取得；Windows 另有跑 Windows 容器的路線。「需要 Linux 核心」講的是 Linux 容器，不等於 Docker Engine 只存在於 Linux">更精確的說法是：<strong>Linux 容器</strong>需要 Linux 核心。Docker 官方文件寫的是「Docker Engine 透過 Docker Desktop 在 Windows、macOS、Linux 上都取得到」，而且 Windows 上還有另一條跑 Windows 容器的路線</mark><a class="fixsrc" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">出處</a>。對 Mac 和 Windows 的使用者來說，結論一樣：中間會有一層 Linux，只是你通常感覺不到。那一層長什麼樣，第 17 課拆開來看。</p>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">你的電腦</th><th scope="col">常見裝法</th><th scope="col">中間那層 Linux</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Linux</th><td>直接裝 Docker Engine</td><td class="win">不需要</td></tr>
+      <tr><th scope="row">Windows</th><td>Docker Desktop</td><td>WSL 2（Windows 內建的 Linux 子系統）</td></tr>
+      <tr><th scope="row">macOS</th><td>Docker Desktop</td><td>它自己開的虛擬機</td></tr>
+      <tr><th scope="row">macOS</th><td>Colima ＋ Docker CLI</td><td>Colima 開的虛擬機</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="muted">安裝步驟會隨版本改，這裡不抄步驟；要裝的時候以你選的那套工具的官方安裝文件為準。</p>
+</section>
+
+<section>
+<p class="era">裝完第一件事</p>
+<h3 class="head">兩行指令確認「打得到」</h3>
+<pre><code>docker version
+docker info</code></pre>
+<p><code>docker version</code> 會分兩段印出來：上面是 Client（你的 CLI），下面是 Server（Docker Engine）。<strong>只看到 Client 那一段，就是 Engine 還沒起來</strong>——在 Mac 和 Windows 上通常是那層 Linux 還沒開。<code>docker info</code> 則列出現在有幾個容器、幾個映像檔、資料存在哪裡。</p>
+<p class="formula">docker ＋ 你要管的東西 ＋ 要做的動作 ＋ 選項</p>
+<pre><code>docker image ls           # 管的是映像檔，動作是列出來
+docker container ls       # 管的是容器，動作是列出來
+docker container stop web # 管的是容器，動作是停掉名叫 web 的那個</code></pre>
+<p>很多寫法有簡寫，例如 <code>docker container ls</code> 可以寫成 <code>docker ps</code>。<span class="muted">原筆記兩種都用，還混用了 <code>docker container ps</code>——查證後這確實是有效的別名（<code>docker container ls</code>、<code>docker container list</code>、<code>docker container ps</code>、<code>docker ps</code> 官方文件列為同一個指令）。</span><a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/ls/" target="_blank" rel="noopener">出處</a> 剛學的時候建議打完整寫法，一眼看得出你在動哪一類東西。</p>
+</section>
+
+<section>
+<p class="era">第一個容器</p>
+<h3 class="head">一行指令，跑起一個網頁伺服器</h3>
+<pre><code>docker container run --name web -d -p 8080:80 nginx</code></pre>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">這一段</th><th scope="col">在做什麼</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><code>--name web</code></th><td>幫這個容器取名叫 web。不取的話 Docker 會亂配一個（原筆記跑出來的是 <code>xenodochial_clarke</code> 這種）。</td></tr>
+      <tr><th scope="row"><code>-d</code></th><td>丟到背景跑，終端機馬上還你。</td></tr>
+      <tr><th scope="row"><code>-p 8080:80</code></th><td>把<strong>你這台機器的 8080 埠</strong>接到<strong>容器裡的 80 埠</strong>。順序是「主機：容器」，不要反。</td></tr>
+      <tr><th scope="row"><code>nginx</code></th><td>要用哪個映像檔。沒寫版本就是 <code>latest</code>。</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>跑起來之後開瀏覽器連 <code>http://127.0.0.1:8080</code> 就看得到 nginx 的預設首頁。</p>
+<p>這一行按下去，Docker 依序做了這些事：</p>
+<ul class="plainlist">
+  <li>先在本機找有沒有 <code>nginx</code> 這個映像檔。</li>
+  <li>沒有就去 registry（預設 Docker Hub）下載。</li>
+  <li>用映像檔開一個新容器，並且給它一層自己的可寫空間。</li>
+  <li>配一個容器內部用的位址，把 8080 對到容器的 80。</li>
+  <li>執行映像檔裡設定好的那個開機指令（nginx 這個映像檔是跑一支叫 <code>docker-entrypoint.sh</code> 的腳本）。</li>
+</ul>
+<p class="muted"><code>latest</code> 不是「永遠是最新版」的保證，它只是「沒指定版本時預設拿的那個標籤」，而它指到的內容會變。正式環境要指定測過的版本——這件事第 15 課再細講。</p>
+</section>
+
+<section>
+<p class="era">三種跑法</p>
+<h3 class="head">前景、背景、互動</h3>
+<div class="ledger">
+  <div class="box solved">
+    <h5>背景（加 <code>-d</code>）</h5>
+    <ul>
+      <li>終端機立刻還你，可以繼續打別的指令。</li>
+      <li>關掉終端機，容器照跑。</li>
+      <li>看不到即時輸出，要靠 <code>logs</code> 去撈。</li>
+      <li>跑網站、資料庫這種長命的服務就用這個。</li>
+    </ul>
+  </div>
+  <div class="box left">
+    <h5>前景（不加 <code>-d</code>）</h5>
+    <ul>
+      <li>輸出直接印在畫面上，適合邊跑邊看。</li>
+      <li>終端機被佔住，不能做別的。</li>
+      <li><strong>按 Ctrl + C 會把容器停掉</strong>，因為那個訊號直接送進容器。</li>
+      <li>想脫離但不停掉：Ctrl + P 接 Ctrl + Q。</li>
+    </ul>
+  </div>
+</div>
+<p>第三種是<strong>互動</strong>——你要在容器裡面打指令：</p>
+<pre><code># 開一個新容器，直接進到它的 shell
+docker container run -it --rm ubuntu sh
+
+# 進到一個已經在跑的容器裡
+docker container exec -it web sh</code></pre>
+<p><code>-i</code> 是保持標準輸入（STDIN，也就是「你打的字送得進去」）開著；<code>-t</code> 是配一個偽終端機（TTY，讓你有提示符號、能按 Tab 補字、能按 Ctrl + C）。兩個一起用才有像在本機終端機操作的感覺。只給 <code>-i</code> 會沒有提示符號，只給 <code>-t</code> 則可能打不進字。</p>
+<p class="q">run 和 exec 差在哪？<strong>run 是開一個新容器；exec 是在已經在跑的容器裡再起一支程式。</strong>所以從 exec 開出來的 shell 打 <code>exit</code> 離開，容器還是 Up；但如果你離開的是容器的主程式，容器就跟著結束。</p>
+<p class="muted">不是每個映像檔裡都有 <code>bash</code>。精簡的映像檔（例如 Alpine 那一類）通常只有 <code>sh</code>，所以 <code>sh</code> 是比較保險的第一次嘗試。</p>
+</section>
+
+<section>
+<p class="era">容器是什麼東西</p>
+<h3 class="head">它不是縮小版的虛擬機，它就是一支程式</h3>
+<p>第 3 課從「共用作業系統」的角度講過差別，這裡補上一個從外面看得到的證據：<strong>在主機上用 <code>ps</code> 看，容器裡的程式就實實在在出現在主機的程序清單裡</strong>，只是被關進自己的房間、被限制了能吃多少 CPU 和記憶體。</p>
+<pre><code>docker container top web    # 看這個容器裡有哪些程序</code></pre>
+<p>所以會有這個後果：<strong>主程式停了，容器就退出了。</strong>容器沒有「開機、待機、關機」那一套，它的命跟那支主程式綁在一起。</p>
+</section>
+
+<section>
+<p class="era">收尾</p>
+<h3 class="head">看得到、停得掉、刪得乾淨</h3>
+<pre><code># 只列還在跑的
+docker container ls
+
+# 連停掉的一起列（-a 就是 all）
+docker container ls -a
+
+# 看紀錄，-f 是持續跟著跑
+docker container logs web
+docker container logs -f web
+
+# 停止、重開、刪除
+docker container stop web
+docker container start web
+docker container rm web</code></pre>
+<p><strong>停止（stop）不等於刪除（rm）。</strong>停掉的容器還在，連同它那層可寫空間裡的檔案；只有刪掉容器，那層才跟著消失。跑一次性的工作可以加 <code>--rm</code>，跑完自動刪掉，就不會累積一堆 Exited 的殘骸。</p>
+<p>要一次處理很多個，用括號把清單餵進去：</p>
+<pre><code>docker container stop $(docker container ls -aq)   # -q 只印 ID</code></pre>
+<blockquote>
+<p><code>docker system prune</code> 這類指令一次會清掉多種「目前沒在用」的東西——停掉的容器、沒人用的映像檔、沒人掛的網路。加上 <code>-a</code> 之後範圍更大。在還不確定它會掃到什麼之前，先用 <code>ls</code> 把要刪的列出來看過，再動手。</p>
+</blockquote>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>容器是技術，Docker 是實作品之一；Linux 容器需要 Linux 核心，所以 Mac 和 Windows 中間一定墊了一層 Linux。</li><li><code>docker version</code> 只印出 Client 那一段，就是 Engine 沒起來。</li><li><code>-p</code> 的順序是「主機埠：容器埠」；<code>-d</code> 丟背景；<code>-a</code> 是列出全部（含停掉的）。</li><li>run 開新容器，exec 在既有容器裡再起一支程式；離開 exec 的 shell 不會停掉容器。</li><li>容器就是一支被隔離、被限制資源的程式——主程式停了，容器就退出。</li><li>停止只是停程式，刪除才會連那層可寫空間一起帶走。</li></ul></div>

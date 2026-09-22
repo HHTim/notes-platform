@@ -1,0 +1,142 @@
+<!-- 來源：HackMD 匯出「Docker 容器技術從入門到精通 - 第三章」「Docker 容器技術從入門到精通 - 第四章」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用三種方式拿到映像檔，並知道為什麼有時候刪不掉</li><li>看懂 Dockerfile 每個指令在管什麼，特別是 ARG 和 ENV、CMD 和 ENTRYPOINT 的分工</li><li>用「常改的放後面」和 .dockerignore 讓重建變快</li><li>用多階段建置把編譯工具留在半路，不跟著出貨</li></ul></div>
+
+<section>
+<p class="era">拿到映像檔</p>
+<h3 class="head">三條路：下載、自己做、離線搬</h3>
+<p>映像檔和容器的關係第 4 課講過（食譜、成品、跑起來的那一份），這裡直接進操作。</p>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">方式</th><th scope="col">什麼時候用</th><th scope="col">指令</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">從 registry 下載</th><td>拿現成的（公開或公司內部的）</td><td><code>docker image pull nginx:1.27</code></td></tr>
+      <tr><th scope="row">用 Dockerfile 做</th><td>把自己的程式包成映像檔</td><td><code>docker image build -t myapp:1.0 .</code></td></tr>
+      <tr><th scope="row">從檔案匯入</th><td>連不上 registry，只能請別人給你一包</td><td><code>docker image load -i nginx.tar</code></td></tr>
+    </tbody>
+  </table>
+</div>
+<pre><code>docker image ls                    # 看目前有哪些
+docker image inspect nginx:1.27    # 看細節：CPU 架構、基於哪個系統
+docker image rm nginx:1.27         # 刪掉</code></pre>
+<p class="q">刪不掉的時候先看有沒有容器在用它。<strong>容器只是停掉還不夠</strong>——只要那個容器還存在，它跟映像檔的關係就還在，得先把容器 <code>rm</code> 掉，映像檔才刪得動。</p>
+</section>
+
+<section>
+<p class="era">離線搬運</p>
+<h3 class="head">save 和 load 要成對</h3>
+<pre><code># 匯出成一個檔
+docker image save nginx:1.27 -o nginx.tar
+
+# 在另一台匯入
+docker image load -i nginx.tar</code></pre>
+<p><code>save</code> 把映像檔的每一層和它的設定打包起來，<code>load</code> 在另一邊還原。網路連不到 registry 的環境就靠這一招。</p>
+<p>另外還有一招是 <code>docker container commit</code>：進到容器裡改東西，再把當下的狀態存成新的映像檔。<strong>能用，但別當常態。</strong>這樣做出來的映像檔沒有配方，別人看不出你改了什麼，下次也重現不出來。正式的做法是把每個步驟寫進 Dockerfile。</p>
+</section>
+
+<section>
+<p class="era">第一份配方</p>
+<h3 class="head">Dockerfile 就是一張純文字的施工單</h3>
+<pre><code>FROM nginx:1.27-alpine
+COPY index.html /usr/share/nginx/html/index.html</code></pre>
+<pre><code>docker image build -t my-nginx:1.0 .
+docker container run -d --name my-nginx -p 8080:80 my-nginx:1.0</code></pre>
+<p><code>-t my-nginx:1.0</code> 是給成品取名字加標籤；最後那個 <code>.</code> 是<strong>建置內容（build context）</strong>——你告訴 Docker「這個資料夾裡的檔案我建的時候要用得到」，<code>COPY</code> 就是從這裡面撈。</p>
+<p class="q">同一個 <code>-t</code>，在不同指令裡是不同意思：<code>docker build -t</code> 的 t 是 tag（標籤），<code>docker run -t</code> 的 t 是 tty（偽終端機）。原筆記整理的這張對照表很實用，值得記起來。</p>
+</section>
+
+<section>
+<p class="era">指令各管什麼</p>
+<h3 class="head">九個常用指令的分工</h3>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">指令</th><th scope="col">做什麼</th><th scope="col">要注意</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><code>FROM</code></th><td>從哪個映像檔開始疊</td><td>官方的優先，而且要指定版本，別用 latest</td></tr>
+      <tr><th scope="row"><code>WORKDIR</code></th><td>設定後面指令的工作目錄</td><td>目錄不存在會自己建</td></tr>
+      <tr><th scope="row"><code>COPY</code></th><td>把建置內容裡的檔案複製進去</td><td>一般複製都用它</td></tr>
+      <tr><th scope="row"><code>ADD</code></th><td>複製，而且會自動解開壓縮檔</td><td>真的需要那個「自動」時才用</td></tr>
+      <tr><th scope="row"><code>RUN</code></th><td>建的時候執行指令（裝套件之類）</td><td>每一行 RUN 都疊一層，能合併就合併</td></tr>
+      <tr><th scope="row"><code>ENV</code></th><td>設環境變數</td><td>會留在映像檔裡，容器跑起來還讀得到</td></tr>
+      <tr><th scope="row"><code>ARG</code></th><td>設建置參數</td><td>建完就沒了，容器裡看不到</td></tr>
+      <tr><th scope="row"><code>CMD</code></th><td>容器啟動時的預設指令或預設參數</td><td>會被 <code>docker run</code> 後面接的指令蓋掉</td></tr>
+      <tr><th scope="row"><code>ENTRYPOINT</code></th><td>固定要執行的那支主程式</td><td>常跟 CMD 搭配，一個當工具一個當參數</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="muted">原筆記說「官方映像優先、固定版本不要用 latest、盡量挑體積小的」——查證後和 Docker 官方的建置建議一致：標籤是會被發佈者改掉的（mutable），要保證每次拿到完全一樣的東西，最硬的做法是釘內容摘要（digest）而不是標籤。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">另外有一個順序上的坑：<mark class="fixnote" tabindex="0" data-note="原筆記第四章的 Spring Boot 範例把三行 ARG 和三行 ENV 寫在 FROM 之前，查證後更正：Docker 官方文件明寫「ARG is the only instruction that may precede FROM in the Dockerfile」，ENV 不能放在 FROM 前面">Docker 官方文件明寫「<strong>ARG 是唯一可以寫在 FROM 前面的指令</strong>」，ENV 不行</mark><a class="fixsrc" href="https://docs.docker.com/reference/dockerfile/" target="_blank" rel="noopener">出處</a>。而且寫在 FROM 前面的 ARG 只能用在 FROM 那一行，要在後面用得再宣告一次。</p>
+</section>
+
+<section>
+<p class="era">最容易搞混的兩組</p>
+<h3 class="head">ARG 對 ENV：差在活多久</h3>
+<p>兩個都是設變數，差別在<strong>作用時間</strong>，不是型別。原筆記做過一個很清楚的實驗：兩份 Dockerfile 分別用 ARG 和 ENV 設同一個版本號，build 出來的映像檔跑起來版本都對；但進到容器裡打 <code>env</code>，只有 ENV 那個看得到變數，ARG 那個找不到。</p>
+<pre><code># 建的時候用，建完就消失
+ARG VERSION=2.0.1
+RUN wget https://example.com/tool-${VERSION}.tar.gz
+
+# 建的時候和跑的時候都在，會留在映像檔裡
+ENV TZ=Asia/Taipei</code></pre>
+<p>不改 Dockerfile 也能換 ARG 的值：</p>
+<pre><code>docker image build -t myapp:2.0.0 --build-arg VERSION=2.0.0 .</code></pre>
+<p class="muted">正因為 ENV 會跟著映像檔留下來，密碼、權杖這種東西不要用 ENV 寫死在 Dockerfile 裡——拿到映像檔的人就讀得到。敏感資料交給專門的機密管理機制處理。</p>
+
+<h4>CMD 對 ENTRYPOINT：一個會被蓋掉，一個不會</h4>
+<p>CMD 設的是<strong>預設</strong>指令：<code>docker run</code> 後面如果你接了別的指令，CMD 就被忽略。ENTRYPOINT 設的則是<strong>一定會執行</strong>的那支程式。</p>
+<pre><code>FROM alpine:3.20
+ENTRYPOINT ["echo"]
+CMD ["hello"]</code></pre>
+<p>直接跑，印出 <code>hello</code>；後面接 <code>world</code>，CMD 的預設參數被換掉，變成印 <code>world</code>。把 ENTRYPOINT 想成固定的工具、CMD 想成工具預設帶的參數，這組搭配就通了。</p>
+<p class="muted">Dockerfile 裡只能有一個 CMD 生效：官方文件寫「列了多個 CMD，只有最後一個算數」。<a class="fixsrc" href="https://docs.docker.com/reference/dockerfile/" target="_blank" rel="noopener">出處</a> 還有一個原筆記踩過的狀況：什麼 CMD 都沒寫時，容器啟動會沿用基礎映像檔（<code>FROM</code> 那個）自己帶的預設指令。</p>
+</section>
+
+<section>
+<p class="era">建快一點</p>
+<h3 class="head">常改的放後面，不該送的別送</h3>
+<p>映像檔是一層一層疊的，<strong>某一層的快取失效，它後面每一層都要重建</strong>。所以把變動少的步驟放前面、常改的程式碼放最後：</p>
+<pre><code>FROM python:3.12-slim
+WORKDIR /app
+
+# 變動少：先裝相依套件
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 變動多：最後才複製程式碼
+COPY app.py .
+CMD ["python", "app.py"]</code></pre>
+<p>這樣改 <code>app.py</code> 的時候，裝套件那一層的快取還留得住。原筆記把 <code>COPY app.py</code> 放在裝套件前面，結果每改一次程式碼，連裝套件都要重跑一次。</p>
+<p>另一個省時間的地方是建置內容。<code>.</code> 代表「整個目前目錄打包送給 Docker」，但你的 Dockerfile 可能只 COPY 一個檔。用 <code>.dockerignore</code> 把不用送的排掉：</p>
+<pre><code>.git/
+.venv/
+__pycache__/
+*.log</code></pre>
+<p class="muted">官方文件對這兩件事的建議一樣：<code>apt-get update</code> 要和 <code>apt-get install</code> 寫在同一個 RUN 裡（避免用到過期的套件清單），以及用 <code>.dockerignore</code> 排掉跟建置無關的檔案。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
+</section>
+
+<section>
+<p class="era">縮小成品</p>
+<h3 class="head">多階段建置：鷹架不要跟著交屋</h3>
+<p>編譯器就像蓋房子的鷹架——蓋的時候要，住進去不需要。多階段建置的做法是：第一段用有編譯器的映像檔編出成品，第二段換一個精簡的映像檔，只把成品搬過去。</p>
+<pre><code>FROM gcc:14 AS builder
+WORKDIR /src
+COPY hello.c .
+RUN gcc --static -o hello hello.c
+
+FROM alpine:3.20
+COPY --from=builder /src/hello /usr/local/bin/hello
+ENTRYPOINT ["/usr/local/bin/hello"]</code></pre>
+<p>最終的映像檔只有最後那一段，加上你明確搬進去的東西。原筆記做過同一份 C 程式的對照：直接用 gcc 映像檔出貨的成品很肥，改成兩段之後小非常多。</p>
+<p class="muted">換基礎映像檔的時候記得確認 CPU 架構和系統函式庫對得上——用 <code>docker image inspect</code> 看 <code>Architecture</code> 和 <code>Os</code> 兩個欄位。</p>
+</section>
+
+<section>
+<p class="era">分享出去</p>
+<h3 class="head">重新標記，再推上 registry</h3>
+<pre><code>docker image tag myapp:1.0 你的帳號/myapp:1.0
+docker login
+docker image push 你的帳號/myapp:1.0</code></pre>
+<p>原筆記在這裡卡過一次：直接 <code>docker image push hello:1.0</code> 會失敗。Docker Hub 的命名規則是——<strong>沒有帳號前綴的名字（像 <code>nginx:latest</code>）是保留給官方映像檔的</strong>，你自己的要寫成 <code>帳號/名稱:標籤</code>。</p>
+<p><code>tag</code> 不會複製一整份，它只是給同一包內容再掛一個名字。推之前確認 registry 位址和登入權限；登入憑證不要寫進 Dockerfile。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>映像檔三條來路：從 registry 下載、用 Dockerfile 建、從封存檔匯入；容器還在（就算停掉）就刪不掉它用的映像檔。</li><li>commit 出來的映像檔沒有配方，正式專案要把步驟寫進 Dockerfile。</li><li>ARG 建完就消失、ENV 會留在映像檔裡；只有 ARG 能寫在 FROM 前面。</li><li>CMD 會被 docker run 後面的指令蓋掉，ENTRYPOINT 不會；兩個搭配＝固定工具＋預設參數。</li><li>某一層快取失效，後面全部重建——所以常改的程式碼放最後；<code>.dockerignore</code> 減少送進去的檔案。</li><li>多階段建置：編譯器留在第一段，最終成品只帶走編好的東西。</li></ul></div>

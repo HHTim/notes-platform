@@ -1,0 +1,166 @@
+<!-- 來源：HackMD 匯出「Chapter 1 為何上雲學 Kubernetes(K8S)?」「Chapter 3 Kubernetes 圖解觀念 + 本地應用: MiniKube」「Java 23, SpringBoot 3.4.1: Kubernetes — Part 10」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把第 5〜10 課的觀念，真的寫成一份可以套用的 YAML</li><li>看懂 <code>500m</code>、<code>256Mi</code> 這些資源單位到底是多少</li><li>用 Minikube 在自己電腦上開一個叢集來練</li><li>知道同一份 YAML 搬到雲端時，哪些東西必須重新想過</li></ul></div>
+
+<section>
+<p class="era">動手之前</p>
+<h3 class="head">一份部署計畫要回答三件事</h3>
+<p>第 5 課講過 K8s 的核心迴圈：你交一張單子，它一直比對現況。這一課要把那張單子真的寫出來。原筆記把要準備的東西拆成三個問題，很好用：</p>
+<div class="terms">
+  <div class="term"><b>要部署什麼</b><span>一個容器化的應用程式。也就是先有映像檔（第 15 課）。</span></div>
+  <div class="term"><b>要怎麼部署、給多少資源</b><span>幾份、每份多少 CPU 和記憶體、怎麼換版本、對外怎麼進來。</span></div>
+  <div class="term"><b>要部署到哪裡</b><span>本機的練習叢集，還是雲端的正式叢集。</span></div>
+</div>
+<p class="muted">第 5 課那個迴圈的英文術語，看文件時會一直遇到，這裡對一下：你寫的單子叫<strong>期望狀態（desired state）</strong>，叢集目前的樣子叫<strong>現況（current state）</strong>，「只講結果不講步驟」的寫法叫<strong>宣告式（declarative）</strong>，控制器一直把現況往期望狀態拉的那個動作叫<strong>調和（reconciliation）</strong>。觀念第 5 課已經講完，這裡只是補名字。</p>
+</section>
+
+<section>
+<p class="era">本機練習場</p>
+<h3 class="head">Minikube：在自己電腦上開一個叢集</h3>
+<p>Minikube 官方對自己的定位就一句話：「minikube is local Kubernetes, focusing on making it easy to learn and develop for Kubernetes.」——本機版的 Kubernetes，目的是讓學習和開發容易一點。<a class="fixsrc" href="https://minikube.sigs.k8s.io/docs/start/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>minikube start
+kubectl cluster-info
+kubectl get nodes</code></pre>
+<p class="q"><code>minikube start</code> 開出來的是<strong>單節點</strong>叢集——那一台同時是大腦（master）也是工人（worker）。這跟第 7 課講的正式架構不一樣：正式環境裡大腦那幾台是分開的、而且要奇數台（第 12 課）。<span class="muted">Kubernetes 官方教材自己也特別點出這個差別。<a class="fixsrc" href="https://kubernetes.io/docs/tutorials/hello-minikube/" target="_blank" rel="noopener">出處</a></span> 所以 Minikube 練得起來，不等於正式環境也會這樣。</p>
+<p>電腦上同時有好幾個叢集的話，先確認 <code>kubectl</code> 現在指著哪一個，免得把東西套到錯的環境去：</p>
+<pre><code>kubectl config current-context
+kubectl config get-contexts</code></pre>
+</section>
+
+<section>
+<p class="era">第一份單子</p>
+<h3 class="head">Deployment 管幾份，Service 給一個不變的名字</h3>
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app          # ← 要對上下面 template 的 labels
+  template:
+    metadata:
+      labels:
+        app: demo-app        # ← 這裡
+    spec:
+      containers:
+        - name: app
+          image: example/demo-app:1.0
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+spec:
+  selector:
+    app: demo-app            # ← 也要對上同一組
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP</code></pre>
+<p class="q">三個地方要對上同一組標籤（label）：Deployment 的 <code>selector</code>、Pod 範本的 <code>labels</code>、Service 的 <code>selector</code>。<strong>這三處像三本要互相核對的地址簿，任何一處拼錯，服務就找不到後端。</strong></p>
+<p><code>port</code> 和 <code>targetPort</code> 也常搞混：<code>port: 80</code> 是<strong>這個 Service 對外掛牌的號碼</strong>（叢集內其他服務打 80），<code>targetPort: 8080</code> 是<strong>容器裡程式真正在聽的號碼</strong>。<code>type: ClusterIP</code> 是預設值，意思是只在叢集內部找得到它（第 9 課講的那個「永遠不變的名字」）。</p>
+<pre><code>kubectl apply -f app.yaml
+kubectl get deployment,pods,service
+kubectl rollout status deployment/demo-app
+kubectl port-forward service/demo-app 8080:80    # 從你的電腦直接打進去試</code></pre>
+</section>
+
+<section>
+<p class="era">單位</p>
+<h3 class="head">500m 和 256Mi 分別是多少</h3>
+<p>requests（保留量）和 limits（上限）的意思第 8 課講過，這裡只補數字怎麼讀。</p>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">寫法</th><th scope="col">是多少</th><th scope="col">怎麼記</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><code>1</code></th><td>一顆 CPU</td><td>官方定義：等於一個 vCPU／一個核心／一條超執行緒</td></tr>
+      <tr><th scope="row"><code>500m</code></th><td>半顆 CPU</td><td>m 是千分之一，1000m ＝ 1 顆</td></tr>
+      <tr><th scope="row"><code>100m</code></th><td>十分之一顆</td><td>比 1m 更細的寫法不准</td></tr>
+      <tr><th scope="row"><code>128Mi</code></th><td>128 × 1,048,576 位元組（約 134 MB）</td><td>Mi 是 2 的 20 次方，不是一百萬</td></tr>
+      <tr><th scope="row"><code>128M</code></th><td>128,000,000 位元組</td><td>沒有 i 的才是十進位的一百萬</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="muted">原筆記在解釋 <code>memory: 16Mi</code> 時寫「<mark class="fixnote" tabindex="0" data-note="原筆記寫「16Mi(16兆位元組)可確保高效率的資源利用率」，查證後更正：Kubernetes 官方文件寫 Mi 是二進位的 mebibyte，1 Mi = 1,048,576 位元組，16 Mi 約 16.8 MB，和「兆位元組」差了六個數量級">16Mi（16 兆位元組）</mark><a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>」——Mi 是 mebibyte，1 Mi ＝ 1,048,576 位元組，16 Mi 大約 16.8 MB，不是兆的等級。同一篇裡「1000 millicores ＝ 1 core，所以 20m 是單一核心的 2%」倒是完全正確，查證後和官方定義一致。</p>
+<p class="q">還有一個第 8 課沒提到的：<strong>requests 和 limits 填一樣時，這個 Pod 的服務品質等級（QoS class）是 Guaranteed</strong>，排班的時候會比其他 Pod 優先。填得不一樣（requests 小於 limits）則是可以超用、但要有餘力才超得到。</p>
+<p class="muted">另外提醒一個第 8 課講過、這裡再確認一次的行為差別：CPU 超過上限是被<strong>節流</strong>（跑慢一點），記憶體超過上限則可能被<strong>直接殺掉</strong>。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
+</section>
+
+<section>
+<p class="era">自動長大縮小</p>
+<h3 class="head">HPA：流量大就多開幾份</h3>
+<p>水平 Pod 自動擴縮器（Horizontal Pod Autoscaler，簡稱 HPA）會依指標調整副本數。它不是魔法，有三個前提：指標拿得到、容器有設合理的 requests、應用程式本身多開幾份也沒問題。</p>
+<pre><code>apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: demo-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: demo-app
+  minReplicas: 3
+  maxReplicas: 35
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80</code></pre>
+<p class="q">一個容易踩到的互動：<strong>Deployment 寫 <code>replicas: 2</code>、HPA 寫 <code>minReplicas: 3</code>，最後會變成 3 份。</strong>HPA 接手之後，Deployment 那個數字就不是最終答案了。</p>
+<p>指標可以是幾種：<code>Resource</code>（CPU、記憶體這種現成的）、<code>Pods</code>（每個 Pod 的自訂指標，例如每秒封包數）、<code>Object</code>（某個物件上的指標，例如 Ingress 的每秒請求數）、<code>External</code>（叢集外面來的）。後面三種都要另外有一條指標管線把數字送進來，不是寫下去就會動。</p>
+<p class="muted">同理，滾動更新（第 8 課）能不能真的不斷線，也有前提：副本要夠、就緒檢查（readiness probe）要設對、而且新舊版本要能同時存在一陣子。策略只是機制，容量和程式設計不對一樣會斷。</p>
+</section>
+
+<section>
+<p class="era">設定與密碼</p>
+<h3 class="head">ConfigMap 放一般設定，Secret 放敏感的</h3>
+<p>把設定從程式碼裡拉出來，換設定就不用重建映像檔。一般設定放 <strong>ConfigMap</strong>，密碼、金鑰、憑證放 <strong>Secret</strong>。兩個在 YAML 裡的用法幾乎一樣，第 19 課會實際接上去。</p>
+<p class="muted">原筆記說 Secret「在 K8S 中安全地儲存了敏感資料……是用 base64 編碼」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Secrets 在 K8S 中安全地儲存了敏感資料，例如 API Keys、密碼或是認證……但是用 base64 編碼以及是專門為安全敏感性配置所設計」，查證後更正：Kubernetes 官方文件的警語寫 Secret 預設是「stored unencrypted in the API server's underlying data store (etcd)」，任何有 API 存取權或 etcd 存取權的人都讀得到；base64 只是編碼不是加密">Kubernetes 官方文件的警語講得很重：Secret <strong>預設是沒有加密</strong>存在 etcd 裡的，任何有 API 存取權、或摸得到 etcd 的人都讀得出來；甚至只要有權在某個命名空間建 Pod，就等於能讀那個命名空間的 Secret</mark><a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/secret/" target="_blank" rel="noopener">出處</a>。base64 是編碼不是加密。要真的安全，官方要求你另外做：開啟靜態加密、用 RBAC 把權限縮到最小、或改用外部的金鑰管理服務。</p>
+</section>
+
+<section>
+<p class="era">從本機到雲端</p>
+<h3 class="head">YAML 帶得走，基礎設施帶不走</h3>
+<p>Kubernetes 把應用程式和特定主機解開了，但不會自動抹平各家雲端的差異。同一份 YAML 搬上去，下面這些還是要重新想過。</p>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">面向</th><th scope="col">Minikube</th><th scope="col">雲端叢集</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">用途</th><td>學習、本機驗證</td><td>測試、預備或正式的工作負載</td></tr>
+      <tr><th scope="row">節點</th><td>通常就一台</td><td>多台，還可以跨多個可用區</td></tr>
+      <tr><th scope="row">對外入口</th><td>多半用 <code>port-forward</code> 或本機外掛</td><td>接雲端的負載平衡器和網域名稱</td></tr>
+      <tr><th scope="row">持久儲存</th><td>本機的儲存供應器</td><td>雲端磁碟、檔案或物件儲存服務</td></tr>
+      <tr><th scope="row">誰負責顧</th><td>你自己的電腦</td><td>雲端商和你的團隊分攤（第 13 課那張表）</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>搬之前先把環境差異抽出來：一般設定放 ConfigMap、敏感設定走 Secret 加外部金鑰管理、儲存用 PVC 申請（第 19 課）、對外入口依平台選 Ingress 或負載平衡服務（第 10 課）。</p>
+<p class="muted">原筆記列的「為什麼建議上雲」也是同一件事的反面：自己在機房做，主機互連、負載平衡、擴縮、權限控管、買硬碟，每一樣都得自己來。</p>
+</section>
+
+<section>
+<p class="era">壞掉的時候</p>
+<h3 class="head">先看狀態，再看事件，最後才看紀錄</h3>
+<pre><code>kubectl get pods
+kubectl describe pod POD名稱
+kubectl logs POD名稱
+kubectl get events --sort-by=.metadata.creationTimestamp
+kubectl rollout status deployment/demo-app</code></pre>
+<p>Pod 起不來，先分清楚是哪一種：<strong>排不進去</strong>（沒有節點裝得下）、<strong>映像檔拉不到</strong>（名字打錯或沒權限）、<strong>程式自己崩潰</strong>、還是<strong>健康檢查沒過</strong>。這四種的處理方向完全不一樣，<code>describe</code> 最下面那段事件通常直接告訴你是哪一種。</p>
+<p>Service 連不到，先核對標籤有沒有對上、<code>targetPort</code> 對不對、Pod 是不是真的 Ready——不要一上來就砍掉重建整個叢集。</p>
+<p class="muted">看「這個 Service 到底有沒有後端」時，舊教材常寫 <code>kubectl get endpoints</code>。Kubernetes 從 v1.33 起把 Endpoints 這個 API 標為過時，改用 EndpointSlice，讀寫舊的會收到警告。<a class="fixsrc" href="https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/" target="_blank" rel="noopener">出處</a> 現在請改打 <code>kubectl get endpointslices</code>。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>部署計畫回答三件事：部署什麼、怎麼部署給多少資源、部署到哪裡。</li><li>Minikube 開的是單節點叢集（大腦和工人同一台），適合練，不代表正式架構。</li><li>Deployment 的 selector、Pod 範本的 labels、Service 的 selector，三處標籤要一致。</li><li><code>1000m</code> ＝ 一顆 CPU；<code>Mi</code> 是 1,048,576 位元組，不是一兆。requests 等於 limits 時 QoS 是 Guaranteed。</li><li>HPA 的 <code>minReplicas</code> 會蓋過 Deployment 的 <code>replicas</code>；自訂指標要另外有管線送數字。</li><li>Secret 預設沒有加密，只是 base64；要安全得另外開靜態加密、縮 RBAC 權限或用外部金鑰服務。</li><li>YAML 搬得走，但網路、儲存、權限、成本上雲之後都要重看一遍。</li></ul></div>

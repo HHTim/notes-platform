@@ -1,0 +1,121 @@
+<!-- 來源：HackMD 匯出「Docker Desktop vs. Colima」「Docker 問題集」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出從你打 docker 指令到容器跑起來，中間經過哪幾棒</li><li>講清楚 Windows 和 macOS 上那層 Linux 各自是誰開的</li><li>把一個 Spring Boot 的 JAR 包成映像檔並跑起來</li><li>知道換工具之後「映像檔不見了」通常不是資料不見了</li></ul></div>
+
+<section>
+<p class="era">先把棒次排好</p>
+<h3 class="head">一行 docker 指令，背後有四棒</h3>
+<p>第 14 課說過 CLI 自己不做事。完整的傳球是這樣：</p>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">誰</th><th scope="col">白話角色</th><th scope="col">正式名稱</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><code>docker</code> 指令</th><td>接單櫃台，把你的要求送出去</td><td>Docker CLI</td></tr>
+      <tr><th scope="row"><code>dockerd</code></th><td>總管，決定要做什麼、管網路和映像檔</td><td>Docker Engine（容器引擎）</td></tr>
+      <tr><th scope="row">containerd</th><td>工頭，管映像檔和容器的一生</td><td>容器執行環境（第 6 課出現過）</td></tr>
+      <tr><th scope="row">runc</th><td>工人，真的去把那支被隔離的程式啟動起來</td><td>低階執行工具</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>第 14 課提過：Linux 容器要的是 Linux 核心。上面這四棒裡，真正需要 Linux 的是後面兩棒。<strong>所以 Mac 和 Windows 的問題不是「Docker 裝不起來」，是「要先生出一個 Linux 給後面兩棒站」。</strong>這一課就是在講那個 Linux 是誰生的。</p>
+</section>
+
+<section>
+<p class="era">Windows 路線</p>
+<h3 class="head">Docker Desktop 借 WSL 2 那層 Linux</h3>
+<p>Docker Desktop 是<strong>一站式</strong>的裝法：圖形介面、Docker CLI、容器引擎、Compose、網路轉送、檔案共享，一次包給你。在 Windows 上它用 WSL 2（Windows 內建的 Linux 子系統）當地基。</p>
+<pre><code>Windows 終端機
+  ↓ docker 指令
+Docker Desktop
+  ↓
+WSL 2 的 Linux 環境
+  ↓ dockerd → containerd → runc
+Linux 容器</code></pre>
+<p class="muted">原筆記寫「WSL2 建立輕量級 Linux VM（Ubuntu-based）」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「WSL2 建立輕量級 Linux VM(Ubuntu-based)」，容易誤會成 Docker 跑在你自己裝的那個 Ubuntu 裡；查證後更正：Docker 官方文件寫 Docker Desktop 跑在它自己的 docker-desktop WSL 發行版裡，和其他發行版互相隔離">Docker 官方文件的說法是：Docker Desktop 跑在<strong>它自己的 <code>docker-desktop</code> 發行版</strong>裡，和你裝的其他 WSL 發行版互相隔離</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/wsl/" target="_blank" rel="noopener">出處</a>。所以就算你在 Windows 上裝了 Ubuntu，Docker 也不是跑在那個裡面。</p>
+<p>你打 <code>-p 8080:8080</code> 的時候，Docker Desktop 幫你把 Windows 的 8080 轉到 WSL 2、再轉到容器。使用者連 <code>localhost:8080</code>，流量是這樣一路過去的。</p>
+</section>
+
+<section>
+<p class="era">macOS 路線</p>
+<h3 class="head">Docker Desktop 或 Colima，差在誰管那台虛擬機</h3>
+<p>macOS 本身不是 Linux，也沒有 WSL 這種東西，所以一定要開一台 Linux 虛擬機。兩條路：</p>
+<div class="ledger">
+  <div class="box solved">
+    <h5>Docker Desktop：一站式</h5>
+    <ul>
+      <li>圖形介面、CLI、引擎、Compose 全包。</li>
+      <li>虛擬機由它自己開、自己管，你不太需要知道。</li>
+      <li>裝好就能用，適合不想研究底下那層的人。</li>
+    </ul>
+  </div>
+  <div class="box left">
+    <h5>Colima：模組化</h5>
+    <ul>
+      <li>Colima 只負責管那台 Linux 虛擬機。</li>
+      <li>Docker CLI、Compose 自己另外裝。</li>
+      <li>沒有圖形介面，全部在終端機。</li>
+      <li>裝法：<code>brew install colima docker docker-compose</code></li>
+    </ul>
+  </div>
+</div>
+<pre><code>macOS 終端機
+  ↓ docker 指令
+Docker context / socket
+  ↓
+Colima 管的那台 Linux 虛擬機
+  ↓ dockerd → containerd → runc
+Linux 容器</code></pre>
+<p>Colima 自己不開虛擬機，它叫 <strong>Lima</strong>（一個在 macOS 上開 Linux 虛擬機的工具）去開。啟動時可以指定要給多少資源：</p>
+<pre><code>colima start --cpu 4 --memory 8</code></pre>
+<p class="muted">數字照你電腦的容量調，不要把資源全部塞給虛擬機。</p>
+
+<h4>原筆記在這一段有三處要修</h4>
+<ul class="plainlist">
+  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Desktop 使用 macOS Hypervisor Framework」，查證後更正：Docker 官方文件現在列的 Mac 虛擬機管理器是 Docker VMM 與 Apple Virtualization framework 兩個選項，舊的 HyperKit（建在 Hypervisor.framework 上）只剩 Intel Mac 可用且已標為淘汰">Docker Desktop for Mac 現在的虛擬機管理器有兩個選項：Docker 自己做的 Docker VMM，和 Apple 的 Virtualization framework；舊的 HyperKit 只剩 Intel Mac 能用，而且已經標為淘汰</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a>（原筆記寫的是「使用 macOS Hypervisor Framework」）。</li>
+  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Colima 建立 Alpine Linux VM (更輕量)」以及「Lima 下載 Alpine 或 Ubuntu Linux 映像檔」，查證後更正：Colima 官方常見問答寫「From v0.6.0 onward, Colima uses Ubuntu as the underlying image」">Colima 從 v0.6.0 起，底下用的是 Ubuntu 映像，不是 Alpine</mark><a class="fixsrc" href="https://colima.run/docs/faq/" target="_blank" rel="noopener">出處</a>（原筆記寫的是「建立 Alpine Linux VM（更輕量）」）。</li>
+  <li>原筆記寫 Lima 用 QEMU。<span class="muted">查證後：Lima 支援多種虛擬化方式，而且預設變過——Lima v1.0 之前預設是 QEMU，v1.0 起在 macOS 13.5 以上的新機器預設改用 Apple 的 VZ（Virtualization framework）。<a class="fixsrc" href="https://lima-vm.io/docs/config/vmtype/" target="_blank" rel="noopener">出處</a> 所以「Colima 一定用 QEMU」這句現在不成立。</span></li>
+</ul>
+<p class="muted">macOS 上 Docker Desktop 那台虛擬機裡面是哪一個 Linux 發行版，官方文件沒有明講，原筆記寫的「Ubuntu-based」查不到出處，這裡就不寫。</p>
+</section>
+
+<section>
+<p class="era">動手</p>
+<h3 class="head">把一個 Spring Boot 的 JAR 變成容器</h3>
+<p>先用 Maven 或 Gradle 把 JAR 建出來，再寫 Dockerfile（寫法見第 15 課）：</p>
+<pre><code>FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY target/my-app.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]</code></pre>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記的 Dockerfile 用 openjdk:17-jre-alpine，查證後更正：Docker Hub 上的 openjdk 官方映像頁面寫「This image is officially deprecated and all users are recommended to find and use suitable replacements ASAP」，建議改用 eclipse-temurin、amazoncorretto、ibm-semeru-runtimes、ibmjava、sapmachine">原筆記用的是 <code>openjdk:17-jre-alpine</code>。Docker Hub 上的 <code>openjdk</code> 官方映像頁面已經掛著停止維護的公告，建議改用 <code>eclipse-temurin</code>、<code>amazoncorretto</code> 這幾個替代品</mark><a class="fixsrc" href="https://hub.docker.com/_/openjdk" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>docker build -t my-spring-app:1.0 .
+docker run -d --name my-spring-app -p 8080:8080 my-spring-app:1.0
+
+docker ps
+curl http://localhost:8080</code></pre>
+<p>這幾行按下去，實際發生的事是：CLI 把建置內容和指令送給引擎 → 引擎在那台 Linux 虛擬機裡拉基礎映像檔、跑 Dockerfile 的每一步、疊出分層映像檔 → 啟動時由 containerd 和 runc 準備檔案系統、隔離房間、資源上限，最後把 Java 程序起起來。<strong>你的 Java 程式從頭到尾都是在那台 Linux 虛擬機裡面跑的</strong>，只是連線被一路轉回你的 <code>localhost</code>。</p>
+</section>
+
+<section>
+<p class="era">最常見的疑惑</p>
+<h3 class="head">「我的映像檔不見了」</h3>
+<p>從 Docker Desktop 換成 Colima（或反過來）之後，<code>docker image ls</code> 突然空了。資料通常沒有不見——<strong>是你的 CLI 指到另一間工廠了。</strong>每個引擎有自己的映像檔和容器，Docker CLI 靠 context（連線設定）決定要跟哪一個講話：</p>
+<pre><code>docker context ls      # 有哪些連線設定，哪個是現在用的
+docker context show    # 現在指著哪一個
+docker info            # 連上去之後看到的是哪一套</code></pre>
+<div class="tablewrap">
+  <table>
+    <thead><tr><th scope="col">面向</th><th scope="col">Docker Desktop</th><th scope="col">Colima</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">平台</th><td>Windows、macOS</td><td>macOS（也支援其他環境）</td></tr>
+      <tr><th scope="row">操作方式</th><td>圖形介面加命令列</td><td>命令列為主</td></tr>
+      <tr><th scope="row">那層 Linux</th><td>產品自己開、自己管</td><td>透過 Lima 開和管</td></tr>
+      <tr><th scope="row">Docker CLI</th><td>通常隨產品一起裝</td><td>要自己另外裝</td></tr>
+      <tr><th scope="row">映像檔放哪</th><td>在它自己的 Linux 後端裡</td><td>在 Colima 那台虛擬機裡</td></tr>
+      <tr><th scope="row">Dockerfile 要不要改</th><td colspan="2" class="win">不用——同一份 Dockerfile 兩邊都能建</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="muted">兩邊的 Dockerfile 通用，但效能、檔案掛載和網路行為仍然可能不一樣，換工具之後值得重跑一次自己的流程。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>四棒：docker CLI → dockerd → containerd → runc；需要 Linux 核心的是後面兩棒。</li><li>Windows 上 Docker Desktop 跑在它自己的 <code>docker-desktop</code> WSL 發行版裡，不是你裝的那個 Ubuntu。</li><li>macOS 一定要一台 Linux 虛擬機：Docker Desktop 自己開自己管，Colima 則是叫 Lima 去開。</li><li>Colima 從 v0.6.0 起用的是 Ubuntu 映像；Lima 的虛擬化方式預設也已經從 QEMU 換成 Apple 的 VZ。</li><li>Java 的基礎映像檔別再用 <code>openjdk</code>，它已經停止維護。</li><li>換工具之後映像檔「不見了」，先看 <code>docker context</code>——多半只是指到另一個引擎。</li></ul></div>

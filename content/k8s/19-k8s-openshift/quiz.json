@@ -1,0 +1,94 @@
+{
+ "questions": [
+  {
+   "q": "OpenShift 的 Route，後端接的是什麼？",
+   "opts": [
+    "Service——再由 Service 挑出可用的 Pod",
+    "直接指定某一個 Pod 的位址",
+    "PVC",
+    "Secret"
+   ],
+   "exp": "又是「單子與執行者」那個模式：Route 是單子，真正在轉發的是 OpenShift 的路由器。"
+  },
+  {
+   "q": "為什麼「先套用資料庫的 YAML、再套用網站的」保證不了網站啟動時資料庫已經能用？",
+   "opts": [
+    "Kubernetes 是非同步調和資源的，建立順序不等於應用程式的就緒順序",
+    "Deployment 只會照字母順序啟動",
+    "Service 會延後建立所有 Pod",
+    "PVC 綁定後會暫停 API Server"
+   ],
+   "exp": "真正的保證來自 readiness probe 和應用程式自己的重試，跟 Compose 的 depends_on 同一個道理。"
+  },
+  {
+   "q": "Deployment 裡 WORDPRESS_DATABASE_HOST 填 database，這個 database 指的是什麼？",
+   "opts": [
+    "資料庫那個 Service 的名字",
+    "資料庫 Pod 當下的位址",
+    "資料庫容器的映像檔名稱",
+    "PVC 的名稱"
+   ],
+   "exp": "Pod 的位址一直在變，所以呼叫方只認 Service 的名字。"
+  },
+  {
+   "q": "PVC 長時間卡在 Pending，該先查什麼？",
+   "opts": [
+    "儲存類別存不存在、存取模式支不支援、容量夠不夠、專案配額還有沒有",
+    "Route 的 TLS termination 設成哪一種",
+    "Service 的 sessionAffinity",
+    "ConfigMap 有沒有設成不可變更"
+   ],
+   "exp": "原筆記踩到的就是第一種：範例寫了某個雲端專屬的儲存類別，但那個環境沒有。"
+  },
+  {
+   "q": "OpenShift 上挑容器映像檔，為什麼要特別注意非 root 相容性？",
+   "opts": [
+    "平台會用隨機指定的、非 root 的使用者編號來跑容器，假設自己是 root 的映像檔會失敗",
+    "Route 只允許 root 程序接受 HTTPS",
+    "ConfigMap 只有 root 掛載得起來",
+    "StatefulSet 一律固定使用編號 0 的使用者"
+   ],
+   "exp": "可寫的目錄要屬於 root 群組且該群組可寫；這也是這類映像檔聽 8080 不聽 80 的原因。"
+  },
+  {
+   "q": "正式環境用 latest 當映像檔標籤，最大的風險是什麼？",
+   "opts": [
+    "同一個標籤可能被發佈者改成指向不同內容，部署到底是什麼版本變得無法重現",
+    "它會讓所有健康檢查失效",
+    "它只能搭配 ClusterIP 型態的 Service",
+    "它會讓 PVC 自動變成唯讀"
+   ],
+   "exp": "標籤是可變的，要硬保證同一份內容就得釘內容摘要（digest）。"
+  },
+  {
+   "q": "Route 的 termination 設成 edge，代表什麼？",
+   "opts": [
+    "加密在路由器那一層就結束，之後是明文送到 Pod",
+    "完全不解密，原封不動交給 Pod 自己處理",
+    "路由器解密後再開一條新的加密連線到 Pod",
+    "整條路徑都不加密"
+   ],
+   "exp": "要求一路加密到 Pod 的話，要改用 reencrypt 或 passthrough。"
+  },
+  {
+   "q": "port-forward 進去看得到網站，但用公開網址打不開。下一步該集中查哪一層？",
+   "opts": [
+    "Route、憑證設定、路由器，以及 Route 指到的目標埠",
+    "把所有 PVC 重建一次",
+    "把資料庫的 Secret 刪掉重來",
+    "把快取改成 DaemonSet"
+   ],
+   "exp": "內部已經通，範圍就只剩對外那一段——每一步砍一半，才知道是哪裡修好的。"
+  },
+  {
+   "q": "Shell 裡用 cat << 'EOF' 送 YAML，裡面寫的 $PROJECT_NAME 會發生什麼事？",
+   "opts": [
+    "不會被展開，會原封不動當成字串送出去",
+    "會被展開成目前的專案名稱",
+    "會讓 oc apply 直接報語法錯誤",
+    "會被展開成空字串並印出警告"
+   ],
+   "exp": "here-document 的結束字加了引號，裡面就不做變數展開；比較單純的做法是不要在 YAML 裡寫 namespace。"
+  }
+ ]
+}

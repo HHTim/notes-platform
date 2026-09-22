@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "映像檔刪不掉，錯誤訊息說有容器在用它。你已經把那個容器 stop 了，為什麼還是刪不掉？",
+   "opts": [
+    "容器只是停掉、還存在，跟映像檔的關係就還在，要先把容器 rm 掉",
+    "停掉的容器會把映像檔鎖成唯讀，要重開機才解得開",
+    "要先把映像檔推上 registry 才刪得掉",
+    "映像檔一旦被 pull 下來就不能刪除"
+   ],
+   "exp": "stop 只是結束程式；容器本身還在，參照就還在。"
+  },
+  {
+   "q": "要把映像檔帶到連不上 registry 的環境，該用哪一組？",
+   "opts": [
+    "docker image save 匯出，再用 docker image load 匯入",
+    "docker image push 匯出，再用 docker container start 匯入",
+    "docker container export 匯出，再用 docker image pull 匯入",
+    "docker image inspect 匯出，再用 docker image tag 匯入"
+   ],
+   "exp": "save 把每一層和設定打包成一個檔，load 在另一邊還原。"
+  },
+  {
+   "q": "docker image build -t myapp:1.0 . 最後那個句點代表什麼？",
+   "opts": [
+    "把目前這個目錄當成建置內容，COPY 就從這裡面撈檔案",
+    "表示用匿名標籤，不指定名稱",
+    "表示從目前正在跑的容器建出映像檔",
+    "表示建完直接推到預設的 registry"
+   ],
+   "exp": "句點指的是 build context 的位置，不是 Dockerfile 的檔名。"
+  },
+  {
+   "q": "ARG 和 ENV 最主要的差別是什麼？",
+   "opts": [
+    "ARG 只在建置期間有效、建完就消失；ENV 會留在映像檔裡，容器跑起來還讀得到",
+    "ARG 只能放數字，ENV 只能放文字",
+    "ARG 用來掛載目錄，ENV 用來對應連接埠",
+    "ARG 會自動加密，ENV 只做雜湊"
+   ],
+   "exp": "進到容器裡打 env，看得到的是 ENV 設的那些，ARG 的找不到。"
+  },
+  {
+   "q": "在 Dockerfile 裡，哪一個指令可以寫在 FROM 前面？",
+   "opts": [
+    "只有 ARG",
+    "ARG 和 ENV 都可以",
+    "只有 ENV",
+    "RUN、ARG、ENV 都可以"
+   ],
+   "exp": "官方文件明寫 ARG 是唯一能出現在 FROM 之前的指令，而且它只能用在 FROM 那一行。"
+  },
+  {
+   "q": "ENTRYPOINT [\"echo\"] 搭配 CMD [\"hello\"]，執行時在後面接了 world，結果會印出什麼？",
+   "opts": [
+    "world——CMD 的預設參數被換掉了，ENTRYPOINT 照樣執行",
+    "hello——ENTRYPOINT 會擋掉所有後面接的參數",
+    "hello world——兩者會串在一起",
+    "什麼都不印，因為兩個指令衝突"
+   ],
+   "exp": "ENTRYPOINT 是固定要跑的工具，CMD 是它預設帶的參數，而參數可以被換掉。"
+  },
+  {
+   "q": "為什麼建議先 COPY requirements.txt 裝套件、最後才 COPY 程式碼？",
+   "opts": [
+    "某一層快取失效後面全部要重建，把常改的放最後才留得住裝套件那層的快取",
+    "Dockerfile 規定 Python 檔案一定要最後複製",
+    "requirements.txt 必須成為容器的主程式",
+    "這樣程式碼才會自動變成環境變數"
+   ],
+   "exp": "相依套件變動少、程式碼變動多，順序反過來會每次都重裝一次。"
+  },
+  {
+   "q": ".dockerignore 的用途是什麼？",
+   "opts": [
+    "把不需要送進建置內容的檔案和目錄排掉",
+    "禁止容器讀取所有環境變數",
+    "忽略登入 registry 時的失敗",
+    "讓 Docker 跳過所有 RUN 指令"
+   ],
+   "exp": "建置內容是整包送給 Docker 的，排掉不相關的東西可以變快、也避免不小心被 COPY 進去。"
+  },
+  {
+   "q": "多階段建置能把最終映像檔縮小，關鍵是什麼？",
+   "opts": [
+    "最後那一段只收你明確搬過去的成品，不必把整套編譯工具一起打包",
+    "它會把所有檔案改存到主機的記憶體檔案系統",
+    "它會自動刪掉應用程式執行時需要的相依套件",
+    "它會把多個標籤合併成同一個"
+   ],
+   "exp": "編譯器留在第一段，第二段換精簡的基礎映像檔，只 COPY --from 搬編好的東西。"
+  },
+  {
+   "q": "docker image push hello:1.0 推到 Docker Hub 失敗，最可能的原因是什麼？",
+   "opts": [
+    "沒有帳號前綴的名字是保留給官方映像檔的，自己的要寫成「帳號/名稱:標籤」",
+    "標籤裡不能出現小數點",
+    "映像檔一定要先 save 成檔案才能 push",
+    "只有多階段建置出來的映像檔才准 push"
+   ],
+   "exp": "先用 docker image tag 重新掛一個帶帳號前綴的名字，再 push。"
+  }
+ ]
+}

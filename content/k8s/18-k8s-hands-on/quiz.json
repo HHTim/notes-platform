@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "minikube start 開出來的叢集，跟第 7 課講的正式架構最大的差別是什麼？",
+   "opts": [
+    "它是單節點，同一台既是大腦也是工人",
+    "它沒有辦法套用任何 YAML",
+    "它不需要映像檔就能跑容器",
+    "它的 Pod 不會被控制器補位"
+   ],
+   "exp": "正式環境的大腦是分開的、而且要奇數台；Minikube 是拿來學和驗證用的。"
+  },
+  {
+   "q": "Service 找不到 Deployment 建出來的 Pod，最先該核對什麼？",
+   "opts": [
+    "Deployment 的 selector、Pod 範本的 labels、Service 的 selector 這三處標籤是不是一致",
+    "Dockerfile 的 ENTRYPOINT 有沒有寫成陣列",
+    "etcd 有沒有把映像檔的每一層存起來",
+    "HPA 的最大副本數是不是偶數"
+   ],
+   "exp": "Service 靠標籤挑 Pod，三本地址簿其中一本拼錯就對不上。"
+  },
+  {
+   "q": "Service 寫 port: 80、targetPort: 8080，意思是什麼？",
+   "opts": [
+    "叢集內別人打這個 Service 的 80，流量會被送到容器裡聽 8080 的程式",
+    "容器對外掛牌 80，主機聽 8080",
+    "Service 限制流量最多 80 個連線、8080 個請求",
+    "80 是 Pod 數量上限，8080 是記憶體上限"
+   ],
+   "exp": "port 是 Service 掛牌的號碼，targetPort 是容器裡程式真正在聽的號碼。"
+  },
+  {
+   "q": "resources 裡寫 memory: 128Mi，這是多少？",
+   "opts": [
+    "128 × 1,048,576 位元組，大約 134 MB",
+    "128 兆位元組",
+    "128,000 位元組",
+    "主機記憶體的 128 分之一"
+   ],
+   "exp": "Mi 是二進位的 mebibyte（2 的 20 次方位元組）；沒有 i 的 M 才是十進位的一百萬。"
+  },
+  {
+   "q": "cpu: 500m 代表什麼？",
+   "opts": [
+    "半顆 CPU——m 是千分之一，1000m 等於一顆",
+    "500 顆 CPU",
+    "500 MB 的 CPU 快取",
+    "CPU 使用率上限 500%"
+   ],
+   "exp": "官方定義一個 cpu 等於一個 vCPU／一個核心／一條執行緒，m 是它的千分之一。"
+  },
+  {
+   "q": "requests 和 limits 填成一樣的數字，會得到什麼？",
+   "opts": [
+    "這個 Pod 的服務品質等級是 Guaranteed，排班時會比其他 Pod 優先",
+    "Pod 會被禁止排到任何節點上",
+    "Kubernetes 會自動把它改成 Deployment",
+    "容器就不會再被健康檢查監看"
+   ],
+   "exp": "填得不一樣（requests 小於 limits）則是可以超用，但要有餘力才超得到。"
+  },
+  {
+   "q": "Deployment 寫 replicas: 2，HPA 寫 minReplicas: 3，最後會跑幾份？",
+   "opts": [
+    "3 份——HPA 接手之後，Deployment 那個數字不是最終答案",
+    "2 份——Deployment 的設定優先",
+    "5 份——兩個數字會相加",
+    "會直接報錯，兩者不能並存"
+   ],
+   "exp": "minReplicas 是 HPA 維持的下限，會蓋過 Deployment 原本寫的數字。"
+  },
+  {
+   "q": "關於 Kubernetes 的 Secret，哪一句才對？",
+   "opts": [
+    "預設沒有加密，只是 base64 存在 etcd 裡，要另外開靜態加密並縮緊 RBAC 權限",
+    "存進去就會自動以強加密保護，不需要額外設定",
+    "只有叢集管理員讀得到，一般使用者完全看不到",
+    "它跟 ConfigMap 唯一的差別是容量上限比較大"
+   ],
+   "exp": "官方文件的警語寫得很明白：有 API 或 etcd 存取權的人都讀得到，base64 是編碼不是加密。"
+  },
+  {
+   "q": "CPU 和記憶體超過 limits 的後果，差在哪？",
+   "opts": [
+    "CPU 超過會被節流（跑慢），記憶體超過可能被直接殺掉",
+    "兩者都會讓 Pod 立刻被刪除",
+    "CPU 超過會被殺掉，記憶體超過只會被節流",
+    "兩者都只會記一筆事件，不影響執行"
+   ],
+   "exp": "記憶體沒辦法「用慢一點」，所以核心的處理方式是直接終止。"
+  },
+  {
+   "q": "想看某個 Service 到底有沒有可用的後端，現在該用哪一個指令？",
+   "opts": [
+    "kubectl get endpointslices——Endpoints 這個 API 從 v1.33 起已標為過時",
+    "kubectl get endpoints——EndpointSlice 還沒穩定",
+    "kubectl get secrets",
+    "kubectl config get-contexts"
+   ],
+   "exp": "舊教材多半寫 get endpoints，現在讀寫舊 API 會收到警告。"
+  }
+ ]
+}
