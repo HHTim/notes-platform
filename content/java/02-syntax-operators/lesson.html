@@ -123,6 +123,12 @@ switch (level) {
 }</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記一處寫「switch case變數(n)只可為整數、字元(可視為整數)，不可為浮點數……也不可用long」，另一處（Udemy Chapter 5）寫「只能用在 shorts, long, int, chars, Strings, or enums」「&amp;&amp; is not allowed, but || is okay」，兩處互相矛盾也都不完整，查證後更正">規格訂得很清楚：switch 的判斷值可以是 <code>char</code>、<code>byte</code>、<code>short</code>、<code>int</code>（以及對應的包裝類別）、<code>String</code>（Java 7 起）與列舉 <code>enum</code>（Java 5 起）；<strong><code>long</code>、<code>float</code>、<code>double</code>、<code>boolean</code> 都不行</strong>。case 標籤只能放常數，<code>&amp;&amp;</code> 不行、<code>||</code> 也不行</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.11" target="_blank" rel="noopener">出處</a>。</p>
 <p>新版有比較好寫的形式：Java 14 起 switch 可以當運算式直接回傳值，箭頭寫法也不會貫穿，不必再補 <code>break</code>。</p>
+<pre><code>// Java 14 起的寫法
+String result = switch (level) {
+    case "A" -&gt; "優良";
+    case "B" -&gt; "通過";
+    default  -&gt; "未分類";
+};</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記整理的 switch 可用型別停在「JDK 7 以後可以比對String」，收錄時補上第 1 課預告過的版本界線：Java 21 起 case 標籤可以寫型別樣式，判斷值不再限於那幾種型別">Java 21 又放寬一次：<code>case</code> 標籤可以直接寫<strong>型別樣式</strong>，所以判斷值不再限於上面那幾種型別，任何物件都可以拿來比對，還能用 <code>when</code> 加條件</mark><a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a>。這就是第 1 課版本分水嶺裡提到的「switch 的型樣比對」。</p>
 <pre><code>// Java 21 起
 String describe(Object o) {
@@ -133,12 +139,6 @@ String describe(Object o) {
         default                       -&gt; "其他";
     };
 }</code></pre>
-<pre><code>// Java 14 起的寫法
-String result = switch (level) {
-    case "A" -&gt; "優良";
-    case "B" -&gt; "通過";
-    default  -&gt; "未分類";
-};</code></pre>
 <p class="muted">原筆記說「switch case 比較次數較少、效率較佳」。分支多的時候編譯器確實可能產生查表式的跳躍指令，但只有三五個分支時差異小到量不出來——挑哪一種請以讀起來清不清楚為準。</p>
 <p>只有兩條路可選時，三元運算子最短：</p>
 <p class="formula"><code>條件 ? 成立時的值 : 不成立時的值</code></p>
