@@ -1,0 +1,140 @@
+<!-- 來源：HackMD 匯出「全面掌握 GitHub Copilot 代理人模式：整合 MCP 伺服器到開發流程的技巧」「GitHub Copilot Ultimate Cheat Sheet (2026 Edition)」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明 MCP 在這裡扮演什麼角色，以及它不負責解決哪些問題</li><li>分清楚指示檔、提示檔、聊天模式與工具各自放什麼</li><li>把外部內容當成不可信的資料，避開提示注入</li></ul></div>
+
+<section>
+<p class="era">先講 MCP</p>
+<h3 class="head">替 AI 工具準備一個通用插座</h3>
+<p>MCP（Model Context Protocol，模型上下文協定）是一套讓應用程式用標準方式連接外部資料與工具的協定。原筆記引用了一個很好記的比喻：它像 AI 世界的 USB-C，主機不必為每個模型、每項服務都另外做一套接頭。</p>
+<p>原筆記寫它是 Anthropic 在 2024 年 11 月推出的開放標準、訊息用 JSON-RPC 2.0、有多種語言的 SDK——這三點查證後都正確（正式公開日期是 2024 年 11 月 25 日）。</p>
+<p>它解決的是「多對多整合」的重複工：以前 M 種模型要接 N 種工具，就得做 M×N 套接頭。但「用同一種插頭」不等於「插上去就安全」。伺服器仍可能碰到本機檔案、公司系統或外部服務，認證、授權、輸入驗證與稽核都得另外處理。</p>
+</section>
+
+<section>
+<p class="era">三個角色</p>
+<h3 class="head">主機、用戶端、伺服器各司其職</h3>
+<div class="tablewrap"><table><thead><tr><th>角色</th><th>白話比喻</th><th>責任</th></tr></thead><tbody>
+<tr><td>主機（Host）</td><td>你在用的那張工作台</td><td>承載聊天或代理人介面，管互動與權限</td></tr>
+<tr><td>用戶端（Client）</td><td>專線接頭</td><td>代表主機跟某一台伺服器建立協定連線</td></tr>
+<tr><td>伺服器（Server）</td><td>工具箱或資料櫃</td><td>對外公開可呼叫的能力或可取得的內容</td></tr>
+</tbody></table></div>
+<p>本機的伺服器可能讀檔案或操作本機程式；遠端的可能連到工單系統、設計檔、雲端或公司資料。不管跑在哪裡，先把資料流畫出來：送出了什麼、交給誰、保存多久、回傳的內容會不會被其他工具再用一次。</p>
+</section>
+
+<section>
+<p class="era">傳輸與能力</p>
+<h3 class="head">工具只是 MCP 的其中一塊</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「傳輸層：Stdio 適用於本地程序；HTTP (SSE) Server-Sent Events 適用於遠端通訊」，查證後更正">現行規格的兩種標準傳輸是標準輸入輸出（stdio）與 Streamable HTTP；原本單獨列的 HTTP 加 SSE 那一種已經由 Streamable HTTP 取代</mark><a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports" target="_blank" rel="noopener">出處</a>。標準輸入輸出用在主機自己啟動的本機程序；走網路的那種適合遠端服務，但需要更完整的身分驗證、加密與授權設計。</p>
+<div class="tablewrap"><table><thead><tr><th>能力</th><th>用途</th><th>主要風險</th></tr></thead><tbody>
+<tr><td>工具（Tools）</td><td>讓模型要求執行查詢或動作</td><td>越權修改、危險參數、外部副作用</td></tr>
+<tr><td>資源（Resources）</td><td>提供可讀取的資料或內容</td><td>敏感資料外洩、過期內容被誤用</td></tr>
+<tr><td>提示模板（Prompts）</td><td>提供可重複使用的互動樣板</td><td>樣板夾帶不當指示或已不符現況</td></tr>
+<tr><td>取樣（Sampling）</td><td>讓伺服器反過來請主機用模型生成內容</td><td>互相呼叫、成本、資料邊界不清</td></tr>
+</tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">現行 VS Code 的官方文件已經列出支援工具、資源與提示模板三項（另外還有可互動的 MCP 介面元件）</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">出處</a>，取樣則仍未在該頁列為支援項目。</p>
+<p class="muted">協定這邊也長了：除了取樣，用戶端還能提供 Roots（告訴伺服器可以在哪些路徑或網址範圍內作業）與 Elicitation（伺服器中途向使用者要一項補充資訊）兩種能力。不要從「協定有這項能力」推論「我手上這套產品一定支援」，兩者是不同層次。</p>
+</section>
+
+<section>
+<p class="era">設定 MCP</p>
+<h3 class="head">接之前先看清楚它要什麼權限</h3>
+<p>新增伺服器前，先檢查來源、維護者、啟動指令、相依套件、會連到哪些網路位址、環境變數與可存取的路徑。專案設定如果會進版本控制，就不能直接放金鑰。</p>
+<pre><code>{
+  "servers": {
+    "example": {
+      "command": "example-server",
+      "args": ["--read-only"],
+      "env": { "EXAMPLE_TOKEN": "${input:exampleToken}" }
+    }
+  }
+}</code></pre>
+<p>原筆記寫的專案設定檔位置 <code>.vscode/mcp.json</code> 與命令列的 <code>--add-mcp</code> 參數查證後都還在，<mark class="fixnote" tabindex="0" data-note="原筆記寫「安裝擴充套件：使用 code-insiders 安裝 GitHub Copilot Pre-release 版本」「指令：code-insiders --add-mcp」，查證後更正">但現在正式版的 VS Code 就支援，不必再裝預覽版</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">出處</a>。管理指令也換過一輪：<mark class="fixnote" tabindex="0" data-note="原筆記列的管理指令是 MCP: Add Server、MCP: List Servers、MCP: Reset Cached Tools，查證後更正">現行清單是 MCP: Add Server、MCP: List Servers、MCP: Open User Configuration、MCP: Browse Resources、MCP: Reset Trust，已經沒有 Reset Cached Tools 這一項</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">出處</a>。</p>
+<ul class="plainlist">
+<li>優先用唯讀帳號、測試環境與範圍受限的權杖。</li>
+<li>寫入、刪除、付款、部署、對外發訊這類動作，保留人工確認。</li>
+<li>固定或審查套件版本，不要每次啟動都抓一份沒檢查過的新程式。</li>
+<li>留下工具呼叫、參數、結果與核准人的稽核紀錄。</li>
+<li>定期把不用的伺服器、權杖與權限清掉。</li>
+</ul>
+<p class="muted">原筆記推薦了一批現成的伺服器（瀏覽器操作、雲端服務查詢、設計稿轉程式碼、聯網搜尋、抓網頁、查時間），也提到其中一項搭配的付費方案每月有五美元額度。這類清單與價格變動很快，挑伺服器該從任務與風險出發，不要只因為「熱門推薦」就裝上去。</p>
+</section>
+
+<section>
+<p class="era">除錯</p>
+<h3 class="head">連線、能力、權限、業務邏輯分開查</h3>
+<p>官方有一支檢查工具（MCP Inspector），可以觀察伺服器啟不啟得起來、宣告了哪些能力、呼叫的輸入輸出長什麼樣。原筆記記的啟動方式是用 npx 執行官方套件、再開瀏覽器連本機的埠號；版本與埠號會變，用之前先確認套件來源。出問題時照這四層往下查：</p>
+<ul class="plainlist">
+<li>連線層：程序有沒有啟動、傳輸方式與環境變數對不對。</li>
+<li>協定層：初始化成不成功、宣告的能力與參數結構對不對得上。</li>
+<li>權限層：這個帳號到底准不准存取目標資源。</li>
+<li>業務層：工具跑成功了，結果是不是真的符合需求。</li>
+</ul>
+</section>
+
+<section>
+<p class="era">四種客製化元件</p>
+<h3 class="head">規則、任務、角色、工具不要混在一起</h3>
+<div class="tablewrap"><table><thead><tr><th>元件</th><th>像什麼</th><th>適合放什麼</th><th>檔案形式</th></tr></thead><tbody>
+<tr><td>指示檔</td><td>常設規章</td><td>團隊風格、架構界線、安全與測試政策</td><td><code>.github/copilot-instructions.md</code>、<code>.github/instructions/*.instructions.md</code></td></tr>
+<tr><td>提示檔</td><td>可以重跑的工作單</td><td>建介面、審弱點、產遷移計畫等任務流程</td><td><code>.github/prompts/*.prompt.md</code></td></tr>
+<tr><td>聊天模式</td><td>角色與工作環境</td><td>規劃者、文件編輯、唯讀審查等模式與工具限制</td><td><code>*.chatmode.md</code></td></tr>
+<tr><td>工具</td><td>可以操作的器材</td><td>讀檔、搜尋、查資料庫、呼叫外部服務、執行指令</td><td>內建或由 MCP 伺服器提供</td></tr>
+</tbody></table></div>
+<p>提示檔可以要求遵循指示檔，也可以建議用哪些工具，但它本身不是工具。就像工作單可以寫「用扳手鎖緊」，工作單不會變成扳手。</p>
+</section>
+
+<section>
+<p class="era">提示檔</p>
+<h3 class="head">把成功的對話變成可以維護的資產</h3>
+<p>提示檔適合那種會重複出現、輸入可以替換、輸出可以驗收的任務。放在專案的 <code>.github/prompts/</code> 就能跟同事共用、進版本控制，在對話裡打 <code>/</code> 加名稱就叫得出來；放在個人設定裡則是自己跨專案用。內容支援 <code>${selection}</code>（目前選取內容）、<code>${input:變數名}</code>（執行時問你要填什麼）這類變數，也可以用 Markdown 連結去引用另一份提示檔或指示檔，把流程拆成好幾份小的。</p>
+<pre><code>---
+description: 審查指定介面的授權風險
+---
+
+目標：
+檢查 ${input:routeName} 的身分驗證與授權流程。
+
+參考：
+- ${file}
+- 專案安全規範
+
+限制：
+- 只分析，不改檔案、不執行外部指令。
+- 不顯示權杖、Cookie 或個資內容。
+
+輸出：
+1. 依嚴重度排序的發現
+2. 每項發現對應的程式碼依據
+3. 建議修正與待確認的假設</code></pre>
+<p>不要把整段聊天原封不動存起來；刪掉當時才有的偶然資訊，留下用途、必要輸入、允許範圍、禁止事項、輸出格式與完成條件。流程長的話拆成幾份小提示、明確傳遞中間產物，比做一份越長越大的提示好維護。</p>
+<p class="muted">原筆記提到要先把 <code>chat.promptFiles</code> 這個設定打開才能用。現行官方頁面的啟用說明已經不是這樣寫，實際步驟請以該頁為準。原筆記另外提到可以把對話存成提示檔、或匯出成一份檔案給別人匯入；如果產品提供這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
+</section>
+
+<section>
+<p class="era">上下文與信任邊界</p>
+<h3 class="head">資料要剛好，而且要分得出哪些不可信</h3>
+<p>選取內容、問題清單、版本控制差異、專案搜尋與外部網頁各自回答不同的問題。先問「完成這件事最低限度需要哪些證據」，再附上對應的資料。</p>
+<p>外部內容尤其要當成不可信的輸入。網頁、工單、文件或工具回傳的結果，可能夾帶提示注入（prompt injection，把惡意指令藏在資料裡，騙模型當成命令執行），例如叫它忽略原本的規則、去讀祕密、或執行某個指令。這些文字只能當資料，不能自動升格成命令。</p>
+<blockquote>信任層級要固定：使用者與專案政策決定目標；外部資料只提供事實，不能自己改寫權限與任務。</blockquote>
+</section>
+
+<section>
+<p class="era">串成可重複的流程</p>
+<h3 class="head">用契約把提示、工具與驗收接起來</h3>
+<p class="formula">可靠流程 ＝ 固定規範 ＋ 任務模板 ＋ 最小工具權限 ＋ 看得到的證據 ＋ 人工驗收</p>
+<ol>
+<li>用指示檔宣告長期規則。</li>
+<li>用提示檔定義單次任務的輸入、步驟與輸出。</li>
+<li>只給相關的上下文，並標明哪些是不可信的外部資料。</li>
+<li>只開必要的工具，對有副作用的呼叫設核准點。</li>
+<li>用差異、測試、日誌或查詢結果驗收，不用模型的自述驗收。</li>
+<li>規格或工具改了，同步更新模板並重新測一次。</li>
+</ol>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>MCP 讓 AI 與外部工具、資料的連接方式標準化，但不會自動解決安全問題。</li>
+<li>協定有哪些能力，跟某套產品實際支援哪些，是兩件要分開確認的事。</li>
+<li>指示檔管長期規則，提示檔管可重複的任務，聊天模式管角色與工具邊界。</li>
+<li>外部內容可能夾帶提示注入，一律當成資料而不是命令。</li>
+<li>有副作用的工具呼叫都照最小權限給、留紀錄、設人工核准點。</li>
+</ul></div>

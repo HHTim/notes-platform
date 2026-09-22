@@ -1,0 +1,102 @@
+<!-- 來源：HackMD 匯出「GitHub_Copilot_協作開發實戰」「GitHub Copilot Ultimate Cheat Sheet (2026 Edition)」「241220_GitHub Copilot 進階開發實戰」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>依任務範圍選對互動方式：自動完成、行內聊天還是側邊欄聊天</li><li>用目標、上下文、限制與驗收方式寫出一段能交差的提示</li><li>把生成結果當成待驗證的草稿，用差異與測試把關</li></ul></div>
+
+<section>
+<p class="era">先把角色擺對</p>
+<h3 class="head">它是副駕駛，你才是機長</h3>
+<p>原筆記的心法很直接：把它當成打字快、看過很多範例，但不一定真的懂你需求的夥伴。它能補程式碼、解釋邏輯、提修改、產測試，但最後做決定、扛品質責任的還是你。</p>
+<p>它產出的不是答案，是「待驗證的候選方案」。它可能用出根本不存在的介面、忽略邊界條件，或寫出跑得動卻不安全的程式碼。這種看起來合理但其實不可靠的輸出，業界叫幻覺（hallucination，模型憑感覺編出來的內容）。</p>
+<blockquote>把它當成剛進團隊、技術底子不錯、但還不熟產品規則的工程師。</blockquote>
+<p class="q">接受結果前至少問三件事：它符合需求嗎？測過了嗎？會不會洩漏資料或開出安全漏洞？</p>
+</section>
+
+<section>
+<p class="era">三種日常互動</p>
+<h3 class="head">範圍越小，用越輕的介面</h3>
+<div class="tablewrap"><table><thead><tr><th>方式</th><th>適合什麼</th><th>使用重點</th></tr></thead><tbody>
+<tr><td>自動完成（在編輯器裡直接浮出建議）</td><td>續寫函式、重複樣板、短的轉換</td><td>先把命名、型別、函式骨架跟註解寫好</td></tr>
+<tr><td>行內聊天（在程式碼行間叫出對話框）</td><td>解釋或修改目前選取的一小段</td><td>限制修改範圍，套用前先看差異</td></tr>
+<tr><td>聊天檢視（側邊欄的對話視窗）</td><td>討論架構、追跨檔問題、規劃較大的任務</td><td>明確附上相關檔案與專案限制</td></tr>
+<tr><td>快速聊天（浮動的小視窗）</td><td>不離開目前畫面的短問答</td><td>適合查語法，不適合複雜的跨檔工作</td></tr>
+</tbody></table></div>
+<p>判斷原則很簡單：牽涉的檔案、規則跟決策越多，就越該換到承載得了較多上下文的介面。</p>
+<p>快捷鍵方面，行內聊天是 <code>Ctrl + I</code>（macOS 是 <code>Cmd + I</code>）、聊天檢視是 <code>Ctrl + Alt + I</code>（macOS 是 <code>Ctrl + Cmd + I</code>）；<mark class="fixnote" tabindex="0" data-note="原筆記寫「開啟 Quick Chat：Ctrl + Shift + I」，查證後更正">快速聊天現行的預設鍵是 <code>Ctrl + Shift + Alt + L</code>（macOS 是 <code>Shift + Option + Cmd + L</code>）</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/reference/copilot-vscode-features" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">快捷鍵會因為作業系統、編輯器版本、鍵盤配置與個人設定而不同，實際請以命令選擇區與鍵盤快速鍵設定為準。</p>
+</section>
+
+<section>
+<p class="era">讓建議更貼近需求</p>
+<h3 class="head">命名、註解與上下文，就是你的方向盤</h3>
+<p>自動完成是看游標附近的程式碼在猜下一步。與其只寫「處理資料」，不如先交代輸入、輸出跟限制。精準的函式名稱、型別與註解，本身就是提示。</p>
+<pre><code>// 輸入未排序的訂單，排除已取消的項目，
+// 依建立時間由新到舊回傳，不修改原本的陣列。
+function listActiveOrders(orders) {
+  // 讓它提出候選實作，再由你檢查
+}</code></pre>
+<p>這種先描述意圖、再讓它生成實作的做法，原筆記稱為註解導向開發。要注意註解本身也可能寫錯，所以還是要拿需求、測試與實際資料交叉確認。</p>
+</section>
+
+<section>
+<p class="era">提示怎麼寫</p>
+<h3 class="head">一次一件、講具體、講簡短、附上下文</h3>
+<p>原筆記把有效提示的四個要點整理成一組口訣（四個要點的英文都是 S 開頭，它稱為 4S 原則）：</p>
+<div class="terms">
+<div class="term"><b>一次一件</b><span>不要同時要求重構、換框架、補文件又部署。</span></div>
+<div class="term"><b>講具體</b><span>說明技術、範圍、輸入輸出、錯誤處理，以及不准動的地方。</span></div>
+<div class="term"><b>講簡短</b><span>刪掉客套跟重複，只留真正影響答案的限制。</span></div>
+<div class="term"><b>附上下文</b><span>把相關程式碼、錯誤訊息、規格與既有測試一起給它。</span></div>
+</div>
+<p class="formula">有效提示 ＝ 目標 ＋ 必要上下文 ＋ 限制 ＋ 驗收方式</p>
+<p>例如不要只說「幫我寫測試」，改成：</p>
+<pre><code>替 UserAuth 的 login 方法補單元測試，測試框架用 Jest。
+涵蓋成功、密碼錯誤、帳號不存在、帳號被鎖定四種情境。
+沿用現有測試的假物件寫法，不要動正式程式碼。
+完成後列出還沒涵蓋到的風險。</code></pre>
+<p>把驗收方式寫進提示，等於先替交付品準備好檢查表，通常比堆一串形容詞有效得多。</p>
+</section>
+
+<section>
+<p class="era">指定動作與材料</p>
+<h3 class="head">斜線決定要做什麼，井字號決定看哪些資料</h3>
+<p>斜線命令是工作捷徑，現行常用的有 <code>/explain</code>（解釋）、<code>/fix</code>（修錯）、<code>/tests</code>（產測試）、<code>/doc</code>（寫註解文件）、<code>/new</code>（開新骨架）、<code>/plan</code>（先出實作計畫）。<mark class="fixnote" tabindex="0" data-note="原筆記把 /optimize 列為五個必背核心指令之一（「效能優化，分析選取代碼提供執行時間或記憶體優化建議」），查證後更正">現行的官方功能清單已經沒有 <code>/optimize</code>，改列了 <code>/plan</code></mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/reference/copilot-vscode-features" target="_blank" rel="noopener">出處</a>；效能的事直接寫進提示描述即可。</p>
+<p>用了指令也不代表需求就完整。即使下了產測試的命令，還是要指定測試框架、測試範圍與邊界條件。</p>
+<p>井字號用來指定它該看哪些材料。<mark class="fixnote" tabindex="0" data-note="原筆記列的上下文變數是 #selection、#file、#editor、#codebase、#terminalSelection、#terminalLastCommand、#problems、#changes，查證後更正">現行的寫法有一部分改了：整個專案搜尋是 <code>#search/codebase</code>，問題面板是 <code>#read/problems</code>，終端機內容是 <code>#read/terminalSelection</code> 與 <code>#read/terminalLastCommand</code></mark><a class="fixsrc" href="https://code.visualstudio.com/docs/copilot/reference/copilot-vscode-features" target="_blank" rel="noopener">出處</a>；<code>#selection</code>、<code>#file</code>、<code>#changes</code> 則維持原樣。</p>
+<div class="tablewrap"><table><thead><tr><th>想給的資料</th><th>現行引用方式</th><th>典型用途</th></tr></thead><tbody>
+<tr><td>選取的程式碼</td><td><code>#selection</code></td><td>解釋、局部重構、補測試</td></tr>
+<tr><td>指定檔案或資料夾</td><td><code>#file</code>、<code>#folder</code>，或直接把檔案拖進對話框</td><td>對照介面、規格或既有實作</td></tr>
+<tr><td>終端機輸出</td><td><code>#read/terminalSelection</code>、<code>#read/terminalLastCommand</code></td><td>分析編譯與執行錯誤</td></tr>
+<tr><td>問題清單</td><td><code>#read/problems</code></td><td>處理型別、語法與檢查工具的問題</td></tr>
+<tr><td>整個專案</td><td><code>#search/codebase</code></td><td>追跨檔流程與既有慣例</td></tr>
+<tr><td>版本控制的變更</td><td><code>#changes</code></td><td>審查這次改了什麼、寫提交訊息</td></tr>
+</tbody></table></div>
+<p>上下文不是越多越好。把整個專案一股腦塞進去，就像把整座倉庫搬進會議室：重要線索反而更難找。只給完成任務真正需要的資料，並說明每份資料的用途。</p>
+</section>
+
+<section>
+<p class="era">實際工作流</p>
+<h3 class="head">生成、檢查、測試，再決定要不要用</h3>
+<ul class="plainlist">
+<li>先縮小問題：指出檔案、函式、錯誤現象與預期結果。</li>
+<li>要它先說判斷依據或先提方案，不要急著讓它改一大片。</li>
+<li>看差異，特別留意被刪掉的驗證、權限與錯誤處理。</li>
+<li>跑格式檢查、靜態分析、單元測試與必要的整合測試。</li>
+<li>用邊界輸入驗證行為：空值、極端數字、重複資料、沒授權的請求。</li>
+<li>確認沒有把密碼、權杖、個資或公司機密貼進不該貼的地方。</li>
+</ul>
+<p>要它產生提交訊息時，先整理並檢查已暫存的差異，免得它把無關的變更包成一段看起來很完整的描述。</p>
+</section>
+
+<section>
+<p class="era">安全底線</p>
+<h3 class="head">跑得動，不代表能上線</h3>
+<p>生成資料庫查詢語法、正規表示式或系統指令時特別要看：輸入有沒有驗證、查詢有沒有用參數化寫法、檔案操作的範圍有多大、有沒有不可逆的破壞性動作。不要因為語法看起來很專業就跳過審查。</p>
+<p class="q">遇到不熟的介面時，要它先講出自己的假設，再用專案鎖定的版本、型別檢查、測試或官方文件去驗證；不要讓另一段 AI 的回答變成唯一證據。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>它產生的是候選方案，需求、品質與安全責任仍在你身上。</li>
+<li>小範圍的事用自動完成或行內聊天；跨檔與架構問題換到承載得了上下文的聊天介面。</li>
+<li>用「目標＋上下文＋限制＋驗收方式」寫提示，比堆形容詞有效。</li>
+<li>斜線命令指定要做什麼，井字號指定看哪些材料，兩者用途不同。</li>
+<li>接受修改前看差異，接受之後跑測試與安全檢查。</li>
+</ul></div>
