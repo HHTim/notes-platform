@@ -17,7 +17,7 @@
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「HTTP協議是基於TCP協議，面向連接、安全」，查證後更正：HTTP 本身不提供任何加密或身分驗證，安全來自外加的 TLS；而且 HTTP/3 已改跑在以 UDP 為基礎的 QUIC 上，不再是「一定基於 TCP」">HTTP 本身不提供加密，MDN 的說法是它「送在 TCP 上，或送在一條受 TLS 加密的 TCP 連線上」——加密是外加的那一層，也就是 HTTPS；而且只有 HTTP/1.1 與 HTTP/2 通常跑在 TCP 上，HTTP/3 改用以 UDP 為基礎的 QUIC</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">HTTP/3</a>。原筆記在「HTTP ?」這個標題底下直接解釋成 HTTPS，兩者其實是不同層的東西。</p>
 <div class="tablewrap"><table><thead><tr><th>訊息</th><th>組成</th><th>用途</th></tr></thead><tbody><tr><td>HTTP 請求</td><td>請求列、請求標頭、可有可無的訊息本體</td><td>說明方法、目標路徑與送出的資料</td></tr><tr><td>HTTP 回應</td><td>狀態列、回應標頭、可有可無的訊息本體</td><td>說明處理結果與傳回的內容</td></tr></tbody></table></div>
 <p>GET 通常用來取得資源，參數放在網址的查詢字串；POST 通常用來提交資料，資料多半放在請求本體。但 HTTP 方法描述的是語意，不代表 GET 天生安全或 POST 會自動加密。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Get傳送的參數有限制,當需要的參數內容較多,server不見得可以有效使用」，查證後更正：HTTP 規格沒有替網址訂長度上限，RFC 9110 只建議所有發送端與接收端至少支援 8000 位元組的網址；實際的長度限制來自各家瀏覽器與伺服器的實作">HTTP 規格沒有替網址訂長度上限，只建議所有發送端與接收端至少支援 8000 位元組；實務上碰到的限制來自各家瀏覽器與伺服器的實作，不是協定規定</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-uri-references" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">原筆記在「Post 優於 Get 的原因」寫「Get傳送的參數有限制,當需要的參數內容較多,server 不見得可以有效使用」——就實務結果來說這句沒錯，網址確實有長度天花板。要補的是那個限制從哪來：不是 HTTP 協定訂的。RFC 9110 只建議「所有發送端與接收端至少支援 8000 位元組長度的網址」，真正卡住你的是各家瀏覽器與伺服器自己的實作上限。</p>
 <p class="formula">瀏覽器 → HTTP 請求 → Web 伺服器／Servlet 容器 → Servlet → HTTP 回應 → 瀏覽器</p>
 <p>狀態碼看首位數字就能分類：2xx 成功、3xx 重新導向、4xx 請求端的情境無法完成、5xx 伺服器處理失敗。200 是成功、404 是找不到資源、500 是伺服器內部錯誤。</p>
 </section>
@@ -36,7 +36,7 @@
 <p class="era">套件名換過一次</p>
 <h3 class="head">javax.servlet 已經改叫 jakarta.servlet</h3>
 <p>原筆記把 Servlet 歸在 Java EE（Java Enterprise Edition）底下，列出 JDBC、Servlet、JSP 等十三項技術規範。這個歸屬本身沒錯，但名字與套件名後來整批換過。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Servlet 屬於J2EE的架構」「JavaEE: Java Enterprise Edition (Java企業版)」，查證後補充：2017 年 Oracle 把 Java EE 移交 Eclipse 基金會，因商標問題改名 Jakarta EE；Jakarta EE 9（2020 年）把所有 javax.* 套件改成 jakarta.*，Tomcat 10 起只認 jakarta.servlet">Java EE 移交 Eclipse 基金會後因為商標問題改名為 Jakarta EE，Jakarta EE 9 把所有 <code>javax.*</code> 套件整批改成 <code>jakarta.*</code>。Tomcat 的遷移指南講得很白：Tomcat 10「把 Tomcat 9 裡所有位於 <code>javax.*</code> 命名空間的套件搬到 <code>jakarta.*</code> 命名空間」，而且「在 Tomcat 9 以前能跑的應用程式，不修改就不能在 Tomcat 10 上執行」</mark><a class="fixsrc" href="https://tomcat.apache.org/migration-10.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記寫「Servlet 屬於J2EE的架構」「JavaEE: Java Enterprise Edition (Java企業版)」，在它寫成的年代是正確的名稱。後來 Java EE 移交 Eclipse 基金會、因商標問題改名 Jakarta EE，Jakarta EE 9 把所有 javax.* 套件改成 jakarta.*，Tomcat 10 起只認 jakarta.servlet">原筆記用的是它那個年代正確的名字，但名稱與套件後來整批換過：Java EE 移交 Eclipse 基金會後因為商標問題改名為 Jakarta EE，Jakarta EE 9 把所有 <code>javax.*</code> 套件改成 <code>jakarta.*</code>。Tomcat 的遷移指南講得很白：Tomcat 10「把 Tomcat 9 裡所有位於 <code>javax.*</code> 命名空間的套件搬到 <code>jakarta.*</code> 命名空間」，而且「在 Tomcat 9 以前能跑的應用程式，不修改就不能在 Tomcat 10 上執行」</mark><a class="fixsrc" href="https://tomcat.apache.org/migration-10.html" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>// Tomcat 9 以前（原筆記的年代）
 import javax.servlet.http.HttpServlet;
 
