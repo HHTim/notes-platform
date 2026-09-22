@@ -82,7 +82,7 @@ ENV TZ=Asia/Taipei</code></pre>
 <p class="muted">正因為 ENV 會跟著映像檔留下來，密碼、權杖這種東西不要用 ENV 寫死在 Dockerfile 裡——拿到映像檔的人就讀得到。敏感資料交給專門的機密管理機制處理。</p>
 
 <h4>CMD 對 ENTRYPOINT：一個會被蓋掉，一個不會</h4>
-<p>CMD 設的是<strong>預設</strong>指令：<code>docker run</code> 後面如果你接了別的指令，CMD 就被忽略。ENTRYPOINT 設的則是<strong>一定會執行</strong>的那支程式。</p>
+<p>CMD 設的是<strong>預設</strong>指令：<code>docker run</code> 後面如果你接了別的指令，CMD 就被忽略。ENTRYPOINT 設的則是那支<strong>主程式</strong>：<code>docker run</code> 後面接的東西會變成它的參數，蓋不掉它。<span class="muted">真要整個換掉得另外加 <code>--entrypoint</code>，官方文件對這個旗標的說明就是「Overwrite the default ENTRYPOINT of the image」。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/run/" target="_blank" rel="noopener">出處</a></span></p>
 <pre><code>FROM alpine:3.20
 ENTRYPOINT ["echo"]
 CMD ["hello"]</code></pre>
@@ -139,4 +139,4 @@ docker image push 你的帳號/myapp:1.0</code></pre>
 <p><code>tag</code> 不會複製一整份，它只是給同一包內容再掛一個名字。推之前確認 registry 位址和登入權限；登入憑證不要寫進 Dockerfile。</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>映像檔三條來路：從 registry 下載、用 Dockerfile 建、從封存檔匯入；容器還在（就算停掉）就刪不掉它用的映像檔。</li><li>commit 出來的映像檔沒有配方，正式專案要把步驟寫進 Dockerfile。</li><li>ARG 建完就消失、ENV 會留在映像檔裡；只有 ARG 能寫在 FROM 前面。</li><li>CMD 會被 docker run 後面的指令蓋掉，ENTRYPOINT 不會；兩個搭配＝固定工具＋預設參數。</li><li>某一層快取失效，後面全部重建——所以常改的程式碼放最後；<code>.dockerignore</code> 減少送進去的檔案。</li><li>多階段建置：編譯器留在第一段，最終成品只帶走編好的東西。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>映像檔三條來路：從 registry 下載、用 Dockerfile 建、從封存檔匯入；容器還在（就算停掉）就刪不掉它用的映像檔。</li><li>commit 出來的映像檔沒有配方，正式專案要把步驟寫進 Dockerfile。</li><li>ARG 建完就消失、ENV 會留在映像檔裡；只有 ARG 能寫在 FROM 前面。</li><li>CMD 會被 docker run 後面的指令蓋掉，ENTRYPOINT 不會（真要換得加 <code>--entrypoint</code>）；兩個搭配＝固定工具＋預設參數。</li><li>某一層快取失效，後面全部重建——所以常改的程式碼放最後；<code>.dockerignore</code> 減少送進去的檔案。</li><li>多階段建置：編譯器留在第一段，最終成品只帶走編好的東西。</li></ul></div>
