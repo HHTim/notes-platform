@@ -1,0 +1,174 @@
+<!-- 來源：HackMD 匯出「Java - 模組10~15」「Java - 模組16~26」「First Java Program」「Udemy - 來杯 Java 吧! (Chapter 1~3)」「Udemy - 來杯 Java 吧! (Chapter 4)」「常用方法」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>從類別建立物件，並講清楚「參考值」跟「物件本身」差在哪</li><li>答得出 Java 傳參數到底是傳值還是傳址（這題面試常考）</li><li>正確寫出建構子、用 <code>this</code> 區分欄位與參數</li><li>操作陣列與字串，並知道 <code>static</code> 成員屬於誰</li></ul></div>
+
+<section>
+<p class="era">從設計圖到成品</p>
+<h3 class="head">類別、欄位與方法</h3>
+<p>類別（class）像設計圖，描述這一類物件應該有哪些資料、能做哪些事；物件（object）是照設計圖做出來的實體（instance）。原筆記那句「所見即物件」講的就是這個：只要有屬性（attribute）跟行為（behavior），就適合做成物件。</p>
+<pre><code>class Pen {
+    String brand;   // 欄位，也叫實體變數
+    int price;
+
+    void write() {  // 方法
+        System.out.println(brand + " 正在書寫");
+    }
+}</code></pre>
+<p>欄位保存物件的狀態，方法描述它能做的事。<strong>先設計類別，才產生物件。</strong></p>
+</section>
+
+<section>
+<p class="era">真的做出物件</p>
+<h3 class="head">宣告、實體化與初始化</h3>
+<pre><code>Pen myPen;            // 1. 宣告：準備一個裝得下 Pen 的變數
+myPen = new Pen();    // 2. new 建立物件，3. = 把參考值放進變數
+
+Pen yourPen = new Pen();   // 三步驟寫成一行</code></pre>
+<p>變數裡放的不是物件本身，而是<strong>參考值</strong>（object reference）——可以想成物件的取件號碼。每次 <code>new</code> 通常都會生出一個不同的物件；但如果寫 <code>Pen second = myPen;</code>，兩個變數就指向同一個物件，從任何一邊改，另一邊都看得到。</p>
+<p class="muted">原筆記把參考值說成「記憶體位址」「門牌號碼」。門牌號碼這個比喻很好用，只是嚴格講，Java 虛擬機器規格並沒有規定參考值一定就是原始記憶體位址——實作上可以是別的東西。當比喻理解沒問題，別當成規格記就好。</p>
+<p>沒有任何變數指得到的物件，就是垃圾回收器要收走的「垃圾」。Java 不讓你自己管那塊空間，全部交給 JVM。</p>
+</section>
+
+<section>
+<p class="era">變數住在哪個範圍</p>
+<h3 class="head">實體變數與區域變數</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>項目</th><th>實體變數</th><th>區域變數</th></tr></thead>
+<tbody>
+<tr><th>宣告位置</th><td>類別內、方法外</td><td>方法或程式區塊內</td></tr>
+<tr><th>屬於誰</th><td>每個物件各有一份</td><td>那一次方法執行</td></tr>
+<tr><th>預設值</th><td>有</td><td>沒有，用之前一定要先給值</td></tr>
+<tr><th>活多久</th><td>跟著物件</td><td>離開那個區塊就沒了</td></tr>
+</tbody>
+</table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Java會在編譯時給實體變數預設初始值」，查證後更正：預設值是建立物件、配置那塊空間的時候才寫進去的，不是編譯時期">預設值是在<strong>建立物件</strong>、配置那塊空間的時候才寫進去的，不是編譯時期。數值型欄位給 0（<code>double</code> 給 <code>0.0d</code>），<code>boolean</code> 給 <code>false</code>，參考型別給 <code>null</code></mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.5" target="_blank" rel="noopener">出處</a>。</p>
+<p><code>null</code> 表示「目前沒有指向任何物件」，只能給參考變數用。對 <code>null</code> 呼叫實體方法，就會拿到 <code>NullPointerException</code>。</p>
+</section>
+
+<section>
+<p class="era">面試常考這題</p>
+<h3 class="head">Java 到底是傳值還是傳址</h3>
+<p><strong>Java 的參數傳遞一律是傳值。</strong>基本型別複製的是資料值；參考型別複製的是<strong>參考值</strong>。所以方法拿到的是「同一個取件號碼的副本」——它可以改那個物件的內容，但沒辦法把呼叫端的變數換成另一個物件。</p>
+<pre><code>static void changeNumber(int value) {
+    value = 99;
+}
+
+static void changeFirst(int[] values) {
+    values[0] = 99;      // 改的是同一個陣列物件
+}
+
+static void replaceArray(int[] values) {
+    values = new int[]{7, 7};   // 只換掉副本指向誰，呼叫端不受影響
+}
+
+int number = 10;
+int[] scores = {10, 20};
+
+changeNumber(number);   // number 還是 10
+changeFirst(scores);    // scores[0] 變成 99
+replaceArray(scores);   // scores 還是原來那個陣列</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在 Udemy Chapter 1~3 的範例註解寫「Java => copy by reference」，模組11 則寫「傳址：Address Copy」且註明「在定義上一直有所爭議」，查證後更正：Java 只有傳值一種，參考型別傳的是參考值的副本">這件事沒有爭議：Java 只有傳值一種機制。說「物件是傳址」會讓人以為方法能替換呼叫端的變數，實際上不行——被複製的是參考值，不是物件</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-8.html#jls-8.4.1" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">建立時就準備好</p>
+<h3 class="head">建構子與 this</h3>
+<p>建構子（constructor）在建立物件時負責初始化。兩條規定：<strong>名稱必須跟類別一樣</strong>，而且<strong>不能宣告回傳型別</strong>——連 <code>void</code> 都不能寫，寫了就變成一般方法。</p>
+<pre><code>class Circle {
+    private double radius;
+
+    Circle() {
+        this(1.0);            // 呼叫同類別的另一個建構子
+    }
+
+    Circle(double radius) {
+        this.radius = radius; // this.radius 是欄位，radius 是參數
+    }
+}</code></pre>
+<p><code>this</code> 代表「目前這個物件」。<code>this(...)</code> 可以呼叫同類別的另一個建構子，但必須放在第一行——所以它跟 <code>super(...)</code>（第 4 課會講）只能擇一。</p>
+<p>如果一個類別完全沒寫建構子，編譯器會補一個無參數的；一旦你自己宣告了任何建構子，那個免費的就不會出現了。</p>
+<p class="muted">Java 16 起，只是要裝幾個值的資料類別可以直接用 <code>record</code>：<code>record Point(int x, int y) {}</code> 一行就自動有建構子、存取方法、<code>equals</code>、<code>hashCode</code> 與 <code>toString</code>。原筆記寫在這個語法出現之前，所以全部用手寫的版本。</p>
+</section>
+
+<section>
+<p class="era">固定長度的一排格子</p>
+<h3 class="head">陣列與多維陣列</h3>
+<p>陣列（array）裝固定數量、同一型別的元素。<strong>陣列本身是物件</strong>，索引從 0 開始，最後一格是 <code>length - 1</code>。長度在 <code>new</code> 的當下就定了，之後不能改。</p>
+<pre><code>int[] scores = {80, 90, 70};
+System.out.println(scores[0]);      // 80
+System.out.println(scores.length);  // 3，沒有小括號
+
+int[][] seats = {
+    {1, 2, 3},
+    {4, 5}          // 每一列長度可以不同
+};</code></pre>
+<p><code>length</code> 是陣列的屬性，後面不加小括號；<code>String</code> 的 <code>length()</code> 才是方法，這兩個很容易打混。Java 的多維陣列其實是「陣列裡放陣列」，所以每一列長度可以不一樣。</p>
+<p>把一個陣列變數指定給另一個變數，只是複製參考值，兩邊還是同一個陣列。要真正的獨立副本得用 <code>Arrays.copyOf</code>。</p>
+<pre><code>int[] iArray3 = {100, 200, 300, 50};
+Arrays.sort(iArray3);                            // {50, 100, 200, 300}
+System.out.println(Arrays.binarySearch(iArray3, 50));   // 0
+System.out.println(Arrays.binarySearch(iArray3, 150));  // -3</code></pre>
+<p class="muted">用 <code>Arrays.binarySearch</code> 之前一定要先排序。找不到時回傳的是負數：150 應該插在索引 2 的位置，回傳值是 <code>-(2) - 1 = -3</code>。只要結果小於 0 就代表沒找到。</p>
+</section>
+
+<section>
+<p class="era">看似文字，其實也是物件</p>
+<h3 class="head">String 的不可變與比較</h3>
+<p><code>String</code> 是參考型別，而且<strong>不可變（immutable）</strong>：看起來在改字串的方法，其實都是回傳一個新字串，原來那個動都沒動。</p>
+<pre><code>String name = "Java";
+String upper = name.toUpperCase();
+
+System.out.println(name);   // Java   ← 沒被改到
+System.out.println(upper);  // JAVA</code></pre>
+<p>直接寫成字面值的字串會放進字串池（String Pool）重複使用，所以不能靠 <code>==</code> 判斷內容一不一樣：</p>
+<pre><code>String left  = new String("Hi");
+String right = new String("Hi");
+
+System.out.println(left == right);       // false，兩個不同物件
+System.out.println(left.equals(right));  // true，內容一樣</code></pre>
+<p>常用方法：<code>length()</code>、<code>charAt(index)</code>、<code>substring(begin, end)</code>（<strong>結束索引那個字元不取</strong>）、<code>isEmpty()</code>、<code>indexOf()</code>、<code>compareTo()</code>。</p>
+<p class="muted">要在迴圈裡大量串接字串時，改用 <code>StringBuilder</code> 比較省——這一組的取捨（String、StringBuffer、StringBuilder）在面試集第 1 課〈Java 基礎快答〉有速查版。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「System.out.println(friends); // @776ec8df 十六進位法，表RAM位置。」，查證後更正：那串十六進位數字是 Object.toString() 印出的識別雜湊碼（identity hash code），並不保證是記憶體位址">直接印一個沒有覆寫 <code>toString()</code> 的物件（例如陣列），會看到像 <code>[Ljava.lang.String;@776ec8df</code> 這樣的東西。<code>@</code> 後面那串是識別雜湊碼（identity hash code），規格並沒有說它等於記憶體位址</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Object.html#toString()" target="_blank" rel="noopener">出處</a>。要看陣列內容請用 <code>Arrays.toString(陣列)</code>。</p>
+</section>
+
+<section>
+<p class="era">整個類別共同擁有</p>
+<h3 class="head">static 成員</h3>
+<p>一般欄位屬於個別物件，<code>static</code> 成員屬於<strong>類別本身</strong>，該類別生出來的所有物件共用同一份。存取時建議寫類別名稱，讀的人一眼就知道它不是某個物件私有的。</p>
+<pre><code>class Counter {
+    static int total;   // 所有物件共用
+    int personal;       // 每個物件各一份
+
+    Counter() {
+        total++;
+        personal++;
+    }
+}
+
+System.out.println(Counter.total);</code></pre>
+<p>類別第一次被 JVM 載入時，static 的東西就先就位了——那時候<strong>一個物件都還沒建立</strong>。所以：</p>
+<ul class="plainlist">
+<li>不必建立物件就能呼叫 static 方法（<code>Math.max</code>、<code>Math.PI</code> 就是這樣用的）。</li>
+<li>static 方法裡不能用 <code>this</code>，因為沒有「目前這個物件」。</li>
+<li>static 方法不能直接存取實體欄位或實體方法，反過來則可以。</li>
+</ul>
+<p class="formula">常數最適合搭 static：<code>public static final double PI = 3.14;</code></p>
+</section>
+
+<section>
+<p class="era">不固定數目的輸入</p>
+<h3 class="head">可變引數 varargs</h3>
+<p>可變引數（varargs）讓呼叫端傳 0 到多個同型別的值，方法內部當成陣列用。</p>
+<pre><code>static int sum(int... numbers) {
+    int total = 0;
+    for (int number : numbers) {
+        total += number;
+    }
+    return total;
+}
+
+sum();            // 0
+sum(1, 2, 3);     // 6</code></pre>
+<p>兩條規定：一個方法最多只能有一個可變引數，而且必須放在參數列<strong>最後面</strong>。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>類別是規格，物件是照規格做出來的實體；變數裡放的是參考值不是物件。</li><li>Java 一律傳值——傳物件時複製的是參考值，所以改得動內容、換不掉變數。</li><li>建構子跟類別同名而且沒有回傳型別；自己寫了建構子，免費的無參數版本就消失。</li><li>陣列長度固定、索引從 0 起，<code>length</code> 不加小括號；字串比內容用 <code>equals</code>。</li><li>實體變數有預設值（建立物件時給），區域變數沒有，用之前一定要先給值。</li><li><code>static</code> 成員屬於類別、大家共用，裡面不能用 <code>this</code>。</li></ul></div>

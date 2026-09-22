@@ -1,0 +1,199 @@
+<!-- 來源：HackMD 匯出「Java - 模組6~9」「First Java Program」「Eclipse」「Java - 模組1~5」「Udemy - 來杯 Java 吧! (Chapter 1~3)」「Udemy - 來杯 Java 吧! (Chapter 5)」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>宣告變數、挑對基本型別，並看懂什麼時候會自動轉型、什麼時候要自己轉</li><li>正確使用算術、比較與邏輯運算子，避開整數除法和字串串接的坑</li><li>用 if、switch、for、while 組出程式流程，並知道 switch 這幾年變了什麼</li><li>寫出方法、分清參數與引數，並理解多載與遞迴</li></ul></div>
+
+<section>
+<p class="era">語法骨架</p>
+<h3 class="head">類別、main 方法與敘述</h3>
+<p>Java 的程式碼一律寫在類別裡，敘述用分號結尾，大括號界定程式區塊（block）。最常見的進入點長這樣：</p>
+<pre><code>public class Main {
+    public static void main(String[] args) {
+        System.out.println("開始執行");
+    }
+}</code></pre>
+<p>Java 區分大小寫，所以 <code>Main</code>、<code>main</code>、<code>MAIN</code> 是三個不同名稱。命名慣例照 Oracle 的寫法是「mixed case」——類別名稱每個字的字首都大寫（例如 <code>HelloWorld</code>），方法與變數第一個字小寫、後面每個字的字首大寫（例如 <code>myName</code>），常數全大寫加底線。中文圈常把前者叫大駝峰、後者叫小駝峰。</p>
+</section>
+
+<section>
+<p class="era">替資料貼標籤</p>
+<h3 class="head">變數、常數與有效範圍</h3>
+<p>變數像有名字的置物盒，但盒子只收得下宣告時講好的型別。Java 是強型別語言，宣告一定要講型別。</p>
+<pre><code>int age = 20;
+double height = 1.72;
+String userName = "小華";
+final double TAX_RATE = 0.05;</code></pre>
+<p><code>=</code> 是指定運算子（assignment operator）：先算右邊，再把結果放進左邊。跟數學的等號不一樣，所以 <code>x = x + 1</code> 是合法的。加上 <code>final</code> 的變數一旦給了值就不能再改，等於常數。</p>
+<div class="tablewrap"><table>
+<thead><tr><th>種類</th><th>宣告在哪</th><th>有沒有預設值</th></tr></thead>
+<tbody>
+<tr><th>區域變數</th><td>方法或程式區塊內</td><td>沒有，用之前一定要先給值</td></tr>
+<tr><th>實體變數（欄位）</th><td>類別內、方法外，沒有 static</td><td>有，數字給 0、布林給 false、參考型別給 null</td></tr>
+<tr><th>類別變數</th><td>類別內、方法外，有 static</td><td>有，規則同上</td></tr>
+</tbody>
+</table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記（First Java Program）只寫「※使用var有兩個限制：1. 不能用在fields 2. 不能在沒有初始值的變數上使用」，沒有講這是哪一版才有的，查證後補上版本界線"><code>var</code> 是 Java 10 才加進來的寫法，讓編譯器從初始值自己推出型別</mark><a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a>。原筆記講的兩個限制都對：只能用在區域變數（不能當欄位或方法參數），而且宣告當下一定要給初始值，編譯器才推得出來。</p>
+<pre><code>var total = 0;              // 推成 int
+var names = new ArrayList&lt;String&gt;();  // 推成 ArrayList&lt;String&gt;
+// var x;                   // 不行，沒有初始值</code></pre>
+</section>
+
+<section>
+<p class="era">資料的基本形狀</p>
+<h3 class="head">基本型別與參考型別</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>分類</th><th>型別</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>整數</td><td><code>byte</code>、<code>short</code>、<code>int</code>、<code>long</code></td><td><code>42</code>、<code>1_000_000</code>、<code>10L</code></td></tr>
+<tr><td>浮點數</td><td><code>float</code>、<code>double</code></td><td><code>3.14</code>、<code>2.5f</code></td></tr>
+<tr><td>字元</td><td><code>char</code></td><td><code>'A'</code>、<code>'中'</code></td></tr>
+<tr><td>布林值</td><td><code>boolean</code></td><td><code>true</code>、<code>false</code></td></tr>
+<tr><td>參考型別</td><td>類別、介面、陣列</td><td><code>String</code>、<code>int[]</code></td></tr>
+</tbody>
+</table></div>
+<p><code>char</code> 用單引號、<code>String</code> 用雙引號。Java 的 <code>boolean</code> 只吃 <code>true</code> 或 <code>false</code>，不能拿 1 和 0 代替。整數字面值可以寫二進位（<code>0b1001</code>）、八進位（<code>0123</code>，0 開頭）、十六進位（<code>0x8E</code>）；數字中間的底線純粹為了好讀，例如 <code>1_000_000</code>。</p>
+<p class="muted">原筆記提到「二進位表示法與底線分隔都是 Java 7 開始才有」，這是對的。</p>
+</section>
+
+<section>
+<p class="era">算式裡的規則</p>
+<h3 class="head">算術、型別提升與轉型</h3>
+<p class="formula"><code>+　-　*　/　%</code></p>
+<p><code>%</code> 取餘數。<strong>兩個整數相除得到整數，小數直接砍掉</strong>；只要有一邊是浮點數，就變成浮點數除法。</p>
+<pre><code>System.out.println(5 / 10);    // 0   ← 不是 0.5
+System.out.println(5.0 / 10);  // 0.5
+System.out.println(7 % 3);     // 1</code></pre>
+<p><code>+</code> 碰到字串會變成串接，而且是由左往右算，所以 <code>15 + 15 + "15"</code> 得到字串 <code>"3015"</code>。</p>
+<p>小範圍的數值會自動提升成大範圍；反過來要自己明寫轉型，而且可能掉資料。<mark class="fixnote" tabindex="0" data-note="原筆記寫「位階高低順序：double > float > long > int > short > byte (僅有整數&amp;浮點數)」，它自己標明只談整數與浮點數，收錄時補上規格裡同樣會被提升的 char">完整的提升順序是 <code>byte</code>、<code>short</code>、<code>char</code> → <code>int</code> → <code>long</code> → <code>float</code> → <code>double</code>；<code>char</code> 雖然裝的是字元，在運算時一樣會被提升成 <code>int</code></mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-5.html#jls-5.6" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>double total = 10 + 2.5;       // 12.5
+int roundedDown = (int) 12.9;  // 12，小數砍掉不是四捨五入
+int count = 3;
+count += 2;                    // 等同 count = count + 2
+
+byte s1 = 10;
+byte s2 = 100;
+// byte sum = s1 + s2;         // 編譯錯誤
+int sum = s1 + s2;             // 可以</code></pre>
+<p>兩個 <code>byte</code> 相加會先各自提升成 <code>int</code> 再算，結果也是 <code>int</code>，所以不能直接塞回 <code>byte</code>。這叫二元數值提升，是語言規格直接訂死的規則。至於 <code>byte s1 = 10;</code> 為什麼可以，是因為 <code>10</code> 是編譯期就知道的常數，編譯器允許這種窄化。</p>
+</section>
+
+<section>
+<p class="era">先用舊值還是新值</p>
+<h3 class="head">遞增、比較與邏輯運算</h3>
+<p><code>value++</code> 是<strong>先取目前的值、再加一</strong>；<code>++value</code> 是<strong>先加一、再取值</strong>。單獨放一行時兩者結果一樣，混在複雜算式裡就很容易看錯。</p>
+<pre><code>int num1 = 3;
+System.out.println(num1++);  // 印 3，之後 num1 變 4
+System.out.println(++num1);  // num1 先變 5，印 5</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「算數運算子(Arithmetic Operators)又稱為二元運算子」「遞增(++)與遞減(--)又稱為一元運算子」，這個「又稱為」容易被讀成別名，收錄時補上規格的定義：一元／二元指的是吃幾個運算元">照規格，「一元」「二元」講的是這個運算子吃幾個運算元，不是某一類運算子的專屬別名。算術運算子多半是二元的，但 <code>&amp;&amp;</code>、<code>==</code> 也是二元；<code>++</code>、<code>--</code> 是一元的，但 <code>!</code>、<code>~</code>、正負號和轉型也都是一元</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html" target="_blank" rel="noopener">出處</a>。</p>
+<div class="tablewrap"><table>
+<thead><tr><th>用途</th><th>運算子</th><th>結果</th></tr></thead>
+<tbody>
+<tr><td>比較</td><td><code>==　!=　&gt;　&lt;　&gt;=　&lt;=</code></td><td><code>boolean</code></td></tr>
+<tr><td>而且</td><td><code>&amp;&amp;</code></td><td>兩邊都成立才 true</td></tr>
+<tr><td>或者</td><td><code>||</code></td><td>有一邊成立就 true</td></tr>
+<tr><td>反過來</td><td><code>!</code></td><td>true 與 false 對調</td></tr>
+</tbody>
+</table></div>
+<p><code>&amp;&amp;</code> 與 <code>||</code> 會短路：結果已經確定時，右邊那串就不算了。<strong>比較字串內容要用 <code>equals</code></strong>；<code>==</code> 用在參考型別上比的是「是不是同一個物件」——這點第 3 課會細講。</p>
+</section>
+
+<section>
+<p class="era">讓程式做選擇</p>
+<h3 class="head">if、switch 與三元運算子</h3>
+<pre><code>int score = 82;
+
+if (score &gt;= 90) {
+    System.out.println("優良");
+} else if (score &gt;= 60) {
+    System.out.println("通過");
+} else {
+    System.out.println("再試一次");
+}</code></pre>
+<p class="muted">原筆記的 BMI 範例寫成 <code>if (bmi &lt; 18.5) …… else if (bmi &gt;18.5 &amp;&amp; bmi &lt; 24) ……</code>，剛好 18.5、24、30 這三個邊界值會掉進所有分支之外、什麼都不印。連續區間的判斷建議統一用 <code>&gt;=</code> 接起來，或直接靠 <code>else</code> 收尾。</p>
+<p><code>switch</code> 適合拿單一個值去挑分支。傳統寫法如果漏了 <code>break</code>，會繼續往下執行後面的 case，這叫貫穿（fall-through）。</p>
+<pre><code>String level = "B";
+
+switch (level) {
+    case "A":
+        System.out.println("優良");
+        break;
+    case "B":
+        System.out.println("通過");
+        break;
+    default:
+        System.out.println("未分類");
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記一處寫「switch case變數(n)只可為整數、字元(可視為整數)，不可為浮點數……也不可用long」，另一處（Udemy Chapter 5）寫「只能用在 shorts, long, int, chars, Strings, or enums」「&amp;&amp; is not allowed, but || is okay」，兩處互相矛盾也都不完整，查證後更正">規格訂得很清楚：switch 的判斷值可以是 <code>char</code>、<code>byte</code>、<code>short</code>、<code>int</code>（以及對應的包裝類別）、<code>String</code>（Java 7 起）與列舉 <code>enum</code>（Java 5 起）；<strong><code>long</code>、<code>float</code>、<code>double</code>、<code>boolean</code> 都不行</strong>。case 標籤只能放常數，<code>&amp;&amp;</code> 不行、<code>||</code> 也不行</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.11" target="_blank" rel="noopener">出處</a>。</p>
+<p>新版有比較好寫的形式：Java 14 起 switch 可以當運算式直接回傳值，箭頭寫法也不會貫穿，不必再補 <code>break</code>。</p>
+<pre><code>// Java 14 起的寫法
+String result = switch (level) {
+    case "A" -&gt; "優良";
+    case "B" -&gt; "通過";
+    default  -&gt; "未分類";
+};</code></pre>
+<p class="muted">原筆記說「switch case 比較次數較少、效率較佳」。分支多的時候編譯器確實可能產生查表式的跳躍指令，但只有三五個分支時差異小到量不出來——挑哪一種請以讀起來清不清楚為準。</p>
+<p>只有兩條路可選時，三元運算子最短：</p>
+<p class="formula"><code>條件 ? 成立時的值 : 不成立時的值</code></p>
+</section>
+
+<section>
+<p class="era">重複工作</p>
+<h3 class="head">for、while、do-while</h3>
+<p>迴圈有三個要素：初值設定、條件判斷、計次。<code>for</code> 適合已知跑幾次，<code>while</code> 適合「跑到某個條件為止」，<code>do-while</code> 會先做一次再檢查條件。</p>
+<pre><code>for (int i = 0; i &lt; 3; i++) {
+    System.out.println(i);
+}
+
+int count = 0;
+while (count &lt; 3) {
+    count++;
+}
+
+do {
+    System.out.println("至少執行一次");
+} while (false);</code></pre>
+<p><code>for</code> 與 <code>while</code> 是前測式（可能一次都不跑），<code>do-while</code> 是後測式（至少跑一次）。<code>break</code> 跳出整個迴圈，<code>continue</code> 只跳過這一輪剩下的敘述、進下一輪。兩者都可以搭配標籤指定要跳出哪一層：</p>
+<pre><code>outer:
+while (i &lt;= 3) {
+    while (j &lt;= 5) {
+        if (j == 4) {
+            break outer;   // 直接跳出外層那個迴圈
+        }
+    }
+}</code></pre>
+<p class="muted"><code>break</code> 可以用在迴圈與傳統 switch 裡，<code>continue</code> 只能用在迴圈裡。標籤後面只能接迴圈。</p>
+</section>
+
+<section>
+<p class="era">把工作命名</p>
+<h3 class="head">方法、參數、回傳值與多載</h3>
+<pre><code>public static int add(int left, int right) {
+    return left + right;
+}
+
+int result = add(2, 3);</code></pre>
+<p>方法宣告由修飾子、回傳型別、方法名稱與參數列組成。宣告裡的 <code>left</code>、<code>right</code> 叫<strong>參數</strong>（parameter）；呼叫時真的送進去的 <code>2</code>、<code>3</code> 叫<strong>引數</strong>（argument）。<code>void</code> 表示不回傳東西。</p>
+<p>方法多載（overloading）＝同一個類別裡好幾個方法共用名稱，但參數的數量、型別或順序不同。Java 靠「方法名稱＋參數列」這個組合（方法簽章）決定要呼叫哪一個，<strong>不能只靠回傳型別區分</strong>。</p>
+<pre><code>static double area(double radius) {            // 圓
+    return radius * radius * Math.PI;
+}
+
+static double area(double height, double width) {  // 長方形
+    return height * width;
+}
+
+// static int area(double radius) { }          // 不行，只有回傳型別不同</code></pre>
+</section>
+
+<section>
+<p class="era">方法自己呼叫自己</p>
+<h3 class="head">遞迴與呼叫堆疊</h3>
+<p>遞迴（recursion）就是方法呼叫它自己，把大問題一層層縮小。每一次呼叫都會在呼叫堆疊（call stack，記錄「現在走到哪、還有誰在等結果」的那疊資料）上多壓一層，結束時再從最上面一層層彈回來——後進先出。</p>
+<pre><code>static int sumTo(int n) {
+    if (n == 0) {
+        return 0;      // 終止條件
+    }
+    return n + sumTo(n - 1);
+}</code></pre>
+<p>遞迴一定要有終止條件，而且每次都要往終止條件靠近。否則堆疊一直長高，最後就是 <code>StackOverflowError</code>。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li><code>=</code> 是指定、<code>==</code> 是比較；比字串內容要用 <code>equals</code>。</li><li>兩個整數相除會砍掉小數；<code>+</code> 碰到字串就變串接。</li><li>運算時 <code>byte</code>、<code>short</code>、<code>char</code> 都會先提升成 <code>int</code>，所以兩個 byte 相加塞不回 byte。</li><li>switch 的判斷值不能是 <code>long</code>、浮點數或 <code>boolean</code>；Java 14 起可以用箭頭寫法當運算式。</li><li><code>for</code>、<code>while</code> 可能一次都不跑；<code>do-while</code> 至少跑一次。</li><li>多載靠參數列區分，改回傳型別沒有用；遞迴一定要有終止條件。</li></ul></div>

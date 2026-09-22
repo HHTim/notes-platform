@@ -1,0 +1,136 @@
+<!-- 來源：HackMD 匯出「集合的大集合」「Java2 - 模組6~15」「Java2 - 模組16~執行緒」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>依「要不要順序、能不能重複、是不是鍵值對」挑對集合</li><li>說出 Hash、LinkedHash、Tree 三個家族的差別，以及它們各自靠什麼判斷重複</li><li>用泛型把型別錯誤提前到編譯期抓出來，並看懂 <code>? extends</code> 與 <code>? super</code></li><li>用迭代器或 for-each 走訪集合，並知道什麼時候該用傳統 for</li></ul></div>
+
+<section>
+<p class="era">先選對容器</p>
+<h3 class="head">List、Set 與 Map 怎麼挑</h3>
+<p>集合像不同用途的收納櫃：有的保留放進去的順序，有的負責排掉重複，有的用標籤查內容。挑的時候先看<strong>資料的語意</strong>，不要只挑自己最熟的那個類別。</p>
+<div class="tablewrap"><table>
+<thead><tr><th>介面</th><th>特性</th><th>常見實作</th><th>適合什麼</th></tr></thead>
+<tbody>
+<tr><th>List</th><td>有位置順序、允許重複</td><td>ArrayList、LinkedList</td><td>購物清單、訊息紀錄</td></tr>
+<tr><th>Set</th><td>元素不重複；順序看實作</td><td>HashSet、LinkedHashSet、TreeSet</td><td>標籤、不重複的會員編號</td></tr>
+<tr><th>Map</th><td>一對鍵與值；鍵不重複</td><td>HashMap、LinkedHashMap、TreeMap</td><td>用學號找學生、用商品編號找庫存</td></tr>
+</tbody>
+</table></div>
+<pre><code>List&lt;String&gt; names = new ArrayList&lt;&gt;();
+names.add("小華");
+names.add("小華");   // List 允許重複，現在有兩筆
+
+Set&lt;String&gt; tags = new HashSet&lt;&gt;();
+tags.add("Java");
+tags.add("Java");    // 第二次不會加進去
+
+Map&lt;String, Integer&gt; stock = new HashMap&lt;&gt;();
+stock.put("A001", 10);
+stock.put("A001", 8);  // 同一個鍵，新值蓋掉舊值</code></pre>
+<p>Map 用的是 <code>put()</code>、<code>get()</code>、<code>keySet()</code>、<code>values()</code> 這一組。<code>keySet()</code> 回傳 <code>Set</code>（因為鍵不重複），<code>values()</code> 回傳的卻是 <code>Collection</code>——原筆記解釋得很好：<strong>值可以重複，所以 Set 不適合；值又沒有順序保證，所以 List 也不適合，只好往上找共同的父介面。</strong>用鍵查不到東西時回傳 <code>null</code>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記兩處寫「Map是一種key/value的集合(不屬於Collection框架內)」「Map集合因為不屬於collection框架的一員」，查證後更正：Map 是集合框架的一員，只是沒有繼承 Collection 這個介面">Map <strong>是</strong>集合框架（Collections Framework）的一員，只是它沒有繼承 <code>Collection</code> 這個介面——這兩件事不一樣。官方文件把 Map 明列為框架的核心介面之一</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/collections/interfaces/index.html" target="_blank" rel="noopener">出處</a>。它之所以不繼承 <code>Collection</code>，是因為那個介面的方法（<code>add(E)</code> 之類）套在鍵值對上講不通。</p>
+</section>
+
+<section>
+<p class="era">順序不是共同保證</p>
+<h3 class="head">Hash、LinkedHash 與 Tree 家族</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Set - 無順序、不允許重複」，就 Set 這個介面本身而言沒錯，只是容易讓人以為所有實作都沒順序；同一份筆記另寫 HashMap「裡面存的key-value值在取出時順序完全隨機」——查證後更正：官方說法是不保證走訪順序，不等於每次執行都隨機變動">「Set 沒有順序」講的是這個介面本身不做保證，這沒錯；但容易被讀成「所有 Set 都沒順序」。<strong>Set 只規定元素不重複，要不要維持順序完全看實作類別。</strong>至於 HashMap，官方說的是「不保證走訪順序」，並不是每次跑都隨機洗牌——官方文件的用字是 makes no guarantees as to the order，意思是你不該依賴它，而不是它真的在擲骰子</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a>。</p>
+<div class="tablewrap"><table>
+<thead><tr><th>實作</th><th>走訪順序</th><th>靠什麼判斷重複或排序</th></tr></thead>
+<tbody>
+<tr><th>HashSet / HashMap</th><td>不保證</td><td><code>hashCode()</code> 搭 <code>equals()</code></td></tr>
+<tr><th>LinkedHashSet / LinkedHashMap</th><td>維持放進去的順序</td><td><code>hashCode()</code> 搭 <code>equals()</code></td></tr>
+<tr><th>TreeSet / TreeMap</th><td>依自然順序或你給的比較規則排序</td><td>比較結果是不是 0</td></tr>
+</tbody>
+</table></div>
+<p class="formula">雜湊型集合：先用 <code>hashCode()</code> 找可能的位置，再用 <code>equals()</code> 確認是不是同一筆</p>
+<p>所以<strong>自訂物件若覆寫了 <code>equals()</code>，就必須一起覆寫 <code>hashCode()</code></strong>，否則放進 <code>HashSet</code> 會出現「明明一樣卻被當成兩筆」。這個約定的細節（包括原筆記寫錯的那一條）在第 6 課有完整說明。</p>
+<p>Tree 家族走的是另一條路：<strong>靠 <code>compareTo()</code> 或 <code>Comparator</code> 的比較結果判斷重不重複，跟 <code>equals()</code>、<code>hashCode()</code> 沒關係。</strong>比較結果為 0 就被視為同一個排序鍵。所以自訂類別要放進 TreeSet，得實作 <code>Comparable</code> 並覆寫 <code>compareTo()</code>，而且一樣大的元素要記得回傳 0。</p>
+<p class="muted">原筆記把 LinkedHashSet、LinkedHashMap 的順序說成「先進先出」。它們維持的是<strong>走訪時照放進去的順序</strong>，跟佇列那種「先進先出取出後就消失」不是同一件事，叫「插入順序」比較不會誤會。</p>
+</section>
+
+<section>
+<p class="era">把型別錯誤提前抓出來</p>
+<h3 class="head">泛型讓集合更安全</h3>
+<p>泛型（generics，Java 5 起）像在容器外面貼一張「只收字串」的標籤。編譯器會擋掉不相容的型別，取出來時也不必再從 <code>Object</code> 手動轉型。</p>
+<pre><code>List&lt;String&gt; cities = new ArrayList&lt;&gt;();
+cities.add("臺北");
+// cities.add(100);          // 編譯就錯，不會拖到執行期
+
+String city = cities.get(0); // 不必轉型</code></pre>
+<p>原筆記把好處講得很清楚：原本要等到執行期才炸出來的 <code>ClassCastException</code>，現在編譯階段就擋住了。</p>
+<p><strong>角括號裡只能放參考型別</strong>（類別、介面、陣列），所以整數要用包裝類別：</p>
+<pre><code>List&lt;Integer&gt; scores = new ArrayList&lt;&gt;();   // 對
+// List&lt;int&gt; scores = new ArrayList&lt;&gt;();    // 錯</code></pre>
+<p>自訂類別也可以宣告型別參數。設計類別時還不確定使用者會傳什麼進來，就用 <code>T</code> 先頂著：</p>
+<pre><code>class Box&lt;T&gt; {
+    private T value;
+    public void set(T value) { this.value = value; }
+    public T get() { return value; }
+}
+
+Box&lt;String&gt; box = new Box&lt;&gt;();
+box.set("教材");</code></pre>
+</section>
+
+<section>
+<p class="era">上下界不是「什麼都能放」</p>
+<h3 class="head">extends 與 super 的方向</h3>
+<p><code>?</code> 是萬用字元，代表「某個還沒確定的型別」。加上上下界，方法就能接受一整群相關型別，又不會失去安全性。</p>
+<ul class="plainlist">
+<li><code>? extends Number</code>：實際型別是 <code>Number</code> 或它的子型別。<strong>適合拿來讀</strong>——不管實際是什麼，讀出來一定當得成 <code>Number</code>。</li>
+<li><code>? super Integer</code>：實際型別是 <code>Integer</code> 或它的父型別。<strong>適合拿來寫</strong>——不管實際是什麼，塞 <code>Integer</code> 進去一定合法。</li>
+</ul>
+<p class="formula">要讀就用 <code>extends</code>，要寫就用 <code>super</code></p>
+<pre><code>double total(List&lt;? extends Number&gt; values) {
+    double sum = 0;
+    for (Number value : values) {   // 讀出來都是 Number
+        sum += value.doubleValue();
+    }
+    return sum;
+}
+
+void addDefaults(List&lt;? super Integer&gt; values) {
+    values.add(0);                  // 寫 Integer 一定安全
+    values.add(1);
+}</code></pre>
+<p class="muted">為什麼 <code>List&lt;? extends Number&gt;</code> 不能隨便 <code>add</code>？因為編譯器不知道它實際是 <code>List&lt;Integer&gt;</code> 還是 <code>List&lt;Double&gt;</code>，塞錯就爆了，乾脆一律不准。</p>
+</section>
+
+<section>
+<p class="era">用同一套方式走訪</p>
+<h3 class="head">Iterator、Iterable 與 for-each</h3>
+<p>把資料一個一個取出來叫遍歷（traverse），迭代器（Iterator）就是它的實作。<code>Collection</code> 提供 <code>iterator()</code> 方法回傳一個迭代器，常用的就兩個方法：<code>hasNext()</code> 問還有沒有下一個，<code>next()</code> 取下一個。</p>
+<pre><code>Iterator&lt;String&gt; iterator = names.iterator();
+
+while (iterator.hasNext()) {
+    String name = iterator.next();
+    System.out.println(name);
+}</code></pre>
+<p>為什麼 Iterator 要做成介面？原筆記答得很好：<strong>ArrayList 有迭代器、HashSet 也有，通通叫 Iterator，用法就一致了。</strong></p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記兩處把 Iterable 的方法簽章寫成「Iterable &lt; T &gt; iterator()」「此介面只有一個iterator()方法,回傳Iterable介面」，查證後更正：iterator() 回傳的是 Iterator&lt;T&gt;，不是 Iterable"><code>Iterable</code>（Java 5 加入）表示「我生得出迭代器」，它唯一的方法 <code>iterator()</code> 回傳的是 <code>Iterator&lt;T&gt;</code>，不是 <code>Iterable</code>——原筆記兩處都抄錯了</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Iterable.html" target="_blank" rel="noopener">出處</a>。<code>Collection</code> 從 Java 5 起繼承 <code>Iterable</code>，所以 List、Set、Queue 全都能用增強式 for 迴圈（for-each）走訪。</p>
+<pre><code>for (String name : names) {
+    System.out.println(name);
+}</code></pre>
+<p>Map 本身沒有繼承 <code>Iterable</code>，不能直接對它 for-each，但可以走訪它提供的檢視集合。同時要鍵和值，走 <code>entrySet()</code> 最直接：</p>
+<pre><code>for (Map.Entry&lt;String, Integer&gt; entry : stock.entrySet()) {
+    System.out.println(entry.getKey() + ": " + entry.getValue());
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「傳統for迴圈具備迴圈設計要素(初值設定、條件判斷、計次),除了對存取上更有操作的彈性之外,在執行效能上也會比for-each來得更好」，查證後更正：這只在能用索引直接取值的結構上成立，換成 LinkedList 反而會慢一個數量級">「傳統 for 比 for-each 快」只在陣列、ArrayList 這種<strong>能用索引直接取值</strong>的結構上說得通。換成 <code>LinkedList</code>，每次 <code>get(i)</code> 都要從頭走一遍，整個迴圈會從線性變成平方級——那時候 for-each（走迭代器）反而快得多</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a>。原筆記說的「彈性較大」是對的：要索引、要反向走、要精細控制時，傳統 for 還是比較合適。</p>
+<p class="muted">走訪途中想刪掉目前這個元素，要用迭代器的 <code>remove()</code>，不能直接動集合，否則會拿到 <code>ConcurrentModificationException</code>。</p>
+</section>
+
+<section>
+<p class="era">名稱只差一個 s</p>
+<h3 class="head">Collection 與 Collections</h3>
+<div class="terms">
+<div class="term"><b>Collection</b><span>集合階層裡的<strong>介面</strong>，底下主要有 List、Set、Queue 三個子介面。</span></div>
+<div class="term"><b>Collections</b><span>提供集合工具方法的<strong>類別</strong>，全是靜態方法：排序、反轉、找最大最小值。</span></div>
+</div>
+<pre><code>List&lt;Integer&gt; numbers = new ArrayList&lt;&gt;(List.of(3, 1, 2));
+
+Collections.sort(numbers);            // 依自然順序由小到大
+int maximum = Collections.max(numbers);</code></pre>
+<p>自訂物件要有「自然順序」就實作 <code>Comparable</code>、覆寫 <code>compareTo()</code>；不想把排序規則寫死在類別裡，就另外給一個 <code>Comparator</code>。</p>
+<p class="muted">原筆記寫在這些語法出現之前，所以全部用 <code>new ArrayList&lt;&gt;()</code> 再一筆筆 <code>add</code>。Java 9 起有 <code>List.of(...)</code>、<code>Set.of(...)</code>、<code>Map.of(...)</code> 可以一行建好，但要注意<strong>它們產生的是不可修改的集合</strong>，再 <code>add</code> 會丟例外——想要能改的就像上面那樣再包一層 <code>new ArrayList&lt;&gt;(...)</code>。</p>
+<p class="muted">集合的取捨（ArrayList 與 LinkedList 怎麼選、Vector 為什麼被淘汰）在面試集第 1 課〈Java 基礎快答〉有速查版。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>List 有順序可重複、Set 元素唯一、Map 一個鍵對一個值。</li><li>Set 只保證不重複，順序看實作：Hash 不保證、LinkedHash 維持插入順序、Tree 依比較規則排序。</li><li>Hash 家族靠 <code>hashCode()</code>＋<code>equals()</code> 判重複，Tree 家族靠 <code>compareTo()</code> 是不是 0。</li><li>Map 是集合框架的一員，只是沒有繼承 <code>Collection</code>。</li><li>泛型把型別錯誤提前到編譯期；角括號裡只能放參考型別。</li><li>要讀用 <code>? extends</code>，要寫用 <code>? super</code>。</li><li><code>Iterable.iterator()</code> 回傳的是 <code>Iterator</code>；for-each 在 LinkedList 上比傳統索引 for 快得多。</li></ul></div>

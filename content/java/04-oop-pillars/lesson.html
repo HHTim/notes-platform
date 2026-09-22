@@ -1,0 +1,159 @@
+<!-- 來源：HackMD 匯出「Java - 模組16~26」「Java - 模組10~15」「Java 1 札記」「Java 2 札記」「Udemy - 來杯 Java 吧! (Chapter 4)」「Udemy - 來杯 Java 吧! (Chapter 5)」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用封裝把欄位藏好，並知道 <code>private</code>、<code>protected</code> 各自開放到哪</li><li>判斷什麼關係該用繼承、什麼關係不該用</li><li>分清多載（overload）與覆寫（override），並說明多型為什麼能少寫一堆 if</li><li>知道向下轉型的風險，以及 Java 16 之後怎麼寫比較短</li></ul></div>
+
+<section>
+<p class="era">先保護物件狀態</p>
+<h3 class="head">封裝與存取修飾子</h3>
+<p>封裝（encapsulation）像替物件裝一道有管理員的門：資料不讓外面隨便動，要改得透過方法，方法可以先檢查這樣改合不合理。標準做法是<strong>欄位設 <code>private</code>，再開必要的公開方法</strong>。</p>
+<div class="tablewrap"><table>
+<thead><tr><th>修飾子</th><th>同一個類別</th><th>同套件</th><th>不同套件的子類別</th><th>其他任何類別</th></tr></thead>
+<tbody>
+<tr><th><code>public</code></th><td>可</td><td>可</td><td>可</td><td>可</td></tr>
+<tr><th><code>protected</code></th><td>可</td><td>可</td><td>可，但有限制</td><td>不可</td></tr>
+<tr><th>不寫（package-private）</th><td>可</td><td>可</td><td>不可</td><td>不可</td></tr>
+<tr><th><code>private</code></th><td>可</td><td>不可</td><td>不可</td><td>不可</td></tr>
+</tbody>
+</table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 protected 是「Visible to the package and all subclasses」「1.同套件底下類別 或 2.所有其子類別都可以存取」，查證後補上規格上的限制：不同套件的子類別只能透過自己（或自己子型別）的參考去存取那個 protected 成員，不能拿父類別型別的參考亂存取"><code>protected</code> 那一格的「可，但有限制」是重點：不同套件的子類別確實看得到 <code>protected</code> 成員，但只能透過<strong>自己或自己子型別</strong>的參考去存取，不能拿一個父類別型別的參考就隨便碰</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.6.2" target="_blank" rel="noopener">出處</a>。面試集第 1 課〈Java 基礎快答〉的表格寫「同套件的類別＋所有子類別」，那是速查用的簡版，這裡補的是規格上的細節。</p>
+<p class="muted">兩個限制要記得：頂層類別只能用 <code>public</code> 或不寫（內部類別四種都能用）；區域變數不能加任何存取修飾子，因為它的能見範圍早就由所在的方法決定了。</p>
+</section>
+
+<section>
+<p class="era">不是每個欄位都要開放</p>
+<h3 class="head">Getter、Setter 與有效狀態</h3>
+<pre><code>class Product {
+    private int price;
+
+    public int getPrice() {
+        return price;                  // 讀：有回傳型別、有 return
+    }
+
+    public void setPrice(int price) {  // 寫：通常是 void、一定有參數
+        if (price &lt; 0) {
+            throw new IllegalArgumentException("價格不可為負數");
+        }
+        this.price = price;
+    }
+}</code></pre>
+<p>Getter 讀、Setter 寫，但兩者<strong>不一定要成對出現</strong>。建立之後就不該改的資料，只給 Getter 就好；要同時維持好幾個欄位的一致性時，設計一個有意義的方法（像 <code>applyDiscount()</code>）會比機械式地每個欄位配一組 get/set 好得多。</p>
+</section>
+
+<section>
+<p class="era">抽出共同特徵</p>
+<h3 class="head">繼承、is-a 與 has-a</h3>
+<p>繼承（inheritance）讓子類別延伸父類別可存取的狀態與行為，語法是 <code>extends</code>：</p>
+<pre><code>class Employee {
+    protected String name;
+}
+
+class FullTimeEmployee extends Employee {
+    private double monthlySalary;
+}</code></pre>
+<p><code>FullTimeEmployee</code> <strong>是一種</strong> <code>Employee</code>——這是 is-a；它<strong>有一個</strong> <code>monthlySalary</code>——這是 has-a。只有真的符合「是一種」才適合用繼承。原筆記把「濫用繼承」的兩個徵兆講得很清楚：資料關係跟現實邏輯對不上，還有子類別拿到錯誤或不必要的能力。</p>
+<p>三件要記的事：Java 類別<strong>只能繼承一個父類別</strong>；建構子不會被繼承（因為建構子名稱必須跟自己的類別同名）；所有類別追到底都是 <code>java.lang.Object</code> 的後代。另外，父類別的 <code>private</code> 方法不會被子類別繼承——子類別寫同名方法也不算覆寫。</p>
+</section>
+
+<section>
+<p class="era">父類別先準備共同部分</p>
+<h3 class="head">super、建構順序與 final</h3>
+<pre><code>class Employee {
+    private final String name;
+
+    Employee(String name) {
+        this.name = name;
+    }
+}
+
+class Manager extends Employee {
+    Manager(String name) {
+        super(name);      // 一定要放第一行
+    }
+}</code></pre>
+<p>建立子類別物件時，<strong>先完成父類別那一段，再完成子類別</strong>，這樣才能保證共同資料一定初始化過。<code>super(...)</code> 呼叫的是直接父類別的建構子，必須放在第一個敘述；沒寫的話編譯器會自己補一個 <code>super()</code>。因為 <code>this(...)</code> 也要放第一行，所以兩者只能擇一。</p>
+<p class="muted">原筆記寫「super：1. 只會出現在override方法裡」。實際上 <code>super.方法()</code> 寫在子類別的任何實體方法裡都合法，只是<strong>最常</strong>出現在覆寫方法中——因為那裡不加 <code>super.</code> 就變成自己呼叫自己（原筆記的第 3 點講的正是這個，那句沒錯）。真正的限制是不能用在靜態環境裡。這一條沒有在官方文件上找到可以直接對照的原文，所以標成補充而不是更正。</p>
+<p>另外 <code>super.</code> 不能越級，只找得到直接父類別。</p>
+<p><code>final</code> 放在不同位置有不同意思：</p>
+<div class="terms">
+<div class="term"><b>final 類別</b><span>不能被繼承。<code>String</code>、<code>Math</code> 都是。</span></div>
+<div class="term"><b>final 方法</b><span>不能被覆寫。</span></div>
+<div class="term"><b>final 基本型別變數</b><span>值不能再改，就是常數。</span></div>
+<div class="term"><b>final 參考變數</b><span>不能再指向別的物件；但那個物件內部可不可變，由它自己的設計決定。</span></div>
+</div>
+</section>
+
+<section>
+<p class="era">保留名稱，換上專屬行為</p>
+<h3 class="head">方法覆寫</h3>
+<p>覆寫（override）是子類別不滿意繼承來的方法，重新寫一份自己的。規則：</p>
+<ul class="plainlist">
+<li>方法名稱、參數的數量與型別都要跟父類別一樣。</li>
+<li>回傳型別要相容——Java 5 起，如果回傳的是類別，可以改成原本那個型別的<strong>子型別</strong>（叫共變回傳型別）。</li>
+<li>存取權限<strong>只能相同或更開放，不能縮小</strong>。</li>
+<li>丟出的受檢例外不能比父類別那個更廣（第 7 課細講）。</li>
+</ul>
+<pre><code>class Animal {
+    public void makeSound() {
+        System.out.println("動物的聲音");
+    }
+}
+
+class Dog extends Animal {
+    @Override
+    public void makeSound() {
+        System.out.println("汪汪");
+    }
+}</code></pre>
+<p><code>@Override</code> 請編譯器幫你確認「我真的覆寫到了」，拼錯名稱或參數寫錯它會直接報錯，很值得養成習慣。</p>
+<p class="formula">多載＝同名、參數不同，編譯期就決定；覆寫＝繼承關係裡重寫同一個方法，執行期才決定</p>
+<p class="muted">原筆記提到「static 方法不拿來討論覆寫，因為覆寫是物件導向機制」——這句是對的。子類別寫一個同名的 static 方法叫「隱藏」（hiding），不會有多型效果。</p>
+</section>
+
+<section>
+<p class="era">同一個操作，各自回應</p>
+<h3 class="head">多型與動態繫結</h3>
+<p>多型（polymorphism）＝用父型別的變數指向子類別的物件。呼叫被覆寫的方法時，JVM 會看<strong>執行時實際是哪個物件</strong>來挑版本，這叫動態繫結（dynamic binding，也叫延遲繫結）。</p>
+<pre><code>Animal[] animals = {
+    new Dog(),
+    new Cat(),
+    new Duck()
+};
+
+for (Animal animal : animals) {
+    animal.makeSound();   // 同一行，三種結果
+}</code></pre>
+<p>這就是多型的價值：再多加一種 <code>Animal</code> 子類別，走訪這個陣列的程式通常一個字都不用改，也省掉一長串 <code>if (是狗) … else if (是貓) …</code>。</p>
+<p class="formula">變數<strong>叫得動</strong>哪些方法，看宣告型別；實際<strong>執行</strong>哪個版本，看執行期的物件</p>
+<p class="muted">原筆記的比較表寫「靜態繫結速度較快、動態繫結速度較慢」。觀念上沒錯，但現在的 JVM 會在執行期分析實際型別並把呼叫最佳化掉，實務上大多數情況量不出差別——不要為了這個理由避開多型。</p>
+</section>
+
+<section>
+<p class="era">向下轉型要先確認</p>
+<h3 class="head">型別轉換與 instanceof</h3>
+<p>子類別物件可以自動當成父型別用（向上轉型，不會失敗）。反過來要把父型別參考轉回子型別，得自己明寫轉型，而且是<strong>執行時</strong>才檢查——轉錯就是 <code>ClassCastException</code>。</p>
+<pre><code>Animal animal = new Dog();
+
+if (animal instanceof Dog) {
+    Dog dog = (Dog) animal;
+    dog.fetch();
+}
+
+// Java 16 起可以合成一行：
+if (animal instanceof Dog dog) {
+    dog.fetch();
+}</code></pre>
+<p><code>instanceof</code> 檢查左邊的物件能不能當成右邊的型別用。<mark class="fixnote" tabindex="0" data-note="原筆記只介紹到「instanceof 運算子常被用來作為轉型操作前的檢查」的傳統寫法，收錄時補上版本界線：Java 16 起 instanceof 可以順手宣告變數">Java 16 起 <code>instanceof</code> 可以在檢查成功的同時順手宣告好變數，省掉那行重複的轉型</mark><a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">如果程式到處都在判斷具體子型別，通常表示共同介面或多型方法沒設計好——真正該做的是把那個行為變成父型別上的一個方法。</p>
+</section>
+
+<section>
+<p class="era">哪些類別可以繼承我</p>
+<h3 class="head">補充：sealed 類別</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記的繼承控制只講到 final（完全不能繼承），收錄時補上 Java 17 才有的 sealed">原筆記講繼承控制時只有 <code>final</code> 這個選項——要嘛誰都能繼承，要嘛誰都不能。Java 17 起多了 <code>sealed</code>：可以指名只允許哪幾個類別繼承</mark><a class="fixsrc" href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>public sealed class Shape permits Circle, Square { }
+
+final class Circle extends Shape { }
+final class Square extends Shape { }</code></pre>
+<p>好處是「這個型別總共就這幾種」變成編譯器知道的事，搭配 switch 的型樣比對時，少漏一種它會直接提醒你。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>封裝＝欄位設 private，透過有規則的方法維持資料有效；Getter、Setter 不必成對。</li><li>繼承表達 is-a，欄位與組合表達 has-a；「是一種」對不上就別用繼承。</li><li>覆寫時存取權限只能放寬不能縮小；<code>@Override</code> 幫你抓打錯。</li><li>多載編譯期決定、覆寫執行期決定；多型讓同一行程式對不同物件做對的事。</li><li>向上轉型安全，向下轉型會在執行期檢查，先用 <code>instanceof</code> 確認。</li><li><code>super.方法()</code> 可以寫在子類別的任何實體方法裡，不限覆寫方法。</li></ul></div>

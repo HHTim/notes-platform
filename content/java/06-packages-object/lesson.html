@@ -1,0 +1,129 @@
+<!-- 來源：HackMD 匯出「Java - 模組27~30」「Java 1 札記」「集合的大集合」「Udemy - 來杯 Java 吧! (Chapter 4)」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用套件替類別分組、處理同名類別撞在一起的狀況</li><li>看懂 <code>import</code> 到底做了什麼（以及沒做什麼）</li><li>正確覆寫 <code>equals()</code>、<code>hashCode()</code> 與 <code>toString()</code>，並記得它們的約定</li><li>使用包裝類別、裝箱拆箱與字串轉數字，並避開幾個經典的坑</li></ul></div>
+
+<section>
+<p class="era">程式碼的地址</p>
+<h3 class="head">套件替類別分組，也避免名稱撞車</h3>
+<p>套件（package）像類別的地址。不同團隊都可以有自己的 <code>Date</code> 或 <code>User</code>，只要住在不同套件，完整名稱就不一樣。慣例是<strong>全小寫</strong>，並用反過來寫的網域名稱降低撞名機會，例如 <code>tw.example.billing</code>。</p>
+<p>一個 Java 原始檔裡的三種元素都不是必要的，但只要出現就得照這個順序：</p>
+<p class="formula"><code>package</code> 宣告 → <code>import</code> 敘述 → 類別等型別宣告</p>
+<pre><code>package tw.example.app;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+
+public class Main {
+    public static void main(String[] args) {
+        ArrayList&lt;LocalDate&gt; dates = new ArrayList&lt;&gt;();
+    }
+}</code></pre>
+<p>一個原始檔<strong>最多只能有一個 public 頂層類別</strong>，而且檔名要跟它一致；同一個檔案裡還是可以放其他非公開的類別。原筆記給的理由很實際：那些類別別的地方用不到，放在一起互相搭配還比較好讀。</p>
+<p class="muted">常用的標準套件：<code>java.lang</code>（語言核心，String 就住這）、<code>java.io</code>（輸入輸出）、<code>java.net</code>（網路）、<code>java.util</code>（工具與集合）、<code>java.sql</code>（資料庫）。Java 9 之後這些都被收進 <code>java.base</code> 這個模組裡。</p>
+</section>
+
+<section>
+<p class="era">尋找類別</p>
+<h3 class="head">import 省的是名稱，不是把程式載進來</h3>
+<p><code>import</code> 只是讓你可以寫簡短的類別名稱，不會把任何東西複製或載入到你的檔案裡。兩個地方不必匯入：<code>java.lang</code> 裡的型別，以及跟你同一個套件的型別。</p>
+<pre><code>import java.sql.Date;
+
+Date sqlDate = new Date(System.currentTimeMillis());
+java.util.Date utilDate = new java.util.Date();   // 完整限定名稱</code></pre>
+<p>兩個套件都有 <code>Date</code> 的時候，不可能讓兩個都用簡名，至少要有一個寫成完整限定名稱（fully qualified name，連套件一起寫）。</p>
+<p>星號只涵蓋指定的那個套件，<strong>不會連子套件一起匯入</strong>——<code>import java.util.*;</code> 不會匯入 <code>java.util.function</code> 裡的東西。</p>
+<p>靜態匯入（static import，Java 5 起）可以連類別名稱都省掉：</p>
+<pre><code>import static java.lang.Math.PI;
+import static java.lang.Math.sin;
+
+double value = sin(PI / 2);   // 不必寫 Math.sin(Math.PI / 2)</code></pre>
+<p class="muted">數學式用一點會清楚很多，但用太多讀的人就看不出這個成員是從哪來的，原筆記也特別提醒了這點。</p>
+</section>
+
+<section>
+<p class="era">編譯與執行</p>
+<h3 class="head">目錄位置與類別路徑要對得上套件名稱</h3>
+<p>套件名稱對應目錄階層。類別宣告在 <code>tw.example.app</code>，編譯出來的 <code>.class</code> 就會放在 <code>tw/example/app</code> 底下。執行時要用完整類別名稱：</p>
+<pre><code>javac -d out src/tw/example/app/Main.java
+java -cp out tw.example.app.Main</code></pre>
+<p><code>-d</code> 指定編譯輸出的<strong>根目錄</strong>；類別路徑（classpath）則告訴編譯器與 JVM 去哪些根目錄或 jar 檔找類別。注意它指的是套件樹的<strong>起點</strong>，不是某個 <code>.class</code> 檔本身的路徑。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把 classpath 的搜尋分成「1. Bootstrap classes：已置於 %JAVA_HOME%\jre\lib\rt.jar 檔案」「2. Extension classes：指的是 %JAVA_HOME%\jre\lib\ext 目錄下的jar檔或zip檔」「3. Users classes」三類，這在 Java 8 當年是對的，收錄時補上版本界線：前兩類在 Java 9 之後已經不存在">原筆記把搜尋順序分成 Bootstrap、Extension、User 三類，那是 Java 8 的世界。Java 9 把執行環境改成模組化映像檔之後，<code>rt.jar</code> 與 <code>jre/lib/ext</code> 這個擴充機制都已經拿掉了，現在實務上只剩你自己設定的類別路徑（以及模組路徑）</mark><a class="fixsrc" href="https://openjdk.org/jeps/220" target="_blank" rel="noopener">出處</a>。日常開發多半交給 Maven 或 Gradle 處理，很少手動設。</p>
+</section>
+
+<section>
+<p class="era">共同祖先</p>
+<h3 class="head">所有類別追到底都是 Object</h3>
+<p>沒寫父類別的類別直接繼承 <code>java.lang.Object</code>；有父類別的，也會沿著繼承鏈間接連到它。所以任何物件都用得到 <code>Object</code> 定義的那幾個方法。</p>
+<div class="tablewrap"><table>
+<thead><tr><th>方法</th><th>做什麼</th></tr></thead>
+<tbody>
+<tr><th><code>toString()</code></th><td>給物件一段文字表示，方便記錄、列印與除錯</td></tr>
+<tr><th><code>equals(Object)</code></th><td>由你定義「兩個物件算不算相等」</td></tr>
+<tr><th><code>hashCode()</code></th><td>給一個整數，供雜湊型集合搭配 <code>equals</code> 使用</td></tr>
+<tr><th><code>getClass()</code></th><td>取得物件執行時的類別資訊</td></tr>
+<tr><th><code>wait()</code>、<code>notify()</code>、<code>notifyAll()</code></th><td>執行緒之間的協調（第 10 課）</td></tr>
+</tbody>
+</table></div>
+<p><code>equals(Object obj)</code> 的參數之所以是 <code>Object</code>，就是要讓任何物件都傳得進來比較。<code>System.out.println(物件)</code> 印的是 <code>toString()</code> 的結果；沒覆寫的話那串預設內容對人類沒什麼意義，所以自訂類別通常會給一個好讀的版本。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「protected void finalize() └>JDK 9 列為淘汰，因為不常用且Java有自動回收機制，取代C++的解構式」，查證後補上後續：Java 18 起已進一步標記為準備移除"><code>Object</code> 還有一個 <code>finalize()</code>，原筆記說它在 Java 9 被標記廢棄，這是對的；後續還有一步——Java 18 起已經標記為<strong>準備移除</strong>，官方明講不要靠它釋放資源</mark><a class="fixsrc" href="https://openjdk.org/jeps/421" target="_blank" rel="noopener">出處</a>。要收尾請用 try-with-resources（第 7 課）。</p>
+</section>
+
+<section>
+<p class="era">相等的定義</p>
+<h3 class="head">== 看是不是同一個，equals 看內容一不一樣</h3>
+<p>對參考型別而言，<code>==</code> 比的是兩個參考指不指向同一個物件；<code>equals()</code> 則可以由類別自己覆寫，定義什麼叫「內容相等」。</p>
+<pre><code>final class Member {
+    private final int id;
+    private final String name;
+
+    Member(int id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof Member other)) return false;   // Java 16 起的寫法
+        return id == other.id &amp;&amp; Objects.equals(name, other.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name);
+    }
+
+    @Override
+    public String toString() {
+        return "Member{id=" + id + ", name='" + name + "'}";
+    }
+}</code></pre>
+<p><strong>覆寫了 <code>equals()</code> 就要一起覆寫 <code>hashCode()</code>。</strong>不然物件丟進 <code>HashSet</code>、或當 <code>HashMap</code> 的鍵時，會出現「明明放進去了卻查不到」這種怪事。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記（集合的大集合）列的四條裡，第 3 條寫「若兩物件的equals()不相等，則hashCode()回傳的值必不相等」，這一條錯了，而且跟同一份筆記第 4 條「若兩物件的hashCode()回傳的值相等，但equals()回傳的值不一定相等」自相矛盾，查證後更正">官方約定只有兩個方向：同一個物件多次呼叫 <code>hashCode()</code> 要給同樣的值；<code>equals()</code> 相等的兩個物件，<code>hashCode()</code> <strong>必須</strong>相同。反過來<strong>沒有</strong>要求——<code>equals()</code> 不相等的物件，雜湊碼完全可以一樣，那叫雜湊碰撞（hash collision），是正常現象</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Object.html#hashCode()" target="_blank" rel="noopener">出處</a>。</p>
+<p class="formula">先用 <code>hashCode()</code> 粗篩位置，再用 <code>equals()</code> 精確確認——像先看郵遞區號，再核對完整地址</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「一個物件一定有記憶體位址，當呼叫hashCode()方法後，會將該記憶體位址輸入到Hash Table中，接著產生出一組hashCode」，查證後更正：因果反了——hashCode() 是先產生出一個整數，HashMap 這類雜湊表再拿它去用，不是雜湊表算出 hashCode。至於它是不是由記憶體位址算來的，規格並沒有規定">這裡的因果反了：<code>hashCode()</code> 是先產生一個整數，<code>HashMap</code> 這類雜湊表再<strong>拿它去用</strong>，不是雜湊表算出 hashCode。官方文件只規定「同一個物件每次要回傳同樣的值」，至於那個值怎麼算出來（是不是由記憶體位址來的）並沒有規定</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Object.html#hashCode()" target="_blank" rel="noopener">出處</a>。這也是為什麼不覆寫就直接丟進 <code>HashSet</code>，兩個內容相同的物件會被當成兩筆。</p>
+</section>
+
+<section>
+<p class="era">基本型別的物件外衣</p>
+<h3 class="head">包裝類別、裝箱與拆箱</h3>
+<div class="terms">
+<div class="term"><b>整數</b><span><code>byte→Byte</code>、<code>short→Short</code>、<code>int→Integer</code>、<code>long→Long</code></span></div>
+<div class="term"><b>浮點數</b><span><code>float→Float</code>、<code>double→Double</code></span></div>
+<div class="term"><b>其他</b><span><code>char→Character</code>、<code>boolean→Boolean</code></span></div>
+</div>
+<p>把基本型別包成物件叫<strong>裝箱</strong>（boxing），反過來取出值叫<strong>拆箱</strong>（unboxing）。為什麼要裝箱？因為集合、泛型這些地方只收參考型別。Java 5 起編譯器會自動幫你裝拆，所以平常寫起來沒什麼感覺。</p>
+<pre><code>Integer boxed = 10;   // 自動裝箱
+int number = boxed;   // 自動拆箱
+
+int parsed = Integer.parseInt("42");      // 回傳 int
+Integer wrapped = Integer.valueOf("42");  // 回傳 Integer</code></pre>
+<p class="formula"><code>parseXxx()</code> 給你基本型別，<code>valueOf()</code> 給你包裝物件</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Integer i = new Integer(1); JDK 9 以後改用 Integer i = Integer.valueOf(10); 不再用new建立物件，不用浪費記憶體空間」，查證後補上後續：Java 16 起這些建構子已標記為準備移除">原筆記說 Java 9 起改用 <code>Integer.valueOf()</code>，這是對的；後續還有一步——Java 16 起，包裝類別的建構子已經標記為<strong>準備移除</strong>，現在等於是不能再寫 <code>new Integer(...)</code> 了</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Integer.html#%3Cinit%3E(int)" target="_blank" rel="noopener">出處</a>。<code>valueOf()</code> 省的不只是一次配置——小範圍的整數它會重複使用快取好的物件。</p>
+<p>兩個常見的坑：</p>
+<ul class="plainlist">
+<li><strong>比包裝物件的值要用 <code>equals()</code></strong>。因為有快取，<code>==</code> 在小數字時看起來會相等、換成大數字又不相等，很容易誤判。</li>
+<li><strong>自動拆箱一個 <code>null</code> 會丟 <code>NullPointerException</code></strong>。<code>Integer</code> 可以是 <code>null</code>，<code>int</code> 不行。</li>
+</ul>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>套件是類別的命名空間，也對應目錄階層；套件名稱全小寫、用反向網域。</li><li><code>import</code> 只是讓名稱可以寫短；星號不包含子套件。</li><li>classpath 指的是套件樹或 jar 的搜尋<strong>起點</strong>；Java 9 之後 <code>rt.jar</code> 與 ext 機制已經沒了。</li><li><code>==</code> 比是不是同一個物件，覆寫過的 <code>equals()</code> 才比內容。</li><li>覆寫 <code>equals()</code> 就要一起覆寫 <code>hashCode()</code>；但雜湊碼相同<strong>不</strong>代表物件相等。</li><li><code>parseInt()</code> 給 int、<code>valueOf()</code> 給 Integer；比包裝物件的值用 <code>equals()</code>，小心拆箱 <code>null</code>。</li></ul></div>

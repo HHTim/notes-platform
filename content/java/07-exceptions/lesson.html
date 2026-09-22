@@ -1,0 +1,135 @@
+<!-- 來源：HackMD 匯出「Java2 - 模組1~5」「Java - 模組16~26」「Java 2 札記」「Java 1 札記」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看懂 <code>Throwable</code>、<code>Error</code> 與 <code>Exception</code> 的家族關係</li><li>分清受檢例外與非受檢例外，知道編譯器什麼時候會逼你處理</li><li>分清 <code>throw</code> 與 <code>throws</code>，並用 try-with-resources 正確收尾</li><li>設計自訂例外，並遵守覆寫時的例外規則</li></ul></div>
+
+<section>
+<p class="era">錯誤也是物件</p>
+<h3 class="head">例外把失敗路徑從正常流程裡拉出來</h3>
+<p>程式遇到照原計畫走不下去的狀況——檔案不存在、資料格式錯、索引越界、資料庫連不上——就產生並拋出一個例外物件。這個機制像建築物的緊急動線：平常走正常通道，出事才轉到處理失敗的那條路。原筆記講的好處很實在：<strong>正常流程跟錯誤處理分開寫，程式好讀多了</strong>，不用到處塞 <code>if...else</code> 自己檢查。</p>
+<p>所有能被拋出的東西都繼承 <code>Throwable</code>，底下分兩支：</p>
+<div class="tablewrap"><table>
+<thead><tr><th>類別</th><th>意思</th><th>一般怎麼處理</th></tr></thead>
+<tbody>
+<tr><th><code>Error</code></th><td>JVM 或執行環境層級的嚴重問題，例如記憶體爆了</td><td>不寫程式去救，救了也沒用</td></tr>
+<tr><th>受檢例外<br>（checked）</th><td><code>Exception</code> 裡不屬於 <code>RuntimeException</code> 的那些</td><td><strong>編譯器強迫</strong>你捕捉或宣告拋出</td></tr>
+<tr><th>非受檢例外<br>（unchecked）</th><td><code>RuntimeException</code> 及其子類別</td><td>不強迫處理，靠修邏輯或先驗證輸入來預防</td></tr>
+</tbody>
+</table></div>
+<p>受檢例外的代表是 <code>IOException</code>、<code>SQLException</code>；非受檢的常客是 <code>NullPointerException</code>、<code>IllegalArgumentException</code>、<code>NumberFormatException</code>、<code>ClassCastException</code>、<code>IndexOutOfBoundsException</code>。原筆記解釋了為什麼後者不強迫處理——<strong>這些狀況本來就該由程式設計者在寫的時候避開</strong>。</p>
+</section>
+
+<section>
+<p class="era">捕捉失敗</p>
+<h3 class="head">try 放有風險的操作，catch 接你懂的例外</h3>
+<pre><code>try {
+    int port = Integer.parseInt(input);
+    connect(port);
+} catch (NumberFormatException e) {
+    System.err.println("連接埠必須是整數：" + e.getMessage());
+} catch (ConnectionException e) {
+    System.err.println("連線失敗：" + e.getMessage());
+}</code></pre>
+<p>變數 <code>e</code> 指向被接住的那個例外物件，可以用 <code>getMessage()</code> 取訊息，或 <code>printStackTrace()</code> 看呼叫堆疊。</p>
+<p class="formula">多個 <code>catch</code> 要「先具體、後一般」——出事了兒子先擋</p>
+<p>如果先寫 <code>catch (Exception e)</code>，後面那些特定例外的區塊永遠到不了，編譯器會直接拒絕。</p>
+<p class="muted">不要為了讓程式看起來沒壞就寫一個空的 <code>catch</code>。當下沒辦法合理復原時，該做的是保留原因、補上情境後重新拋出，或交給上層統一處理。</p>
+</section>
+
+<section>
+<p class="era">一定要收尾</p>
+<h3 class="head">finally 與 try-with-resources</h3>
+<p><code>finally</code> 放在所有 <code>catch</code> 後面，不管成功失敗都會跑，所以拿來釋放資源——關資料庫連線、關檔案。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「finally { } 是無論發生什麼情況皆會執行的程式區塊」，查證後補上界線：呼叫 System.exit() 或 JVM 被強制結束時，finally 不會執行">「無論發生什麼情況」要加一個但書：例外有沒有被處理，<code>finally</code> 都會跑沒錯；但如果在 <code>try</code> 裡呼叫了 <code>System.exit()</code>，或整個 JVM 被強制砍掉，<code>finally</code> 就不會執行</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.20.2" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記整套例外處理只教到 try-catch-finally，完全沒有提到 try-with-resources；另有一處（Java 2 札記「釋放資源」）建議「先呼叫close()，再將該物件設為空值(null)」，並附了一段 int a = scanner(System.in); ... a = null; 的程式碼——那段程式碼本身不成立（int 不能設成 null），做法也已經被更好的語法取代，收錄時補上">原筆記從頭到尾只教了 <code>try-catch-finally</code>，沒提到 <strong>try-with-resources</strong>。這是 Java 7 就有的語法：只要資源實作了 <code>AutoCloseable</code>，區塊結束時會自動關閉，而且會妥善保留「主要例外」與關閉時產生的受抑制例外</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>// 舊寫法：自己在 finally 裡關
+Connection connection = null;
+try {
+    connection = openConnection();
+    runQuery(connection);
+} catch (DatabaseException e) {
+    System.err.println(e.getMessage());
+} finally {
+    if (connection != null) {
+        connection.close();
+    }
+}
+
+// 現在的寫法：括號裡宣告資源，區塊結束自動關
+try (BufferedReader reader = Files.newBufferedReader(path)) {
+    System.out.println(reader.readLine());
+} catch (IOException e) {
+    System.err.println("讀取失敗：" + e.getMessage());
+}</code></pre>
+<p class="muted">順帶一提：把參考變數設成 <code>null</code> <strong>不等於</strong>關閉資源。原筆記提到「先 close() 再設 null」，順序是對的，但用 try-with-resources 之後這件事根本不必自己做。</p>
+</section>
+
+<section>
+<p class="era">兩個容易混淆的字</p>
+<h3 class="head">throw 是真的丟，throws 是先聲明可能會丟</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>關鍵字</th><th>寫在哪</th><th>作用</th></tr></thead>
+<tbody>
+<tr><th><code>throw</code></th><td>方法主體內</td><td>丟出一個 <code>Throwable</code> 物件</td></tr>
+<tr><th><code>throws</code></th><td>方法宣告後面</td><td>聲明這個方法可能把哪些例外交給呼叫端</td></tr>
+</tbody>
+</table></div>
+<pre><code>static void withdraw(int amount) throws InsufficientFundsException {
+    if (amount &lt; 0) {
+        throw new IllegalArgumentException("金額不可小於 0");
+    }
+    if (amount &gt; balance) {
+        throw new InsufficientFundsException("餘額不足");
+    }
+}</code></pre>
+<p><code>throws</code> 不代表例外一定會發生，也不代表已經處理好了——它只是把責任交給呼叫端。呼叫一個會丟受檢例外的方法時，呼叫端只有兩條路：用 <code>try-catch</code> 接（原筆記叫「明確處理」），或在自己的宣告上繼續 <code>throws</code>（原筆記叫「消極處理」）。一路推到最後沒人接，就是 JVM 幫你印錯誤然後結束。</p>
+</section>
+
+<section>
+<p class="era">一次處理同一類結果</p>
+<h3 class="head">多重捕捉</h3>
+<pre><code>try {
+    loadConfiguration();
+} catch (IOException | ParseException e) {
+    System.err.println("設定載入失敗：" + e.getMessage());
+}</code></pre>
+<p>用直線 <code>|</code> 分隔多個型別，Java 7 起可用。兩個限制：列出來的例外<strong>不能有父子繼承關係</strong>（廣的那個已經涵蓋窄的了），而且只有處理方式一模一樣時才值得合併。</p>
+</section>
+
+<section>
+<p class="era">領域化的錯誤</p>
+<h3 class="head">自訂例外</h3>
+<p>自訂例外繼承 <code>Exception</code> 就是受檢的，適合表達「呼叫端可以預期、也有機會補救」的業務失敗；繼承 <code>RuntimeException</code> 就是非受檢的，適合表達「違反方法的使用約定」或「程式狀態不合理」。</p>
+<pre><code>class InsufficientFundsException extends Exception {
+    InsufficientFundsException(String message) {
+        super(message);
+    }
+
+    InsufficientFundsException(String message, Throwable cause) {
+        super(message, cause);   // 保留真正的原因與堆疊
+    }
+}</code></pre>
+<p>包裝底層例外時記得把 <code>cause</code> 傳進去，不然原始的錯誤現場就不見了。另外，例外的名稱與訊息要描述「失敗了什麼」，不要把正常的流程分支也改用例外來寫。</p>
+</section>
+
+<section>
+<p class="era">繼承規則</p>
+<h3 class="head">覆寫方法不能加上更廣的受檢例外</h3>
+<pre><code>class Base {
+    void load() throws IOException { }
+}
+
+class Child extends Base {
+    @Override
+    void load() throws FileNotFoundException { }   // 可以：更具體
+    // void load() throws Exception { }            // 不行：範圍變大了
+}</code></pre>
+<p>子類別覆寫時可以不宣告例外，也可以宣告相同型別或更具體的子型別，就是不能換成更廣的受檢例外。道理跟第 4 課的存取權限規則一樣：<strong>呼叫端只照父類別的約定做準備，不該突然被迫面對更大的風險範圍。</strong>這條限制只管受檢例外，非受檢例外不受宣告限制。</p>
+</section>
+
+<section>
+<p class="era">開發期的自我檢查</p>
+<h3 class="head">assert 驗證內部假設，不能拿來驗證輸入</h3>
+<pre><code>assert total &gt;= 0 : "總額不應為負數";</code></pre>
+<p>斷言（assertion）失敗時會丟 <code>AssertionError</code>。它適合檢查「照設計來說一定成立」的內部條件。原筆記提到執行時要加 <code>java -ea</code> 才會啟用，這正是它的限制所在：<strong>斷言預設是關閉的</strong>，所以絕對不能拿來驗證使用者輸入、權限或公開方法的參數——那些要用 <code>if</code> 加丟例外。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>受檢例外編譯器逼你處理，非受檢例外不逼；<code>Error</code> 不寫程式去救。</li><li>多個 <code>catch</code> 要先具體、後一般，不然後面的永遠到不了。</li><li><code>throw</code> 是丟出物件，<code>throws</code> 是在宣告上聲明責任要交給呼叫端。</li><li>關資源優先用 try-with-resources，必要時才自己寫 <code>finally</code>；設成 <code>null</code> 不等於關閉。</li><li><code>finally</code> 幾乎一定會跑，但 <code>System.exit()</code> 或 JVM 被砍掉時不會。</li><li>覆寫方法不能加上比父方法更廣的受檢例外；<code>assert</code> 預設關閉，不能拿來驗證輸入。</li></ul></div>

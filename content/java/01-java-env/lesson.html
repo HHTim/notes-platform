@@ -1,0 +1,104 @@
+<!-- 來源：HackMD 匯出「Java背景」「Java基礎 (JVM、JRE、JDK傻傻分不清?)」「Eclipse」「First Java Program」「Node.js & Java 比較」「Java - 模組1~5」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 Java 程式怎麼從原始碼變成跑得動的東西，以及誰負責哪一段</li><li>分辨 JVM、JRE、JDK 這三個長很像的縮寫</li><li>自己裝好 JDK、確認環境變數，並編譯執行第一支程式</li><li>知道現在該裝哪個版本，以及舊教材哪些說法已經過時</li></ul></div>
+
+<section>
+<p class="era">先建立全貌</p>
+<h3 class="head">Java 是什麼</h3>
+<p>Java 是一種高階、物件導向、強型別的程式語言。它刻意不讓你直接去碰記憶體位址，不再使用的物件也交給垃圾回收器（garbage collector，自動把沒人用的記憶體收回去的機制）處理，所以比起要自己管記憶體的語言好入門得多。</p>
+<p>它最有名的特色是跨平台：原始碼先編譯成跟作業系統無關的位元碼（bytecode），再交給各平台自己的 Java 虛擬機器（JVM）執行。像是先把稿件翻成一份共通格式，再由各地的口譯員轉成當地語言。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「2009年sun公司被Oracle公司收購」，查證後更正：2009 年 4 月只是宣布收購協議，合併要到 2010 年 1 月才真正完成">Java 由昇陽電腦（Sun Microsystems）在 1995 年推出，早期叫 Oak；2009 年 4 月 20 日 Oracle 發的是「雙方簽訂收購協議」的公告，實際完成合併要到 2010 年 1 月</mark><a class="fixsrc" href="https://www.oracle.com/us/corporate/press/018363" target="_blank" rel="noopener">出處</a>。它主要用在伺服器端系統、企業應用、開發工具，以及各種要跨平台的軟體。初學語法通常從 Java SE（標準版）開始，企業端那一套後來改名叫 Jakarta EE。</p>
+</section>
+
+<section>
+<p class="era">程式怎麼跑起來</p>
+<h3 class="head">從 .java 到 .class</h3>
+<p>你寫的檔案叫原始碼（source code），副檔名是 <code>.java</code>。編譯器 <code>javac</code> 會檢查語法、產生含有位元碼的 <code>.class</code> 檔；接著 JVM 把這個 <code>.class</code> 載進來執行。</p>
+<pre><code>HelloWorld.java
+      │ javac HelloWorld.java   ← 編譯
+      ▼
+HelloWorld.class
+      │ java HelloWorld         ← 執行
+      ▼
+JVM 載入位元碼，在目前這台機器上跑</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記一處寫「JVM編譯，JRE執行」，另一處（Node.js &amp; Java 比較）寫「JVM 是 Java 的編譯器」，兩句都把角色弄反了，查證後更正">負責編譯的是 <code>javac</code>，負責執行的是 JVM——不是「JVM 編譯、JRE 執行」，也不能說 JVM 是編譯器</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/javac.html" target="_blank" rel="noopener">出處</a>。JRE 是「JVM＋標準函式庫」這一整包執行環境，它本身不做編譯。</p>
+<p>「一次編譯，到處執行」不是說平台差異全部消失，而是同一份相容的位元碼，可以交給 Windows、macOS、Linux 上各自適用的 JVM 去跑。</p>
+</section>
+
+<section>
+<p class="era">三個縮寫一次分清楚</p>
+<h3 class="head">JVM、JRE 與 JDK</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>縮寫</th><th>全名</th><th>它負責什麼</th></tr></thead>
+<tbody>
+<tr><th>JVM</th><td>Java Virtual Machine<br>Java 虛擬機器</td><td>載入並執行位元碼</td></tr>
+<tr><th>JRE</th><td>Java Runtime Environment<br>Java 執行環境</td><td>JVM＋執行程式需要的標準函式庫</td></tr>
+<tr><th>JDK</th><td>Java Development Kit<br>Java 開發工具組</td><td>開發與執行都有：<code>javac</code>、<code>java</code>、<code>javadoc</code> 等</td></tr>
+</tbody>
+</table></div>
+<p class="formula">JVM 是引擎，JRE 是能把車開上路的整套設備，JDK 再加上製造與維修的工具</p>
+<p>要寫程式，直接裝 JDK 最省事。<mark class="fixnote" tabindex="0" data-note="原筆記列「在JDK 安裝目錄下重要的資料夾……jre: Java 運行環境」，在 Java 8 當年是對的，收錄時補上版本界線：Java 9 起 JDK 內不再有獨立的 jre 目錄">原筆記畫的「JDK 裡面包一個 jre 資料夾」在 Java 8 當年完全正確，只是那個長相已經變了。Java 9 把執行環境改成模組化映像檔之後，JDK 內就沒有那個獨立的 <code>jre</code> 目錄了，Oracle 也不再單獨發行 JRE 安裝檔</mark><a class="fixsrc" href="https://openjdk.org/jeps/220" target="_blank" rel="noopener">出處</a>。概念上 JRE 還在（就是 JDK 裡那份執行環境），但你不會再看到那個資料夾。</p>
+<p class="muted">拿 JavaScript 來對照可以幫助理解：Node.js 讓 JavaScript 能在瀏覽器以外執行，JVM 讓位元碼能在各平台執行。但這只是比喻——Node.js 是一套執行環境，JDK 除了執行還包含編譯器與各種開發工具，涵蓋範圍不一樣。</p>
+</section>
+
+<section>
+<p class="era">準備工具</p>
+<h3 class="head">裝 JDK、設環境變數</h3>
+<p>依你的作業系統與處理器架構下載對應的 JDK 裝好，然後在終端機（Windows 是命令提示字元）打：</p>
+<pre><code>java -version
+javac -version</code></pre>
+<p>兩個指令都印得出版本，表示指令搜尋路徑大致設對了。<code>java</code> 是啟動程式的工具，<code>javac</code> 是編譯器。</p>
+<div class="terms">
+<div class="term"><b>PATH</b><span>作業系統的地址簿，讓你在任何資料夾都叫得到 <code>java</code> 與 <code>javac</code>。</span></div>
+<div class="term"><b>JAVA_HOME</b><span>指向 JDK 的安裝目錄，讓建置工具（Maven、Gradle）和其他程式找得到 JDK。</span></div>
+<div class="term"><b>CLASSPATH</b><span>告訴編譯器與 JVM 去哪些根目錄或 jar 檔找類別。現在多半交給建置工具處理，很少手動設。</span></div>
+</div>
+<pre><code>JAVA_HOME = JDK 安裝目錄
+PATH 加入 %JAVA_HOME%\bin（Windows）或 $JAVA_HOME/bin（macOS、Linux）</code></pre>
+<p class="muted">原筆記的例子是 <code>JAVA_HOME C:\jdk-17.0.6</code>。實際畫面與路徑會隨作業系統和你挑的 JDK 發行版而不同。</p>
+</section>
+
+<section>
+<p class="era">現在該裝哪一版</p>
+<h3 class="head">版本界線：原筆記寫在 Java 8〜11 的年代</h3>
+<p>Java 每半年出一版，但只有少數版本是長期支援版（LTS，Long-Term Support，官方保證長期修補的版本）。<mark class="fixnote" tabindex="0" data-note="原筆記的環境設定以 Java 8〜17 為例（JAVA_HOME C:\jdk-17.0.6），收錄時補上現行版本狀況">到 2026 年，手上在用的長期支援版是 Java 21（2023 年 9 月）與 Java 25（2025 年 9 月）；新專案通常直接從這兩個挑</mark><a class="fixsrc" href="https://www.oracle.com/java/technologies/java-se-support-roadmap.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>這個模組後面會一路標出哪些寫法是哪一版才有的。先記住幾個分水嶺就好：</p>
+<ul class="plainlist">
+<li><strong>Java 8</strong>：介面可以有帶實作的方法（default、static），Lambda 與 Stream 進來。</li>
+<li><strong>Java 9</strong>：模組化，<code>rt.jar</code> 與獨立的 jre 目錄消失。</li>
+<li><strong>Java 10</strong>：區域變數可以寫 <code>var</code>。</li>
+<li><strong>Java 14〜17</strong>：switch 可以當運算式用、文字區塊、record、sealed 類別。</li>
+<li><strong>Java 21</strong>：虛擬執行緒、switch 的型樣比對正式定案。</li>
+</ul>
+</section>
+
+<section>
+<p class="era">第一支程式</p>
+<h3 class="head">編譯與執行 Hello World</h3>
+<pre><code>public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello World!");
+    }
+}</code></pre>
+<p>存成 <code>HelloWorld.java</code>。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Class名稱一定要跟文件名稱相同」「Class名稱一定要大寫英文字母開頭」，對它示範的 public 類別來說沒錯，但這兩句說得太滿，收錄時補上界線：只有 public 類別才強制同名，開頭大寫是命名慣例不是語法規定">檔名必須跟公開類別（<code>public class</code>）的名稱完全一致，大小寫也要一樣；非公開的類別不受這條限制。至於「類別名稱大寫開頭」是命名慣例，不是編譯器會擋的規定</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-7.html#jls-7.6" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>javac HelloWorld.java
+java HelloWorld</code></pre>
+<p>第一行產生 <code>HelloWorld.class</code>；第二行傳的是<strong>類別名稱</strong>，不要加 <code>.class</code>。成功就會印出 <code>Hello World!</code>。</p>
+<p>那一行宣告裡的四個字各有職責：</p>
+<div class="terms">
+<div class="term"><b>public</b><span>讓啟動器存取得到這個方法。</span></div>
+<div class="term"><b>static</b><span>不必先建立物件就能呼叫。<mark class="fixnote" tabindex="0" data-note="原筆記寫「static:表示此方法是靜態方法 static function，可以讓OS載入時就被儲存在記憶體中」，查證後更正：載入類別的是 JVM 的類別載入機制，不是作業系統">把類別載進來的是 JVM 的類別載入機制，不是作業系統</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html" target="_blank" rel="noopener">出處</a>。</span></div>
+<div class="term"><b>void</b><span>這個方法不回傳資料。</span></div>
+<div class="term"><b>String[] args</b><span>接收命令列引數的字串陣列。</span></div>
+</div>
+<p class="muted">原筆記有一句「這樣Java虛擬機可以找到main()方法，來運行javac程序」——執行程式的是 <code>java</code> 啟動器，<code>javac</code> 是編譯階段的事，這裡混在一起了。</p>
+</section>
+
+<section>
+<p class="era">開發工具</p>
+<h3 class="head">IDE 與 Eclipse</h3>
+<p>整合開發環境（IDE，Integrated Development Environment）把編輯、編譯、執行、除錯與程式碼提示集中在同一套工具裡。Java 界常見的是 Eclipse、IntelliJ IDEA 與 Visual Studio Code。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Eclipse最早是由Object Technologies International這家公司開發，在1996年被IBM併購後，IBM將Eclipse公開捐出」，時間軸被壓縮了，查證後更正：1996 年被併購的是那家公司，Eclipse 專案要到 2001 年 11 月才由 IBM 釋出，獨立的 Eclipse 基金會是 2004 年 1 月才成立">Object Technology International 確實在 1996 年被 IBM 併購，但 Eclipse 專案是 IBM 在 2001 年 11 月才建立並釋出、由一群廠商組成聯盟支持；獨立的 Eclipse 基金會要到 2004 年 1 月才成立</mark><a class="fixsrc" href="https://www.eclipse.org/org/foundation/" target="_blank" rel="noopener">出處</a>。</p>
+<p>Eclipse 的設計特色是「什麼都是外掛」，核心之外的功能都用外掛加上去，所以擴充性強。但用 IDE 並沒有改變 Java 的流程——它只是代替你去呼叫編譯器與執行工具，再把結果畫得好看一點。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li><code>.java</code> 是原始碼，<code>javac</code> 把它編成含位元碼的 <code>.class</code>，JVM 負責執行——編譯跟執行是兩個人的事。</li><li>JVM 執行、JRE 是執行環境、JDK 是開發工具組；要寫程式就裝 JDK。</li><li>跨平台靠的是各平台自己的 JVM，不代表所有系統細節都一樣。</li><li>只有 public 類別強制跟檔名同名；大寫開頭是慣例不是規定。</li><li>Java 9 之後 JDK 裡沒有獨立的 jre 目錄了，舊教材的目錄圖要換掉。</li><li>現在挑版本從長期支援版下手：Java 21 或 Java 25。</li></ul></div>

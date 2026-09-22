@@ -1,0 +1,137 @@
+<!-- 來源：HackMD 匯出「Java 1 札記」「Java - 模組16~26」「Udemy - 來杯 Java 吧! (Chapter 5)」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明抽象類別與抽象方法各自在解決什麼問題</li><li>判斷什麼時候用 <code>extends</code>、什麼時候用 <code>implements</code></li><li>知道 Java 8 之後介面多了什麼，舊教材哪一句話已經不成立</li><li>用「依賴規格而不是依賴實作」的寫法降低耦合</li></ul></div>
+
+<section>
+<p class="era">先建立觀念</p>
+<h3 class="head">抽象類別是不能直接用的半成品</h3>
+<p>「動物」是一個概念，真正存在的是狗、鳥、魚。程式裡也可以用抽象類別（abstract class）表示這種概念：先把子類別共有的資料與行為整理好，把還沒決定的細節留給子類別完成。原筆記的比喻很貼切——它像一份<strong>範本</strong>，因為只是範本，所以不能直接拿來建立物件。</p>
+<pre><code>abstract class Pen {
+    private final String brand;
+
+    protected Pen(String brand) {   // 抽象類別可以有建構子
+        this.brand = brand;
+    }
+
+    public String getBrand() {      // 也可以有寫好的一般方法
+        return brand;
+    }
+
+    public abstract void write();   // 抽象方法：沒有大括號
+}
+
+class Pencil extends Pen {
+    Pencil(String brand) {
+        super(brand);
+    }
+
+    @Override
+    public void write() {
+        System.out.println("用石墨書寫");
+    }
+}</code></pre>
+<p>抽象方法沒有方法主體，連 <code>{ }</code> 都拿掉。兩條規則要記住：<strong>只要類別裡有抽象方法，這個類別就一定要宣告成抽象類別</strong>；但反過來不成立——抽象類別不一定要有抽象方法，有時候只是設計者刻意不讓別人直接建立它的物件。</p>
+<p class="muted">抽象類別不能建立物件，那它的建構子做什麼用？給子類別透過 <code>super(...)</code> 呼叫，負責初始化共同的那一段。</p>
+</section>
+
+<section>
+<p class="era">繼承之後的責任</p>
+<h3 class="head">具體子類別必須補齊所有抽象方法</h3>
+<p>子類別繼承抽象類別後，如果沒把所有抽象方法補完，它自己也只能是抽象類別。一路補到某個子類別把欠的都做完，才成為可以建立物件的<strong>具體類別</strong>（concrete class）。</p>
+<p>從語法看，把抽象方法寫完就是覆寫；語意上大家習慣叫它「實作」——因為原本那個方法根本沒有內容，是從無到有做出來的。</p>
+<pre><code>Pen pen = new Pencil("ABC");
+pen.write();   // 執行 Pencil.write()</code></pre>
+<p>變數的型別是 <code>Pen</code>，實際物件是 <code>Pencil</code>，執行時按真正的物件挑方法——這就是第 4 課講的動態繫結。<strong>抽象類別不能建立物件，不代表它不能當變數的型別。</strong></p>
+</section>
+
+<section>
+<p class="era">行為契約</p>
+<h3 class="head">介面像插座規格：只約定怎麼接</h3>
+<p>介面（interface）用來定義一組能力。鳥、飛機跟超人沒有現實上的「是一種」關係，卻都會飛，所以都能實作同一個 <code>Flyable</code>。原筆記把介面的用途列成五項：多重繼承、定義規格、貼標籤、型別轉換、降低相依性。</p>
+<pre><code>interface Flyable {
+    int MAX_HEIGHT = 10_000;   // 自動是 public static final，宣告時就要給值
+    void fly();
+}
+
+class Bird implements Flyable {
+    @Override
+    public void fly() {
+        System.out.println("拍動翅膀飛行");
+    }
+}</code></pre>
+<p>介面裡直接宣告的欄位隱含是 <code>public static final</code>，也就是大家共用的常數，所以一定要給初始值。介面沒有建構子，也不能建立物件，但跟抽象類別一樣可以當參考型別。</p>
+</section>
+
+<section>
+<p class="era">這一段舊教材要改</p>
+<h3 class="head">Java 8 之後，介面不再只有抽象方法</h3>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在多處寫「介面可說是一種所有方法皆為抽象方法的抽象類別」「介面裡面宣告的方法，預設由編譯器自動加入 public abstract」「Interface 是一個 complete abstract class，代表所有內部的 method 都是 abstract methods」「在 implement Interface 時，我們必須 override 所有的 methods」，這些在 Java 8 以前都是對的，收錄時補上版本界線">「介面裡的方法一律是抽象方法」已經是 Java 8 以前的答案。Java 8 起介面可以有帶實作的 <code>default</code> 方法與 <code>static</code> 方法，Java 9 起還能有 <code>private</code> 方法</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/java/IandI/defaultmethods.html" target="_blank" rel="noopener">出處</a>。面試集第 1 課〈Java 基礎快答〉也標了同一件事。</p>
+<pre><code>interface Greeter {
+    String name();
+
+    default String greet() {          // Java 8：有預設實作，實作類別可以不寫
+        return "Hello, " + name();
+    }
+
+    static Greeter of(String n) {     // Java 8：介面自己的工具方法
+        return () -&gt; n;
+    }
+}</code></pre>
+<p>為什麼要加 <code>default</code>？因為以前只要往一個已經上線的介面加方法，所有實作它的類別就全部編譯不過。有了預設實作，介面才能在不弄壞既有程式的前提下長大。</p>
+<p class="formula">現在只有「沒寫方法主體」的介面方法才隱含 <code>public abstract</code>——寫了主體的不是</p>
+</section>
+
+<section>
+<p class="era">組合能力</p>
+<h3 class="head">類別只能單一繼承，卻能實作多個介面</h3>
+<p>Java 類別只能直接繼承一個父類別，但可以同時實作多個介面。這不是繼承好幾份狀態，而是「這個物件承諾具備這幾種能力」。</p>
+<p class="formula"><code>class 子類別 extends 父類別 implements 介面一, 介面二</code></p>
+<pre><code>interface Writable { void write(String text); }
+interface Erasable { void erase(); }
+
+class SmartPen extends Pen implements Writable, Erasable {
+    SmartPen(String brand) { super(brand); }
+
+    @Override public void write() { write("預設內容"); }
+    @Override public void write(String text) { System.out.println(text); }
+    @Override public void erase() { System.out.println("清除筆跡"); }
+}</code></pre>
+<p>介面跟介面之間用 <code>extends</code> 延伸，而且<strong>一個介面可以延伸多個介面</strong>。口訣：類別繼承類別用 <code>extends</code>，類別履行介面用 <code>implements</code>。</p>
+</section>
+
+<section>
+<p class="era">多型設計</p>
+<h3 class="head">依賴介面，使用端就不必綁死實作</h3>
+<p>如果一段流程只需要「會寫字」這個能力，參數就宣告成 <code>Writable</code>，不要指定鉛筆、鋼筆或毛筆。像物流中心只要求箱子符合輸送帶尺寸，不必知道箱子裡裝什麼。</p>
+<pre><code>class WritingService {
+    void publish(Writable tool, String text) {
+        tool.write(text);
+    }
+}</code></pre>
+<p>之後新增工具只要實作 <code>Writable</code>，<code>WritingService</code> 通常一個字都不用改。這就是原筆記講的兩個詞：相依性（耦合，coupling，一個類別有多依賴另一個具體類別）要低，凝聚性（內聚性，cohesion，一個類別的職責有多集中）要高。</p>
+</section>
+
+<section>
+<p class="era">特殊用途</p>
+<h3 class="head">空介面只負責貼標籤</h3>
+<p>沒有宣告任何方法的介面叫空介面，或標記介面（marker interface）。它不要求你多做什麼，只是替型別貼一個標籤，讓 Java 或框架認得出來。最有名的兩個是 <code>java.io.Serializable</code>（可以序列化）與 <code>java.lang.Cloneable</code>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「一個類別implements前者java.lang.Cloneable空介面時，該類別的物件才可以做物件的複製」，查證後更正：實作 Cloneable 只是讓 Object.clone() 不丟 CloneNotSupportedException，還得自己覆寫並開放 clone() 才真的複製得到">實作 <code>Cloneable</code> 本身<strong>不會</strong>讓物件變得可複製——它只是讓 <code>Object.clone()</code> 不要丟 <code>CloneNotSupportedException</code>。真要複製，還得自己覆寫 <code>clone()</code> 並把它開放出來，而且 <code>Object.clone()</code> 做的是淺層複製（內部的物件還是共用的）</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Cloneable.html" target="_blank" rel="noopener">出處</a>。同理，實作 <code>Serializable</code> 只是取得入口資格，不保證每一種操作都會成功。</p>
+</section>
+
+<section>
+<p class="era">選擇指南</p>
+<h3 class="head">抽象類別與介面怎麼選</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>比較項目</th><th>抽象類別</th><th>介面</th></tr></thead>
+<tbody>
+<tr><th>核心關係</th><td>同一家族的「是一種」</td><td>跨家族的「具備某能力」</td></tr>
+<tr><th>能不能建立物件</th><td>不能</td><td>不能</td></tr>
+<tr><th>實體狀態</th><td>可以有實體欄位</td><td>直接宣告的欄位都是常數</td></tr>
+<tr><th>建構子</th><td>有，供子類別呼叫</td><td>沒有</td></tr>
+<tr><th>一個類別能用幾個</th><td>只能繼承一個</td><td>可以實作多個</td></tr>
+<tr><th>適合什麼</th><td>共用狀態、基礎流程與部分實作</td><td>定義契約、替換實作、降低耦合</td></tr>
+</tbody>
+</table></div>
+<p>沒有「介面永遠比抽象類別好」這種答案。看關係自不自然：有共同狀態跟建構流程就用抽象類別；跨越不同家族的共同能力就用介面。兩者也常常一起用——抽象類別保存共同狀態，介面把對外能力定成穩定的契約。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>抽象類別不能建立物件，但可以有建構子、欄位與寫好的一般方法。</li><li>有抽象方法的類別一定要是抽象類別；抽象類別不一定要有抽象方法。</li><li>類別只能繼承一個父類別，卻能實作多個介面；介面之間也能互相延伸。</li><li>Java 8 起介面可以有 default 與 static 方法，Java 9 起還有 private——「介面方法一律抽象」已是舊答案。</li><li>介面欄位隱含是 <code>public static final</code>；介面沒有建構子，但可以當參考型別。</li><li>空介面只貼標籤；實作 <code>Cloneable</code> 不等於自動就複製得了。</li></ul></div>
