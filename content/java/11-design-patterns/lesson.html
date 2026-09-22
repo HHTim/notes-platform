@@ -1,0 +1,137 @@
+<!-- 來源：HackMD 匯出「Design Pattern」「Udemy - 來杯 Java 吧! (Chapter 4)」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說清楚設計模式是什麼、不是什麼</li><li>用建立、結構、行為三大類把常見模式歸位，並從需求裡認出該用哪一個</li><li>寫出安全的單例（Singleton），並看懂延遲建立為什麼會出事</li><li>評估單例的代價，知道什麼時候該改用依賴注入</li></ul></div>
+
+<section>
+<p class="era">先講清楚它是什麼</p>
+<h3 class="head">設計模式是經驗的名字，不是可以貼上去的答案</h3>
+<p>設計模式（design pattern）是針對常見軟體設計問題整理出來的<strong>可重用解題思路</strong>。它比較像建築裡「採光天井」這個概念：說明問題長什麼樣、結構怎麼擺、要付出什麼代價，但不會給你每一棟房子都通用的施工圖。</p>
+<p>它最大的價值之一是<strong>建立團隊的共同語言</strong>：說一句「這裡用策略模式」，比逐句描述「把好幾種演算法各包成一個可替換的物件」省事得多。</p>
+<blockquote>先確認哪裡會變、有什麼限制，再選模式；不要先選模式，再回頭找地方套。</blockquote>
+<p class="muted">模式不是越多越好。問題很單純時，直接而清楚的程式碼，通常比先蓋一套複雜架構更好維護。</p>
+<p class="muted">GoF 那本書總共 23 種模式，分成三群——這個總表與「創建型五個是哪五個」在面試集第 1 課〈Java 基礎快答〉有整理過（原筆記把 Abstract Factory 寫成 Abstract Method，那裡已經更正）。</p>
+</section>
+
+<section>
+<p class="era">先看它在解哪一類關係</p>
+<h3 class="head">建立型、結構型與行為型</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>類別</th><th>核心問題</th><th>常見模式</th></tr></thead>
+<tbody>
+<tr><th>建立型<br>Creational</th><td>物件該怎麼生出來、由誰決定生哪一種</td><td>Singleton、Factory Method、Abstract Factory、Builder、Prototype</td></tr>
+<tr><th>結構型<br>Structural</th><td>類別與物件怎麼組合成更大的結構</td><td>Adapter、Bridge、Composite、Decorator、Facade、Flyweight、Proxy</td></tr>
+<tr><th>行為型<br>Behavioral</th><td>物件之間怎麼分工、溝通、切換行為</td><td>Strategy、Template Method、State、Observer、Command、Mediator、Chain of Responsibility</td></tr>
+</tbody>
+</table></div>
+<p>分類的用處是縮小思考範圍，但同一個實際設計常常同時牽涉三類。重點永遠是<strong>這個模式扛的是什麼責任</strong>，不是把分類名稱背起來。</p>
+</section>
+
+<section>
+<p class="era">從需求裡的動詞認出來</p>
+<h3 class="head">常見模式怎麼認</h3>
+<div class="terms">
+<div class="term"><b>Factory Method 工廠方法</b><span>把「要建立哪一種具體物件」延後交給子類別或特定的建立者決定。</span></div>
+<div class="term"><b>Builder 建構者</b><span>把複雜物件的組裝步驟拆開，一步步設定完再產出成品。</span></div>
+<div class="term"><b>Adapter 轉接器</b><span>像轉接頭，把既有的介面轉成呼叫端要的樣子。</span></div>
+<div class="term"><b>Decorator 裝飾者</b><span>用包裝的方式疊加功能，不必改原本的類別。第 8 課的 I/O 鏈就是這個模式。</span></div>
+<div class="term"><b>Facade 門面</b><span>在複雜的子系統前面開一個簡單的統一入口。</span></div>
+<div class="term"><b>Proxy 代理人</b><span>用替身控制對真實物件的存取：延遲載入、權限檢查、遠端呼叫。</span></div>
+<div class="term"><b>Strategy 策略</b><span>把可替換的演算法各自包成物件，執行時再選。</span></div>
+<div class="term"><b>Observer 觀察者</b><span>主體狀態一變，就通知所有訂閱它的觀察者。</span></div>
+<div class="term"><b>State 狀態</b><span>把不同狀態下的行為拆成狀態物件，取代一長串條件分支。</span></div>
+</div>
+<p class="q">「折扣算法有好幾種，之後還會再加」——這通常指向哪裡？</p>
+<p>這是「演算法要能替換」的問題，先想 Strategy。如果需求換成「舊的付款服務介面跟新系統對不上」，那就比較接近 Adapter。認模式的訣竅就是先問<strong>會變的是哪一塊</strong>。</p>
+</section>
+
+<section>
+<p class="era">單例控制的是數量與入口</p>
+<h3 class="head">Singleton 的核心結構</h3>
+<p>單例模式（Singleton）確保某個類別在指定範圍內只有一個實例，並提供一致的取得方式。原筆記整理的三個條件很精準：<strong>該類別只能有一個實例、它自己負責建立那個實例、它提供一個不必實體化就能呼叫的取得方法。</strong></p>
+<p>最基本的結構：私有建構子 ＋ 保存實例的靜態欄位 ＋ 公開的取得入口。</p>
+<pre><code>public final class AppRegistry {
+    private static final AppRegistry INSTANCE = new AppRegistry();
+
+    private AppRegistry() { }        // 外面 new 不出來
+
+    public static AppRegistry getInstance() {
+        return INSTANCE;
+    }
+}</code></pre>
+<p>這種「一開始就建好」（原筆記叫餓漢式）結構單純，而且靠類別初始化機制就完成了安全發布。如果建立成本低、程式又一定會用到它，通常不需要為了「延遲」去增加同步的複雜度。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把 Singleton 定義成「A class that is instantiated exactly once(只被實體化一次的class)」，查證後補上界線：唯一性的範圍是一個類別載入器，不是整台機器">「只有一個」的範圍要講清楚：它是<strong>一個類別載入器（class loader）底下只有一個</strong>。同一支程式跑兩個行程，就有兩份實例；應用程式伺服器上不同的應用各有自己的載入器，也各有一份。所以單例不是分散式系統裡的「全域唯一」</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html#jvms-5.3" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">延遲建立遇上並行</p>
+<h3 class="head">Lazy Singleton 的競爭條件</h3>
+<p>原筆記示範的延遲建立（lazy initialization）寫法，在多執行緒下並不安全——兩條執行緒可能同時看到 <code>instance == null</code>，然後各建一個：</p>
+<pre><code>public static Service getInstance() {
+    if (instance == null) {        // 兩條執行緒可能同時走到這
+        instance = new Service();
+    }
+    return instance;
+}</code></pre>
+<p>原筆記給的兩種修法都對。第一種是<strong>雙重檢查鎖定</strong>：</p>
+<pre><code>private static volatile Service instance;   // volatile 不能省
+
+public static Service getInstance() {
+    if (instance == null) {
+        synchronized (Service.class) {
+            if (instance == null) {
+                instance = new Service();
+            }
+        }
+    }
+    return instance;
+}</code></pre>
+<p class="muted">那個 <code>volatile</code> 是這段程式的命脈。沒有它，因為第 10 課講的指令重排序，別的執行緒可能拿到一個「參考已經指過去、但建構子還沒跑完」的半成品物件。</p>
+<p>第二種是<strong>靜態內部類別持有者</strong>，原筆記把它列為推薦做法——寫起來最短，而且延遲建立與執行緒安全都由類別初始化機制保證，一個同步字都不必寫：</p>
+<pre><code>public final class Service {
+    private Service() { }
+
+    private static class Holder {
+        private static final Service INSTANCE = new Service();
+    }
+
+    public static Service getInstance() {
+        return Holder.INSTANCE;    // 第一次碰到 Holder 才初始化
+    }
+}</code></pre>
+<p>還有一種是用列舉：</p>
+<pre><code>public enum AppRegistry {
+    INSTANCE;
+
+    public void register(String name) { /* ... */ }
+}</code></pre>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把 enum 寫法標成「Singleton Pattern最佳解」，並列出三點：「自動支持serialization」「防止reflection attack」「缺點是不能繼承其他類別」，查證後補充：這兩項優點屬實，但 enum 寫法不是延遲建立的，測試時也比較難替換，說「最佳解」過頭了">原筆記列的兩個優點都是真的：列舉實例的建立與序列化由語言本身保證，反射也破壞不了它</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-8.html#jls-8.9" target="_blank" rel="noopener">出處</a>。但說它是「最佳解」就過頭了——這個寫法不是延遲建立的，測試時也很難換掉。<strong>該問的是「全域唯一而且到處拿得到」真的是需求嗎</strong>，而不是哪種寫法最方便。</p>
+</section>
+
+<section>
+<p class="era">唯一實例 ≠ 只有一條執行緒在用</p>
+<h3 class="head">Singleton 的代價</h3>
+<p>單例物件往往被很多條執行緒同時存取，所以<strong>「安全地只建立一次」只解決了初始化那一段</strong>。物件裡如果還留著可變狀態，那些讀寫本身要另外設計執行緒安全（回頭看第 10 課）。</p>
+<p class="formula">「單例」講的是實例數量與取得方式；「不可變」講的是建立後狀態能不能改——兩件事</p>
+<p>另一個代價是它會形成<strong>藏起來的全域相依</strong>：類別在自己內部直接 <code>getInstance()</code>，呼叫端從簽章上完全看不出它依賴了什麼，測試時也換不掉。依賴注入（dependency injection，把相依的物件從外面交給它，而不是自己去拿）就把這件事攤在陽光下：</p>
+<pre><code>public class CheckoutService {
+    private final PaymentGateway gateway;
+
+    public CheckoutService(PaymentGateway gateway) {   // 依賴看得見
+        this.gateway = gateway;
+    }
+}</code></pre>
+<p>測試時傳一個假的 <code>PaymentGateway</code> 進去就好，生命週期也交給框架決定。Spring 那套做的就是這件事。</p>
+</section>
+
+<section>
+<p class="era">用問題與代價檢查</p>
+<h3 class="head">選模式的實務流程</h3>
+<ul class="plainlist">
+<li>先找出<strong>真正會變</strong>的是哪一塊：建立流程、介面、演算法，還是物件狀態？</li>
+<li>確認這個模式真的降低了耦合，而不是只把程式碼搬到更多類別去。</li>
+<li>把代價列出來：多出來的抽象、多出來的物件、流程變難追、還有執行緒安全。</li>
+<li>先用小範例驗證，再照實際的變化擴充。</li>
+<li>留替換空間可以，但不要為了還沒出現的需求先蓋一座城堡。</li>
+</ul>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>設計模式是可重用的解題思路與共同語言，不是可以複製貼上的程式碼模板。</li><li>建立型管物件怎麼生、結構型管怎麼組合、行為型管怎麼協作。</li><li>Strategy 換演算法、Adapter 轉介面、Decorator 疊功能、Facade 開簡單入口。</li><li>延遲建立的單例一定要處理並行：雙重檢查鎖定的 <code>volatile</code> 不能省，靜態內部類別持有者更簡潔。</li><li>單例的「唯一」是一個類別載入器底下唯一，不是整個世界唯一。</li><li>安全地建立一次，不代表它內部的可變狀態自動就執行緒安全了。</li><li>單例會藏起相依關係；相依看得見、測試換得掉，通常比方便更值錢。</li></ul></div>

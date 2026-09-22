@@ -1,0 +1,163 @@
+<!-- 來源：HackMD 匯出「Java2 - 模組6~15」「常用方法」 · 收錄日期：2026-09-22 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清「描述一個路徑」跟「真的動到檔案」是兩件事</li><li>依資料性質挑位元組流或字元流，並知道編碼為什麼一定要講清楚</li><li>把低階流與高階流疊成一條處理鏈，並正確處理讀取長度與檔尾</li><li>知道物件序列化的條件、限制與風險</li></ul></div>
+
+<section>
+<p class="era">先描述位置</p>
+<h3 class="head">建立 File 物件不等於建立硬碟上的檔案</h3>
+<p><code>java.io.File</code> 是「檔案或目錄路徑」的物件表示。呼叫它的建構子只是在記憶體裡做一張<strong>地址卡</strong>，不會去建立、刪除或讀寫任何實體檔案——那個檔案可以早就存在，也可以之後才建。</p>
+<pre><code>File directory = new File("data");
+File report = new File(directory, "report.txt");   // 父目錄物件 + 子檔名
+
+System.out.println(report.getPath());
+System.out.println(report.getName());
+System.out.println(report.exists());</code></pre>
+<div class="tablewrap"><table>
+<thead><tr><th>方法</th><th>用途</th></tr></thead>
+<tbody>
+<tr><th><code>exists()</code></th><td>路徑存不存在</td></tr>
+<tr><th><code>isFile()</code> / <code>isDirectory()</code></th><td>是檔案還是目錄</td></tr>
+<tr><th><code>list()</code> / <code>listFiles()</code></th><td>列出目錄內容（名稱陣列 / File 物件陣列）</td></tr>
+<tr><th><code>length()</code></th><td>檔案長度，只對檔案有效</td></tr>
+<tr><th><code>mkdir()</code> / <code>mkdirs()</code></th><td>建一層 / 連不存在的父層一起建</td></tr>
+<tr><th><code>delete()</code></th><td>刪檔案或空目錄</td></tr>
+</tbody>
+</table></div>
+<p class="muted"><code>list()</code> 與 <code>listFiles()</code> 只對目錄有效。原筆記寫「若 length = 0 → 資料夾內無任何檔案」，這只對了一半：呼叫失敗或目標根本不是可列出的目錄時，它們會回傳 <code>null</code>，直接拿去跑迴圈就會吃到 <code>NullPointerException</code>。</p>
+<p class="muted">另外，原筆記的 <code>File(File parent, String child)</code> 範例寫成 <code>new File("myDir", "myFile.txt")</code>——第一個參數傳的是字串不是 <code>File</code>，那其實走到另一個建構子去了。要用 <code>File</code> 版就得傳前一行建好的那個物件。</p>
+</section>
+
+<section>
+<p class="era">路徑觀念</p>
+<h3 class="head">絕對路徑從根開始，相對路徑從工作目錄開始</h3>
+<div class="terms">
+<div class="term"><b>絕對路徑</b><span>寫出完整位置，好認，但換電腦或換部署環境就要改。</span></div>
+<div class="term"><b>相對路徑</b><span>以程式目前的工作目錄為基準，容易跟著專案搬家，但你得清楚程式是從哪裡啟動的。</span></div>
+<div class="term"><b><code>.</code></b><span>目前目錄。在 Eclipse 裡，指的是專案資料夾。</span></div>
+<div class="term"><b><code>..</code></b><span>上一層目錄。</span></div>
+</div>
+<p>不同作業系統的分隔符號不一樣，不要把 <code>\</code> 或 <code>/</code> 寫死。用 <code>File</code> 的父子建構方式可以，用比較新的 <code>Path</code> 更好：</p>
+<pre><code>Path path = Path.of("data", "report.txt");   // Java 11 起的寫法
+Files.readString(path);</code></pre>
+<p class="muted">原筆記整套都用 <code>java.io.File</code>。Java 7 起還有 <code>java.nio.file</code> 這一套（<code>Path</code>、<code>Files</code>），錯誤訊息比較清楚、功能也多。新程式建議從 <code>Path</code> 開始，<code>File</code> 主要用在跟舊函式庫相接的時候。</p>
+</section>
+
+<section>
+<p class="era">資料的水管</p>
+<h3 class="head">輸入是讀進來，輸出是寫出去</h3>
+<p>資料流（stream）像單向水管：輸入流把資料從檔案、網路或記憶體送進程式，輸出流把程式的資料送到目的地。Java 傳統的輸入輸出（I/O，Input／Output）建在四個抽象父類別上：</p>
+<div class="tablewrap"><table>
+<thead><tr><th>單位</th><th>輸入</th><th>輸出</th><th>拿來處理什麼</th></tr></thead>
+<tbody>
+<tr><th>位元組 byte</th><td><code>InputStream</code></td><td><code>OutputStream</code></td><td>圖片、壓縮檔、音訊等二進位資料</td></tr>
+<tr><th>字元 char</th><td><code>Reader</code></td><td><code>Writer</code></td><td>文字</td></tr>
+</tbody>
+</table></div>
+<p>這四個都是抽象的，你只能用它們的子類別建立物件，但都可以拿父類別來做多型操作。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Reader / Writer 型資料流存取是以16bits為基礎的char來處理Unicode」，並在旁邊註記「65536 = 2^16次方 = 16bits」，查證後更正：Unicode 的碼位遠超過 65536，char 只是一個 UTF-16 編碼單位，補充字元要用兩個 char 才裝得下">「一個 <code>char</code> 就是一個 Unicode 字元」在今天已經不成立。<code>char</code> 是 16 位元的 UTF-16 <strong>編碼單位</strong>，Unicode 的碼位到 U+10FFFF（超過一百萬個），像表情符號和部分罕用漢字這類補充字元，要用兩個 <code>char</code>（代理對）才裝得下——所以 <code>"😀".length()</code> 會是 2</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Character.html#unicode" target="_blank" rel="noopener">出處</a>。</p>
+<p>更重要的是：<strong>位元組跟文字之間一定要有一個字元編碼（charset）做翻譯。</strong>處理文字時把編碼寫清楚，不要靠環境的預設值。</p>
+<p>原筆記說位元組流「處理中文有困難」，原因就在這裡。<mark class="fixnote" tabindex="0" data-note="原筆記寫在預設編碼還會隨作業系統變動的年代（「處理中文有困難」），收錄時補上版本界線：Java 18 起標準函式庫的預設編碼統一成 UTF-8">補一個版本界線：Java 18 起，標準函式庫的預設編碼統一成 UTF-8，不再跟著作業系統跑，跨平台的亂碼問題少了很多</mark><a class="fixsrc" href="https://openjdk.org/jeps/400" target="_blank" rel="noopener">出處</a>。不過明寫編碼仍然是好習慣——舊版本不是這樣，而且寫出來讀的人也比較安心。</p>
+</section>
+
+<section>
+<p class="era">正確讀到檔尾</p>
+<h3 class="head">read() 的回傳值同時告訴你讀到多少</h3>
+<p><code>read()</code> 回傳 <code>-1</code> 代表已經到資料流末端。讀進陣列時，回傳值是<strong>這一次實際讀到的數量</strong>——最後一輪很可能沒把陣列填滿。</p>
+<pre><code>try (InputStream in = new FileInputStream("photo.jpg");
+     OutputStream out = new FileOutputStream("photo-copy.jpg")) {
+
+    byte[] buffer = new byte[8192];
+    int count;
+
+    while ((count = in.read(buffer)) != -1) {
+        out.write(buffer, 0, count);   // 只寫 count 個，不是整個 buffer
+    }
+}</code></pre>
+<p class="muted">如果每次都寫出整個 <code>buffer</code>，最後一輪會把上一次殘留的資料也寫進檔案。這是複製檔案時很常見、而且不容易一眼看出來的錯誤。</p>
+</section>
+
+<section>
+<p class="era">一層一層加功能</p>
+<h3 class="head">低階流接媒體，高階流負責緩衝與轉換</h3>
+<p>原筆記把這個疊法叫 I/O 鏈，規則三句話講得很清楚：</p>
+<ul class="plainlist">
+<li><strong>低階流</strong>（節點資料流）直接接資料來源或目的地，例如 <code>FileInputStream</code>、<code>FileReader</code>，功能陽春。</li>
+<li><strong>高階流</strong>（處理資料流）像套在水管外面的配件，提供緩衝、編碼轉換與更好用的方法，例如 <code>BufferedReader</code>。</li>
+<li>建立時<strong>一定要先有低階流</strong>，再用高階流包住它；高階流之間也可以再疊。輸入只能接輸入，輸出只能接輸出。</li>
+</ul>
+<pre><code>try (BufferedReader reader =
+         new BufferedReader(
+             new InputStreamReader(
+                 new FileInputStream("notes.txt"),
+                 StandardCharsets.UTF_8))) {
+
+    String line;
+    while ((line = reader.readLine()) != null) {
+        System.out.println(line);
+    }
+}</code></pre>
+<p>這條鏈由內往外讀：<code>FileInputStream</code> 接上檔案吐位元組 → <code>InputStreamReader</code> 照 UTF-8 把位元組解碼成字元 → <code>BufferedReader</code> 加上緩衝與 <code>readLine()</code>。<code>InputStreamReader</code> 這種角色叫<strong>橋接類別</strong>，專門把位元組體系接到字元體系。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記（常用方法）的「File系列小總結」把高階流直接包在 File 物件上，寫成 BufferedReader br = new BufferedReader(fileIn); BufferedInputStream bis = new BufferedInputStream(fileIn); PrintStream ps = new PrintStream(fo / fw); 三行都編譯不過，查證後更正">高階流<strong>包的是另一個資料流，不是 <code>File</code> 物件</strong>。<code>BufferedReader</code> 收的是 <code>Reader</code>、<code>BufferedInputStream</code> 收的是 <code>InputStream</code>，中間一定要先有一個低階流。另外 <code>PrintStream</code> 屬於位元組體系，包不了 <code>Writer</code>——字元體系那邊對應的是 <code>PrintWriter</code></mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/BufferedReader.html" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
+<p class="era">文字輸出</p>
+<h3 class="head">覆寫、附加與 flush 是三件不同的事</h3>
+<pre><code>try (BufferedWriter writer =
+         new BufferedWriter(
+             new OutputStreamWriter(
+                 new FileOutputStream("app.log", true),   // true = 附加
+                 StandardCharsets.UTF_8))) {
+    writer.write("服務啟動");
+    writer.newLine();
+}</code></pre>
+<p><code>FileOutputStream</code> 與 <code>FileWriter</code> 的第二個參數是「要不要附加」：<code>true</code> 就接在原內容後面，<strong>預設是 <code>false</code>，會把原檔整個蓋掉</strong>。另外，這些建構子會幫你把檔案建出來，所以不必事先手動建立。</p>
+<div class="terms">
+<div class="term"><b>flush()</b><span>把緩衝區裡的資料推往下一層，但資料流還開著。</span></div>
+<div class="term"><b>close()</b><span>關閉並釋放資源，關之前通常會先完成必要的輸出。</span></div>
+</div>
+<p>用 try-with-resources 之後這兩件事大多不必自己來。</p>
+</section>
+
+<section>
+<p class="era">標準輸入輸出</p>
+<h3 class="head">System.in、System.out 與 System.err</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>資料流</th><th>型別</th><th>預設接哪</th></tr></thead>
+<tbody>
+<tr><th><code>System.in</code></th><td><code>InputStream</code></td><td>鍵盤</td></tr>
+<tr><th><code>System.out</code></th><td><code>PrintStream</code></td><td>螢幕，一般輸出</td></tr>
+<tr><th><code>System.err</code></th><td><code>PrintStream</code></td><td>螢幕，錯誤訊息</td></tr>
+</tbody>
+</table></div>
+<p>這三個不用 <code>new</code> 就能用。Java 5 起要從鍵盤讀東西，用 <code>Scanner</code> 比自己疊 <code>InputStreamReader</code> ＋ <code>BufferedReader</code> 短很多：</p>
+<pre><code>Scanner scanner = new Scanner(System.in);
+System.out.print("請輸入年齡：");
+int age = scanner.nextInt();</code></pre>
+<p class="muted">注意：關掉包著 <code>System.in</code> 的 <code>Scanner</code>，連底層的標準輸入一起關掉了，之後就再也讀不到鍵盤。整支程式共用一個時，要先想清楚誰是它的擁有者。</p>
+</section>
+
+<section>
+<p class="era">保存整個物件</p>
+<h3 class="head">序列化把物件狀態寫成位元組</h3>
+<p>序列化（serialization）就是把物件連同型別與欄位值變成一串位元組，好存成檔案或送過網路；把物件永久存起來這件事叫持久化（persistence）。<code>ObjectOutputStream</code> 負責寫出，<code>ObjectInputStream</code> 負責讀回，而且它們都是高階流——括號裡還要再傳一個低階流進去。</p>
+<pre><code>class Profile implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private String name;
+    private transient String sessionToken;   // transient 的不會被存
+}
+
+try (ObjectOutputStream out =
+         new ObjectOutputStream(new FileOutputStream("profile.bin"))) {
+    out.writeObject(new Profile());
+}
+
+try (ObjectInputStream in =
+         new ObjectInputStream(new FileInputStream("profile.bin"))) {
+    Profile profile = (Profile) in.readObject();   // 回傳 Object，要自己轉回來
+}</code></pre>
+<p>幾條規則：要寫出的類別必須實作 <code>Serializable</code>（第 5 課講過，這是個空介面，只是貼標籤）；父類別實作了，子類別等同也實作了；<code>readObject()</code> 回傳 <code>Object</code>，傳統寫法得自己轉型；<strong>讀回來的順序要跟寫出去的順序一致</strong>。標了 <code>transient</code> 的欄位不會被存，<code>static</code> 欄位屬於類別而不是個別物件，也不在物件狀態裡。</p>
+<p class="muted">原筆記沒提到的兩件事：<code>serialVersionUID</code> 是類別的版本編號，不自己指定的話，類別稍微改一下舊檔案就讀不回來了；另外，<strong>絕對不要反序列化來路不明的資料</strong>——那等於讓對方決定你的程式要建立什麼物件，是很經典的攻擊面。Java 的序列化也不適合當跨語言的長期保存格式，那種需求請用 JSON 之類的。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li><code>new File(...)</code> 只是做一張路徑地址卡，不會動到硬碟上的東西。</li><li>二進位資料用位元組流，文字用字元流，而且把編碼明寫出來。</li><li><code>char</code> 是 16 位元的 UTF-16 編碼單位，不等於一個 Unicode 字元。</li><li><code>read()</code> 回 <code>-1</code> 是檔尾；讀進陣列時要照回傳的數量處理，不要整個 buffer 寫出去。</li><li>高階流包的是另一個資料流，不是 <code>File</code>；一定要先有低階流接上媒體。</li><li>附加模式保留原內容，預設的非附加模式會蓋掉原檔。</li><li>序列化要實作 <code>Serializable</code>；<code>transient</code> 與 <code>static</code> 不會被存，來路不明的資料不要反序列化。</li></ul></div>
