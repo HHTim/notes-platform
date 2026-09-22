@@ -18,7 +18,7 @@ public class Main {
     }
 }</code></pre>
 <p>一個原始檔<strong>最多只能有一個 public 頂層類別</strong>，而且檔名要跟它一致；同一個檔案裡還是可以放其他非公開的類別。原筆記給的理由很實際：那些類別別的地方用不到，放在一起互相搭配還比較好讀。</p>
-<p class="muted">常用的標準套件：<code>java.lang</code>（語言核心，String 就住這）、<code>java.io</code>（輸入輸出）、<code>java.net</code>（網路）、<code>java.util</code>（工具與集合）、<code>java.sql</code>（資料庫）。Java 9 之後這些都被收進 <code>java.base</code> 這個模組裡。</p>
+<p class="muted">常用的標準套件：<code>java.lang</code>（語言核心，String 就住這）、<code>java.io</code>（輸入輸出）、<code>java.net</code>（網路）、<code>java.util</code>（工具與集合）、<code>java.sql</code>（資料庫）。Java 9 模組化之後，前四個都在 <code>java.base</code> 這個預設就有的模組裡；<code>java.sql</code> 自己是一個獨立模組，同名的 <code>java.sql</code>。</p>
 </section>
 
 <section>
@@ -118,7 +118,7 @@ int number = boxed;   // 自動拆箱
 int parsed = Integer.parseInt("42");      // 回傳 int
 Integer wrapped = Integer.valueOf("42");  // 回傳 Integer</code></pre>
 <p class="formula"><code>parseXxx()</code> 給你基本型別，<code>valueOf()</code> 給你包裝物件</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Integer i = new Integer(1); JDK 9 以後改用 Integer i = Integer.valueOf(10); 不再用new建立物件，不用浪費記憶體空間」，查證後補上後續：Java 16 起這些建構子已標記為準備移除">原筆記說 Java 9 起改用 <code>Integer.valueOf()</code>，這是對的；後續還有一步——Java 16 起，包裝類別的建構子已經標記為<strong>準備移除</strong>，現在等於是不能再寫 <code>new Integer(...)</code> 了</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Integer.html#%3Cinit%3E(int)" target="_blank" rel="noopener">出處</a>。<code>valueOf()</code> 省的不只是一次配置——小範圍的整數它會重複使用快取好的物件。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Integer i = new Integer(1); JDK 9 以後改用 Integer i = Integer.valueOf(10); 不再用new建立物件，不用浪費記憶體空間」，查證後補上後續：Java 16 起這些建構子已標記為準備移除">原筆記說 Java 9 起改用 <code>Integer.valueOf()</code>，這是對的；後續還有一步——Java 16 起，包裝類別的建構子已經標記為<strong>準備移除</strong>。在 Java 21、25 還是編得過，只是會跳警告——但既然官方已經預告要拿掉，新程式就別再寫 <code>new Integer(...)</code> 了</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Integer.html#%3Cinit%3E(int)" target="_blank" rel="noopener">出處</a>。<code>valueOf()</code> 省的不只是一次配置——小範圍的整數它會重複使用快取好的物件。</p>
 <p>兩個常見的坑：</p>
 <ul class="plainlist">
 <li><strong>比包裝物件的值要用 <code>equals()</code></strong>。因為有快取，<code>==</code> 在小數字時看起來會相等、換成大數字又不相等，很容易誤判。</li>

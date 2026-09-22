@@ -66,10 +66,11 @@ class FullTimeEmployee extends Employee {
 
 class Manager extends Employee {
     Manager(String name) {
-        super(name);      // 一定要放第一行
+        super(name);      // Java 24 以前一定要放第一行
     }
 }</code></pre>
-<p>建立子類別物件時，<strong>先完成父類別那一段，再完成子類別</strong>，這樣才能保證共同資料一定初始化過。<code>super(...)</code> 呼叫的是直接父類別的建構子，必須放在第一個敘述；沒寫的話編譯器會自己補一個 <code>super()</code>。因為 <code>this(...)</code> 也要放第一行，所以兩者只能擇一。</p>
+<p>建立子類別物件時，<strong>先完成父類別那一段，再完成子類別</strong>，這樣才能保證共同資料一定初始化過。<code>super(...)</code> 呼叫的是直接父類別的建構子；沒寫的話編譯器會自己補一個 <code>super()</code>。<code>super(...)</code> 與 <code>this(...)</code> 只能擇一。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「建構子中若有出現 super(...),一定要放在第一個敘述位置」「super(...) &amp; this(...)都只能放在第一個敘述位置，所以是擇一使用!!」，在 Java 24 以前都是對的，收錄時補上版本界線：Java 25 起兩者前面可以先放敘述">「一定要放在第一個敘述」這條到 Java 24 為止都成立，Java 25 放寬了：<code>super(...)</code> 與 <code>this(...)</code> 前面可以先寫敘述，常見用途是<strong>先驗證參數再呼叫父類別建構子</strong>；限制是那段前置程式不能存取正在建立中的物件</mark><a class="fixsrc" href="https://openjdk.org/jeps/513" target="_blank" rel="noopener">出處</a>。不變的是：兩者仍然只能擇一，而且父類別那一段一定先完成。</p>
 <p class="muted">原筆記寫「super：1. 只會出現在override方法裡」。實際上 <code>super.方法()</code> 寫在子類別的任何實體方法裡都合法，只是<strong>最常</strong>出現在覆寫方法中——因為那裡不加 <code>super.</code> 就變成自己呼叫自己（原筆記的第 3 點講的正是這個，那句沒錯）。真正的限制是不能用在靜態環境裡。這一條沒有在官方文件上找到可以直接對照的原文，所以標成補充而不是更正。</p>
 <p>另外 <code>super.</code> 不能越級，只找得到直接父類別。</p>
 <p><code>final</code> 放在不同位置有不同意思：</p>

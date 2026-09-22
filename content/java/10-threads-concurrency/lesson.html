@@ -127,9 +127,14 @@ int result = count.incrementAndGet();</code></pre>
 <li><strong>CPU 開銷</strong>：競爭很激烈時，大量的失敗重試也是在燒 CPU。</li>
 </ul>
 <p><strong><code>AtomicInteger</code> 只保護得了一個變數。</strong>跨多個欄位的業務規則它管不到——那種情況要用鎖、不可變資料，或更高階的並行設計。</p>
-<p class="muted">原筆記的庫存範例是「先扣，發現扣成負的再用 <code>incrementAndGet()</code> 加回來」。推一遍會發現<strong>賣出的總數其實是對的</strong>，不算 bug；問題只在於補回來之前庫存會短暫變成負數，這段期間別的執行緒讀 <code>get()</code> 會看到負值。想避開這個暫態，可以用 <code>updateAndGet</code> 一次完成「檢查＋扣減」：</p>
-<pre><code>int after = stock.updateAndGet(current -&gt; current &gt; 0 ? current - 1 : current);
-// after 等於原值表示沒扣成，也就是賣完了</code></pre>
+<p class="muted">原筆記的庫存範例是「先扣，發現扣成負的再用 <code>incrementAndGet()</code> 加回來」。推一遍會發現<strong>賣出的總數其實是對的</strong>，不算 bug；問題只在於補回來之前庫存會短暫變成負數，這段期間別的執行緒讀 <code>get()</code> 會看到負值。想避開這個暫態，可以用 <code>getAndUpdate</code> 一次完成「檢查＋扣減」，它回傳的是更新前的值，剛好拿來判斷這次有沒有扣到：</p>
+<pre><code>int before = stock.getAndUpdate(current -&gt; current &gt; 0 ? current - 1 : current);
+// getAndUpdate 回傳的是「更新前」的值
+if (before &gt; 0) {
+    // 扣成功，剩餘庫存是 before - 1
+} else {
+    // before 是 0，本來就沒貨了
+}</code></pre>
 </section>
 
 <section>

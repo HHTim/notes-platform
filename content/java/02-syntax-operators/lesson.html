@@ -123,6 +123,16 @@ switch (level) {
 }</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記一處寫「switch case變數(n)只可為整數、字元(可視為整數)，不可為浮點數……也不可用long」，另一處（Udemy Chapter 5）寫「只能用在 shorts, long, int, chars, Strings, or enums」「&amp;&amp; is not allowed, but || is okay」，兩處互相矛盾也都不完整，查證後更正">規格訂得很清楚：switch 的判斷值可以是 <code>char</code>、<code>byte</code>、<code>short</code>、<code>int</code>（以及對應的包裝類別）、<code>String</code>（Java 7 起）與列舉 <code>enum</code>（Java 5 起）；<strong><code>long</code>、<code>float</code>、<code>double</code>、<code>boolean</code> 都不行</strong>。case 標籤只能放常數，<code>&amp;&amp;</code> 不行、<code>||</code> 也不行</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.11" target="_blank" rel="noopener">出處</a>。</p>
 <p>新版有比較好寫的形式：Java 14 起 switch 可以當運算式直接回傳值，箭頭寫法也不會貫穿，不必再補 <code>break</code>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記整理的 switch 可用型別停在「JDK 7 以後可以比對String」，收錄時補上第 1 課預告過的版本界線：Java 21 起 case 標籤可以寫型別樣式，判斷值不再限於那幾種型別">Java 21 又放寬一次：<code>case</code> 標籤可以直接寫<strong>型別樣式</strong>，所以判斷值不再限於上面那幾種型別，任何物件都可以拿來比對，還能用 <code>when</code> 加條件</mark><a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a>。這就是第 1 課版本分水嶺裡提到的「switch 的型樣比對」。</p>
+<pre><code>// Java 21 起
+String describe(Object o) {
+    return switch (o) {
+        case Integer i when i &gt; 100 -&gt; "很大的整數 " + i;
+        case Integer i                -&gt; "整數 " + i;
+        case String str               -&gt; "字串 " + str;
+        default                       -&gt; "其他";
+    };
+}</code></pre>
 <pre><code>// Java 14 起的寫法
 String result = switch (level) {
     case "A" -&gt; "優良";
@@ -151,15 +161,19 @@ do {
     System.out.println("至少執行一次");
 } while (false);</code></pre>
 <p><code>for</code> 與 <code>while</code> 是前測式（可能一次都不跑），<code>do-while</code> 是後測式（至少跑一次）。<code>break</code> 跳出整個迴圈，<code>continue</code> 只跳過這一輪剩下的敘述、進下一輪。兩者都可以搭配標籤指定要跳出哪一層：</p>
-<pre><code>outer:
+<pre><code>int i = 1;
+outer:
 while (i &lt;= 3) {
+    int j = 1;
     while (j &lt;= 5) {
         if (j == 4) {
             break outer;   // 直接跳出外層那個迴圈
         }
+        j++;
     }
+    i++;
 }</code></pre>
-<p class="muted"><code>break</code> 可以用在迴圈與傳統 switch 裡，<code>continue</code> 只能用在迴圈裡。標籤後面只能接迴圈。</p>
+<p class="muted">不帶標籤的 <code>break</code> 可以用在迴圈與傳統 switch 裡，<code>continue</code> 只能用在迴圈裡。標籤則不限迴圈——任何敘述（包括一個大括號程式區塊）都能加標籤，<code>break 標籤</code> 也跳得出來；只有 <code>continue 標籤</code> 規定那個標籤一定要標在迴圈上。</p>
 </section>
 
 <section>
