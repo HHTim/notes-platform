@@ -202,7 +202,7 @@ spec:
     </tbody>
   </table>
 </div>
-<p class="muted">Red Hat 的文件把這三種和各自的憑證需求寫得很清楚。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/ingress_and_load_balancing/routes" target="_blank" rel="noopener">出處</a> 有一點要講明白：<strong>寫了 <code>tls</code> 區塊就一定要填 <code>termination</code></strong>，而且只吃 edge、reencrypt、passthrough 三個值（API 欄位的說明把 edge 註記為預設）；但 <strong>整個 <code>tls</code> 區塊不寫的 Route，走的是純 HTTP，不是 edge</strong>。這一條的證據只在 API 的原始定義裡看得到，所以下面這個「出處」連到的是一份 Go 程式碼、不是一般的說明文件——在那頁搜尋 <code>TLSConfig</code>，就會看到 <code>termination</code> 這個欄位沒有 <code>omitempty</code>（意思就是「不能不填」）。<a class="fixsrc" href="https://github.com/openshift/api/blob/master/route/v1/types.go" target="_blank" rel="noopener">出處</a> 組織要求「一路加密到 Pod」時，<code>edge</code> 就不夠。</p>
+<p class="muted">Red Hat 的文件把這三種和各自的憑證需求寫得很清楚。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/ingress_and_load_balancing/routes" target="_blank" rel="noopener">出處</a> 有一點要講明白：<strong>寫了 <code>tls</code> 區塊就一定要填 <code>termination</code></strong>，而且只吃 edge、reencrypt、passthrough 三個值（API 欄位的說明把 edge 註記為預設）；但 <strong>整個 <code>tls</code> 區塊不寫的 Route，走的是純 HTTP，不是 edge</strong>。這一條的證據只在 API 的原始定義裡看得到，所以下面這個「出處」連到的是一份 Go 程式碼、不是一般的說明文件——在那頁搜尋 <code>TLSConfig</code>，就會看到 <code>termination</code> 這個欄位上面那行列舉只寫了 edge、reencrypt、passthrough 三個值，沒有空的——填不出第四種，也不能留空。<a class="fixsrc" href="https://github.com/openshift/api/blob/master/route/v1/types.go" target="_blank" rel="noopener">出處</a> 組織要求「一路加密到 Pod」時，<code>edge</code> 就不夠。</p>
 <pre><code>oc apply -f manifests/
 oc rollout status deployment/database
 oc rollout status deployment/blog
