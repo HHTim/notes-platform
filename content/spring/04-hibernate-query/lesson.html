@@ -73,7 +73,7 @@ cq.select(member)
 List&lt;Member&gt; result = session.createQuery(cq).getResultList();</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫 Criteria「只支援查詢動作，不支援新刪修動作」，查證後更正：JPA 2.1（2013 年）就加入了 CriteriaUpdate 與 CriteriaDelete，可以用 Criteria 的方式表達批次更新與刪除">Criteria 也能做更新與刪除。規格裡就有 <code>CriteriaUpdate</code>，它的介面說明是「<code>CriteriaUpdate</code> 介面定義了用 Criteria API 執行批次更新操作的功能」，刪除則有對應的 <code>CriteriaDelete</code></mark><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/criteria/criteriaupdate" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">這個誤解有來源：Hibernate 早年另有一套自己的 <code>org.hibernate.Criteria</code>，那一套確實只能查詢。原筆記舉的例子用的是 <code>Root</code>、<code>CriteriaQuery</code> 這些名字，屬於 JPA 這一套，所以上面那句更正是對著 JPA Criteria 講的。</p>
-<p class="muted">原筆記寫 Criteria「是 type-safe（編譯器會檢查）」——這是這套 API 的通稱說法，不能算錯，但成立的前提是搭配靜態中繼模型（Static Metamodel，例如 <code>Member_.status</code>）。像上面範例那樣用字串 <code>get("status")</code> 指定屬性時就沒有這個保護：規格裡 <code>Path.get(String)</code> 是在執行時才因為找不到屬性丟 <code>IllegalArgumentException</code>，屬性改名編譯器不會提醒你。</p>
+<p class="muted">原筆記寫 Criteria「是 type-safe（編譯器會檢查）」——這是這套 API 的通稱說法，不能算錯，但成立的前提是搭配靜態中繼模型（Static Metamodel，例如 <code>Member_.status</code>）。像上面範例那樣用字串 <code>get("status")</code> 指定屬性時就沒有這個保護：規格裡 <code>Path.get(String)</code> 是在執行時才因為找不到屬性丟 <code>IllegalArgumentException</code>，屬性改名編譯器不會提醒你<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/criteria/path" target="_blank" rel="noopener">出處</a>。</p>
 <p>Criteria 本身也不是防注入的魔法。查詢的值仍然要以參數或 API 的值節點傳入，不要把不可信的內容拿去當欄位名或 SQL 片段。</p>
 </section>
 

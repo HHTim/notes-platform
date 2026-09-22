@@ -53,7 +53,7 @@ cookie.setSecure(true);
 response.addCookie(cookie);</code></pre>
 <p><code>setMaxAge()</code> 設正數是保存秒數，設零表示要求刪除，負數（預設值）表示不指定持久期限、瀏覽器關掉就沒了。刪除時還要用與原本相符的 Path、Domain 等屬性，瀏覽器才找得到正確的那一筆。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Cookie最大3KB」，查證後更正：RFC 6265 要求一般用途的瀏覽器每個 Cookie 至少支援 4096 位元組，而且這個長度是名稱、值與所有屬性加起來算的；3KB 不是規格數字">RFC 6265 第 6.1 節的原話是：一般用途的使用者代理程式「每個 Cookie 應至少支援 4096 位元組（以 Cookie 名稱、值與屬性的長度總和計算）」。3KB 不是規格數字，而且計法也不只算值</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-6.1" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">原筆記寫「Cookie 是不能儲存中文的，如需要先進行轉碼：URL 編碼」——查證後這樣寫是對的，這裡只補一句原因：它不是 Java 的限制。RFC 6265 的 <code>Set-Cookie</code> 語法把 <code>cookie-octet</code> 定義成一組指定的位元組範圍，並註明那是「排除控制字元、空白、雙引號、逗號、分號與反斜線的 US-ASCII 字元」，中文本來就不在合法字元裡，所以任何語言都得先編碼。</p>
+<p class="muted">原筆記寫「Cookie 是不能儲存中文的，如需要先進行轉碼：URL 編碼」——查證後這樣寫是對的，這裡只補一句原因：它不是 Java 的限制。RFC 6265 的 <code>Set-Cookie</code> 語法把 <code>cookie-octet</code> 定義成一組指定的位元組範圍，並註明那是「排除控制字元、空白、雙引號、逗號、分號與反斜線的 US-ASCII 字元」，中文本來就不在合法字元裡，所以任何語言都得先編碼<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-4.1.1" target="_blank" rel="noopener">出處</a>。</p>
 <p>Cookie 存在使用者那端，使用者看得到、改得動、刪得掉，所以不能把它當成可信的資料來源。敏感資訊不應該明文放進去；識別資訊也要搭配 HTTPS、<code>Secure</code>、<code>HttpOnly</code> 與合適的 <code>SameSite</code> 設定。</p>
 </section>
 
@@ -69,7 +69,7 @@ String username =
 
 // 登出時讓整個 Session 失效
 session.invalidate();</code></pre>
-<p class="muted">原筆記在 Cookie 與 Session 的比較裡寫「安全性: Cookie不安全；Session較安全」。這個相對比較沒有錯，但容易讓人放心過頭：會話識別碼一樣要在網路上來回傳，被偷到就能冒用整個會話。OWASP 的工作階段管理建議是登入後更換識別碼、使用安全的 Cookie 屬性、走 HTTPS，並設定閒置逾時。這是補充而不是事實更正，所以沒有標成更正。</p>
+<p class="muted">原筆記在 Cookie 與 Session 的比較裡寫「安全性: Cookie不安全；Session較安全」。這個相對比較沒有錯，但容易讓人放心過頭：會話識別碼一樣要在網路上來回傳，被偷到就能冒用整個會話。OWASP 的工作階段管理建議是登入後更換識別碼、使用安全的 Cookie 屬性、整個工作階段都走 HTTPS，並設定閒置逾時<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。這是補充而不是事實更正，所以沒有標成更正。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「默認情況下，Session存活時間為30分鐘」，這個數字對 Tomcat 來說沒錯，但寫成「默認情況下」會讓人以為是通則；查證後更正：Servlet 規格第 7.5 節寫的是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身沒有訂數字">原筆記那句對 Tomcat 來說沒錯，但它不是通則。Servlet 規格第 7.5 節的原話是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身沒有訂數字；30 分鐘是 Tomcat 在自己的 <code>conf/web.xml</code> 裡設的值，換一個容器或改設定就不是這個數字</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.1/jakarta-servlet-spec-6.1.html" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">原筆記提到的「鈍化、活化」（伺服器正常關閉時把 Session 寫進磁碟、重啟時讀回來）確實是 Tomcat 預設管理員的行為，但那是容器層的實作與設定，不是規格保證。所以程式不該假設重啟後 Session 一定還在，也不該把大型物件塞進去。</p>
 </section>

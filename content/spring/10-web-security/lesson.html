@@ -51,7 +51,7 @@ X-XSRF-TOKEN: 這個工作階段對應的防偽權杖</code></pre>
 <p class="muted">原筆記寫的標頭名是 <code>X-XSRF-TOKEN</code>、參數名是 <code>_csrf</code>。這組名稱對應的是把權杖放進 Cookie 的那種設定；如果改把權杖存在工作階段裡，預設標頭名會是 <code>X-CSRF-TOKEN</code>。抄設定前先確認自己用的是哪一種儲存庫。</p>
 <p>如果前端走的是「Cookie 裡放一份讀得到的權杖，再複製到自訂標頭」這個模式，惡意網站因為同源政策讀不到那個 Cookie 的值，也就設不出正確的標頭，伺服器就分辨得出偽造請求。</p>
 <ul class="plainlist"><li>Session Cookie 可以加 <code>SameSite</code> 屬性，降低跨站時被自動附帶的機會。</li><li>會改資料的 API 要用符合語意的方法，並檢查 CSRF 權杖。</li><li>登入、登出與公開 API 要不要略過檢查，得看實際的威脅模型決定。</li><li>CORS 與 CSRF 解決的是不同問題，開了 CORS 不等於防住了 CSRF。</li></ul>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記在 CSRF 總結寫「其實 CSRF 攻擊是基於 Cookie → 如果不是使用 Session & Cookie 認證，就不會有 CSRF 攻擊」，查證後更正：關鍵不在憑證叫什麼名字，而在它會不會被瀏覽器自動附帶。OWASP 指出把 JWT 放在 Cookie 裡一樣會被自動帶上，因此同樣有 CSRF 風險">關鍵不在憑證叫什麼名字，而在它會不會被瀏覽器自動附帶。OWASP 的原話是「瀏覽器的請求會自動帶上所有 Cookie，包含工作階段 Cookie，所以除非另外做好授權，這種攻擊就會成立」——JWT 放在 Cookie 裡一樣被涵蓋在這個「所有 Cookie」裡面</mark><a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在 CSRF 總結寫「其實 CSRF 攻擊是基於 Cookie → 如果不是使用 Session & Cookie 認證，就不會有 CSRF 攻擊」，查證後更正：關鍵不在憑證叫什麼名字，而在它會不會被瀏覽器自動附帶。OWASP 的原話是瀏覽器的請求會自動帶上所有 Cookie，包含工作階段 Cookie；放在 Cookie 裡的 JWT 也在這個「所有 Cookie」的範圍內，所以一樣有 CSRF 風險——後半句是依那句原話往下推的，OWASP 本身沒有討論 JWT">關鍵不在憑證叫什麼名字，而在它會不會被瀏覽器自動附帶。OWASP 的原話是「瀏覽器的請求會自動帶上所有 Cookie，包含工作階段 Cookie，所以除非另外做好授權，這種攻擊就會成立」——JWT 放在 Cookie 裡一樣被涵蓋在這個「所有 Cookie」裡面</mark><a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>權杖如果只由程式主動放進 <code>Authorization</code> 標頭，傳統的 CSRF 風險確實比較低；但還是要處理跨網站指令碼（XSS）、權杖外洩等其他威脅。</p>
 </section>
 
@@ -67,7 +67,7 @@ X-XSRF-TOKEN: 這個工作階段對應的防偽權杖</code></pre>
 <p class="era">密碼不能只做一次快速雜湊</p>
 <h3 class="head">安全保存密碼</h3>
 <p>一般雜湊雖然不可逆，攻擊者還是可以大量猜測候選密碼再比對雜湊結果。彩虹表（Rainbow Table）就是預先算好結果的一種攻擊方式；鹽值（Salt）則是替每一筆密碼加入不同的隨機值，讓相同的密碼不會產生相同的儲存結果。</p>
-<p class="muted">原筆記寫「同一個字串，每次轉換出來的雜湊值一定會是一模一樣的」——講雜湊函式本身，這句是對的，而且原筆記接下來也自己講了加鹽。要接上的是下一步：一旦加了每筆不同的隨機鹽值，同一組密碼存進資料庫的結果就不會一樣了。OWASP 的說法是「加鹽表示在沒有破解雜湊的情況下，無法判斷兩個使用者是不是用同一組密碼，因為不同的鹽值會讓相同的密碼算出不同的雜湊值」。所以驗證密碼不能自己把輸入雜湊一次再比字串，要交給專門的驗證方法。</p>
+<p class="muted">原筆記寫「同一個字串，每次轉換出來的雜湊值一定會是一模一樣的」——講雜湊函式本身，這句是對的，而且原筆記接下來也自己講了加鹽。要接上的是下一步：一旦加了每筆不同的隨機鹽值，同一組密碼存進資料庫的結果就不會一樣了。OWASP 的說法是「加鹽表示在沒有破解雜湊的情況下，無法判斷兩個使用者是不是用同一組密碼，因為不同的鹽值會讓相同的密碼算出不同的雜湊值」。所以驗證密碼不能自己把輸入雜湊一次再比字串，要交給專門的驗證方法<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>密碼要用專門的 <code>PasswordEncoder</code> 與成本可調整的密碼雜湊演算法，而不是 MD5 這類為速度設計的一般雜湊。註冊時存編碼結果；登入時用驗證方法比對輸入的原始密碼與已存的結果，不需要也不應該把密碼「解密」出來。</p>
 <p class="formula">註冊：原始密碼 → PasswordEncoder → 存下密碼雜湊結果</p>
 <p class="formula">登入：輸入密碼 ＋ 已存結果 → PasswordEncoder.matches(...) → 相不相符</p>

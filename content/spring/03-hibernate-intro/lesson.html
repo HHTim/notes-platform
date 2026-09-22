@@ -10,7 +10,7 @@
 <p>Hibernate 是 ORM 框架，JPA 則是持久層的標準規格。應用程式可以透過 JPA 規格操作由 Hibernate 提供的實作，而 Hibernate 底層還是透過 JDBC 跟資料庫溝通。</p>
 <p class="formula">應用程式 → JPA／Hibernate → JDBC → 關聯式資料庫</p>
 <p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記寫「JPA(Java Persistence API)」，那是它寫成當時的正式名稱。規格隨 Java EE 移交 Eclipse 基金會後改名 Jakarta Persistence，套件也從 javax.persistence 改成 jakarta.persistence">原筆記用的「Java Persistence API」是當年的正式名稱。這套規格後來改名為 Jakarta Persistence，套件也從 <code>javax.persistence</code> 改成 <code>jakarta.persistence</code></mark><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/" target="_blank" rel="noopener">出處</a>。現在的文件與程式碼看到的多半是新名字。</p>
-<p class="muted">原筆記那句「Java 官方委託 Gavin King 所寫」也不太精確：Gavin King 是 Hibernate 的作者，也參與了當年制定規格的專家小組，但規格是小組共同制定的，不是委託一個人撰寫。這一點只是背景，不影響用法，所以只註記不標更正。</p>
+<p class="muted">原筆記那句「Java 官方委託 Gavin King 所寫」也不太精確。Gavin King 是 Hibernate 的作者沒錯，但規格不是委託一個人寫的：規格書第 1.1 節寫明它「是 JSR 338 專家小組成員共同合作的成果」，後面列出十幾位成員與所屬公司<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/jakarta-persistence-spec-3.1.html" target="_blank" rel="noopener">出處</a>。這一點只是背景，不影響用法，所以只註記不標更正。</p>
 <p class="muted">MyBatis 也能把查詢結果對映成物件，但它的設計取向和完整的 ORM 不太一樣；Spring Data JPA 則是站在 JPA 之上，再提供一層儲存庫抽象。這三者的關係第 8 課會再談。</p>
 </section>
 
@@ -69,7 +69,7 @@ public class Member {
 
     // getter、setter
 }</code></pre>
-<p class="muted">原筆記在這裡寫了一句「請勿使用 AUTO！不值得信任！」。規格對 <code>AUTO</code> 的定義是「由持久層提供者依該資料庫挑一個適合的策略」，所以換資料庫時產生識別值的方式可能跟著換——這是它需要留意的地方。要行為可預期，明確指定 <code>IDENTITY</code> 或 <code>SEQUENCE</code> 就好。原筆記那句是使用建議不是事實錯誤，所以只註記不標更正。</p>
+<p class="muted">原筆記在這裡寫了一句「請勿使用 AUTO！不值得信任！」。規格對 <code>AUTO</code> 的定義是「由持久層提供者依該資料庫挑一個適合的策略」，所以換資料庫時產生識別值的方式可能跟著換——這是它需要留意的地方。要行為可預期，明確指定 <code>IDENTITY</code> 或 <code>SEQUENCE</code> 就好<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/generationtype" target="_blank" rel="noopener">出處</a>。原筆記那句是使用建議不是事實錯誤，所以只註記不標更正。</p>
 <p><code>insertable = false</code> 表示產生 INSERT 時不寫這個欄位，常用來讓資料庫的預設值接手；它不等於這個 Java 屬性永遠不能改。</p>
 </section>
 
@@ -110,7 +110,7 @@ found.setUsername("mei.lin");
 
 // 刪除
 session.remove(found);</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把 save()、delete()、saveOrUpdate() 標成「已廢棄」，查證後補強：那是 Hibernate 6 的狀態；Hibernate 7.0 已經把 Session#save、Session#update、Session#saveOrUpdate、Session#delete 整批移除，改用 persist()、merge()、remove()，舊呼叫在 Hibernate 7 連編譯都過不了">原筆記標「已廢棄」是 Hibernate 6 的狀態。Hibernate 7 的遷移指南寫的是「<code>Session#save</code>、<code>Session#update</code>、<code>Session#saveOrUpdate</code> 的所有形式都已移除」，以及「<code>Session#delete</code> 已移除，改用 <code>Session#remove</code>」。現在只剩 <code>persist()</code>、<code>merge()</code>、<code>remove()</code>，舊寫法在 Hibernate 7 連編譯都不會過</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記把 save()、delete()、saveOrUpdate() 標成「已廢棄」，那是 Hibernate 6 的狀態；Hibernate 7.0 已經把 Session#save、Session#update、Session#saveOrUpdate、Session#delete 整批移除，改用 persist()、merge()、remove()，舊呼叫在 Hibernate 7 連編譯都過不了">原筆記標「已廢棄」是 Hibernate 6 的狀態。Hibernate 7 的遷移指南寫的是「<code>Session#save</code>、<code>Session#update</code>、<code>Session#saveOrUpdate</code> 的所有形式都已移除」，以及「<code>Session#delete</code> 已移除，改用 <code>Session#remove</code>」。現在只剩 <code>persist()</code>、<code>merge()</code>、<code>remove()</code>，舊寫法在 Hibernate 7 連編譯都不會過</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
 <p>物件已經是分離狀態時，用 <code>merge()</code> 把資料併回目前 Session 管理的實體。要注意：之後要繼續操作的是 <code>merge()</code> 回傳的那個物件，不是你傳進去的舊物件。</p>
 <pre><code>Member managed = session.merge(detachedMember);
 managed.setUsername("new-name");</code></pre>

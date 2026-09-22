@@ -64,7 +64,7 @@ int affected = jdbcTemplate.update(sql, params);</code></pre>
 }</code></pre>
 <p>常用操作有 <code>save</code>、<code>findById</code>、<code>findAll</code> 與 <code>deleteById</code>。<code>findById</code> 回傳 <code>Optional&lt;T&gt;</code>，提醒呼叫端資料可能不存在。</p>
 <p class="muted">原筆記把刪除的方法名寫成 <code>deleteByID(Id id)</code>，正確的是 <code>deleteById(ID id)</code>，大小寫不同會找不到方法。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「save() 集insert() + update()」，抓到的大方向沒錯（它確實兩種都做得到），但這個講法太簡略、容易讓人以為每次都會跑兩段。查證後補正：Spring Data JPA 文件說明 save 會先判斷實體有沒有被持久化過，還沒有就呼叫 entityManager.persist，已經有就呼叫 entityManager.merge"><code>save</code> 兩種都做得到，這點原筆記沒講錯，但它不是每次都跑兩段。官方文件說明 <code>save</code> 會先判斷這個實體有沒有被持久化過：還沒有就呼叫 <code>persist</code>，已經有就呼叫 <code>merge</code>。實際發出什麼 SQL 還會受實體狀態影響</mark><a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/jpa/entity-persistence.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">原筆記寫「save() 集 insert() + update()」，查證後這個方向是對的——<code>save</code> 兩種都做得到。要補的是它不是每次都跑兩段。官方文件說明 <code>save</code> 會先判斷這個實體有沒有被持久化過：還沒有就呼叫 <code>persist</code>，已經有就呼叫 <code>merge</code>。實際發出什麼 SQL 還會受實體狀態影響<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/jpa/entity-persistence.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>方法名稱衍生查詢適合簡單條件。名稱長到看不懂，或需求變複雜時，就該換一種比較清楚的查詢寫法。</p>
 </section>
 

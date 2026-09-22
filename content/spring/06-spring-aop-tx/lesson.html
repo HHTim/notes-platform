@@ -49,7 +49,7 @@ public class TimingAspect {
 <section>
 <p class="era">代理機制帶來的邊界</p>
 <h3 class="head">寫了註解不一定會被攔截</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Spring-AOP則是AOP的實作，底層依靠JavaSE的Reflection/Proxy API」，這句只講了一半：JDK 動態代理確實是其中一條路，但 Spring AOP 還有 CGLIB 這條。查證後補全：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時會建立 CGLIB 子類別代理；Spring Boot 的 spring.aop.proxy-target-class 預設值是 true，也就是預設走 CGLIB">原筆記這句只講了一半：JDK 動態代理確實是其中一條路，但不是唯一一條。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a>（<code>spring.aop.proxy-target-class</code> 的預設值是 <code>true</code>，意思就是用 CGLIB 子類別代理）。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Spring-AOP則是AOP的實作，底層依靠JavaSE的Reflection/Proxy API」，這句只講了一半：JDK 動態代理確實是其中一條路，但 Spring AOP 還有 CGLIB 這條。查證後補全：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時會建立 CGLIB 子類別代理；另外要注意「有介面就用 JDK 動態代理」這條規則只在 spring.aop.proxy-target-class 是 false 時成立，而 Spring Boot 把它預設成 true，所以 Spring Boot 專案不論有沒有介面都走 CGLIB">原筆記這句只講了一半：JDK 動態代理確實是其中一條路，但不是唯一一條。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a>。不過上面那條「有介面就用 JDK 動態代理」的規則，只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立；Spring Boot 把這個設定預設成 <code>true</code>，所以在 Spring Boot 專案裡，有沒有介面都走 CGLIB。</p>
 <p>不論哪一種代理，攔截的都是「從外部進入 Bean」的呼叫。如果同一個物件裡的 A 方法直接呼叫自己的 B 方法，這次呼叫沒有經過代理，B 上的 AOP 行為就不會生效。這個狀況叫自我呼叫（self-invocation）。</p>
 <p>常見的改善方式是重新切分 Bean，讓呼叫真的跨過代理邊界。不要為了繞過設計問題，到處自己去拿代理物件。</p>
 </section>
@@ -59,7 +59,8 @@ public class TimingAspect {
 <h3 class="head">送交、回復與 ACID</h3>
 <p>交易（transaction）把多個資料庫操作當成一個工作單位。轉帳要先扣款再入帳：兩步都成功才送交（commit），中途失敗就回復（rollback），避免只做一半。</p>
 <div class="tablewrap"><table><thead><tr><th>ACID 特性</th><th>意義</th></tr></thead><tbody><tr><td>原子性（Atomicity）</td><td>整組操作全部完成，否則全部不算。</td></tr><tr><td>一致性（Consistency）</td><td>交易前後都符合資料規則。</td></tr><tr><td>隔離性（Isolation）</td><td>並行交易之間互相影響的程度受控制。</td></tr><tr><td>持久性（Durability）</td><td>送交之後的結果能持續保存。</td></tr></tbody></table></div>
-<p>隔離層級用來在一致性與並行效能之間取捨，會影響髒讀（dirty read）、不可重複讀（non-repeatable read）與幻讀（phantom read）這些讀現象。</p>
+<p>隔離層級用來在一致性與並行效能之間取捨。層級放得越寬，下面這三種「讀到怪東西」的情況就越可能發生：</p>
+<div class="terms"><div class="term"><b>髒讀（dirty read）</b><span>讀到另一筆交易改了、但還沒送交的資料。那筆交易如果後來回復，你讀到的就是一個從來沒存在過的值。</span></div><div class="term"><b>不可重複讀（non-repeatable read）</b><span>同一筆交易裡對同一列讀兩次，結果不一樣——中間被另一筆交易改掉並送交了。</span></div><div class="term"><b>幻讀（phantom read）</b><span>同一個查詢條件跑兩次，第二次多出或少掉幾列——中間有人新增或刪除了符合條件的資料。</span></div></div>
 </section>
 
 <section>

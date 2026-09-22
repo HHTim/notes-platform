@@ -17,9 +17,9 @@
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「HTTP協議是基於TCP協議，面向連接、安全」，查證後更正：HTTP 本身不提供任何加密或身分驗證，安全來自外加的 TLS；而且 HTTP/3 已改跑在以 UDP 為基礎的 QUIC 上，不再是「一定基於 TCP」">HTTP 本身不提供加密，MDN 的說法是它「送在 TCP 上，或送在一條受 TLS 加密的 TCP 連線上」——加密是外加的那一層，也就是 HTTPS；而且只有 HTTP/1.1 與 HTTP/2 通常跑在 TCP 上，HTTP/3 改用以 UDP 為基礎的 QUIC</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">HTTP/3</a>。原筆記在「HTTP ?」這個標題底下直接解釋成 HTTPS，兩者其實是不同層的東西。</p>
 <div class="tablewrap"><table><thead><tr><th>訊息</th><th>組成</th><th>用途</th></tr></thead><tbody><tr><td>HTTP 請求</td><td>請求列、請求標頭、可有可無的訊息本體</td><td>說明方法、目標路徑與送出的資料</td></tr><tr><td>HTTP 回應</td><td>狀態列、回應標頭、可有可無的訊息本體</td><td>說明處理結果與傳回的內容</td></tr></tbody></table></div>
 <p>GET 通常用來取得資源，參數放在網址的查詢字串；POST 通常用來提交資料，資料多半放在請求本體。但 HTTP 方法描述的是語意，不代表 GET 天生安全或 POST 會自動加密。</p>
-<p class="muted">原筆記在「Post 優於 Get 的原因」寫「Get傳送的參數有限制,當需要的參數內容較多,server 不見得可以有效使用」——就實務結果來說這句沒錯，網址確實有長度天花板。要補的是那個限制從哪來：不是 HTTP 協定訂的。RFC 9110 只建議「所有發送端與接收端至少支援 8000 位元組長度的網址」，真正卡住你的是各家瀏覽器與伺服器自己的實作上限。</p>
+<p class="muted">原筆記在「Post 優於 Get 的原因」寫「Get傳送的參數有限制,當需要的參數內容較多,server 不見得可以有效使用」——就實務結果來說這句沒錯，網址確實有長度天花板。要補的是那個限制從哪來：不是 HTTP 協定訂的。RFC 9110 只建議「所有發送端與接收端至少支援 8000 位元組長度的網址」，真正卡住你的是各家瀏覽器與伺服器自己的實作上限<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-uri-references" target="_blank" rel="noopener">出處</a>。</p>
 <p class="formula">瀏覽器 → HTTP 請求 → Web 伺服器／Servlet 容器 → Servlet → HTTP 回應 → 瀏覽器</p>
-<p>狀態碼看首位數字就能分類：2xx 成功、3xx 重新導向、4xx 請求端的情境無法完成、5xx 伺服器處理失敗。200 是成功、404 是找不到資源、500 是伺服器內部錯誤。</p>
+<p>狀態碼看首位數字就能分類：2xx 成功、3xx 重新導向、4xx 用戶端的請求有問題、5xx 伺服器處理失敗。200 是成功、404 是找不到資源、500 是伺服器內部錯誤。</p>
 </section>
 
 <section>
@@ -61,7 +61,7 @@ public class HelloServlet extends HttpServlet {
     }
 }</code></pre>
 <p><code>@WebServlet("/hello")</code> 是容器找到這個 Servlet 的門牌（URL Pattern，路徑樣式）。使用者實際打的網址還會包含主機、連接埠，以及應用程式的情境路徑（Context Path）。</p>
-<p class="muted">原筆記寫「只要一個 Servlet Reloading，所有都一起 Reloading」「每次 Reloading 會更換一個 class loader，才會有此現象」——查證後這樣寫是對的，而且原因就是它自己講的類別載入器。Tomcat 的文件說明「部署到同一個 Tomcat 實例的每一個 Web 應用程式都會建立一個類別載入器」，<code>WEB-INF/classes</code> 與 <code>WEB-INF/lib</code> 的類別只對這個應用程式可見。換掉這個載入器，整個應用程式的類別就一起換掉了。要補的只有一句：這裡的「所有」指的是同一個 Web 應用程式裡的所有 Servlet，不會波及其他應用程式。</p>
+<p class="muted">原筆記寫「只要一個 Servlet Reloading，所有都一起 Reloading」「每次 Reloading 會更換一個 class loader，才會有此現象」——查證後這樣寫是對的，而且原因就是它自己講的類別載入器。Tomcat 的文件說明「部署到同一個 Tomcat 實例的每一個 Web 應用程式都會建立一個類別載入器」，<code>WEB-INF/classes</code> 與 <code>WEB-INF/lib</code> 的類別只對這個應用程式可見。換掉這個載入器，整個應用程式的類別就一起換掉了。要補的只有一句：這裡的「所有」指的是同一個 Web 應用程式裡的所有 Servlet，不會波及其他應用程式<a class="fixsrc" href="https://tomcat.apache.org/tomcat-10.1-doc/class-loader-howto.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>

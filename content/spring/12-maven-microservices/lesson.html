@@ -40,6 +40,7 @@
 <p>單體式系統把會員、商品、付款與報表都部署在同一個應用程式裡；微服務則依業務能力拆成可以各自部署的服務。重點是切出清楚的業務邊界，不是把每個類別都變成一個服務。</p>
 <div class="tablewrap"><table><thead><tr><th>面向</th><th>單體式架構</th><th>微服務架構</th></tr></thead><tbody><tr><td>部署</td><td>整包一起部署</td><td>各服務可以獨立部署</td></tr><tr><td>擴充</td><td>通常擴充整個應用程式</td><td>可以只針對高流量的服務擴充</td></tr><tr><td>開發協調</td><td>程式集中，起步比較直接</td><td>團隊自主性高，但介面協調變多</td></tr><tr><td>失敗影響</td><td>共用同一個行程，故障容易擴大</td><td>可以隔離部分故障，但要設計逾時與降級</td></tr><tr><td>資料一致性</td><td>本機交易好處理</td><td>跨服務的一致性複雜得多</td></tr><tr><td>維運成本</td><td>服務數少，初期較低</td><td>需要監控、追蹤、部署與服務治理的能力</td></tr></tbody></table></div>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記把微服務的好處寫成「壓力分散：各功能獨立運行，某個模組出問題不會影響其他模組」，查證後更正：Martin Fowler 的微服務一文明講「把功能做成服務的後果之一，是應用程式必須被設計成能夠容忍服務的失敗」；會需要這樣設計就代表故障不會自己隔離，要隔離得另外做逾時、重試上限、斷路器與降級">拆開不等於自動隔離。把功能做成服務之後，「應用程式必須被設計成能夠容忍服務的失敗」——會需要這樣設計，正是因為一個服務掛掉會影響呼叫它的人。要真的隔離，得另外做逾時、重試上限、斷路器與降級</mark><a class="fixsrc" href="https://martinfowler.com/articles/microservices.html" target="_blank" rel="noopener">出處</a>。</p>
+<div class="terms"><div class="term"><b>逾時（timeout）</b><span>等下游回覆等到一個時間就放棄，不要無限等下去，把自己也拖垮。</span></div><div class="term"><b>斷路器（circuit breaker）</b><span>像家裡的無熔絲開關：發現某個下游一直失敗，就先直接擋掉對它的呼叫、不要再一直試，等一段時間再放行探一次。</span></div><div class="term"><b>降級（fallback）</b><span>下游叫不到的時候，改給一個堪用的替代結果，例如回傳快取的舊資料或一份預設清單，讓畫面還是出得來。</span></div></div>
 </section>
 
 <section>
@@ -138,9 +139,9 @@ public class GlobalExceptionHandler {
 
 <section>
 <p class="era">串起來看</p>
-<h3 class="head">建置、架構與錯誤契約其實互相牽動</h3>
+<h3 class="head">建置、架構與錯誤格式其實互相牽動</h3>
 <p>Maven 讓每個服務都能用一致的方式編譯、測試與打包；微服務讓服務可以各自部署；全域例外處理讓 API 的錯誤格式保持一致。如果各服務各自回傳不同的錯誤結構，即使部署已經拆開，用戶端整合起來還是很痛苦。</p>
-<p>所以可以把錯誤碼規則、追蹤識別碼與共用回應模型整理成明確的契約。共用程式庫可以透過 Maven 發布，但要控制相容性，別讓所有服務被迫同時升級。</p>
+<p>所以可以把錯誤碼規則、追蹤識別碼與共用回應模型講定成一份明確的約定。共用程式庫可以透過 Maven 發布，但要控制相容性，別讓所有服務被迫同時升級。</p>
 </section>
 
 <div class="keys"><p class="lbl">重點整理</p><ul><li>Maven 用 POM 管理座標、相依套件與標準化的建置流程。</li><li>執行生命週期後段的階段時，同一套生命週期的前置階段會先跑。</li><li>微服務能獨立部署與擴充，但網路、資料一致性與維運成本都會增加。</li><li>同步依賴會讓故障連鎖，隔離要靠逾時、斷路器與降級自己設計。</li><li>Filter 的順序由註冊順序與 order 決定，不是照種類排。</li><li><code>@RestControllerAdvice</code> 只管得到 Spring MVC 範圍內的例外。</li><li>錯誤回應要穩定且不洩漏內部資訊，細節留在受控日誌。</li></ul></div>
