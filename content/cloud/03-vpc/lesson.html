@@ -51,7 +51,7 @@
 <p class="era">網卡才是網路身分</p>
 <h3 class="head">ENI、EC2 與 Security Group 的關係</h3>
 <p>ENI（Elastic Network Interface，彈性網路介面）就是虛擬網卡。EC2 是運算資源，它透過掛上 ENI 才取得私有 IP、所屬 Subnet 這些網路身分。</p>
-<p>Security Group（安全群組）是 VPC 層級的資源，實際上關聯到 ENI，而不是「住在 Subnet 裡」。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記的條列寫「EC2 外面包了 SG」「SG 在某一個 Subnet 裡面」，查證後更正：Security Group 是 VPC 層級的資源，關聯的對象是 ENI，不隸屬於某個 Subnet。原筆記下一段其實自己就補了「SG 其實是跟著 ENI 走的」，但那條錯的條列沒有收回，所以這裡講清楚">Security Group（安全群組）是 VPC 層級的資源，關聯的對象是 ENI，不是「住在某個 Subnet 裡」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">出處</a>。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的。</p>
 <p>在條件允許時，ENI 可以從一台 EC2 卸下來，再掛到另一台 EC2。這樣就能保留部分網路設定，只換掉背後的運算資源。</p>
 </section>
 
@@ -66,7 +66,7 @@
 <section>
 <p class="era">建置順序</p>
 <h3 class="head">建立一個可以直接連外的基本網路</h3>
-<ol><li>建立 VPC，並規劃 CIDR（位址範圍）。</li><li>在指定的 AZ 建立 Subnet。</li><li>建立 Internet Gateway，掛載到 VPC，不是掛在某個 Subnet 上。</li><li>在公開 Subnet 關聯的路由表中，加一條指向 Internet Gateway 的預設路由。</li><li>建立 EC2 放進該 Subnet，配置需要的公有位址與安全規則。</li></ol>
+<ol><li>建立 VPC，並規劃 CIDR（位址範圍）。</li><li>在指定的 AZ 建立 Subnet。</li><li><mark class="fixnote" tabindex="0" data-note="原筆記的建置步驟寫「創建 IGW，並且將它 Attach to VPC(剛剛創立的 Public Subnet)」——前半句對、括號裡寫成 Subnet，前後矛盾。查證後更正：Internet Gateway 是掛載到 VPC，一個 VPC 只能掛一個；Subnet 是靠路由表指向它才連得出去，不是掛載對象">建立 Internet Gateway，掛載到 VPC——掛載對象是 VPC，不是 Subnet</mark><a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html" target="_blank" rel="noopener">出處</a>。</li><li>在公開 Subnet 關聯的路由表中，加一條指向 Internet Gateway 的預設路由。</li><li>建立 EC2 放進該 Subnet，配置需要的公有位址與安全規則。</li></ol>
 <p class="formula">一個 Subnet 算不算公開，主要看它關聯的路由表能不能把網際網路流量送到 Internet Gateway。</p>
 </section>
 

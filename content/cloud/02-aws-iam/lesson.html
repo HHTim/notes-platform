@@ -30,6 +30,7 @@
 <h3 class="head">先回答三件事：誰、對哪個資源、做什麼</h3>
 <p>AWS Identity and Access Management（IAM）管兩件事：身分驗證（authentication）確認「你是誰」，授權（authorization）決定「你能做什麼」。</p>
 <div class="terms"><p><b>IAM User：</b>長期存在於 AWS 帳號中的身分，可以搭配主控台密碼或程式用的憑證。</p><p><b>User Group：</b>IAM User 的集合，方便把共同權限集中管理；群組本身不是一個可以登入的身分。</p><p><b>IAM Role：</b>可以被人員、應用程式或 AWS 服務「承接」的身分，通常搭配短期憑證。</p><p><b>Policy：</b>一份政策文件，寫清楚允許或拒絕哪些動作、作用在哪些資源、有什麼條件。</p></div>
+<p>Role 搭配的短期憑證由 AWS Security Token Service（STS）發出。<mark class="fixnote" tabindex="0" data-note="原筆記寫「STS (Security Token Service) 每 15 分鐘有效，配合 IAM role，分發給 IAM user、AWS service」，查證後更正：15 分鐘是可以要求的最短效期下限，不是固定效期。承接角色時可要求的範圍是 15 分鐘到該角色的「最長工作階段時間」設定（可設 1 到 12 小時），沒特別指定的預設是 1 小時；另外用一組角色憑證再去承接另一個角色（角色串接）時，上限固定為 1 小時">15 分鐘是可以要求的最短效期，不是「每 15 分鐘就失效」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use.html" target="_blank" rel="noopener">出處</a>。承接角色時可以要求 15 分鐘到該角色「最長工作階段時間」之間的任一長度（這個設定可以調 1 到 12 小時），沒指定的話預設 1 小時。拿一組角色憑證再去承接另一個角色（角色串接）時，上限固定是 1 小時。</p>
 <p>日常管理不該長期使用 AWS 帳號的根使用者（root user）。根使用者權限極高，應該設強密碼、開啟多重要素驗證（Multi-Factor Authentication，MFA），而且只在真的需要根權限的工作才動用。</p>
 </section>
 
@@ -60,6 +61,7 @@ Lambda 的資源型政策
         ↓ 檢查 Principal、Action 與來源條件
 允許後才執行函式</code></pre>
 <p>這個情境裡呼叫的人是 S3 服務，被呼叫的資源是 Lambda 函式。所以要在 Lambda 的資源型政策中允許 S3 執行呼叫動作，並用條件限制只能由預期的那個 Bucket 觸發。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「任兩個 AWS 服務要互相串接也要透過 Role」，查證後更正：這不是通則。S3 事件觸發 Lambda 就是反例——S3 沒有可附加身分型政策的身分，授權是寫在 Lambda 的資源型政策裡，不是靠 Role。Role 適用的是「工作負載自己去呼叫別的服務」那一種方向">「任兩個 AWS 服務互相串接都要透過 Role」這句話不成立</mark><a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/access-control-resource-based.html" target="_blank" rel="noopener">出處</a>：這一頁的 S3 觸發 Lambda 就是反例。要用哪一種，看方向——工作負載主動去呼叫別的服務（例如 EC2 上的程式讀 S3）用 Role；別的服務來呼叫你（例如 S3 來觸發 Lambda）則是在被呼叫的資源上寫資源型政策。</p>
 <p>Lambda 的執行角色回答的是另一個問題：「函式開始跑之後，可以存取哪些資源」。它不回答「誰可以呼叫這個函式」。這兩個方向不能混在一起。</p>
 </section>
 
