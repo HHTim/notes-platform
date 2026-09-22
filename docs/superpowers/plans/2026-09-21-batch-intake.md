@@ -23,10 +23,10 @@ Tim 已拍板（2026-09-21）。來源：`~/Workspace/hackmd-notes/`（本機資
 | 2 | 英文（english）🇬🇧 | 2 | ✅ 已發佈（2026-09-21 驗收）|
 | 3 | 面試集（interview，既有）+2 | 2 | ✅ 已發佈（2026-09-21 驗收）|
 | 4 | 網頁與網路基礎（web）🌐 | 8 | ✅ 已發佈（自主模式）|
-| 5 | Angular（angular）🅰️ | 7 | 進行中 |
-| 6 | AI 開發工具（ai-tools）🤖 | 8 | 待開工 |
-| 7 | 雲端 AWS 與 GCP（cloud）☁️ | 14 | 待開工 |
-| 8 | Spring 與 Java 後端（spring）🌱 | 12 | 待開工 |
+| 5 | Angular（angular）🅰️ | 7 | ✅ 已發佈（自主模式）|
+| 6 | AI 開發工具（ai-tools）🤖 | 8 | 實作中 |
+| 7 | 雲端 AWS 與 GCP（cloud）☁️ | 14 | 實作中 |
+| 8 | Spring 與 Java 後端（spring）🌱 | 12 | 實作中 |
 | 9 | Java（java）☕ | 11 | 待開工 |
 | 10 | K8s 實作篇（既有 k8s 模組擴充） | +7 | 待開工 |
 
