@@ -70,10 +70,10 @@
 <h3 class="head">Security Group 與 Network ACL</h3>
 <div class="tablewrap"><table><thead><tr><th>比較項目</th><th>Security Group</th><th>Network ACL</th></tr></thead><tbody><tr><td>保護範圍</td><td>ENI（資源層級）</td><td>Subnet 邊界</td></tr><tr><td>規則種類</td><td>只有允許規則</td><td>允許與拒絕規則都有</td></tr><tr><td>狀態</td><td>有狀態（Stateful）</td><td>無狀態（Stateless）</td></tr><tr><td>回程流量</td><td>已允許連線的回應可自動通過</td><td>入站、出站都要分別允許</td></tr><tr><td>評估方式</td><td>綜合所有適用的規則</td><td>依規則編號由小到大比對</td></tr></tbody></table></div>
 <p>Network ACL 是無狀態的，所以跨 Subnet 邊界時，要分別想來源端的出站規則與目的端的入站規則，回程流量也必須有對應規則才通得過。</p>
-<p class="muted">預設規則會因為你用的是預設還是自訂 Network ACL 而不同；判讀現有環境時要直接去看實際規則，不要靠印象。</p>
+<p class="muted">Network ACL 的預設值也要分兩種，而且方向剛好相反。VPC 附的那個預設 Network ACL 是進出全放；<b>你自己新建</b>的 Network ACL 則是什麼都不通——官方寫「每個 Network ACL 都包含一條預設入站規則與一條預設出站規則，規則編號是星號（*）。這些規則確保一個封包如果不符合其他任何規則，就會被拒絕」，而且「你無法刪除規則編號為星號的規則」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html" target="_blank" rel="noopener">出處</a>。所以自訂一個之後要自己把該放的流量一條條加回去，判讀現有環境時直接去看實際規則，不要靠印象。</p>
 <p>Security Group 的預設值則可以記成一句話：<b>進來全拒、出去全放</b>。AWS 列的規則特性原文是「當你第一次建立一個安全群組時，它沒有任何入站規則。因此在你加入入站規則之前，不允許任何入站流量」，以及「當你第一次建立一個安全群組時，它有一條允許該資源所有出站流量的出站規則」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>這解釋了一個常見現象：剛開好的 EC2 從外面連不進去（沒有入站規則），但機器自己連得出去、抓得到系統更新（出站全放）。要收緊出站也做得到——同一頁接著寫「如果你的安全群組沒有出站規則，就不允許任何出站流量」。</p>
-<p class="muted">「進來全拒」這句要綁在<b>自己新建的</b>安全群組上。每個 VPC 都附一個名叫 default 的預設安全群組，它不一樣：它預設就帶一條入站規則，來源寫的是這個安全群組自己，效果是「掛著同一個安全群組的資源彼此可以互通」；出站則同樣是兩條全放（IPv4 與 IPv6 各一條）。AWS 自己也建議別用它——「我們建議你為特定資源或資源群組建立安全群組，而不是使用預設安全群組」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/default-security-group.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">「進來全拒」這句要綁在<b>自己新建的</b>安全群組上。每個 VPC 都附一個名叫 default 的預設安全群組，它不一樣：它預設就帶一條入站規則，來源寫的是這個安全群組自己，效果是「掛著同一個安全群組的資源彼此可以互通」；出站則是全放的 IPv4 一條；只有在 VPC 有關聯 IPv6 位址範圍時，才會再多一條 IPv6 的（官方在那條規則旁註明「這條規則只有在你的 VPC 有關聯的 IPv6 CIDR 區塊時才會加入」）。AWS 自己也建議別用它——「我們建議你為特定資源或資源群組建立安全群組，而不是使用預設安全群組」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/default-security-group.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
