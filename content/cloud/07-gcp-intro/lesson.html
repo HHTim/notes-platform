@@ -23,6 +23,7 @@
 <p>政策可以套在不同管理層級，並影響底下的資源。設計權限時要看完整階層，不能只看資源旁邊那一條設定。</p>
 <p>更精確地說，權限是<b>往下累加</b>的。Google 的原文是：「一個資源的有效允許政策，是設定在該資源上的允許政策，與從其父項繼承而來的允許政策的聯集。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control" target="_blank" rel="noopener">出處</a>（聯集＝把兩邊的權限全部合起來算，重複的只算一次。）</p>
 <p class="q">這句話的實務後果是：你在 Project 上「少給」某個人權限，並不會把他在 Organization 或 Folder 那一層已經拿到的權限收回來。往下看只會越看越多，不會越看越少。</p>
+<p class="muted">原筆記把這件事寫成「假設我在 Organization 得到某一個權限，在往下的 Folder &amp; Project 的各層級，都會是我在 Organization 得到的權限」——查證後這個講法是對的，講的就是上面那條聯集規則<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control" target="_blank" rel="noopener">出處</a>。</p>
 <p>所以查一個人為什麼碰得到某個資源，要從 Organization 一路看到資源本身，不能只看資源旁邊那一格。真的要在低層擋掉上層給出去的東西，得另外用拒絕政策（deny policy），那是一套跟允許政策分開的機制。</p>
 </section>
 
@@ -94,6 +95,7 @@
 <p>服務帳戶（Service Account）是給程式用的帳號。官方定義是：「服務帳戶是一種特殊的帳戶，通常由應用程式或運算工作負載使用（例如一個 Compute Engine 執行個體），而不是由人使用。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/service-account-overview" target="_blank" rel="noopener">出處</a>。這跟第 2 課 AWS 用 Role 取代長期金鑰是同一個思路：讓程式帶著一個有身分的帳號去做事，而不是把密碼寫進程式碼。</p>
 <p>它有個一開始容易卡住的雙重身分。官方寫的是：「服務帳戶是主體（principal）。這表示你可以授予服務帳戶存取 Google Cloud 資源的權限……然而，服務帳戶同時也是資源。這表示你可以讓其他主體取得存取這個服務帳戶的權限。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/service-account-overview" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">「這個服務帳戶能做什麼」和「誰可以使用這個服務帳戶」是兩件要分開設定的事。</p>
+<p class="muted">講到「程式怎麼拿到這個身分」時要補一個前提：用<b>服務帳戶金鑰</b>（service account key，一個下載下來的憑證檔）確實做得到，也還能用，但這是 Google 現在明講要盡量避開的做法——最佳做法文件寫的是「我們建議你盡可能避免使用服務帳戶金鑰」。理由有三個：金鑰是誰拿去用的查不出來（稽核紀錄只看得到服務帳戶動過資源，看不出是誰用了那把金鑰）、有建立金鑰權限的人可以藉此取得比自己更大的權限，以及「任何持有服務帳戶金鑰的人都能使用它」。建議的替代做法是把服務帳戶直接附加到資源上（VM、GKE 的 Pod）、用身分模擬，或對外部工作負載用 Workload Identity 聯合<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/best-practices-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
 <p>跨專案就是卡在後面那一半。把 A 專案建立的服務帳戶，掛到 B 專案的一台 VM 上，並不是預設就能做的事，要先過兩關。第一關是放行一條機構政策的限制條件（機構政策＝organization policy，在 Organization 或 Folder 這一層設下、會套到底下所有專案的規則）：那條限制條件叫 <code>iam.disableCrossProjectServiceAccountUsage</code>，只有開和關兩種值，官方的說法是要確保它「<i>未被強制執行</i>」。第二關是要讓目標服務的服務代理（service agent，Google 代表某個服務去做事的內建帳號），在那個服務帳戶上取得「服務帳戶權杖建立者」角色（<code>roles/iam.serviceAccountTokenCreator</code>）——權杖（token）就是那張有時效的臨時通行證，有了這個角色才能替那個服務帳戶簽發通行證<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">開通之後會多一個副作用值得先知道：IAM 會自動替放服務帳戶的那個專案加上一道「專案鎖」（project lien），用途是擋住誤刪整個專案。官方原文是「IAM 會新增一道專案鎖，防止該專案被刪除」，來源標記是 <code>iam.googleapis.com/cross-project-service-accounts</code>。所以那個專案之後想刪會刪不掉，要先處理這道鎖<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
 </section>
