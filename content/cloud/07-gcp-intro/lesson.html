@@ -1,5 +1,5 @@
 <!-- 來源：HackMD 匯出「Chapter 9：What is Google Cloud（GCP）？」「模組１：Google Cloud Platform 介紹」 · 收錄日期：2026-09-22 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清楚 Organization、Folder、Project 這條管理階層，和 Region、Zone 這條地理位置</li><li>說出 Global、Regional、Zonal 三種資源範圍各是什麼</li><li>知道 Compute Engine 跟 GKE、Cloud Run、App Engine、Cloud Functions 的定位差在哪</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清楚 Organization、Folder、Project 這條管理階層，和 Region、Zone 這條地理位置</li><li>說出 Global、Regional、Zonal 三種資源範圍各是什麼</li><li>知道 Compute Engine 跟 GKE、Cloud Run、App Engine、Cloud Functions 的定位差在哪</li><li>說出權限為什麼只會往下累加，以及三種角色與服務帳戶各自解決什麼問題</li></ul></div>
 
 <section>
 <p class="era">平台全貌</p>
@@ -21,6 +21,9 @@
 <p>Organization 通常代表一間公司或機構；Folder 可以依部門、系統或環境整理 Project；Project 則承載 API、IAM、計費關聯、配額與各種服務資源。</p>
 <p>可以想成公司的文件櫃：Organization 是整間公司，Folder 是部門抽屜，Project 是實際辦某件事的資料夾。這是管理關係，不是機房地圖，所以 Project 本身不是 Region 也不是 Zone。</p>
 <p>政策可以套在不同管理層級，並影響底下的資源。設計權限時要看完整階層，不能只看資源旁邊那一條設定。</p>
+<p>更精確地說，權限是<b>往下累加</b>的。Google 的原文是：「一個資源的有效允許政策，是設定在該資源上的允許政策，與從其父項繼承而來的允許政策的聯集。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control" target="_blank" rel="noopener">出處</a>（聯集＝把兩邊的權限全部合起來算，重複的只算一次。）</p>
+<p class="q">這句話的實務後果是：你在 Project 上「少給」某個人權限，並不會把他在 Organization 或 Folder 那一層已經拿到的權限收回來。往下看只會越看越多，不會越看越少。</p>
+<p>所以查一個人為什麼碰得到某個資源，要從 Organization 一路看到資源本身，不能只看資源旁邊那一格。真的要在低層擋掉上層給出去的東西，得另外用拒絕政策（deny policy），那是一套跟允許政策分開的機制。</p>
 </section>
 
 <section>
@@ -43,6 +46,8 @@
 地理上：建立在某個 Zone
 網路上：網路介面連到同一 Region 的 Subnet</code></pre>
 <p class="q">不要背成「Project → VPC → Region → Zone → Subnet → VM」。Region 與 Zone 是地理位置，不是建立在 VPC 裡面的子資源。</p>
+<p>上面三種講的是「資源屬於哪個範圍」。另外還有一個很容易跟 Regional 搞混的詞叫 <b>Multi-Region（多重區域）</b>，它是存資料時可以挑的地理範圍，而且比一個 Region 更大。Cloud Storage 的位置文件把三種選項並列定義：「region 是一個特定的地理位置，例如愛荷華（<code>US-CENTRAL1</code>）」、「dual-region 是一組特定的區域配對，例如東京與大阪（<code>ASIA1</code>）」、「multi-region 是一個大型地理區域，包含兩個或更多的地理區域，例如美國（<code>US</code>）」<a class="fixsrc" href="https://docs.cloud.google.com/storage/docs/locations" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">Global 和 Multi-Region 是兩件事，別混用。Global（例如 VPC Network）的意思是「這個資源不綁任何地點」；Multi-Region 的意思是「這份資料實際被放在一整片涵蓋多個區域的範圍裡」——你還是選了地點，只是選了一大片。這樣選的用意在官方的地理位置說明裡寫得很清楚：這類跨區域的服務「設計上能在單一區域失效之後繼續運作」<a class="fixsrc" href="https://docs.cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。會挑 Multi-Region 的多半是存資料的服務，例如 Cloud Storage 的 bucket；前面提過，一般的 Compute Engine VM 是 Zonal，建立時挑的是 Zone。</p>
 </section>
 
 <section>
@@ -74,10 +79,30 @@
 </section>
 
 <section>
+<p class="era">角色的三種來源</p>
+<h3 class="head">基本、預先定義、自訂——由粗到細</h3>
+<p>在 Google Cloud，權限不是一條一條直接給人，而是包成「角色」（role）再授予。角色依來源分三種：</p>
+<div class="tablewrap"><table><thead><tr><th>角色種類</th><th>誰決定內容</th><th>顆粒度</th><th>什麼時候用</th></tr></thead><tbody><tr><td>基本角色（basic）</td><td>Google 內建，範圍很寬</td><td>最粗</td><td>個人實驗、沙盒環境</td></tr><tr><td>預先定義角色（predefined）</td><td>Google 依服務維護</td><td>中等，對準單一服務</td><td>日常授權的首選</td></tr><tr><td>自訂角色（custom）</td><td>你自己挑權限組出來</td><td>最細</td><td>預先定義的都不剛好時</td></tr></tbody></table></div>
+<p>官方的定義分別是：基本角色「是權限非常寬鬆的角色，給予對 Google Cloud 資源的廣泛存取」；預先定義角色「除了基本角色之外，IAM 還提供額外的預先定義角色，對特定的 Google Cloud 資源給予細緻的存取」；自訂角色則是「IAM 也讓你建立自訂 IAM 角色」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a>。</p>
+<p>同一頁對基本角色有一則明確的警告：「基本角色包含跨所有 Google Cloud 服務的數千項權限。在正式環境中，除非別無選擇，否則不要授予基本角色。」配合前面講的權限聯集，在高層級隨手給一個基本角色，底下所有專案都會跟著吃到。</p>
+<p class="muted">名稱這幾年換過，查資料時要對得上：Owner、Editor、Viewer 這三個老面孔，官方現在歸類為<b>舊版基本角色</b>（legacy basic roles），並且寫明「舊版基本角色在 IAM 推出之前就已存在。它們原本被稱為<i>primitive roles</i>（原始角色）」；另外還有一組較新的基本角色是 Admin、Writer、Reader<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a>。所以「Primitive／Predefined／Custom 三種角色」這個講法沒有講錯東西，只是用的是舊名字——Owner、Editor、Viewer 本身還在，照樣能用。</p>
+</section>
+
+<section>
+<p class="era">給程式用的帳號</p>
+<h3 class="head">服務帳戶既是「誰」，也是「一個可以被授權的東西」</h3>
+<p>服務帳戶（Service Account）是給程式用的帳號。官方定義是：「服務帳戶是一種特殊的帳戶，通常由應用程式或運算工作負載使用（例如一個 Compute Engine 執行個體），而不是由人使用。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/service-account-overview" target="_blank" rel="noopener">出處</a>。這跟第 2 課 AWS 用 Role 取代長期金鑰是同一個思路：讓程式帶著一個有身分的帳號去做事，而不是把密碼寫進程式碼。</p>
+<p>它有個一開始容易卡住的雙重身分。官方寫的是：「服務帳戶是主體（principal）。這表示你可以授予服務帳戶存取 Google Cloud 資源的權限……然而，服務帳戶同時也是資源。這表示你可以讓其他主體取得存取這個服務帳戶的權限。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/service-account-overview" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">「這個服務帳戶能做什麼」和「誰可以使用這個服務帳戶」是兩件要分開設定的事。</p>
+<p>跨專案就是卡在後面那一半。把 A 專案建立的服務帳戶，掛到 B 專案的一台 VM 上，並不是預設就能做的事，要先過兩關。第一關是放行一條機構政策的限制條件（機構政策＝organization policy，在 Organization 或 Folder 這一層設下、會套到底下所有專案的規則）：那條限制條件叫 <code>iam.disableCrossProjectServiceAccountUsage</code>，只有開和關兩種值，官方的說法是要確保它「<i>未被強制執行</i>」。第二關是要讓目標服務的服務代理（service agent，Google 代表某個服務去做事的內建帳號），在那個服務帳戶上取得「服務帳戶權杖建立者」角色（<code>roles/iam.serviceAccountTokenCreator</code>）——權杖（token）就是那張有時效的臨時通行證，有了這個角色才能替那個服務帳戶簽發通行證<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">開通之後會多一個副作用值得先知道：IAM 會自動替放服務帳戶的那個專案加上一道「專案鎖」（project lien），用途是擋住誤刪整個專案。官方原文是「IAM 會新增一道專案鎖，防止該專案被刪除」，來源標記是 <code>iam.googleapis.com/cross-project-service-accounts</code>。所以那個專案之後想刪會刪不掉，要先處理這道鎖<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
+</section>
+
+<section>
 <p class="era">責任不會消失</p>
 <h3 class="head">用了代管服務，還是要管權限、資料與應用程式</h3>
 <p>Google 負責維護底層基礎設施，但客戶還是要正確設定 IAM、保護資料、限制網路存取，並維護自己控制的作業系統與程式。用的服務抽象程度越高，Google 負責的底層工作越多；客戶對自己資料與存取決策的責任並不會因此消失。</p>
 <blockquote>先問「我需要控制到哪一層」，再選服務；不要先挑流行的工具，再勉強把工作負載塞進去。</blockquote>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>Organization、Folder、Project 是管理階層；Region、Zone 是地理位置，兩條線不要混在一起。</li><li>VPC 是 Global，Subnet 是 Regional，一般的 Compute Engine VM 是 Zonal。</li><li>VM 建立在 Zone，並透過網路介面連到同一 Region 的 Subnet。</li><li>GCE 控制度高，相對要管的系統層工作也多。</li><li>GKE、Cloud Run、App Engine、Cloud Functions 提供不同程度的代管與抽象。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Organization、Folder、Project 是管理階層；Region、Zone 是地理位置，兩條線不要混在一起。</li><li>VPC 是 Global，Subnet 是 Regional，一般的 Compute Engine VM 是 Zonal。</li><li>VM 建立在 Zone，並透過網路介面連到同一 Region 的 Subnet。</li><li>GCE 控制度高，相對要管的系統層工作也多。</li><li>GKE、Cloud Run、App Engine、Cloud Functions 提供不同程度的代管與抽象。</li><li>有效權限是「自己身上的」加上「從父項繼承的」的聯集，所以往下只會越加越多，低層擋不掉高層給出去的權限。</li><li>角色分基本、預先定義、自訂三種；Owner／Editor／Viewer 是舊版基本角色，舊名叫 primitive roles，正式環境別隨手給。</li><li>服務帳戶既是可以被授權的主體，也是別人可以被授權去用的資源；跨專案使用要先放行機構政策，而且會多一道防誤刪的專案鎖。</li><li>Multi-Region 是比 Region 更大的資料存放範圍，跟「不綁地點」的 Global 不是同一回事。</li></ul></div>
