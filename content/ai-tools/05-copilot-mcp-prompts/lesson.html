@@ -1,5 +1,5 @@
-<!-- 來源：HackMD 匯出「全面掌握 GitHub Copilot 代理人模式：整合 MCP 伺服器到開發流程的技巧」「GitHub Copilot Ultimate Cheat Sheet (2026 Edition)」 · 收錄日期：2026-09-22 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明 MCP 在這裡扮演什麼角色，以及它不負責解決哪些問題</li><li>分清楚指示檔、提示檔、自訂代理人與工具各自放什麼</li><li>把外部內容當成不可信的資料，避開提示注入</li></ul></div>
+<!-- 來源：HackMD 匯出「全面掌握 GitHub Copilot 代理人模式：整合 MCP 伺服器到開發流程的技巧」「GitHub Copilot Ultimate Cheat Sheet (2026 Edition)」 · 收錄日期：2026-09-22；補收「250620_深入理解 Prompts 與 Instructions 的應用技巧.md」 · 收錄日期：2026-09-23 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明 MCP 在這裡扮演什麼角色，以及它不負責解決哪些問題</li><li>分清楚指示檔、提示檔、自訂代理人、工具組與工具各自放什麼</li><li>把工作區以外的材料（別人的儲存庫、網頁、瀏覽器畫面）指給它看</li><li>把外部內容當成不可信的資料，避開提示注入</li></ul></div>
 
 <section>
 <p class="era">先講 MCP</p>
@@ -83,6 +83,37 @@
 </section>
 
 <section>
+<p class="era">工具組</p>
+<h3 class="head">工具一多，就替常用的那幾把綁一個名字</h3>
+<p>接上兩三台 MCP 伺服器之後，可以選的工具很快就是幾十個，每次要手動勾選很煩。<strong>工具組</strong>（Tool Sets）就是為這件事存在的：官方的定義是「A tool set is a reusable collection of agent tools that you can reference as a single entity.」——把一組相關的工具包成一個名字，之後用一個名字整組叫出來。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/tool-sets" target="_blank" rel="noopener">出處</a></p>
+<p>建立方式是在命令面板（VS Code 上方那個打指令的搜尋框）跑 <code>Chat: Configure Tool Sets</code>，選「Create new tool sets file」，在開出來的 <code>.jsonc</code> 檔（可以寫註解的 JSON）裡定義：</p>
+<pre><code>{
+  "reader": {
+    "tools": ["search/changes", "search/codebase", "read/problems", "search/usages"],
+    "description": "Tools for reading and gathering context",
+    "icon": "book"
+  }
+}</code></pre>
+<p>之後在對話裡打 <code>#reader</code>，這一整組就一起帶進去。官方也說明三個欄位各是什麼：<code>tools</code> 是工具名稱的陣列（可以放內建工具、MCP 工具或擴充功能提供的工具），<code>description</code> 是在工具選單裡顯示的說明，<code>icon</code> 是圖示。</p>
+<p class="muted">VS Code 自己也內建了幾組，在工具總表裡直接標成 tool set：<code>#read</code>（讀工作區的檔案）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區）、<code>#execute</code>（在你的機器上執行程式）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（操作內建瀏覽器）、<code>#agent</code>（把工作分派給其他代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>原筆記寫「可在設定檔中將多個工具分組，方便在 Chat 中一次引用」，這件事今天依然成立，只是現在有專屬的指令與檔案格式。</p>
+</section>
+
+<section>
+<p class="era">自訂代理人</p>
+<h3 class="head">同一套工具，換個角色用</h3>
+<p>前面那張表提過這類檔案已經從<strong>自訂聊天模式</strong>改名叫<strong>自訂代理人</strong>。這裡講它實際能做什麼。官方的說法是「Custom agents enable you to configure the AI to adopt different personas tailored to specific development roles and tasks.」——替不同的開發角色各設一份設定，每份有自己的行為、可用工具與指示。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+<p>官方舉的例子跟原筆記列的四種用途是同一回事：「a "Plan" agent could include instructions for generating an implementation plan and only use read-only tools.」——一個只給唯讀工具的規劃角色，就不會在你還在想的時候動到程式碼。</p>
+<div class="tablewrap"><table><thead><tr><th>要設的東西</th><th>寫在哪</th></tr></thead><tbody>
+<tr><td>檔案本身</td><td>一個 <code>.agent.md</code> 的 Markdown 檔</td></tr>
+<tr><td>工作區共用</td><td><code>.github/agents</code> 資料夾（Claude 格式則放 <code>.claude/agents</code>）</td></tr>
+<tr><td>只給自己、跨專案用</td><td><code>~/.copilot/agents</code> 或 <code>~/.claude/agents</code></td></tr>
+<tr><td>檔頭設定（YAML 前置區，檔案開頭用三個減號框起來的設定段）</td><td><code>description</code>（說明）、<code>name</code>（名稱，不寫就用檔名）、<code>tools</code>（准用哪些工具或工具組）、<code>model</code>（指定用哪個模型）等</td></tr>
+</tbody></table></div>
+<p>建立用命令面板的 <code>Chat: New Custom Agent</code>，要用的時候在對話視窗的代理人下拉選單裡切換。</p>
+<p class="muted">這是版本差異不是原筆記寫錯：原筆記寫它是「自 VS Code 1.101 起的預覽功能」，以 2025 年 6 月來看是對的；現在它已經是正式文件裡的一般功能，名稱也換了。官方在問答區直接寫「Custom agents were previously known as custom chat modes. The functionality remains the same, but the terminology has been updated to better reflect their purpose in customizing AI behavior for specific tasks.」，並要求把舊的 <code>.chatmode.md</code> 改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+</section>
+
+<section>
 <p class="era">提示檔</p>
 <h3 class="head">把成功的對話變成可以維護的資產</h3>
 <p>提示檔適合那種會重複出現、輸入可以替換、輸出可以驗收的任務。放在專案的 <code>.github/prompts/</code> 就能跟同事共用、進版本控制，在對話裡打 <code>/</code> 加名稱就叫得出來；放在個人設定裡則是自己跨專案用。內容支援 <code>${selection}</code>（目前選取內容）、<code>${input:變數名}</code>（執行時問你要填什麼）這類變數，也可以用 Markdown 連結去引用另一份提示檔或指示檔，把流程拆成好幾份小的。</p>
@@ -110,6 +141,34 @@ description: 審查指定介面的授權風險
 </section>
 
 <section>
+<p class="era">對話管理</p>
+<h3 class="head">換一個乾淨的開始，或把這段留下來</h3>
+<p>對話越長，舊的資訊越容易干擾新的問題。原筆記記了三招：<code>/clear</code> 清空上下文、<code>/save</code> 把對話存成提示檔、匯出與匯入整串對話。三招的目的今天都還在，做法有些換了名字。</p>
+<div class="tablewrap"><table><thead><tr><th>你想做的事</th><th>現行官方列的做法</th></tr></thead><tbody>
+<tr><td>不要讓舊對話影響新問題</td><td><code>/clear</code>：官方的說明是「Start a new chat and archive or mark the current chat as done.」——開一個新對話，並把目前這個封存或標記為完成</td></tr>
+<tr><td>對話太長、超出模型能看的範圍</td><td><code>/compact</code>：「Compact the conversation context in a supported agent session. Useful when a conversation grows too long for the model's context window.」——把前面的內容壓成摘要，繼續同一串</td></tr>
+<tr><td>把這次的做法變成下次可以重跑的檔案</td><td><code>/create-prompt</code>：「In a local agent session, generate a prompt file.」</td></tr>
+<tr><td>整串留底或給別人</td><td>命令面板的 <code>Chat: Export Chat...</code>，存成一個 JSON 檔</td></tr>
+</tbody></table></div>
+<p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/sessions/chat-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
+<p class="muted">這是版本差異不是原筆記寫錯，而且我只能把話說到查得到的範圍：官方現行的斜線指令總表裡<strong>沒有列</strong> <code>/save</code>，要把對話變成可重複執行的檔案，列出來的是 <code>/create-prompt</code>；工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。該頁自己註明「The available commands depend on the current chat surface, session type, agent, and enabled features.」，所以這是「官方這兩頁沒有列」，不是「官方說它不存在」。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
+</section>
+
+<section>
+<p class="era">再多三種材料</p>
+<h3 class="head">專案以外的東西，怎麼指給它看</h3>
+<p>第 3 課有一張表，列了怎麼把選取的程式碼、問題清單、版本控制的差異、整個工作區指給它看。原筆記另外提了三種<strong>工作區以外</strong>的材料，補在這裡。</p>
+<div class="tablewrap"><table><thead><tr><th>想給的材料</th><th>現行寫法</th><th>官方說明</th></tr></thead><tbody>
+<tr><td>GitHub 上某個儲存庫的原始碼</td><td><code>#githubRepo</code>，後面接 <code>owner/repo</code>（GitHub 上「帳號／儲存庫名稱」的寫法）</td><td>「Semantic search a GitHub repository for relevant source code snippets. Specify a repository using <code>owner/repo</code>.」（<strong>語意搜尋</strong>＝照意思找相關的段落，不是只比對字面）</td></tr>
+<tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>「Text search a GitHub repository or organization for files containing specific keywords or code patterns.」</td></tr>
+<tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>「Fetch the content from a given web page.」官方示範是「Summarize #web/fetch code.visualstudio.com/updates.」</td></tr>
+</tbody></table></div>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫抓外部網頁的引用方式是「#fetch」，查證後更正：這屬於名稱改過的舊寫法。現行官方的內建工具總表把抓網頁的工具列為 #web/fetch（歸在 #web 這組底下），整張表裡沒有 #fetch 這個名字">抓網頁那個現在要打 <code>#web/fetch</code>——官方的內建工具總表把它歸在 <code>#web</code> 這組底下，跟第 3 課提過的 <code>#codebase</code> 改成 <code>#search/codebase</code> 是同一波改名</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>。<code>#githubRepo</code> 則查證後名稱沒變，照原筆記打就行。</p>
+<p class="muted">這是版本差異不是原筆記寫錯：原筆記提的 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構），現行官方的內建工具總表沒有列這個名字——但我只查得到「這兩頁沒有列」，查不到官方說它不存在。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做：官方說「Browser tools give agents a visual and interactive feedback loop for web development.」，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
+<p>這三種材料都來自你的工作區以外，所以下一段那條規矩對它們特別重要。</p>
+</section>
+
+<section>
 <p class="era">上下文與信任邊界</p>
 <h3 class="head">資料要剛好，而且要分得出哪些不可信</h3>
 <p>選取內容、問題清單、版本控制差異、專案搜尋與外部網頁各自回答不同的問題。先問「完成這件事最低限度需要哪些證據」，再附上對應的資料。</p>
@@ -134,7 +193,9 @@ description: 審查指定介面的授權風險
 <div class="keys"><p class="lbl">重點整理</p><ul>
 <li>MCP 讓 AI 與外部工具、資料的連接方式標準化，但不會自動解決安全問題。</li>
 <li>協定有哪些能力，跟某套產品實際支援哪些，是兩件要分開確認的事。</li>
-<li>指示檔管長期規則，提示檔管可重複的任務，自訂代理人管角色與工具邊界。</li>
+<li>指示檔管長期規則，提示檔管可重複的任務，自訂代理人管角色與工具邊界，工具組只是把常用工具綁一個名字。</li>
+<li>工作區以外的材料各有寫法：別人的儲存庫用 <code>#githubRepo</code>，某一頁網頁用 <code>#web/fetch</code>，要看實際畫面則用內建瀏覽器那組工具。</li>
+<li>想換個乾淨的開始用 <code>/clear</code>，對話太長用 <code>/compact</code>；匯出會把整串提示與回覆寫成一個 JSON 檔，分享前先清乾淨。</li>
 <li>外部內容可能夾帶提示注入，一律當成資料而不是命令。</li>
 <li>有副作用的工具呼叫都照最小權限給、留紀錄、設人工核准點。</li>
 </ul></div>

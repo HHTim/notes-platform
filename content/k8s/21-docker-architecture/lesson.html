@@ -1,0 +1,127 @@
+<!-- 來源：HackMD 匯出檔「Chapter 2 容器快速入門 I：Docker.md」 · 收錄日期：2026-09-23 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 Docker 的三個角色（你打指令的那支、真正做事的那支、放映像檔的那個倉庫）各管什麼、怎麼互相講話</li><li>看一眼手上的 Linux 就知道該用 <code>dnf</code>、<code>apt</code> 還是 <code>zypper</code> 裝東西</li><li>知道把帳號加進 <code>docker</code> 群組等於交出這台機器的管理權，以及官方怎麼說這件事</li></ul></div>
+
+<section>
+  <p class="era">實作篇・補課</p>
+  <h3 class="head">第 14 課給了三個名字，這課把它們接起來</h3>
+  <p>第 14 課開頭列過 Docker Engine、Docker CLI、Registry 三個名字，但沒講它們之間是怎麼傳話的。這一課補上那條線，順便把「在別人的機器上從零裝一套」會遇到的兩件事講完：挑對套件管理工具，以及那個看起來只是求方便、其實是資安決定的 <code>docker</code> 群組。</p>
+  <p>指令怎麼打在第 14 課，映像檔與 Dockerfile 在第 15 課，資料保存與 Compose 在第 16 課，<code>dockerd</code> 底下還分成哪幾棒在第 17 課——這課都不重講。</p>
+</section>
+
+<section>
+  <p class="era">架構</p>
+  <h3 class="head">你打的 <code>docker</code> 自己不做事，它只是去下單</h3>
+  <p>Docker 官方文件第一句就把它定性了：「Docker uses a client-server architecture. The Docker client talks to the Docker daemon, which does the heavy lifting of building, running, and distributing your Docker containers.」——<strong>用戶端－伺服器架構</strong>（client-server，白話：一邊負責下單、另一邊負責做事，兩邊是分開的兩支程式）。<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a></p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">角色</th><th scope="col">白話</th><th scope="col">官方怎麼說</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Docker 用戶端（<code>docker</code>）</th><td>你在終端機打字的那個介面，負責把要求送出去</td><td>「The Docker client (<code>docker</code>) is the primary way that many Docker users interact with Docker. When you use commands such as <code>docker run</code>, the client sends these commands to <code>dockerd</code>, which carries them out.」</td></tr>
+        <tr><th scope="row">Docker 背景服務（<code>dockerd</code>）</th><td>真正在做事的那支，一直開著等人來下單（這種一直待命的背景程式，正式名稱叫 daemon，中文常譯作常駐程式）</td><td>「The Docker daemon (<code>dockerd</code>) listens for Docker API requests and manages Docker objects such as images, containers, networks, and volumes.」</td></tr>
+        <tr><th scope="row">映像檔倉庫（registry）</th><td>放映像檔的架子，大家上傳下載都在這裡（第 4 課提過）</td><td>「A Docker registry stores Docker images. Docker Hub is a public registry that anyone can use, and Docker looks for images on Docker Hub by default.」</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <figure>
+    <svg viewBox="0 0 780 250" role="img" aria-label="docker 用戶端透過 REST API 把指令送給 dockerd，dockerd 管映像檔、容器、網路、資料卷，並向映像檔倉庫拉取或推送映像檔">
+      <g fill="none" stroke="currentColor">
+        <rect x="18" y="60" width="188" height="88" rx="5"/>
+        <rect x="546" y="60" width="216" height="88" rx="5" stroke-dasharray="6 4"/>
+      </g>
+      <rect x="284" y="46" width="188" height="150" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
+      <text x="112" y="98" font-size="16" text-anchor="middle">docker</text>
+      <text x="112" y="122" font-size="12.5" text-anchor="middle" opacity=".7">你打指令的那支</text>
+      <text x="378" y="82" font-size="16" text-anchor="middle" fill="var(--gold)">dockerd</text>
+      <text x="378" y="106" font-size="12.5" text-anchor="middle" fill="var(--gold)">真正做事的那支</text>
+      <text x="378" y="140" font-size="12" text-anchor="middle" opacity=".7">管：映像檔、容器</text>
+      <text x="378" y="162" font-size="12" text-anchor="middle" opacity=".7">網路、資料卷</text>
+      <text x="654" y="98" font-size="15" text-anchor="middle">映像檔倉庫</text>
+      <text x="654" y="122" font-size="12.5" text-anchor="middle" opacity=".7">預設是 Docker Hub</text>
+      <line x1="214" y1="104" x2="276" y2="104" stroke="currentColor" stroke-width="2" marker-end="url(#a1)"/>
+      <text x="245" y="90" font-size="11.5" text-anchor="middle" opacity=".75">REST API</text>
+      <text x="245" y="126" font-size="11.5" text-anchor="middle" opacity=".6">走本機檔案或網路</text>
+      <line x1="480" y1="104" x2="538" y2="104" stroke="currentColor" stroke-opacity=".6" stroke-width="2" marker-end="url(#a2)"/>
+      <text x="509" y="90" font-size="11.5" text-anchor="middle" opacity=".6">拉／推</text>
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor"/></marker>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".6"/></marker>
+      </defs>
+    </svg>
+    <figcaption>三個角色分得很開，所以它們<strong>不一定在同一台機器上</strong>——這件事等一下講權限時就是重點。</figcaption>
+  </figure>
+  <p>兩邊怎麼講話？官方寫「The Docker client and daemon communicate using a REST API, over UNIX sockets or a network interface.」<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a>——<strong>REST API</strong>（白話：一套講好的呼叫格式，像網頁瀏覽器連網站那樣，一邊送要求、一邊回結果），走的管道則是本機的一個通訊用檔案，或直接走網路。</p>
+  <p class="muted">Docker Desktop 不是第四個角色，它是把上面這些包成一個桌面軟體：「Docker Desktop is an easy-to-install application for your Mac, Windows, or Linux environment that enables you to build and share containerized applications and microservices.」<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a>Mac 和 Windows 上它底下還墊了一層 Linux，那層是第 17 課的內容。</p>
+  <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「接著在 Docker Engine 上面去製造一個叫『Docker Container』的東西……當 Container 取得必要資源後，我們就可以在這個 Container 上面部署一個叫『Docker Image』的東西」，等於先有容器、再把映像檔放上去。查證後這個方向是反的（屬於查證後確認寫錯的事實，照這個順序理解後面 docker run 的行為會全部對不上）">順序是<strong>先有映像檔，才有容器</strong>：官方對兩者的定義是「An image is a read-only template with instructions for creating a Docker container.」與「A container is a runnable instance of an image.」——容器是映像檔「跑起來的那一份」，不是一個先開好、再等映像檔放進去的空殼</mark><a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a>。第 4 課的三個詞（食譜、成品、跑起來的那一份）講的就是這個方向。</p>
+</section>
+
+<section>
+  <p class="era">中間那條管道</p>
+  <h3 class="head">一個檔案，決定了誰使喚得動 <code>dockerd</code></h3>
+  <p>在 Linux 上，用戶端跟背景服務預設不走網路，而是走一個特別的檔案。官方的 <code>dockerd</code> 說明寫得很直白：「By default, a <code>unix</code> domain socket (or IPC socket) is created at <code>/var/run/docker.sock</code>, requiring either <code>root</code> permission, or <code>docker</code> group membership.」<a class="fixsrc" href="https://docs.docker.com/reference/cli/dockerd/" target="_blank" rel="noopener">出處</a></p>
+  <p><strong>Unix domain socket</strong>（白話：同一台機器上兩支程式互相講話用的一個特殊檔案，長得像檔案，但裡面不存資料，只負責傳話）。所以「我打 <code>docker ps</code> 卻說權限不足」不是 <code>docker</code> 這支指令不給你用，而是<strong>你碰不到那個檔案</strong>。</p>
+  <pre><code>ls -l /var/run/docker.sock
+# srw-rw----. 1 root docker 0 ...
+#  ↑         ↑    ↑
+#  s＝這是 socket 檔   擁有者是 root   群組是 docker</code></pre>
+  <p>讀到這裡就看得出解法只有兩條：用 <code>sudo</code> 借一下 root 的身分（<code>sudo</code> ＝ superuser do，以系統管理員身分執行這一行），或者把自己放進 <code>docker</code> 這個群組。後者方便得多，也正是下面要特別講的那一段。</p>
+</section>
+
+<section>
+  <p class="era">裝之前</p>
+  <h3 class="head">先認出手上這台是哪一種 Linux</h3>
+  <p>Linux 有很多套<strong>發行版</strong>（distribution，白話：同一個核心配上不同的預裝軟體與管理工具，各自打包成一套作業系統），而裝軟體用的<strong>套件管理工具</strong>（白話：幫你下載、安裝、升級、移除軟體並處理相依關係的那支指令）各家不同。裝 Docker 之前得先認人。</p>
+  <pre><code>cat /etc/os-release     # 看 ID 和 ID_LIKE 兩欄，就知道自己屬於哪一系
+which dnf apt zypper    # 哪個印得出路徑，就有哪個</code></pre>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">系別</th><th scope="col">常見成員</th><th scope="col">套件管理工具</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Red Hat 系</th><td>RHEL、CentOS、Fedora、Amazon Linux</td><td><code>dnf</code>（<code>yum</code> 是它的前身）</td></tr>
+        <tr><th scope="row">Debian 系</th><td>Debian、Ubuntu</td><td><code>apt</code>（或舊寫法 <code>apt-get</code>）</td></tr>
+        <tr><th scope="row">SUSE 系</th><td>SLES、openSUSE</td><td><code>zypper</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">三欄各自查得到：Docker 官方的 RHEL 安裝頁用的是 <code>sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin</code><a class="fixsrc" href="https://docs.docker.com/engine/install/rhel/" target="_blank" rel="noopener">出處</a>；Ubuntu 安裝頁用的是 <code>sudo apt install</code> 加同一串套件名<a class="fixsrc" href="https://docs.docker.com/engine/install/ubuntu/" target="_blank" rel="noopener">出處</a>；SUSE 官方對自家工具的定義是「Zypper is a command-line package manager for installing, updating and removing packages.」<a class="fixsrc" href="https://documentation.suse.com/smart/systems-management/html/concept-zypper/index.html" target="_blank" rel="noopener">出處</a></p>
+  <p class="muted">原筆記在 Amazon Linux 2023 上說「<code>yum</code> 實際上是 <code>dnf</code> 的別名或符號連結、兩者指向同一個程式、建議優先用 <code>dnf</code>」——查證後是對的。AWS 官方文件寫「The default software package management tool in AL2023 is DNF.」以及「In AL2023 the <code>yum</code> command is still available, but as a pointer to the <code>dnf</code> command.」（<strong>符號連結</strong>＝一個指向另一個檔案的捷徑，點它等於點到原本那個）<a class="fixsrc" href="https://docs.aws.amazon.com/linux/al2023/ug/package-management.html" target="_blank" rel="noopener">出處</a>原筆記說 AL2023 走 Fedora 的架構也站得住：AWS 自己寫「The AL2023 GA version includes components from Fedora 34, 35, and 36.」，同時也提醒它不能直接對應到某一版 Fedora。<a class="fixsrc" href="https://docs.aws.amazon.com/linux/al2023/ug/relationship-to-fedora.html" target="_blank" rel="noopener">出處</a></p>
+  <p class="muted">一個原筆記沒講、但會影響你裝到什麼的前提：<strong>套件名叫 <code>docker</code> 跟叫 <code>docker-ce</code> 是兩個來源。</strong>原筆記打的是 <code>sudo yum install docker -y</code>，拿的是那台機器自己的倉庫；Docker 官方安裝頁的支援清單列的是 CentOS、Debian、Fedora、Raspberry Pi OS（32 位元）、RHEL、Ubuntu，沒有 Amazon Linux，也沒有 SUSE<a class="fixsrc" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">出處</a>；官方並在安裝頁提醒「Your Linux distribution may provide unofficial Docker packages, which may conflict with the official packages provided by Docker.」<a class="fixsrc" href="https://docs.docker.com/engine/install/ubuntu/" target="_blank" rel="noopener">出處</a>自己練習用哪個都行，只是要知道版本與支援窗口不一樣，而且兩邊裝在一起會打架。</p>
+</section>
+
+<section>
+  <p class="era">裝完</p>
+  <h3 class="head">裝好不等於跑起來，而且它偷偷替你開了一個群組</h3>
+  <p>Docker 官方 RHEL 安裝頁在安裝指令後面接了一句很重要的話：「This command installs Docker, but it doesn't start Docker. It also creates a <code>docker</code> group, however, it doesn't add any users to the group by default.」<a class="fixsrc" href="https://docs.docker.com/engine/install/rhel/" target="_blank" rel="noopener">出處</a>兩件事：<strong>要自己啟動</strong>，而且<strong><code>docker</code> 群組已經存在、只是空的</strong>。</p>
+  <pre><code>sudo systemctl enable --now docker   # 官方寫法：現在啟動，而且以後開機自動啟動
+docker --version                     # 確認裝了哪一版</code></pre>
+  <p class="muted">原筆記用的是 <code>sudo service docker start</code> 與 <code>sudo service docker status</code>，照著做在今天的機器上會動——<code>service</code> 在有 systemd 的系統（systemd 是現在多數 Linux 用來管開機與背景服務的那一套；<code>systemctl</code> 就是操作它的指令）上會被轉給 <code>systemctl</code>。差別只在官方那行多做了一件事：<code>enable</code> 會讓它以後開機自動啟動，<code>start</code> 只管這一次。<a class="fixsrc" href="https://docs.docker.com/engine/install/rhel/" target="_blank" rel="noopener">出處</a></p>
+</section>
+
+<section>
+  <p class="era">最要小心的一步</p>
+  <h3 class="head"><code>docker</code> 群組＝這台機器的 root</h3>
+  <p>每打一次指令就要加 <code>sudo</code> 很煩，所以幾乎每份教學都會教你把自己加進 <code>docker</code> 群組。原筆記寫的那一行，查證後跟官方文件給的完全一樣：</p>
+  <pre><code>sudo usermod -aG docker $USER
+newgrp docker</code></pre>
+  <p class="muted">官方「Linux post-installation steps」頁給的就是這兩行（<code>-a</code> 是附加、不覆蓋原有群組，<code>-G</code> 指定群組，<code>$USER</code> 是目前的使用者）。另外官方也寫「Log out and log back in so that your group membership is re-evaluated.」——<code>newgrp docker</code> 是不想登出時的替代做法，虛擬機使用者可能要整台重開才生效。<a class="fixsrc" href="https://docs.docker.com/engine/install/linux-postinstall/" target="_blank" rel="noopener">出處</a></p>
+  <blockquote>
+    <p>但是<strong>同一頁</strong>在這兩行旁邊掛了一則警告，原筆記完全沒提到：</p>
+    <p>「The <code>docker</code> group grants root-level privileges to the user.」<a class="fixsrc" href="https://docs.docker.com/engine/install/linux-postinstall/" target="_blank" rel="noopener">出處</a></p>
+  </blockquote>
+  <p class="q">為什麼加一個群組就等於給了系統管理員權限？因為 <code>dockerd</code> 本身是以 root 在跑，而任何能使喚它的人都能叫它做 root 才做得到的事。官方的安全說明頁（「Docker daemon attack surface」那一段）三句話就講完了：「This daemon requires root privileges unless you opt-in to Rootless mode」、「First of all, only trusted users should be allowed to control your Docker daemon.」、「This means that you can start a container where the <code>/host</code> directory is the <code>/</code> directory on your host; and the container can alter your host filesystem without any restriction.」<a class="fixsrc" href="https://docs.docker.com/engine/security/" target="_blank" rel="noopener">出處</a>——把整台主機的根目錄掛進容器，然後隨便改。</p>
+  <p>所以這不是一個「方便設定」，是一個<strong>權限決定</strong>：</p>
+  <ul class="plainlist">
+    <li>自己的練習機、拋棄式的雲端機器：加，沒問題，反正這台就是你的。</li>
+    <li>多人共用的機器、正式環境：加誰進去等於發一把管理員鑰匙，要當成發帳號在管。</li>
+    <li>不想給這麼大權限，官方提供另一條路：「To run Docker without root privileges, see Run the Docker daemon as a non-root user (Rootless mode).」<a class="fixsrc" href="https://docs.docker.com/engine/install/linux-postinstall/" target="_blank" rel="noopener">出處</a>——<strong>rootless 模式</strong>（白話：讓 <code>dockerd</code> 以一般使用者的身分跑，能碰到的東西就只有那個使用者能碰的），代價是有些功能受限。</li>
+  </ul>
+  <p class="muted">回頭看前面那張圖就懂了：用戶端跟背景服務是分開的兩支，中間那條管道也可以走網路。所以「誰碰得到那條管道」這件事，跟「誰是這台機器的管理員」是同一個問題。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>Docker 是用戶端－伺服器架構：<code>docker</code> 負責下單，<code>dockerd</code> 負責做事，兩邊用 REST API 溝通，走本機的通訊檔案或網路。</li>
+<li>映像檔在前、容器在後——容器是映像檔跑起來的那一份，不是先開好再塞映像檔的空殼。</li>
+<li>Linux 上那條管道預設是 <code>/var/run/docker.sock</code>，官方寫明要 root 權限或 <code>docker</code> 群組成員才碰得到。</li>
+<li>裝之前先看 <code>/etc/os-release</code>：Red Hat 系用 <code>dnf</code>、Debian 系用 <code>apt</code>、SUSE 系用 <code>zypper</code>；套件名 <code>docker</code> 與 <code>docker-ce</code> 來源不同，別混裝。</li>
+<li>官方套件裝完不會自己啟動，也不會把任何人加進 <code>docker</code> 群組——那兩步都要你自己決定。</li>
+<li>加進 <code>docker</code> 群組＝官方明說的 root 等級權限；共用或正式機器上要當成發管理員鑰匙，不想給就看 rootless 模式。</li>
+</ul></div>
