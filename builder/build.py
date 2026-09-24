@@ -1,9 +1,57 @@
 # -*- coding: utf-8 -*-
 # 讀 content/ 全部，組出整個平台到 dist/（每次整站重建，不做增量）
 import json, shutil
+from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# 不需要關閉標籤的元素（HTML 規格叫 void 元素），配對檢查時跳過
+VOID_TAGS = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+             'link', 'meta', 'param', 'source', 'track', 'wbr'}
+
+
+class TagBalanceChecker(HTMLParser):
+    """開閉標籤要一一配對。多一個 </article> 會把該課的測驗、導覽擠到文章外面，瀏覽器不會報錯，
+    所以在建置時抓。錯誤存在 self.errors，每筆是一句人看得懂的話。"""
+
+    def __init__(self):
+        super().__init__()
+        self.stack = []      # 還沒關閉的 (標籤名, 行號)
+        self.errors = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag not in VOID_TAGS:
+            self.stack.append((tag, self.getpos()[0]))
+
+    def handle_startendtag(self, tag, attrs):
+        pass   # <path/> 這種自己關閉的寫法，開與閉在同一處，不上堆疊
+
+    def handle_endtag(self, tag):
+        if tag in VOID_TAGS:
+            return
+        line = self.getpos()[0]
+        if self.stack and self.stack[-1][0] == tag:
+            self.stack.pop()
+        elif self.stack:
+            self.errors.append('第 %d 行的 </%s> 對不上——此時還沒關閉的是第 %d 行的 <%s>'
+                               % (line, tag, self.stack[-1][1], self.stack[-1][0]))
+        else:
+            self.errors.append('第 %d 行的 </%s> 沒有對應的開頭標籤' % (line, tag))
+
+    def close(self):
+        super().close()
+        for tag, line in self.stack:
+            self.errors.append('第 %d 行的 <%s> 沒有關閉' % (line, tag))
+
+
+def check_tag_balance(html, where):
+    """where 是給人看的位置，例如 k8s/07-cluster-brain/lesson.html。不平衡就中止建置。"""
+    p = TagBalanceChecker()
+    p.feed(html)
+    p.close()
+    if p.errors:
+        raise SystemExit('建置中止：%s 的標籤沒配對\n  ' % where + '\n  '.join(p.errors))
 
 
 def load_templates(tpl_dir):
@@ -21,6 +69,7 @@ def load_site(content_dir):
         for L in mod['lessons']:
             ldir = mdir / L['dir']
             L['html'] = (ldir / 'lesson.html').read_text(encoding='utf-8')
+            check_tag_balance(L['html'], '%s/%s/lesson.html' % (entry['id'], L['dir']))
             L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             L['assets'] = ldir / 'assets'
         mods.append(mod)
