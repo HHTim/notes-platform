@@ -30,7 +30,7 @@
 <tr><td>提示模板（Prompts）</td><td>提供可重複使用的互動樣板</td><td>樣板夾帶不當指示或已不符現況</td></tr>
 <tr><td>取樣（Sampling）</td><td>讓伺服器反過來請主機用模型生成內容</td><td>互相呼叫、成本、資料邊界不清</td></tr>
 </tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示模板列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示），並有 <code>chat.mcp.serverSampling</code> 這個設定可以控管</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示模板列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示）</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>；要控管哪些模型開放給伺服器取樣，用的是 <code>chat.mcp.serverSampling</code> 這個設定。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a></p>
 <p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。要注意的是「協定有這項能力」推論不出「我手上這套產品一定支援」，兩者是不同層次。</p>
 <p class="muted">取樣則要再多看一步。它跟 Roots 已經準備退場：MCP 規格在 2026-07-28 版把這兩項標為淘汰，最快會在 2027-07-28 之後的版本被移除，並給了替代做法——取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>所以取樣現在的狀態是「編輯器支援得到，規格卻已經不建議」：舊的實作還會動，但新的流程不要再建立在它上面。</p>
 </section>
@@ -102,8 +102,8 @@
 <section>
 <p class="era">自訂代理人</p>
 <h3 class="head">同一套工具，換個角色用</h3>
-<p>前面那張表提過這類檔案已經從<strong>自訂聊天模式</strong>改名叫<strong>自訂代理人</strong>。這裡講它實際能做什麼。官方的說法是「Custom agents enable you to configure the AI to adopt different personas tailored to specific development roles and tasks.」——替不同的開發角色各設一份設定，每份有自己的行為、可用工具與指示。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
-<p>官方舉的例子是：「a "Plan" agent could include instructions for generating an implementation plan and only use read-only tools.」——一個只給唯讀工具的規劃角色，就不會在你還在想的時候動到程式碼。</p>
+<p>前面那張表提過這類檔案已經從<strong>自訂聊天模式</strong>改名叫<strong>自訂代理人</strong>。這裡講它實際能做什麼。官方的說法是「Custom agents combine instructions, tools, and an optional language model into a reusable configuration for a specific role, such as planning or code review.」——把指示、工具跟一個選填的模型組成一份可重複使用的設定，對應某一個角色，例如規劃或程式碼審查。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+<p>官方舉的例子是：「The following code snippet shows an example of a "Plan" custom agent file that generates an implementation plan and doesn't make any code edits.」——一個只出實作計畫、不動程式碼的規劃角色，就不會在你還在想的時候改到東西。</p>
 <div class="tablewrap"><table><thead><tr><th>要設的東西</th><th>寫在哪</th></tr></thead><tbody>
 <tr><td>檔案本身</td><td>一個 <code>.agent.md</code> 的 Markdown 檔</td></tr>
 <tr><td>工作區共用</td><td><code>.github/agents</code> 資料夾（Claude 格式則放 <code>.claude/agents</code>）</td></tr>
@@ -111,7 +111,7 @@
 <tr><td>檔頭設定（YAML 前置區，檔案開頭用三個減號框起來的設定段）</td><td><code>description</code>（說明）、<code>name</code>（名稱，不寫就用檔名）、<code>tools</code>（准用哪些工具或工具組）、<code>model</code>（指定用哪個模型）等</td></tr>
 </tbody></table></div>
 <p>建立用命令面板的 <code>Chat: New Custom Agent</code>，要用的時候在對話視窗的代理人下拉選單裡切換。</p>
-<p class="muted">這個功能在 VS Code 1.101（2025 年 6 月）還是預覽功能，現在已經是正式文件裡的一般功能，名稱也換了。官方在問答區直接寫「Custom agents were previously known as custom chat modes. The functionality remains the same, but the terminology has been updated to better reflect their purpose in customizing AI behavior for specific tasks.」，並要求把舊的 <code>.chatmode.md</code> 改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">這個功能的名稱換過。官方在問答區直接寫「Custom agents were previously known as custom chat modes. The functionality remains the same, but the terminology has been updated to better reflect their purpose in customizing AI behavior for specific tasks.」，並要求把舊的 <code>.chatmode.md</code> 改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
