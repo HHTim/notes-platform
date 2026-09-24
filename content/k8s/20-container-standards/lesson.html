@@ -4,7 +4,7 @@
 <section>
 <p class="era">實作篇・收尾</p>
 <h3 class="head">容器是一種技術，Docker 只是其中一個實作品</h3>
-<p>原筆記在第一章開頭把這句話連寫了三次，還加一行「容器 != Docker」也寫三次。會這麼激動，是因為這兩個詞被當同義詞用太久了。</p>
+<p>「容器 != Docker」這句值得一再強調，因為這兩個詞被當成同義詞用太久了。</p>
 <p>前面六課你一直在用 Docker，這一課把周圍的名字補齊——不是為了背術語，是因為<strong>不知道這些名字，就看不懂「K8s 拿掉 Docker 之後你的映像檔為什麼照跑」這種事</strong>。</p>
 <p class="formula">Docker 是「容器化技術最成功、使用最廣泛的一個實作品」<br>不是「容器」本身</p>
 </section>
@@ -18,7 +18,7 @@
   <div class="term"><b>Cgroup（控制群組）</b><span>管「能用多少」。一組程序最多吃多少 CPU、多少記憶體，優先權多高。負責的是<strong>資源管理與限制</strong>。</span></div>
 </div>
 <p>第 18 課你寫的 <code>requests</code> 和 <code>limits</code>，最後落到節點上就是變成 cgroup 的設定；第 14 課用 <code>docker container top</code> 在主機上看得到容器裡的程序，也是因為它們本來就是同一台機器上的程序，只是被關進不同的 namespace。</p>
-<p class="muted">原筆記說「Linux Container（LXC）是一種核心層級、作業系統層的虛擬化技術，主要由 Namespace 和 Cgroup 兩大機制實作」——查證後這個拆法是對的（「LXC combines the kernel's cgroups and support for isolated namespaces」），也和第 3 課「容器就是把兩個開關打開」的說法一致。<a class="fixsrc" href="https://en.wikipedia.org/wiki/LXC" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">Linux Container（LXC）是一種核心層級、作業系統層的虛擬化技術，主要由 Namespace 和 Cgroup 兩大機制實作——英文的說法是「LXC combines the kernel's cgroups and support for isolated namespaces」，和第 3 課「容器就是把兩個開關打開」講的是同一件事。<a class="fixsrc" href="https://en.wikipedia.org/wiki/LXC" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -38,15 +38,15 @@
     <tbody>
       <tr><th scope="row">1979</th><td>chroot 出現在第七版 Unix，可以限制一支程式看得到哪一段檔案系統。1982 年加進 BSD。</td></tr>
       <tr><th scope="row">2001、2005</th><td>Linux-VServer、OpenVZ 先後出現，在 Linux 上做出接近容器的隔離。</td></tr>
-      <tr><th scope="row">2006</th><td>Google 內部做出 Process Containers，後來改名 Control Groups（cgroups）。</td></tr>
+      <tr><th scope="row">2006</th><td>Google 內部做出 Process Containers，後來改名 Control Groups（cgroups）。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Cgroups" target="_blank" rel="noopener">出處</a></td></tr>
       <tr><th scope="row">2008 年 1 月</th><td>cgroups 併進 Linux 核心 2.6.24。同年 LXC 出現，把 namespace 和 cgroup 包成一整套容器管理工具。</td></tr>
       <tr><th scope="row">2013</th><td>Docker 出現，最初底層就是用 LXC，後來才換成自己的執行元件。</td></tr>
       <tr><th scope="row">2015</th><td>OCI 成立，把容器的格式和啟動方式寫成標準。</td></tr>
     </tbody>
   </table>
 </div>
-<p class="muted">上面兩條有查證備註。第一，原筆記把 1979 年那次引入歸給某位具名工程師；Linux 基金會的文章只說「chroot 於 1979 年第七版 Unix 開發期間首次出現，1982 年加進 BSD」，沒有把 1979 那次歸給任何人。<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a> 查不到定論的人名，這裡就不寫。第二，原筆記寫「Process Containers（2006，Google）後來改名 cgroups，2008 年 1 月併入 Linux 2.6.24」——查證後日期與版本都正確。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Cgroups" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">原筆記另外寫 LXC 是「第一個完整的容器管理實作」。這句要加一個範圍才站得住：在 <strong>Linux 上</strong>它算是第一個把隔離、資源管理和生命週期工具湊齊的一套；但更早的 FreeBSD Jails、Solaris Zones 在別的作業系統上已經做過類似的事。<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">chroot 是誰引入的，查不到定論：Linux 基金會的文章只說「chroot 於 1979 年第七版 Unix 開發期間首次出現，1982 年加進 BSD」，沒有把 1979 那次歸給任何人。<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a> 所以上面那張表不寫人名。</p>
+<p class="muted">說 LXC 是「第一個完整的容器管理實作」，這句要加一個範圍才站得住：在 <strong>Linux 上</strong>它算是第一個把隔離、資源管理和生命週期工具湊齊的一套；但更早的 FreeBSD Jails、Solaris Zones 在別的作業系統上已經做過類似的事。<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a></p>
 <p>Docker 真正改變局面的地方，其實不在隔離本身——那些能力 2008 年就在核心裡了。它做的是<strong>分層映像檔、一個指令就能建、一個倉庫就能分發、一套所有人都看得懂的操作介面</strong>。把已經存在的底層能力，整理成做得出來、送得出去、跑得起來的東西。</p>
 </section>
 
@@ -64,7 +64,7 @@
     </tbody>
   </table>
 </div>
-<p class="muted">原筆記說「2015 年由 Google、Docker、Red Hat 等廠商聯合組成 OCI」——方向沒錯，這裡補兩點：OCI 自己的介紹把發起寫成「Docker、CoreOS 等」並且強調它是 Linux 基金會底下的專案；另外原筆記只列了 Runtime Spec 和 Image Spec 兩份，現在是三份，第三份 Distribution Spec 管的就是你第 15 課在做的 push 和 pull。<a class="fixsrc" href="https://opencontainers.org/about/overview/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">OCI 是誰發起的常有不同版本的說法：OCI 自己的介紹寫的是「Docker、CoreOS 等」，並且強調它是 Linux 基金會底下的專案。規格則要注意現在是三份不是兩份——除了 Runtime Spec 和 Image Spec，第三份 Distribution Spec 管的就是你第 15 課在做的 push 和 pull。<a class="fixsrc" href="https://opencontainers.org/about/overview/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>

@@ -26,7 +26,7 @@ Route
 <section>
 <p class="era">先畫相依，再套用</p>
 <h3 class="head">建立順序，跟「能不能用」是兩件事</h3>
-<p>原筆記整理的順序很實用，照著做少踩坑：</p>
+<p>照這個順序做，少踩坑：</p>
 <ul class="plainlist">
   <li>先確認你在哪個專案（OpenShift 的 project 就是 Kubernetes 的命名空間）、配額還剩多少、有哪些儲存類別可用。</li>
   <li>建 ConfigMap、Secret、PVC——後面的東西會引用它們。</li>
@@ -62,8 +62,8 @@ stringData:
   DB_PASSWORD: 換成你自己的強密碼
   ADMIN_PASSWORD: 換成你自己的強密碼</code></pre>
 <p>工作負載用 <code>configMapKeyRef</code> 或 <code>secretKeyRef</code> 把單一欄位取出來當環境變數。<strong>引用時的 <code>name</code>（哪個 ConfigMap／Secret）和 <code>key</code>（裡面哪一個欄位）要和上面完全一致</strong>，錯一個字 Pod 就起不來。</p>
-<p class="muted">Secret 預設沒有加密這件事第 18 課講過，在 OpenShift 上一樣成立。密碼請用佔位字串進版控、實際值另外注入；原筆記直接把 <code>rootpass</code>、<code>wppass</code> 這種明碼寫在檔案裡示範，那是教學方便，不是可以照抄的做法。</p>
-<p class="muted">還有一個原筆記的寫法會讓人踩空：它用 <code>cat &lt;&lt; 'EOF' | oc apply -f -</code> 送 YAML，裡面寫 <code>namespace: $PROJECT_NAME</code> 想代入專案名稱。但 here-document 的結束字（這裡是 <code>EOF</code>）<strong>只要加了引號，裡面的內容就不會做變數展開</strong>，那一行會原封不動送出去。<a class="fixsrc" href="https://www.gnu.org/software/bash/manual/bash.html#Here-Documents" target="_blank" rel="noopener">出處</a> 比較單純的做法是 YAML 裡乾脆不寫 <code>namespace</code>，先用 <code>oc project</code> 切到對的專案再套用。</p>
+<p class="muted">Secret 預設沒有加密這件事第 18 課講過，在 OpenShift 上一樣成立。密碼請用佔位字串進版控、實際值另外注入；教學範例常見的 <code>rootpass</code>、<code>wppass</code> 這種明碼寫法是為了講解方便，不是可以照抄的做法。</p>
+<p class="muted">還有一個寫法會讓人踩空：用 <code>cat &lt;&lt; 'EOF' | oc apply -f -</code> 送 YAML，裡面寫 <code>namespace: $PROJECT_NAME</code> 想代入專案名稱。但 here-document 的結束字（這裡是 <code>EOF</code>）<strong>只要加了引號，裡面的內容就不會做變數展開</strong>，那一行會原封不動送出去。<a class="fixsrc" href="https://www.gnu.org/software/bash/manual/bash.html#Here-Documents" target="_blank" rel="noopener">出處</a> 比較單純的做法是 YAML 裡乾脆不寫 <code>namespace</code>，先用 <code>oc project</code> 切到對的專案再套用。</p>
 </section>
 
 <section>
@@ -80,7 +80,7 @@ spec:
     requests:
       storage: 5Gi</code></pre>
 <p>這又是第 11 課那個模式：PVC 是單子，平台負責去生出真的儲存空間來滿足它。資料庫和網站內容各開一張，快取要不要開則看情況——它只是重建得回來的快取，還是裡面有不能掉的資料？<strong>不要因為「這是有狀態的服務」就一律給它一張。</strong></p>
-<p class="q">PVC 一直卡在 Pending，優先查四件事：儲存類別（StorageClass）存不存在、存取模式（accessModes）平台支不支援、容量夠不夠、專案配額還有沒有。原筆記踩到的就是第一種——範例寫了某個雲端專屬的儲存類別，但那個環境沒有。</p>
+<p class="q">PVC 一直卡在 Pending，優先查四件事：儲存類別（StorageClass）存不存在、存取模式（accessModes）平台支不支援、容量夠不夠、專案配額還有沒有。第一種特別容易中——抄來的範例寫了某個雲端專屬的儲存類別，但你這個環境沒有。</p>
 <p class="muted">YAML 裡省略 <code>storageClassName</code> 時，會不會自動用預設的儲存類別，取決於叢集有沒有設預設值。省略之前先用 <code>oc get storageclass</code> 看一眼。</p>
 </section>
 
@@ -137,9 +137,9 @@ spec:
 <p class="q">就緒檢查（readinessProbe）和存活檢查（livenessProbe）的分工不要搞混：<strong>就緒檢查決定要不要把流量送進來，存活檢查決定要不要把它砍掉重開。</strong>路徑、等待時間、逾時都要照那個映像檔真正的啟動行為調，抄別人的數字常常不合用。</p>
 
 <h4>映像檔的兩個坑</h4>
-<p class="muted">原筆記用的是 <code>bitnami/wordpress:latest</code>、<code>bitnami/mysql:5.7</code>、<code>bitnami/redis:7.0</code> 這一組。<mark class="fixnote" tabindex="0" data-note="原筆記用 bitnami/wordpress:latest、bitnami/mysql:5.7、bitnami/redis:7.0 這幾個映像檔，查證後更正：Bitnami 官方公告自 2025 年 8 月 28 日起，把 docker.io/bitnami 底下既有的容器映像（含各版本標籤）搬到 docker.io/bitnamilegacy，該處不再更新也不再支援，只供暫時遷移使用">Bitnami 已經公告從 2025 年 8 月 28 日起，把 <code>docker.io/bitnami</code> 底下的既有映像（含各版本標籤）搬到 <code>docker.io/bitnamilegacy</code>，那邊不再更新也不再支援，只給你暫時遷移用</mark><a class="fixsrc" href="https://github.com/bitnami/containers/issues/83267" target="_blank" rel="noopener">出處</a>。照抄原筆記的映像檔名稱，現在可能拉不下來。要沿用的話請先確認目前還提供哪些映像與標籤。</p>
+<p class="muted">第一個坑是映像檔搬家了。<mark class="fixnote" tabindex="0" data-note="原筆記用 bitnami/wordpress:latest、bitnami/mysql:5.7、bitnami/redis:7.0 這幾個映像檔，查證後更正：Bitnami 官方公告自 2025 年 8 月 28 日起，把 docker.io/bitnami 底下既有的容器映像（含各版本標籤）搬到 docker.io/bitnamilegacy，該處不再更新也不再支援，只供暫時遷移使用">Bitnami 已經公告從 2025 年 8 月 28 日起，把 <code>docker.io/bitnami</code> 底下的既有映像（含各版本標籤）搬到 <code>docker.io/bitnamilegacy</code>，那邊不再更新也不再支援，只給你暫時遷移用</mark><a class="fixsrc" href="https://github.com/bitnami/containers/issues/83267" target="_blank" rel="noopener">出處</a>。所以 <code>bitnami/wordpress</code>、<code>bitnami/mysql</code>、<code>bitnami/redis</code> 這類舊名稱照抄下去，現在可能拉不下來。要沿用的話請先確認目前還提供哪些映像與標籤。</p>
 <p class="muted">第二個坑是身分：<strong>OpenShift 會用一個隨機指定的、非 root 的使用者編號來跑你的容器</strong>。Red Hat 的映像製作指南寫得很清楚——容器裡會被寫入的目錄和檔案，要屬於 root 群組且該群組可讀寫，映像檔的 <code>USER</code> 也該寫數字而不是名字。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/3.11/html/creating_images/creating-images-guidelines" target="_blank" rel="noopener">出處</a> 這也解釋了一個常見疑問：<strong>為什麼這類映像檔聽的是 8080 而不是 80</strong>。同一份指南直接寫了這句：「容器裡跑的程序不可以聽特權埠（1024 以下的埠），因為它們並不是以特權使用者的身分在跑」。假設自己一定是 root、或假設某個目錄一定寫得進去的映像檔，在 OpenShift 上就會起不來。</p>
-<p class="muted">還有一點原筆記自己在別篇也強調過、查證後確實是對的：正式環境不要用 <code>latest</code>。標籤是可以被發佈者改掉的，同一個名字下次拉到的可能是不同內容，稽核和重現都會出問題。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">兩個坑之外還有一條通則：正式環境不要用 <code>latest</code>。標籤是可以被發佈者改掉的，同一個名字下次拉到的可能是不同內容，稽核和重現都會出問題。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -173,7 +173,7 @@ spec:
 oc get services
 oc get endpointslices     # 這個 Service 到底有沒有後端
 oc describe service blog</code></pre>
-<p class="muted">Service 沒有後端時，一樣先比對 selector 和 Pod 的 labels，再確認 Pod 真的 Ready——沒 Ready 的 Pod 不會被算進去。順帶一提，原筆記用的是 <code>oc get endpoints</code>；Kubernetes 從 v1.33 起把 Endpoints 標為過時，改用 EndpointSlice。<a class="fixsrc" href="https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">Service 沒有後端時，一樣先比對 selector 和 Pod 的 labels，再確認 Pod 真的 Ready——沒 Ready 的 Pod 不會被算進去。順帶一提，舊教學常寫 <code>oc get endpoints</code>；Kubernetes 從 v1.33 起把 Endpoints 標為過時，改用 EndpointSlice。<a class="fixsrc" href="https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -233,4 +233,4 @@ oc port-forward service/blog 8080:80</code></pre>
 <p>這個順序的價值在於<strong>每一步都把範圍砍一半</strong>。反過來同時調 Route、改 Service、重建 PVC，就算會了也不知道是哪一個修好的。</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>OpenShift 核心就是 Kubernetes，物件幾乎通用；多出來最常用的是 Route 這個對外入口。</li><li>套用順序幫助操作，但就緒保證來自 readiness probe 和應用程式的重試，不是 YAML 的先後。</li><li><code>configMapKeyRef</code>／<code>secretKeyRef</code> 的 name 和 key 要完全一致，錯一個字 Pod 起不來。</li><li>OpenShift 用隨機的非 root 使用者編號跑容器——假設自己是 root 的映像檔會掛；非 root 不能聽 1024 以下的埠，這就是這類映像檔聽 8080 不聽 80 的原因。</li><li>原筆記那組 Bitnami 映像已搬到 legacy 倉庫不再更新，照抄可能拉不下來；正式環境本來就不該用 <code>latest</code>。</li><li>Route 的 <code>termination</code> 只有 edge、reencrypt、passthrough 三種，決定加密在哪一段結束。</li><li>排錯由內往外：Pod → Service（先 port-forward 試）→ Route。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>OpenShift 核心就是 Kubernetes，物件幾乎通用；多出來最常用的是 Route 這個對外入口。</li><li>套用順序幫助操作，但就緒保證來自 readiness probe 和應用程式的重試，不是 YAML 的先後。</li><li><code>configMapKeyRef</code>／<code>secretKeyRef</code> 的 name 和 key 要完全一致，錯一個字 Pod 起不來。</li><li>OpenShift 用隨機的非 root 使用者編號跑容器——假設自己是 root 的映像檔會掛；非 root 不能聽 1024 以下的埠，這就是這類映像檔聽 8080 不聽 80 的原因。</li><li><code>docker.io/bitnami</code> 底下的既有映像已搬到 legacy 倉庫、不再更新，照舊名稱拉可能拉不下來；正式環境本來就不該用 <code>latest</code>。</li><li>Route 的 <code>termination</code> 只有 edge、reencrypt、passthrough 三種，決定加密在哪一段結束。</li><li>排錯由內往外：Pod → Service（先 port-forward 試）→ Route。</li></ul></div>

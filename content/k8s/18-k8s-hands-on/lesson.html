@@ -4,7 +4,7 @@
 <section>
 <p class="era">動手之前</p>
 <h3 class="head">一份部署計畫要回答三件事</h3>
-<p>第 5 課講過 K8s 的核心迴圈：你交一張單子，它一直比對現況。這一課要把那張單子真的寫出來。原筆記把要準備的東西拆成三個問題，很好用：</p>
+<p>第 5 課講過 K8s 的核心迴圈：你交一張單子，它一直比對現況。這一課要把那張單子真的寫出來。要準備的東西可以拆成三個問題：</p>
 <div class="terms">
   <div class="term"><b>要部署什麼</b><span>一個容器化的應用程式。也就是先有映像檔（第 15 課）。</span></div>
   <div class="term"><b>要怎麼部署、給多少資源</b><span>幾份、每份多少 CPU 和記憶體、怎麼換版本、對外怎麼進來。</span></div>
@@ -91,7 +91,7 @@ kubectl port-forward service/demo-app 8080:80    # 從你的電腦直接打進�
     </tbody>
   </table>
 </div>
-<p class="muted">原筆記在解釋 <code>memory: 16Mi</code> 時寫「16Mi（16 兆位元組）」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「16Mi(16兆位元組)可確保高效率的資源利用率」，查證後更正：Kubernetes 官方文件寫 Mi 是二進位的 mebibyte，1 Mi = 1,048,576 位元組，16 Mi 約 16.8 MB，和「兆位元組」差了六個數量級">Mi 是 mebibyte，1 Mi ＝ 1,048,576 位元組，所以 16 Mi 大約是 16.8 MB，不是兆的等級</mark><a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>。同一篇裡「1000 millicores ＝ 1 core，所以 20m 是單一核心的 2%」倒是完全正確，查證後和官方定義一致。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted"><code>memory: 16Mi</code> 的 <code>Mi</code> 不要看成「兆」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「16Mi(16兆位元組)可確保高效率的資源利用率」，查證後更正：Kubernetes 官方文件寫 Mi 是二進位的 mebibyte，1 Mi = 1,048,576 位元組，16 Mi 約 16.8 MB，和「兆位元組」差了六個數量級">Mi 是 mebibyte，1 Mi ＝ 1,048,576 位元組，所以 16 Mi 大約是 16.8 MB，不是兆的等級</mark><a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>。CPU 那邊的單位是 millicore（毫核心）：1000m ＝ 1 個核心，所以 <code>20m</code> 是單一核心的 2%。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
 <p class="q">還有一個第 8 課沒提到的：<strong>requests 和 limits 填一樣時，這個 Pod 的服務品質等級（QoS class）是 Guaranteed</strong>——意思是<strong>節點資源不夠、要趕 Pod 走的時候，Guaranteed 是最後才被趕的那一批</strong>（先趕 BestEffort，再趕 Burstable）。<span class="muted">注意這不是排班順序：決定「先排誰」的是另一套機制（PriorityClass，Pod 的排班優先權）。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a></span> 填得不一樣（requests 小於 limits）則是可以超用、但要有餘力才超得到。</p>
 <p class="muted">另外提醒一個第 8 課講過、這裡再確認一次的行為差別：CPU 超過上限是被<strong>節流</strong>（跑慢一點），記憶體超過上限則可能被<strong>直接殺掉</strong>。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
 </section>
@@ -127,7 +127,7 @@ spec:
 <p class="era">設定與密碼</p>
 <h3 class="head">ConfigMap 放一般設定，Secret 放敏感的</h3>
 <p>把設定從程式碼裡拉出來，換設定就不用重建映像檔。一般設定放 <strong>ConfigMap</strong>，密碼、金鑰、憑證放 <strong>Secret</strong>。兩個在 YAML 裡的用法幾乎一樣，第 19 課會實際接上去。</p>
-<p class="muted">原筆記說 Secret「在 K8S 中安全地儲存了敏感資料……是用 base64 編碼」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Secrets 在 K8S 中安全地儲存了敏感資料，例如 API Keys、密碼或是認證……但是用 base64 編碼以及是專門為安全敏感性配置所設計」，查證後更正：Kubernetes 官方文件的警語寫 Secret 預設是「stored unencrypted in the API server's underlying data store (etcd)」，任何有 API 存取權或 etcd 存取權的人都讀得到；base64 只是編碼不是加密">Kubernetes 官方文件的警語講得很重：Secret <strong>預設是沒有加密</strong>存在 etcd 裡的，任何有 API 存取權、或摸得到 etcd 的人都讀得出來；甚至只要有權在某個命名空間建 Pod，就等於能讀那個命名空間的 Secret</mark><a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/secret/" target="_blank" rel="noopener">出處</a>。base64 是編碼不是加密。要真的安全，官方要求你另外做：開啟靜態加密、用 RBAC（權限控管機制：規定誰可以對哪些東西做什麼）把權限縮到最小、或改用外部的金鑰管理服務。</p>
+<p class="muted">Secret 這個名字很容易讓人以為資料已經被保護好了。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Secrets 在 K8S 中安全地儲存了敏感資料，例如 API Keys、密碼或是認證……但是用 base64 編碼以及是專門為安全敏感性配置所設計」，查證後更正：Kubernetes 官方文件的警語寫 Secret 預設是「stored unencrypted in the API server's underlying data store (etcd)」，任何有 API 存取權或 etcd 存取權的人都讀得到；base64 只是編碼不是加密">Kubernetes 官方文件的警語講得很重：Secret <strong>預設是沒有加密</strong>存在 etcd 裡的，任何有 API 存取權、或摸得到 etcd 的人都讀得出來；甚至只要有權在某個命名空間建 Pod，就等於能讀那個命名空間的 Secret</mark><a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/secret/" target="_blank" rel="noopener">出處</a>。base64 是編碼不是加密。要真的安全，官方要求你另外做：開啟靜態加密、用 RBAC（權限控管機制：規定誰可以對哪些東西做什麼）把權限縮到最小、或改用外部的金鑰管理服務。</p>
 </section>
 
 <section>
@@ -147,7 +147,7 @@ spec:
   </table>
 </div>
 <p>搬之前先把環境差異抽出來：一般設定放 ConfigMap、敏感設定走 Secret 加外部金鑰管理、儲存用 PVC（一張「我要一塊儲存空間」的申請單）申請（第 19 課）、對外入口依平台選 Ingress 或負載平衡服務（第 10 課）。</p>
-<p class="muted">原筆記列的「為什麼建議上雲」也是同一件事的反面：自己在機房做，主機互連、負載平衡、擴縮、權限控管、買硬碟，每一樣都得自己來。</p>
+<p class="muted">「為什麼建議上雲」講的也是同一件事的反面：自己在機房做，主機互連、負載平衡、擴縮、權限控管、買硬碟，每一樣都得自己來。</p>
 </section>
 
 <section>

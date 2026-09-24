@@ -30,7 +30,7 @@ Docker Desktop
 WSL 2 的 Linux 環境
   ↓ dockerd → containerd → runc
 Linux 容器</code></pre>
-<p class="muted">原筆記寫「WSL2 建立輕量級 Linux VM（Ubuntu-based）」。<mark class="fixnote" tabindex="0" data-note="原筆記寫「WSL2 建立輕量級 Linux VM(Ubuntu-based)」，容易誤會成 Docker 跑在你自己裝的那個 Ubuntu 裡；查證後更正：Docker 官方文件寫 Docker Desktop 跑在它自己的 docker-desktop WSL 發行版裡，和其他發行版互相隔離">Docker 官方文件的說法是：Docker Desktop 跑在<strong>它自己的 <code>docker-desktop</code> 發行版</strong>裡，和你裝的其他 WSL 發行版互相隔離</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/wsl/" target="_blank" rel="noopener">出處</a>。所以就算你在 Windows 上裝了 Ubuntu，Docker 也不是跑在那個裡面。</p>
+<p class="muted">這一層很容易被誤會成你自己在 Windows 上裝的那個 Linux 發行版。<mark class="fixnote" tabindex="0" data-note="原筆記寫「WSL2 建立輕量級 Linux VM(Ubuntu-based)」，容易誤會成 Docker 跑在你自己裝的那個 Ubuntu 裡；查證後更正：Docker 官方文件寫 Docker Desktop 跑在它自己的 docker-desktop WSL 發行版裡，和其他發行版互相隔離">Docker 官方文件的說法是：Docker Desktop 跑在<strong>它自己的 <code>docker-desktop</code> 發行版</strong>裡，和你裝的其他 WSL 發行版互相隔離</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/wsl/" target="_blank" rel="noopener">出處</a>。所以就算你在 Windows 上裝了 Ubuntu，Docker 也不是跑在那個裡面。</p>
 <p>你打 <code>-p 8080:8080</code> 的時候，Docker Desktop 幫你把 Windows 的 8080 轉到 WSL 2、再轉到容器。使用者連 <code>localhost:8080</code>，流量是這樣一路過去的。</p>
 </section>
 
@@ -68,13 +68,13 @@ Linux 容器</code></pre>
 <pre><code>colima start --cpu 4 --memory 8</code></pre>
 <p class="muted">數字照你電腦的容量調，不要把資源全部塞給虛擬機。</p>
 
-<h4>原筆記在這一段有三處要修</h4>
+<h4>三個容易記錯的細節</h4>
 <ul class="plainlist">
-  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Desktop 使用 macOS Hypervisor Framework」，查證後更正：Docker 官方文件現在列的 Mac 虛擬機管理器是 Docker VMM 與 Apple Virtualization framework 兩個選項，舊的 HyperKit（建在 Hypervisor.framework 上）只剩 Intel Mac 可用且已標為淘汰">Docker Desktop for Mac 現在的虛擬機管理器有兩個選項：Docker 自己做的 Docker VMM，和 Apple 的 Virtualization framework；舊的 HyperKit 只剩 Intel Mac 能用，而且已經標為淘汰</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a>（原筆記寫的是「使用 macOS Hypervisor Framework」）。</li>
-  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Colima 建立 Alpine Linux VM (更輕量)」以及「Lima 下載 Alpine 或 Ubuntu Linux 映像檔」，查證後更正：Colima 官方常見問答寫「From v0.6.0 onward, Colima uses Ubuntu as the underlying image」">Colima 從 v0.6.0 起，底下用的是 Ubuntu 映像，不是 Alpine</mark><a class="fixsrc" href="https://colima.run/docs/faq/" target="_blank" rel="noopener">出處</a>（原筆記寫的是「建立 Alpine Linux VM（更輕量）」）。</li>
-  <li>原筆記寫 Lima 用 QEMU。<span class="muted">查證後：Lima 支援多種虛擬化方式，而且預設變過——Lima v1.0 之前預設是 QEMU（一套開源的虛擬機軟體），v1.0 起在 macOS 13.5 以上的新機器預設改用 Apple 的 VZ（Virtualization framework）。<a class="fixsrc" href="https://lima-vm.io/docs/config/vmtype/" target="_blank" rel="noopener">出處</a> 所以「Colima 一定用 QEMU」這句現在不成立。</span></li>
+  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Desktop 使用 macOS Hypervisor Framework」，查證後更正：Docker 官方文件現在列的 Mac 虛擬機管理器是 Docker VMM 與 Apple Virtualization framework 兩個選項，舊的 HyperKit（建在 Hypervisor.framework 上）只剩 Intel Mac 可用且已標為淘汰">Docker Desktop for Mac 現在的虛擬機管理器有兩個選項：Docker 自己做的 Docker VMM，和 Apple 的 Virtualization framework；舊的 HyperKit 只剩 Intel Mac 能用，而且已經標為淘汰</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a>。</li>
+  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Colima 建立 Alpine Linux VM (更輕量)」以及「Lima 下載 Alpine 或 Ubuntu Linux 映像檔」，查證後更正：Colima 官方常見問答寫「From v0.6.0 onward, Colima uses Ubuntu as the underlying image」">Colima 從 v0.6.0 起，底下用的是 Ubuntu 映像，不是 Alpine</mark><a class="fixsrc" href="https://colima.run/docs/faq/" target="_blank" rel="noopener">出處</a>。</li>
+  <li>Lima 不是只會用 QEMU。<span class="muted">Lima 支援多種虛擬化方式，而且預設變過——Lima v1.0 之前預設是 QEMU（一套開源的虛擬機軟體），v1.0 起在 macOS 13.5 以上的新機器預設改用 Apple 的 VZ（Virtualization framework）。<a class="fixsrc" href="https://lima-vm.io/docs/config/vmtype/" target="_blank" rel="noopener">出處</a> 所以「Colima 一定用 QEMU」這句現在不成立。</span></li>
 </ul>
-<p class="muted">macOS 上 Docker Desktop 那台虛擬機裡面是哪一個 Linux 發行版，<strong>Docker 官方的 Mac 虛擬機管理器說明頁沒有明講</strong>（這裡查的就是那一頁），原筆記寫的「Ubuntu-based」查不到出處，這裡就不寫。<a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">macOS 上 Docker Desktop 那台虛擬機裡面是哪一個 Linux 發行版，<strong>Docker 官方的 Mac 虛擬機管理器說明頁沒有明講</strong>，查不到出處的說法這裡就不寫。<a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -86,7 +86,7 @@ WORKDIR /app
 COPY target/my-app.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]</code></pre>
-<p class="muted">原筆記的 Dockerfile 用的是 <code>openjdk:17-jre-alpine</code>。<mark class="fixnote" tabindex="0" data-note="原筆記的 Dockerfile 用 openjdk:17-jre-alpine，查證後更正：Docker Hub 上的 openjdk 官方映像頁面寫「This image is officially deprecated and all users are recommended to find and use suitable replacements ASAP」，建議改用 eclipse-temurin、amazoncorretto、ibm-semeru-runtimes、ibmjava、sapmachine">Docker Hub 上的 <code>openjdk</code> 官方映像頁面已經掛著停止維護的公告，Java 的基礎映像檔要改用 <code>eclipse-temurin</code>、<code>amazoncorretto</code> 這幾個替代品</mark><a class="fixsrc" href="https://hub.docker.com/_/openjdk" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">上面基礎映像檔選 <code>eclipse-temurin</code> 而不是 <code>openjdk</code>，是有原因的：<mark class="fixnote" tabindex="0" data-note="原筆記的 Dockerfile 用 openjdk:17-jre-alpine，查證後更正：Docker Hub 上的 openjdk 官方映像頁面寫「This image is officially deprecated and all users are recommended to find and use suitable replacements ASAP」，建議改用 eclipse-temurin、amazoncorretto、ibm-semeru-runtimes、ibmjava、sapmachine">Docker Hub 上的 <code>openjdk</code> 官方映像頁面已經掛著停止維護的公告，Java 的基礎映像檔要改用 <code>eclipse-temurin</code>、<code>amazoncorretto</code> 這幾個替代品</mark><a class="fixsrc" href="https://hub.docker.com/_/openjdk" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>docker build -t my-spring-app:1.0 .
 docker run -d --name my-spring-app -p 8080:8080 my-spring-app:1.0
 
