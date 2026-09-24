@@ -69,7 +69,7 @@ when(client.call(eq("exact"), anyInt())).thenReturn("OK");
 
 // 錯誤：直接值與比對器混用
 when(client.call("exact", anyInt())).thenReturn("OK");</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記在這個例子旁邊註解「編譯錯誤！一旦使用 matcher，所有參數都要用 matcher」，查證後更正：混用直接值與比對器不會編譯失敗——比對器方法的回傳型別就是參數型別，編譯器看不出問題；它是在執行時才丟出 Mockito 的 InvalidUseOfMatchersException，而且錯誤常常出現在下一個測試方法，所以很難找">混用直接值與比對器不會編譯失敗。Mockito 的 javadoc 對這個寫法的說明是「上面這樣是錯的，會丟出例外，因為第三個參數沒有用參數比對器給」——注意是丟出例外，不是編譯錯誤。同一頁還解釋了為什麼編譯得過：「<code>eq()</code> 這類比對器方法並不回傳比對器。它們在內部把比對器記到一個堆疊上，然後回傳一個假值（通常是 null）。」既然回傳的是符合參數型別的值，編譯器當然看不出問題，錯誤要到執行時才冒出來</mark><a class="fixsrc" href="https://site.mockito.org/javadoc/current/org/mockito/ArgumentMatchers.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在這個例子旁邊註解「編譯錯誤！一旦使用 matcher，所有參數都要用 matcher」，查證後更正：混用直接值與比對器不會編譯失敗——比對器方法的回傳型別就是參數型別，編譯器看不出問題；它是在執行到那一行 stub 或 verify 時丟出 Mockito 的 InvalidUseOfMatchersException">混用直接值與比對器不會編譯失敗。Mockito 的 javadoc 對這個寫法的說明是「上面這樣是錯的，會丟出例外，因為第三個參數沒有用參數比對器給」——注意是丟出例外，不是編譯錯誤。同一頁還解釋了為什麼編譯得過：「<code>eq()</code> 這類比對器方法並不回傳比對器。它們在內部把比對器記到一個堆疊上，然後回傳一個假值（通常是 null）。」既然回傳的是符合參數型別的值，編譯器當然看不出問題，錯誤要到執行時才冒出來</mark><a class="fixsrc" href="https://site.mockito.org/javadoc/current/org/mockito/ArgumentMatchers.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>後續如果要對同一個參數做好幾項斷言，可以改用 <code>ArgumentCaptor</code> 把實際參數抓出來。只需要判斷一個條件時，<code>argThat</code> 通常比較精簡。</p>
 </section>
 

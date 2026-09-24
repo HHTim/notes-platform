@@ -49,7 +49,7 @@
 <p>微服務可能帶來的好處包括獨立部署、個別擴充、技術選擇的彈性，以及把單次變更的範圍縮小。但這些好處要成立，前提是邊界劃得合理、介面穩定，而且有足夠的自動化測試與維運能力。</p>
 <p>主要的挑戰包括：</p>
 <ul class="plainlist"><li>切得太細，網路呼叫與跨團隊溝通的成本反而變高。</li><li>API 或訊息格式一改，就要處理版本相容與團隊協調。</li><li>跨服務的交易、追蹤、日誌彙整與故障排查都更難。</li><li>某個服務故障，仍可能透過同步依賴連鎖影響其他服務。</li></ul>
-<blockquote>短期的活動網站、小型團隊，或業務還在快速變動的時候，模組化的單體通常比太早拆成微服務更好維護。</blockquote>
+<blockquote>短期的活動網站、小型團隊，或業務還在快速變動的時候，模組化的單體通常比太早拆成微服務更好維護。Martin Fowler 的講法是「不該用微服務開始一個新專案，即使你確定這個應用程式會大到值得這麼做」<a class="fixsrc" href="https://martinfowler.com/bliki/MonolithFirst.html" target="_blank" rel="noopener">出處</a>。</blockquote>
 </section>
 
 <section>
@@ -117,7 +117,7 @@ public class GlobalExceptionHandler {
 <pre><code>try {
     filterChain.doFilter(request, response);
 } catch (BusinessException ex) {
-    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
     response.setContentType("application/json;charset=UTF-8");
     response.getWriter().write(
         errorJson(ex.getCode(), ex.getMessage())
@@ -142,4 +142,4 @@ public class GlobalExceptionHandler {
 <p>所以可以把錯誤碼規則、追蹤識別碼與共用回應模型講定成一份明確的約定。共用程式庫可以透過 Maven 發布，但要控制相容性，別讓所有服務被迫同時升級。</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>Maven 用 POM 管理座標、相依套件與標準化的建置流程。</li><li>執行生命週期後段的階段時，同一套生命週期的前置階段會先跑。</li><li>微服務能獨立部署與擴充，但網路、資料一致性與維運成本都會增加。</li><li>同步依賴會讓故障連鎖，隔離要靠逾時、斷路器與降級自己設計。</li><li>Filter 的順序由註冊順序與 order 決定，不是照種類排。</li><li><code>@RestControllerAdvice</code> 只管得到 Spring MVC 範圍內的例外。</li><li>錯誤回應要穩定且不洩漏內部資訊，細節留在受控日誌。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Maven 用 POM 管理座標、相依套件與標準化的建置流程。</li><li>執行生命週期後段的階段時，同一套生命週期的前置階段會先跑。</li><li>微服務能獨立部署與擴充，但網路、資料一致性與維運成本都會增加。</li><li>同步依賴會讓故障連鎖，隔離要靠逾時、斷路器與降級自己設計。</li><li>Spring Security 的整組安全 Filter 在容器眼中只是鏈上的一格，容器 Filter 與安全 Filter 不能排成同一條順序。</li><li><code>@RestControllerAdvice</code> 只管得到 Spring MVC 範圍內的例外。</li><li>錯誤回應要穩定且不洩漏內部資訊，細節留在受控日誌。</li></ul></div>

@@ -25,8 +25,8 @@
   ← 實際回應</code></pre>
 <div class="terms"><div class="term"><b>Access-Control-Allow-Origin</b><span>允許讀取這個回應的來源。</span></div><div class="term"><b>Access-Control-Allow-Methods</b><span>允許使用的 HTTP 方法。</span></div><div class="term"><b>Access-Control-Allow-Headers</b><span>允許送出的請求標頭。</span></div><div class="term"><b>Access-Control-Allow-Credentials</b><span>允不允許帶 Cookie 這類憑證。</span></div><div class="term"><b>Access-Control-Max-Age</b><span>瀏覽器可以把預檢結果快取多久。</span></div></div>
 <p>要允許瀏覽器帶 Cookie，前端與後端都得配合設定，而且回應的允許來源不能寫萬用字元 <code>*</code>，必須列出明確的來源。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@CrossOrigin 不能和 Spring Security 同時使用」，查證後更正：官方文件說明兩者可以一起用，做法是在 Spring Security 啟用 cors 支援，它就會沿用 Spring MVC 的 @CrossOrigin 設定；真正的關鍵是「CORS must be processed before Spring Security, because the pre-flight request does not contain any cookies」——預檢請求不帶 Cookie，如果 Spring Security 先跑就會判定未認證而擋掉">兩者可以一起用。官方文件說明只要在 Spring Security 啟用 <code>cors</code> 支援，它就會沿用 Spring MVC 的 <code>@CrossOrigin</code> 設定。真正的關鍵是順序：預檢請求不帶 Cookie，Spring Security 若先跑就會判定未認證而擋掉，所以 CORS 必須排在它前面處理</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html" target="_blank" rel="noopener">出處</a>。</p>
-<p>CORS 可以設在 Spring MVC、Spring Security 或反向代理層。挑一個地方統一管，不要讓不同層回傳互相矛盾的標頭；實務上常見的做法是統一交給 Nginx 這類反向代理處理。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@CrossOrigin 不能和 Spring Security 同時使用」，查證後更正：官方文件說明兩者可以一起用，做法是在 Spring Security 啟用 cors 支援、不另外給 CorsConfigurationSource，它就會「使用提供給 Spring MVC 的 CORS 設定」（頁面上沒有點名 @CrossOrigin，它屬於 Spring MVC 的 CORS 設定是推論）；真正的關鍵是「CORS must be processed before Spring Security, because the pre-flight request does not contain any cookies」——預檢請求不帶 Cookie，如果 Spring Security 先跑就會判定未認證而擋掉">兩者可以一起用。官方文件說明只要在 Spring Security 啟用 <code>cors</code> 支援、又沒有另外給 <code>CorsConfigurationSource</code>，它就會「使用提供給 Spring MVC 的 CORS 設定」——<code>@CrossOrigin</code> 就屬於這一套。真正的關鍵是順序：預檢請求不帶 Cookie，Spring Security 若先跑就會判定未認證而擋掉，所以 CORS 必須排在它前面處理</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>CORS 可以設在 Spring MVC、Spring Security 或反向代理層。挑一個地方統一管，不要讓不同層回傳互相矛盾的標頭；也可以統一交給反向代理（reverse proxy，站在應用程式前面代收請求的伺服器，例如 Nginx）處理。</p>
 </section>
 
 <section>
@@ -48,7 +48,7 @@
 <p>常見做法是產生一個無法預測的 CSRF 權杖，要求前端把它放進表單欄位或自訂的請求標頭。伺服器確認權杖與目前工作階段相符，才接受會改資料的請求。</p>
 <pre><code>Cookie: JSESSIONID=...
 X-XSRF-TOKEN: 這個工作階段對應的防偽權杖</code></pre>
-<p class="muted">上面用的標頭名 <code>X-XSRF-TOKEN</code> 與表單參數名 <code>_csrf</code>，對應的是把權杖放進 Cookie 的那種設定；如果改把權杖存在工作階段裡，預設標頭名會是 <code>X-CSRF-TOKEN</code>。抄設定前先確認自己用的是哪一種儲存庫。</p>
+<p class="muted">上面用的標頭名 <code>X-XSRF-TOKEN</code> 與表單參數名 <code>_csrf</code>，對應的是把權杖放進 Cookie 的那種設定；如果改把權杖存在工作階段裡，預設標頭名會是 <code>X-CSRF-TOKEN</code>。抄設定前先確認自己用的是哪一種儲存庫<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>如果前端走的是「Cookie 裡放一份讀得到的權杖，再複製到自訂標頭」這個模式，惡意網站因為同源政策讀不到那個 Cookie 的值，也就設不出正確的標頭，伺服器就分辨得出偽造請求。</p>
 <ul class="plainlist"><li>Session Cookie 可以加 <code>SameSite</code> 屬性，降低跨站時被自動附帶的機會。</li><li>會改資料的 API 要用符合語意的方法，並檢查 CSRF 權杖。</li><li>登入、登出與公開 API 要不要略過檢查，得看實際的威脅模型決定。</li><li>CORS 與 CSRF 解決的是不同問題，開了 CORS 不等於防住了 CSRF。</li></ul>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記在 CSRF 總結寫「其實 CSRF 攻擊是基於 Cookie → 如果不是使用 Session & Cookie 認證，就不會有 CSRF 攻擊」，查證後更正：關鍵不在憑證叫什麼名字，而在它會不會被瀏覽器自動附帶。OWASP 的原話是瀏覽器的請求會自動帶上所有 Cookie，包含工作階段 Cookie；放在 Cookie 裡的 JWT 也在這個「所有 Cookie」的範圍內，所以一樣有 CSRF 風險——後半句是依那句原話往下推的，OWASP 本身沒有討論 JWT">關鍵不在憑證叫什麼名字，而在它會不會被瀏覽器自動附帶。OWASP 的原話是「瀏覽器的請求會自動帶上所有 Cookie，包含工作階段 Cookie，所以除非另外做好授權，這種攻擊就會成立」——JWT 放在 Cookie 裡一樣被涵蓋在這個「所有 Cookie」裡面</mark><a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>

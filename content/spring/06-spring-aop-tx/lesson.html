@@ -49,7 +49,7 @@ public class TimingAspect {
 <section>
 <p class="era">代理機制帶來的邊界</p>
 <h3 class="head">寫了註解不一定會被攔截</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Spring-AOP則是AOP的實作，底層依靠JavaSE的Reflection/Proxy API」，這句只講了一半：JDK 動態代理確實是其中一條路，但 Spring AOP 還有 CGLIB 這條。查證後補全：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時會建立 CGLIB 子類別代理；另外要注意「有介面就用 JDK 動態代理」這條規則只在 spring.aop.proxy-target-class 是 false 時成立，而 Spring Boot 把它預設成 true，所以 Spring Boot 專案不論有沒有介面都走 CGLIB">Spring AOP 的底層不是只有 JDK 動態代理（Java SE 的 Reflection/Proxy API）這一條路。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a>。不過上面那條「有介面就用 JDK 動態代理」的規則，只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立；Spring Boot 把這個設定預設成 <code>true</code>，所以在 Spring Boot 專案裡，有沒有介面都走 CGLIB。</p>
+<p class="muted">Spring AOP 建代理有兩條路。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理（Java SE 的 Reflection/Proxy API），沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」。CGLIB 是一個在執行期直接產生子類別位元組碼的函式庫，Spring 已把它打包進 spring-core。不過「有介面就用 JDK 動態代理」這條規則只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立；Spring Boot 自 2.0 起把它預設成 <code>true</code>，遷移指南寫「Spring Boot 現在預設用 CGLIB 代理，AOP 支援也包含在內」，所以 Spring Boot 專案不論有沒有介面都走 CGLIB<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a><a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide" target="_blank" rel="noopener">2.0 起</a>。</p>
 <p>不論哪一種代理，攔截的都是「從外部進入 Bean」的呼叫。如果同一個物件裡的 A 方法直接呼叫自己的 B 方法，這次呼叫沒有經過代理，B 上的 AOP 行為就不會生效。這個狀況叫自我呼叫（self-invocation）。</p>
 <p>常見的改善方式是重新切分 Bean，讓呼叫真的跨過代理邊界。不要為了繞過設計問題，到處自己去拿代理物件。</p>
 </section>
@@ -77,7 +77,7 @@ public class TransferService {
     }
 }</code></pre>
 <p><code>@Transactional</code> 可以放在類別或方法上。交易邊界通常放在服務層，因為一件商業操作往往要協調好幾個 DAO。如果只在各個 DAO 方法上各開一個交易，整件商業操作就被切成好幾段，失去「一起成功或一起失敗」的意義。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記只寫「發生例外、邏輯不合理 => Rollback」，沒有區分例外型別；查證後補充：Spring 的宣告式交易預設只對 RuntimeException 與 Error 回復，受檢例外（checked exception）預設不會觸發回復，要回復得自己設定 rollbackFor">官方文件列 <code>@Transactional</code> 的預設值時寫得很直接：「任何 <code>RuntimeException</code> 或 <code>Error</code> 會觸發回復，任何受檢的 <code>Exception</code> 則不會。」要讓受檢例外也回復，得自己設 <code>rollbackFor</code></mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a>。所以不要只憑「有丟例外」就假設一定回復。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「發生例外、邏輯不合理 => Rollback」，等於說任何例外都回復；查證後更正：Spring 的宣告式交易預設只對 RuntimeException 與 Error 回復，受檢例外（checked exception）預設不回復，照原筆記的假設去寫會漏回復，要回復得自己設定 rollbackFor">官方文件列 <code>@Transactional</code> 的預設值時寫得很直接：「任何 <code>RuntimeException</code> 或 <code>Error</code> 會觸發回復，任何受檢的 <code>Exception</code> 則不會。」要讓受檢例外也回復，得自己設 <code>rollbackFor</code></mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a>。所以不要只憑「有丟例外」就假設一定回復。</p>
 </section>
 
 <section>
