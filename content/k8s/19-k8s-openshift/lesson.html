@@ -136,10 +136,10 @@ spec:
 <p>注意 <code>WORDPRESS_DATABASE_HOST</code> 填的是 <code>database</code>——那是<strong>資料庫 Service 的名字</strong>，不是任何一個 Pod 的位址。這正是第 9 課講的「永遠不變的名字」實際用起來的樣子。</p>
 <p class="q">就緒檢查（readinessProbe）和存活檢查（livenessProbe）的分工不要搞混：<strong>就緒檢查決定要不要把流量送進來，存活檢查決定要不要把它砍掉重開。</strong>路徑、等待時間、逾時都要照那個映像檔真正的啟動行為調，抄別人的數字常常不合用。</p>
 
-<h4>映像檔的兩個坑</h4>
+<h4>映像檔的三個坑</h4>
 <p class="muted">第一個坑是映像檔搬家了。<mark class="fixnote" tabindex="0" data-note="原筆記用 bitnami/wordpress:latest、bitnami/mysql:5.7、bitnami/redis:7.0 這幾個映像檔，查證後更正：Bitnami 官方公告自 2025 年 8 月 28 日起，把 docker.io/bitnami 底下既有的容器映像（含各版本標籤）搬到 docker.io/bitnamilegacy，該處不再更新也不再支援，只供暫時遷移使用">Bitnami 已經公告從 2025 年 8 月 28 日起，把 <code>docker.io/bitnami</code> 底下的既有映像（含各版本標籤）搬到 <code>docker.io/bitnamilegacy</code>，那邊不再更新也不再支援，只給你暫時遷移用</mark><a class="fixsrc" href="https://github.com/bitnami/containers/issues/83267" target="_blank" rel="noopener">出處</a>。所以 <code>bitnami/wordpress</code>、<code>bitnami/mysql</code>、<code>bitnami/redis</code> 這類舊名稱照抄下去，現在可能拉不下來。要沿用的話請先確認目前還提供哪些映像與標籤。</p>
 <p class="muted">第二個坑是身分：<strong>OpenShift 會用一個隨機指定的、非 root 的使用者編號來跑你的容器</strong>。Red Hat 的映像製作指南寫得很清楚——容器裡會被寫入的目錄和檔案，要屬於 root 群組且該群組可讀寫，映像檔的 <code>USER</code> 也該寫數字而不是名字。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/3.11/html/creating_images/creating-images-guidelines" target="_blank" rel="noopener">出處</a> 這也解釋了一個常見疑問：<strong>為什麼這類映像檔聽的是 8080 而不是 80</strong>。同一份指南直接寫了這句：「容器裡跑的程序不可以聽特權埠（1024 以下的埠），因為它們並不是以特權使用者的身分在跑」。假設自己一定是 root、或假設某個目錄一定寫得進去的映像檔，在 OpenShift 上就會起不來。</p>
-<p class="muted">兩個坑之外還有一條通則：正式環境不要用 <code>latest</code>。標籤是可以被發佈者改掉的，同一個名字下次拉到的可能是不同內容，稽核和重現都會出問題。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">第三個坑是標籤會變：正式環境不要用 <code>latest</code>。標籤是可以被發佈者改掉的，同一個名字下次拉到的可能是不同內容，稽核和重現都會出問題。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
