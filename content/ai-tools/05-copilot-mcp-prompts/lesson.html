@@ -4,8 +4,8 @@
 <section>
 <p class="era">先講 MCP</p>
 <h3 class="head">替 AI 工具準備一個通用插座</h3>
-<p>MCP（Model Context Protocol，模型上下文協定）是一套讓應用程式用標準方式連接外部資料與工具的協定。原筆記引用了一個很好記的比喻：它像 AI 世界的 USB-C，主機不必為每個模型、每項服務都另外做一套接頭。</p>
-<p>原筆記寫它是 Anthropic 在 2024 年 11 月推出的開放標準、訊息用 JSON-RPC 2.0、有多種語言的 SDK——這三點查證後都正確（正式公開日期是 2024 年 11 月 25 日）。</p>
+<p>MCP（Model Context Protocol，模型上下文協定）是一套讓應用程式用標準方式連接外部資料與工具的協定。有一個很好記的比喻：它像 AI 世界的 USB-C，主機不必為每個模型、每項服務都另外做一套接頭。</p>
+<p>它是 Anthropic 在 2024 年 11 月 25 日正式公開的開放標準，訊息格式用 JSON-RPC 2.0，官方提供多種語言的 SDK。</p>
 <p>它解決的是「多對多整合」的重複工：以前 M 種模型要接 N 種工具，就得做 M×N 套接頭。但「用同一種插頭」不等於「插上去就安全」。伺服器仍可能碰到本機檔案、公司系統或外部服務，認證、授權、輸入驗證與稽核都得另外處理。</p>
 </section>
 
@@ -47,7 +47,7 @@
     }
   }
 }</code></pre>
-<p>原筆記寫的專案設定檔位置 <code>.vscode/mcp.json</code> 與命令列的 <code>--add-mcp</code> 參數查證後都還在，<mark class="fixnote" tabindex="0" data-note="原筆記寫「安裝擴充套件：使用 code-insiders 安裝 GitHub Copilot Pre-release 版本」「指令：code-insiders --add-mcp」，查證後更正">但現在正式版的 VS Code 就支援，不必再裝預覽版</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" rel="noopener">出處</a>。原筆記列的三個管理指令（<code>MCP: Add Server</code>、<code>MCP: List Servers</code>、<code>MCP: Reset Cached Tools</code>）查證後也都還在；另外還多了幾個：<code>MCP: Open User Configuration</code>、<code>MCP: Open Workspace Folder MCP Configuration</code>、<code>MCP: Browse Resources</code>、<code>MCP: Reset Trust</code>、<code>MCP: Show Installed Servers</code>。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration" target="_blank" rel="noopener">出處</a></p>
+<p>專案設定檔放在 <code>.vscode/mcp.json</code>，命令列也有 <code>--add-mcp</code> 參數可以加；<mark class="fixnote" tabindex="0" data-note="原筆記寫「安裝擴充套件：使用 code-insiders 安裝 GitHub Copilot Pre-release 版本」「指令：code-insiders --add-mcp」，查證後更正">現在正式版的 VS Code 就支援，不必再裝預覽版</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" rel="noopener">出處</a>。管理指令有 <code>MCP: Add Server</code>、<code>MCP: List Servers</code>、<code>MCP: Reset Cached Tools</code>、<code>MCP: Open User Configuration</code>、<code>MCP: Open Workspace Folder MCP Configuration</code>、<code>MCP: Browse Resources</code>、<code>MCP: Reset Trust</code>、<code>MCP: Show Installed Servers</code>。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li>優先用唯讀帳號、測試環境與範圍受限的權杖。</li>
 <li>寫入、刪除、付款、部署、對外發訊這類動作，保留人工確認。</li>
@@ -55,13 +55,13 @@
 <li>留下工具呼叫、參數、結果與核准人的稽核紀錄。</li>
 <li>定期把不用的伺服器、權杖與權限清掉。</li>
 </ul>
-<p class="muted">原筆記推薦了一批現成的伺服器（瀏覽器操作、雲端服務查詢、設計稿轉程式碼、聯網搜尋、抓網頁、查時間），也提到其中一項搭配的付費方案每月有五美元額度。這類清單與價格變動很快，挑伺服器該從任務與風險出發，不要只因為「熱門推薦」就裝上去。</p>
+<p class="muted">現成的伺服器很多（瀏覽器操作、雲端服務查詢、設計稿轉程式碼、聯網搜尋、抓網頁、查時間都有人做），有些還搭配自己的付費方案與額度。這類清單與價格變動很快，挑伺服器該從任務與風險出發，不要只因為「熱門推薦」就裝上去。</p>
 </section>
 
 <section>
 <p class="era">除錯</p>
 <h3 class="head">連線、能力、權限、業務邏輯分開查</h3>
-<p>官方有一支檢查工具（MCP Inspector），可以觀察伺服器啟不啟得起來、宣告了哪些能力、呼叫的輸入輸出長什麼樣。原筆記記的啟動方式是用 npx 執行官方套件、再開瀏覽器連本機的埠號；版本與埠號會變，用之前先確認套件來源。出問題時照這四層往下查：</p>
+<p>官方有一支檢查工具（MCP Inspector），可以觀察伺服器啟不啟得起來、宣告了哪些能力、呼叫的輸入輸出長什麼樣。啟動方式是用 npx 執行官方套件，再開瀏覽器連本機的埠號；版本與埠號會變，用之前先確認套件來源。出問題時照這四層往下查：</p>
 <ul class="plainlist">
 <li>連線層：程序有沒有啟動、傳輸方式與環境變數對不對。</li>
 <li>協定層：初始化成不成功、宣告的能力與參數結構對不對得上。</li>
@@ -95,14 +95,14 @@
   }
 }</code></pre>
 <p>之後在對話裡打 <code>#reader</code>，這一整組就一起帶進去。官方也說明三個欄位各是什麼：<code>tools</code> 是工具名稱的陣列（可以放內建工具、MCP 工具或擴充功能提供的工具），<code>description</code> 是在工具選單裡顯示的說明，<code>icon</code> 是圖示。</p>
-<p class="muted">VS Code 自己也內建了幾組，在工具總表裡直接標成 tool set：<code>#read</code>（讀工作區的檔案）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區）、<code>#execute</code>（在你的機器上執行程式）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（操作內建瀏覽器）、<code>#agent</code>（把工作分派給其他代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>原筆記寫「可在設定檔中將多個工具分組，方便在 Chat 中一次引用」，這件事今天依然成立，只是現在有專屬的指令與檔案格式。</p>
+<p class="muted">VS Code 自己也內建了幾組，在工具總表裡直接標成 tool set：<code>#read</code>（讀工作區的檔案）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區）、<code>#execute</code>（在你的機器上執行程式）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（操作內建瀏覽器）、<code>#agent</code>（把工作分派給其他代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
 <p class="era">自訂代理人</p>
 <h3 class="head">同一套工具，換個角色用</h3>
 <p>前面那張表提過這類檔案已經從<strong>自訂聊天模式</strong>改名叫<strong>自訂代理人</strong>。這裡講它實際能做什麼。官方的說法是「Custom agents enable you to configure the AI to adopt different personas tailored to specific development roles and tasks.」——替不同的開發角色各設一份設定，每份有自己的行為、可用工具與指示。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
-<p>官方舉的例子跟原筆記列的四種用途是同一回事：「a "Plan" agent could include instructions for generating an implementation plan and only use read-only tools.」——一個只給唯讀工具的規劃角色，就不會在你還在想的時候動到程式碼。</p>
+<p>官方舉的例子是：「a "Plan" agent could include instructions for generating an implementation plan and only use read-only tools.」——一個只給唯讀工具的規劃角色，就不會在你還在想的時候動到程式碼。</p>
 <div class="tablewrap"><table><thead><tr><th>要設的東西</th><th>寫在哪</th></tr></thead><tbody>
 <tr><td>檔案本身</td><td>一個 <code>.agent.md</code> 的 Markdown 檔</td></tr>
 <tr><td>工作區共用</td><td><code>.github/agents</code> 資料夾（Claude 格式則放 <code>.claude/agents</code>）</td></tr>
@@ -110,7 +110,7 @@
 <tr><td>檔頭設定（YAML 前置區，檔案開頭用三個減號框起來的設定段）</td><td><code>description</code>（說明）、<code>name</code>（名稱，不寫就用檔名）、<code>tools</code>（准用哪些工具或工具組）、<code>model</code>（指定用哪個模型）等</td></tr>
 </tbody></table></div>
 <p>建立用命令面板的 <code>Chat: New Custom Agent</code>，要用的時候在對話視窗的代理人下拉選單裡切換。</p>
-<p class="muted">這是版本差異不是原筆記寫錯：原筆記寫它是「自 VS Code 1.101 起的預覽功能」，以 2025 年 6 月來看是對的；現在它已經是正式文件裡的一般功能，名稱也換了。官方在問答區直接寫「Custom agents were previously known as custom chat modes. The functionality remains the same, but the terminology has been updated to better reflect their purpose in customizing AI behavior for specific tasks.」，並要求把舊的 <code>.chatmode.md</code> 改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">這個功能在 VS Code 1.101（2025 年 6 月）還是預覽功能，現在已經是正式文件裡的一般功能，名稱也換了。官方在問答區直接寫「Custom agents were previously known as custom chat modes. The functionality remains the same, but the terminology has been updated to better reflect their purpose in customizing AI behavior for specific tasks.」，並要求把舊的 <code>.chatmode.md</code> 改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -137,13 +137,13 @@ description: 審查指定介面的授權風險
 2. 每項發現對應的程式碼依據
 3. 建議修正與待確認的假設</code></pre>
 <p>不要把整段聊天原封不動存起來；刪掉當時才有的偶然資訊，留下用途、必要輸入、允許範圍、禁止事項、輸出格式與完成條件。流程長的話拆成幾份小提示、明確傳遞中間產物，比做一份越長越大的提示好維護。</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">現行官方頁面已經沒有 <code>chat.promptFiles</code> 這個設定，不必再手動開啟；同一頁還標示提示檔在 Agent Host 工作階段已淘汰、不會被載入，只有本機代理還讀得到，而本機代理未來也會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a>——所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。原筆記另外提到可以把對話存成提示檔、或匯出成一份檔案給別人匯入；如果產品提供這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">現行官方頁面已經沒有 <code>chat.promptFiles</code> 這個設定，不必再手動開啟；同一頁還標示提示檔在 Agent Host 工作階段已淘汰、不會被載入，只有本機代理還讀得到，而本機代理未來也會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a>——所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。另外，把對話存成提示檔、或匯出成一份檔案給別人匯入這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
 </section>
 
 <section>
 <p class="era">對話管理</p>
 <h3 class="head">換一個乾淨的開始，或把這段留下來</h3>
-<p>對話越長，舊的資訊越容易干擾新的問題。原筆記記了三招：<code>/clear</code> 清空上下文、<code>/save</code> 把對話存成提示檔、匯出與匯入整串對話。三招的目的今天都還在，做法有些換了名字。</p>
+<p>對話越長，舊的資訊越容易干擾新的問題。常見的需求有三種：清空上下文、把這次的對話存成之後可以重跑的檔案、把整串對話留底或給別人。對應的做法如下。</p>
 <div class="tablewrap"><table><thead><tr><th>你想做的事</th><th>現行官方列的做法</th></tr></thead><tbody>
 <tr><td>不要讓舊對話影響新問題</td><td><code>/clear</code>：官方的說明是「Start a new chat and archive or mark the current chat as done.」——開一個新對話，並把目前這個封存或標記為完成</td></tr>
 <tr><td>對話太長、超出模型能看的範圍</td><td><code>/compact</code>：「Compact the conversation context in a supported agent session. Useful when a conversation grows too long for the model's context window.」——把前面的內容壓成摘要，繼續同一串</td></tr>
@@ -151,20 +151,20 @@ description: 審查指定介面的授權風險
 <tr><td>整串留底或給別人</td><td>命令面板的 <code>Chat: Export Chat...</code>，存成一個 JSON 檔</td></tr>
 </tbody></table></div>
 <p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/sessions/chat-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
-<p class="muted">這是版本差異不是原筆記寫錯，而且這裡只能把話說到查得到的範圍：官方現行的斜線指令總表裡<strong>沒有列</strong> <code>/save</code>，要把對話變成可重複執行的檔案，列出來的是 <code>/create-prompt</code>；工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。該頁自己註明「The available commands depend on the current chat surface, session type, agent, and enabled features.」，所以這是「官方的斜線指令總表與工作階段那一頁都沒有列」，不是「官方說它不存在」。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
+<p class="muted">早期有個 <code>/save</code> 指令把對話存成提示檔，官方現行的斜線指令總表裡<strong>沒有列</strong>它；要把對話變成可重複執行的檔案，列出來的是 <code>/create-prompt</code>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過該頁自己註明「The available commands depend on the current chat surface, session type, agent, and enabled features.」，所以「總表沒有列」不等於「這個指令不存在」，實際還是以你手上那個版本列出來的指令為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
 </section>
 
 <section>
 <p class="era">再多三種材料</p>
 <h3 class="head">專案以外的東西，怎麼指給它看</h3>
-<p>第 3 課有一張表，列了怎麼把選取的程式碼、問題清單、版本控制的差異、整個工作區指給它看。原筆記另外提了三種<strong>工作區以外</strong>的材料，補在這裡。</p>
+<p>第 3 課有一張表，列了怎麼把選取的程式碼、問題清單、版本控制的差異、整個工作區指給它看。還有三種材料來自<strong>工作區以外</strong>，補在這裡。</p>
 <div class="tablewrap"><table><thead><tr><th>想給的材料</th><th>現行寫法</th><th>官方說明</th></tr></thead><tbody>
 <tr><td>GitHub 上某個儲存庫的原始碼</td><td><code>#githubRepo</code>，後面接 <code>owner/repo</code>（GitHub 上「帳號／儲存庫名稱」的寫法）</td><td>「Semantic search a GitHub repository for relevant source code snippets. Specify a repository using <code>owner/repo</code>.」（<strong>語意搜尋</strong>＝照意思找相關的段落，不是只比對字面）</td></tr>
 <tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>「Text search a GitHub repository or organization for files containing specific keywords or code patterns.」</td></tr>
 <tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>「Fetch the content from a given web page.」官方示範是「Summarize #web/fetch code.visualstudio.com/updates.」</td></tr>
 </tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫抓外部網頁的引用方式是「#fetch」，查證後更正：這屬於名稱改過的舊寫法。現行官方的內建工具總表把抓網頁的工具列為 #web/fetch（歸在 #web 這組底下），整張表裡沒有 #fetch 這個名字">抓網頁那個現在要打 <code>#web/fetch</code>——官方的內建工具總表把它歸在 <code>#web</code> 這組底下，跟第 3 課提過的 <code>#codebase</code> 改成 <code>#search/codebase</code> 是同一波改名</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>。<code>#githubRepo</code> 則查證後名稱沒變，照原筆記打就行。</p>
-<p class="muted">這是版本差異不是原筆記寫錯：原筆記提的 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構），現行官方的內建工具總表與瀏覽器工具那一頁都沒有列這個名字——查得到的只有「這兩頁沒有列」，查不到官方說它不存在。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做：官方說「Browser tools give agents a visual and interactive feedback loop for web development.」，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫抓外部網頁的引用方式是「#fetch」，查證後更正：這屬於名稱改過的舊寫法。現行官方的內建工具總表把抓網頁的工具列為 #web/fetch（歸在 #web 這組底下），整張表裡沒有 #fetch 這個名字">抓網頁那個現在要打 <code>#web/fetch</code>——官方的內建工具總表把它歸在 <code>#web</code> 這組底下，跟第 3 課提過的 <code>#codebase</code> 改成 <code>#search/codebase</code> 是同一波改名</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">早期用 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構）做這件事，現行官方的內建工具總表與瀏覽器工具那一頁都沒有列這個名字。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做：官方說「Browser tools give agents a visual and interactive feedback loop for web development.」，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
 <p>這三種材料都來自你的工作區以外，所以下一段那條規矩對它們特別重要。</p>
 </section>
 

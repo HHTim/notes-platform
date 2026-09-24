@@ -4,13 +4,13 @@
 <section>
 <p class="era">工具從哪裡來</p>
 <h3 class="head">三種來源：內建、本機指令、外接伺服器</h3>
-<p>要讓助理替你動手，得先有可以呼叫的工具。原筆記把來源分成三類：</p>
+<p>要讓助理替你動手，得先有可以呼叫的工具。工具的來源分成三類：</p>
 <div class="tablewrap"><table><thead><tr><th>來源</th><th>白話比喻</th><th>適合做什麼</th><th>主要風險</th></tr></thead><tbody>
 <tr><td>內建工具</td><td>工具箱原本就附的那幾支</td><td>讀寫檔案、搜尋內容、待辦清單、抓網頁、執行指令</td><td>權限範圍太大、誤改檔案</td></tr>
 <tr><td>本機指令</td><td>請它操作你這台電腦</td><td>跑測試、套件工具、版本控制、自動化腳本</td><td>指令被塞進惡意內容、破壞性操作、環境差異</td></tr>
 <tr><td>MCP 伺服器</td><td>照共同插座規格接上的外部設備</td><td>接資料庫、服務、瀏覽器或其他專用能力</td><td>憑證外洩、第三方信任、來源供應鏈風險</td></tr>
 </tbody></table></div>
-<p>原筆記提到助理不一定把所有工具都丟給模型挑：可以依任務、權限或上下文容量先篩過，減少模型選錯工具的機會。這個道理不限於某一套產品，工具越多、選擇越容易出錯。</p>
+<p>助理不一定把所有工具都丟給模型挑：可以依任務、權限或上下文容量先篩過，減少模型選錯工具的機會。這個道理不限於某一套產品，工具越多、選擇越容易出錯。</p>
 </section>
 
 <section>
@@ -19,25 +19,25 @@
 <p>MCP（Model Context Protocol，模型上下文協定，一套讓程式接上外部能力的通訊規格）規範的是「怎麼溝通」。承載 AI 體驗的應用程式叫 Host（主機），跟某台伺服器建立連線的那一塊叫 Client（用戶端），對外提供能力的服務叫 Server（伺服器端）。</p>
 <div class="terms"><div class="term"><b>Tool（工具）</b><span>可以執行的動作，有輸入有輸出，例如搜尋、建工單、操作瀏覽器。</span></div><div class="term"><b>Resource（資源）</b><span>可以讀取的資料或內容，例如文件、日誌、設定。</span></div><div class="term"><b>Prompt（提示模板）</b><span>可重複使用的互動樣板，例如「幫我審這段程式碼」的標準流程。</span></div></div>
 <p>MCP 本身不負責推理，也不限定背後要用哪一顆模型。<mark class="fixnote" tabindex="0" data-note="原筆記寫「MCP Server 顧名思義就是一台一直運作的伺服器」，查證後更正">「伺服器」在這裡指的是提供能力的那一端，不一定是一直開著的機器</mark><a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports" target="_blank" rel="noopener">出處</a>——用標準輸入輸出連線時，它是主機在需要時才啟動的子程序，用完就結束。</p>
-<p>另外要注意：協定統一的是溝通方式，不是每套應用程式的設定檔放哪裡。要把伺服器加進來，還是得照該產品當下的設定規格操作，這點原筆記也講得很清楚。</p>
+<p>另外要注意：協定統一的是溝通方式，不是每套應用程式的設定檔放哪裡。要把伺服器加進來，還是得照該產品當下的設定規格操作。</p>
 </section>
 
 <section>
 <p class="era">部署與傳輸</p>
 <h3 class="head">本機程序、容器與遠端服務</h3>
-<p>原筆記把伺服器分成「本機標準輸入輸出」「本機容器」「遠端 HTTP」三種。這個分法混了兩件事——<mark class="fixnote" tabindex="0" data-note="原筆記寫「MCP Server Types：1. Local Standard Input Output(STDIO) 2. Local Docker Container 3. Remote Http」，查證後更正">現行規格只定義兩種標準傳輸：標準輸入輸出（stdio）與 Streamable HTTP；容器是打包與部署的方式，不是另一種傳輸</mark><a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports" target="_blank" rel="noopener">出處</a>，容器裡的伺服器實際上還是走前面那兩種之一。</p>
+<p>把伺服器分成「本機標準輸入輸出」「本機容器」「遠端 HTTP」三種，是混了兩件事的講法——<mark class="fixnote" tabindex="0" data-note="原筆記寫「MCP Server Types：1. Local Standard Input Output(STDIO) 2. Local Docker Container 3. Remote Http」，查證後更正">現行規格只定義兩種標準傳輸：標準輸入輸出（stdio）與 Streamable HTTP；容器是打包與部署的方式，不是另一種傳輸</mark><a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports" target="_blank" rel="noopener">出處</a>，容器裡的伺服器實際上還是走前面那兩種之一。</p>
 <div class="tablewrap"><table><thead><tr><th>形式</th><th>怎麼運作</th><th>要注意什麼</th></tr></thead><tbody>
 <tr><td>標準輸入輸出（stdio）</td><td>主機啟動一個本機子程序，用輸入輸出串流一行一行交換訊息</td><td>部署直接，但要自己管本機執行環境與套件</td></tr>
 <tr><td>Streamable HTTP</td><td>每則訊息是一個 HTTP 請求，回覆可能是一包資料，也可能是一條持續回傳的串流</td><td>方便集中管理，但要處理身分驗證、加密、延遲與費用</td></tr>
 <tr><td>容器（打包方式，不是傳輸）</td><td>伺服器跑在容器裡，對外仍用上面兩種之一連線</td><td>環境比較一致，但映像來源、掛載路徑與權限仍要自己審</td></tr>
 </tbody></table></div>
-<p class="muted">原筆記說遠端那種「通常要錢?」，自己也打了問號。收費與否看的是該服務本身的商業模式，跟傳輸方式無關。</p>
+<p class="muted">遠端的伺服器不一定要付費：收費與否看的是該服務本身的商業模式，跟用哪種傳輸方式無關。</p>
 </section>
 
 <section>
 <p class="era">一次呼叫怎麼跑完</p>
 <h3 class="head">裝箱、寄出、拆箱</h3>
-<p>當助理判斷需要外接工具時，用戶端會照協定組出一個請求。原筆記把它比喻成寄包裹：先按格式填單，再把內容轉成可傳送的位元組；伺服器收到後反向還原、執行工具，結果再沿原路回來。</p>
+<p>當助理判斷需要外接工具時，用戶端會照協定組出一個請求。可以比喻成寄包裹：先按格式填單，再把內容轉成可傳送的位元組；伺服器收到後反向還原、執行工具，結果再沿原路回來。</p>
 <pre><code>你的要求
   ↓
 主機挑出要用的工具
@@ -53,20 +53,20 @@
 結果沿相反方向回到助理
   ↓
 模型根據結果回答，或再發一次呼叫</code></pre>
-<p>訊息格式用的是 JSON-RPC（用 JSON 表達遠端呼叫的格式，裡面有方法名稱、參數、識別碼、結果與錯誤），傳輸層則負責把訊息真的送到。兩者角色不同：訊息格式像表單的欄位規定，傳輸像寄送的管道。原筆記提到標準輸入輸出會用換行當分隔，這點跟現行規格一致——它就是一行一則的 JSON-RPC。</p>
+<p>訊息格式用的是 JSON-RPC（用 JSON 表達遠端呼叫的格式，裡面有方法名稱、參數、識別碼、結果與錯誤），傳輸層則負責把訊息真的送到。兩者角色不同：訊息格式像表單的欄位規定，傳輸像寄送的管道。標準輸入輸出這種傳輸會用換行當分隔，等於一行一則 JSON-RPC。</p>
 </section>
 
 <section>
 <p class="era">SDK 幫你擋掉的細節</p>
 <h3 class="head">底層瑣事大多不用自己寫</h3>
-<p>自己實作用戶端或伺服器時，通常不必逐一處理編碼、解析與錯誤。SDK（軟體開發套件，官方給的現成程式庫）會提供型別、訊息處理與傳輸介面。原筆記把介面分成高階與低階：高階像用現成櫃台，常見功能做得快；低階像進後場自己組，控制力高但要自己扛協定細節與測試。</p>
+<p>自己實作用戶端或伺服器時，通常不必逐一處理編碼、解析與錯誤。SDK（軟體開發套件，官方給的現成程式庫）會提供型別、訊息處理與傳輸介面。介面分成高階與低階兩種：高階像用現成櫃台，常見功能做得快；低階像進後場自己組，控制力高但要自己扛協定細節與測試。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「在 MCP Client 端目前只有 Typescript SDK 可以使用，但 Server 端有兩個可以選擇：1. Typescript SDK 2. Python SDK」，查證後更正">官方 SDK 目前有十套（TypeScript、Python、C#、Go、Rust、Java、Ruby、Swift、PHP、Kotlin），而且每一套都同時支援寫用戶端與寫伺服器</mark><a class="fixsrc" href="https://modelcontextprotocol.io/docs/2026-07-28/sdk" target="_blank" rel="noopener">出處</a>，不再是用戶端只能用某一種語言。</p>
 </section>
 
 <section>
 <p class="era">把規範變成自動檢查</p>
 <h3 class="head">Hooks：在固定時機自動跑一段檢查</h3>
-<p>Hook（掛鉤，指在特定事件發生時自動執行的一段命令）像產線上的檢查站：送出提示時、工具執行前、檔案改完後、需要通知時，都能插進一段固定流程。原筆記示範的四個事件都還在：</p>
+<p>Hook（掛鉤，指在特定事件發生時自動執行的一段命令）像產線上的檢查站：送出提示時、工具執行前、檔案改完後、需要通知時，都能插進一段固定流程。最常用的四個事件：</p>
 <div class="tablewrap"><table><thead><tr><th>事件</th><th>可以做什麼</th><th>設計重點</th></tr></thead><tbody>
 <tr><td>UserPromptSubmit（你送出提示時）</td><td>補上團隊提醒、檢查任務前置條件</td><td>別塞太長或互相打架的規則</td></tr>
 <tr><td>PreToolUse（工具執行前）</td><td>檢查權限、參數與安全性</td><td>高風險操作直接擋掉或要求人工核准</td></tr>
@@ -86,7 +86,7 @@
     ]
   }
 }</code></pre>
-<p class="muted">原筆記只列了四個事件，現行版本的事件遠不止這些（開場、結束、壓縮前後、子代理啟動與結束等都有），而且 PreToolUse 的掛鉤可以直接擋下一次工具呼叫。完整清單與回傳格式請查 <a href="https://code.claude.com/docs/en/hooks" target="_blank" rel="noopener">官方 Hooks 文件</a>，設定鍵與欄位會隨版本調整。</p>
+<p class="muted">上面那張表只是常用的幾個，現行版本的事件遠不止這些（開場、結束、壓縮前後、子代理啟動與結束等都有），而且 PreToolUse 的掛鉤可以直接擋下一次工具呼叫。完整清單與回傳格式請查 <a href="https://code.claude.com/docs/en/hooks" target="_blank" rel="noopener">官方 Hooks 文件</a>，設定鍵與欄位會隨版本調整。</p>
 </section>
 
 <section>
