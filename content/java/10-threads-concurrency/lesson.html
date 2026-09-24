@@ -4,8 +4,8 @@
 <section>
 <p class="era">從藍圖、工廠到員工</p>
 <h3 class="head">程式、行程與執行緒</h3>
-<p>原筆記的比喻很好記：<strong>程式</strong>（program）是工廠藍圖，還沒執行的程式碼；<strong>行程</strong>（process）是照藍圖開起來、已經拿到資源的工廠；<strong>執行緒</strong>（thread）是工廠裡真正在做事的員工。</p>
-<p class="muted">對照一下用詞：原筆記寫的是「程序」「進程」「線程」，這課一律用台灣講法的「行程」「執行緒」，指的是同一件事。</p>
+<p>這三個詞用工廠來記最快：<strong>程式</strong>（program）是工廠藍圖，還沒執行的程式碼；<strong>行程</strong>（process）是照藍圖開起來、已經拿到資源的工廠；<strong>執行緒</strong>（thread）是工廠裡真正在做事的員工。</p>
+<p class="muted">對照一下用詞：有些教材寫的是「程序」「進程」「線程」，這課一律用台灣講法的「行程」「執行緒」，指的是同一件事。</p>
 <pre><code>程式（Program）
 └── 啟動後成為行程（Process）
     ├── 主執行緒（Main Thread）
@@ -20,7 +20,7 @@
 </tbody>
 </table></div>
 <p>「共用記憶體、各有自己的堆疊」這句是關鍵：執行緒之間透過參考碰得到同一個物件，但各自方法裡的區域變數是獨立的。</p>
-<p class="muted">原筆記寫「一個 CPU 一次只能執行一個 Process」。這句話在單核心年代成立，放到今天要改成<strong>一個處理核心</strong>——八核心的 CPU 在同一瞬間真的跑得動八件事。這是作業系統與硬體的事實，不在 Java 官方文件的範圍內，所以標成補充而不是更正；下面「並行」跟「平行」的差別講的正是這件事。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「一個 CPU 一次只能執行一個 Process」，那是單核心年代的講法。這是作業系統與硬體的事實，不在 Java 官方文件的範圍內，所以標成補充而不是更正">「一個 CPU 一次只能執行一個行程」這句話在單核心年代成立，放到今天要改成<strong>一個處理核心</strong>——八核心的 CPU 在同一瞬間真的跑得動八件事。下面「並行」跟「平行」的差別講的正是這件事</mark>。</p>
 <div class="terms">
 <div class="term"><b>並行 concurrency</b><span>多件事在一段時間內交錯推進。單核心靠快速切換也做得到。</span></div>
 <div class="term"><b>平行 parallelism</b><span>多件事在同一瞬間真的同時執行。要有多個核心才可能。</span></div>
@@ -38,13 +38,13 @@
 
 Thread worker = new Thread(task);
 worker.start();</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記在實作 Runnable 介面的步驟清單最後一步寫「5. 呼叫`run()`方法」，跟同一份筆記前面「3. `start()` 打開執行緒」互相矛盾，查證後更正：要開新執行緒一定是呼叫 start()"><strong>一定要呼叫 <code>start()</code>。</strong>直接呼叫 <code>run()</code> 只是在目前這條執行緒裡執行一個普通方法，根本不會有新執行緒——原筆記的步驟清單最後一步寫成「呼叫 run() 方法」，跟它自己前面寫的 <code>start()</code> 互相矛盾</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#start()" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在實作 Runnable 介面的步驟清單最後一步寫「5. 呼叫`run()`方法」，跟同一份筆記前面「3. `start()` 打開執行緒」互相矛盾，查證後更正：要開新執行緒一定是呼叫 start()"><strong>一定要呼叫 <code>start()</code>。</strong>直接呼叫 <code>run()</code> 只是在目前這條執行緒裡執行一個普通方法，根本不會有新執行緒</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#start()" target="_blank" rel="noopener">出處</a>。</p>
 <p><code>join()</code> 讓目前這條執行緒等另一條結束再繼續，控制的是<strong>等待關係</strong>，不是整個系統的執行順序。</p>
 <pre><code>worker.start();
 worker.join();   // 等 worker 跑完再往下</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「join(long milliseconds) -> 等到時間倒數完，其他執行緒就會強制加入」，查證後更正：join(毫秒) 是最多等這麼久，時間到就不等了，不是強制介入對方"><code>join(毫秒)</code> 的意思是「<strong>最多</strong>等這麼久」——對方提早結束就提早往下走，時間到了對方還沒完就不等了。它不會去強制中斷或介入對方執行緒</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#join(long)" target="_blank" rel="noopener">出處</a>。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記把 yield() 列在「禮讓的執行緒(Polite Thread)」底下，寫「用`yield()`方法改進自願移出執行(Running)狀態至預備(Ready)狀態」，講得像一定會生效，查證後更正：官方文件明寫 yield() 只是給排程器的提示，排程器可以直接忽略"><code>yield()</code> 官方文件的原話是「給排程器的一個提示，表示目前這條執行緒願意讓出處理器」，而且明講<strong>排程器可以忽略這個提示</strong>，還補了一句「很少有適合使用這個方法的場合」</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">優先權（1 到 10，預設 5）原筆記寫「優先權較高者先執行，優先權相等時 CPU 任選其一」。這是各家教材的通說，Java 文件本身也沒有反過來講，所以不標成更正；但實際排到誰跑，取決於作業系統的排程器，不同平台差很多——<strong>不要拿優先權來保證程式的正確性</strong>。原筆記自己也總結得很對：<strong>多執行緒難以預測、順序無法完全保證、切換可能發生在任何時刻</strong>。</p>
+<p class="muted">優先權（1 到 10，預設 5）的通說是「優先權較高者先執行，優先權相等時 CPU 任選其一」。但實際排到誰跑，取決於作業系統的排程器，不同平台差很多——<strong>不要拿優先權來保證程式的正確性</strong>。一句話總結：<strong>多執行緒難以預測、順序無法完全保證、切換可能發生在任何時刻</strong>。</p>
 <p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條，每個進來的請求分一條。</p>
 </section>
 
@@ -56,7 +56,7 @@ worker.join();   // 等 worker 跑完再往下</code></pre>
            // 1. 讀取 stock 的值
            // 2. 算出 stock - 1
            // 3. 把結果寫回 stock</code></pre>
-<p>原筆記的購物範例很清楚：庫存 100，兩個人同時買——</p>
+<p>拿購物來看最清楚：庫存 100，兩個人同時買——</p>
 <pre><code>時間        T1        T2        T3
 執行緒 1    讀到 100   （處理中） 寫回 99
 執行緒 2              讀到 100   寫回 99
@@ -70,7 +70,7 @@ worker.join();   // 等 worker 跑完再往下</code></pre>
 <section>
 <p class="era">一次只准一個人進去</p>
 <h3 class="head">synchronized 與顯式鎖</h3>
-<p>臨界區（critical section，原筆記叫「危險區域」）是會碰到共享可變資料、需要協調的那段程式。<code>synchronized</code> 會先取得指定物件的監視器鎖（monitor lock），同一時間只有拿到同一把鎖的執行緒進得去，其他人就在門外等。</p>
+<p>臨界區（critical section，也有教材叫「危險區域」）是會碰到共享可變資料、需要協調的那段程式。<code>synchronized</code> 會先取得指定物件的監視器鎖（monitor lock），同一時間只有拿到同一把鎖的執行緒進得去，其他人就在門外等。</p>
 <pre><code>private int stock = 100;
 
 public synchronized boolean buy() {
@@ -106,9 +106,9 @@ public void runLoop() {
         // 執行工作
     }
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記在「加上 `volatile` 後的效果」那段的程式碼註解寫「count++; // 立即刷新到主記憶體」「System.out.println(count); // 強制從主記憶體讀取最新值」，這跟同一份筆記小結裡「不能解決 ❌ 原子性問題」自相矛盾，查證後更正：volatile 不會讓 count++ 變成不可分割的動作"><code>volatile int count</code> 的 <code>count++</code> <strong>仍然</strong>是讀取、計算、寫回三步，照樣會遺失更新——官方教學的原句是「像 c++ 這樣的遞增運算式並不是一個原子動作」。原筆記的程式碼註解把它寫成「立即刷新到主記憶體」，讓人以為問題解決了，但同一份筆記的小結又正確地說 volatile 不能解決原子性——以小結那段為準</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/atomic.html" target="_blank" rel="noopener">出處</a>。要原子遞增請用同步區段或 <code>AtomicInteger</code>。</p>
-<p class="muted">原筆記用「立即寫入主記憶體、其他 CPU 快取失效」來解釋 volatile。當直覺可以，但嚴格講，Java 記憶體模型是用<strong>先行發生關係</strong>（happens-before）來定義的，並沒有規定實作一定要去刷快取；同步、volatile 與各種並行工具的作用，是建立這種關係，讓跨執行緒的可見性與順序有明確保證。</p>
-<p><strong>指令重排序</strong>（instruction reordering）是編譯器與處理器在不破壞單執行緒語意的前提下調整執行順序。原筆記的例子：<code>a</code> 跟 <code>b</code> 沒有依賴關係，順序換一下結果一樣，但可能跑得比較快。問題是這種「單執行緒看起來沒差」的最佳化，在多執行緒下就看得出來了。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在「加上 `volatile` 後的效果」那段的程式碼註解寫「count++; // 立即刷新到主記憶體」「System.out.println(count); // 強制從主記憶體讀取最新值」，這跟同一份筆記小結裡「不能解決 ❌ 原子性問題」自相矛盾，查證後更正：volatile 不會讓 count++ 變成不可分割的動作"><code>volatile int count</code> 的 <code>count++</code> <strong>仍然</strong>是讀取、計算、寫回三步，照樣會遺失更新——官方教學的原句是「像 c++ 這樣的遞增運算式並不是一個原子動作」</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/atomic.html" target="_blank" rel="noopener">出處</a>。要原子遞增請用同步區段或 <code>AtomicInteger</code>。</p>
+<p class="muted">常見的解釋是「volatile 會立即寫入主記憶體、讓其他 CPU 的快取失效」。當直覺可以，但嚴格講，Java 記憶體模型是用<strong>先行發生關係</strong>（happens-before）來定義的，並沒有規定實作一定要去刷快取；同步、volatile 與各種並行工具的作用，是建立這種關係，讓跨執行緒的可見性與順序有明確保證。</p>
+<p><strong>指令重排序</strong>（instruction reordering）是編譯器與處理器在不破壞單執行緒語意的前提下調整執行順序。舉個例子：<code>a</code> 跟 <code>b</code> 沒有依賴關係，順序換一下結果一樣，但可能跑得比較快。問題是這種「單執行緒看起來沒差」的最佳化，在多執行緒下就看得出來了。</p>
 </section>
 
 <section>
@@ -127,7 +127,7 @@ int result = count.incrementAndGet();</code></pre>
 <li><strong>CPU 開銷</strong>：競爭很激烈時，大量的失敗重試也是在燒 CPU。</li>
 </ul>
 <p><strong><code>AtomicInteger</code> 只保護得了一個變數。</strong>跨多個欄位的業務規則它管不到——那種情況要用鎖、不可變資料，或更高階的並行設計。</p>
-<p class="muted">原筆記的庫存範例是「先扣，發現扣成負的再用 <code>incrementAndGet()</code> 加回來」。推一遍會發現<strong>賣出的總數其實是對的</strong>，不算 bug；問題只在於補回來之前庫存會短暫變成負數，這段期間別的執行緒讀 <code>get()</code> 會看到負值。想避開這個暫態，可以用 <code>getAndUpdate</code> 一次完成「檢查＋扣減」，它回傳的是更新前的值，剛好拿來判斷這次有沒有扣到：</p>
+<p class="muted">有一種常見的庫存寫法是「先扣，發現扣成負的再用 <code>incrementAndGet()</code> 加回來」。推一遍會發現<strong>賣出的總數其實是對的</strong>，不算 bug；問題只在於補回來之前庫存會短暫變成負數，這段期間別的執行緒讀 <code>get()</code> 會看到負值。想避開這個暫態，可以用 <code>getAndUpdate</code> 一次完成「檢查＋扣減」，它回傳的是更新前的值，剛好拿來判斷這次有沒有扣到：</p>
 <pre><code>int before = stock.getAndUpdate(current -&gt; current &gt; 0 ? current - 1 : current);
 // getAndUpdate 回傳的是「更新前」的值
 if (before &gt; 0) {
@@ -162,7 +162,7 @@ public void transferBtoA() {
 <section>
 <p class="era">Java 21 之後多了一個選項</p>
 <h3 class="head">補充：虛擬執行緒</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫在虛擬執行緒出現之前，只有作業系統執行緒與執行緒池這兩種選項，收錄時補上 Java 21 正式定案的虛擬執行緒">原筆記那句「不要啟動 1000 條執行緒，那會把 JVM 弄死」在當時完全正確——每一條執行緒都對應一條作業系統執行緒，很貴。Java 21 起定案的<strong>虛擬執行緒</strong>（virtual thread）改變了這個前提：它由 JVM 自己排程，非常輕，開幾十萬條都不成問題</mark><a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫在虛擬執行緒出現之前，只有作業系統執行緒與執行緒池這兩種選項；它那句「不要啟動 1000 條執行緒，那會把 JVM 弄死」在當時完全正確，收錄時補上 Java 21 正式定案的虛擬執行緒">長年的建議是「不要啟動 1000 條執行緒，那會把 JVM 弄死」，前提是每一條執行緒都對應一條作業系統執行緒，很貴。Java 21 起定案的<strong>虛擬執行緒</strong>（virtual thread）改變了這個前提：它由 JVM 自己排程，非常輕，開幾十萬條都不成問題</mark><a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
     for (int i = 0; i &lt; 10_000; i++) {
         executor.submit(() -&gt; handleRequest());

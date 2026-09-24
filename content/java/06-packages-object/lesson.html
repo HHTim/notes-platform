@@ -17,7 +17,7 @@ public class Main {
         ArrayList&lt;LocalDate&gt; dates = new ArrayList&lt;&gt;();
     }
 }</code></pre>
-<p>一個原始檔<strong>最多只能有一個 public 頂層類別</strong>，而且檔名要跟它一致；同一個檔案裡還是可以放其他非公開的類別。原筆記給的理由很實際：那些類別別的地方用不到，放在一起互相搭配還比較好讀。</p>
+<p>一個原始檔<strong>最多只能有一個 public 頂層類別</strong>，而且檔名要跟它一致；同一個檔案裡還是可以放其他非公開的類別。這樣安排的理由很實際：那些類別別的地方用不到，放在一起互相搭配還比較好讀。</p>
 <p class="muted">常用的標準套件：<code>java.lang</code>（語言核心，String 就住這）、<code>java.io</code>（輸入輸出）、<code>java.net</code>（網路）、<code>java.util</code>（工具與集合）、<code>java.sql</code>（資料庫）。Java 9 模組化之後，前四個都在 <code>java.base</code> 這個預設就有的模組裡；<code>java.sql</code> 自己是一個獨立模組，同名的 <code>java.sql</code>。</p>
 </section>
 
@@ -36,7 +36,7 @@ java.util.Date utilDate = new java.util.Date();   // 完整限定名稱</code></
 import static java.lang.Math.sin;
 
 double value = sin(PI / 2);   // 不必寫 Math.sin(Math.PI / 2)</code></pre>
-<p class="muted">數學式用一點會清楚很多，但用太多讀的人就看不出這個成員是從哪來的，原筆記也特別提醒了這點。</p>
+<p class="muted">數學式用一點會清楚很多，但用太多讀的人就看不出這個成員是從哪來的。</p>
 </section>
 
 <section>
@@ -46,7 +46,7 @@ double value = sin(PI / 2);   // 不必寫 Math.sin(Math.PI / 2)</code></pre>
 <pre><code>javac -d out src/tw/example/app/Main.java
 java -cp out tw.example.app.Main</code></pre>
 <p><code>-d</code> 指定編譯輸出的<strong>根目錄</strong>；類別路徑（classpath）則告訴編譯器與 JVM 去哪些根目錄或 jar 檔找類別。注意它指的是套件樹的<strong>起點</strong>，不是某個 <code>.class</code> 檔本身的路徑。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把 classpath 的搜尋分成「1. Bootstrap classes：已置於 %JAVA_HOME%\jre\lib\rt.jar 檔案」「2. Extension classes：指的是 %JAVA_HOME%\jre\lib\ext 目錄下的jar檔或zip檔」「3. Users classes」三類，這在 Java 8 當年是對的，收錄時補上版本界線：前兩類在 Java 9 之後已經不存在">原筆記把搜尋順序分成 Bootstrap、Extension、User 三類，那是 Java 8 的世界。Java 9 把執行環境改成模組化映像檔之後，<code>rt.jar</code> 與 <code>jre/lib/ext</code> 這個擴充機制都已經拿掉了，現在實務上只剩你自己設定的類別路徑（以及模組路徑）</mark><a class="fixsrc" href="https://openjdk.org/jeps/220" target="_blank" rel="noopener">出處</a>。日常開發多半交給 Maven 或 Gradle 處理，很少手動設。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把 classpath 的搜尋分成「1. Bootstrap classes：已置於 %JAVA_HOME%\jre\lib\rt.jar 檔案」「2. Extension classes：指的是 %JAVA_HOME%\jre\lib\ext 目錄下的jar檔或zip檔」「3. Users classes」三類，這在 Java 8 當年是對的，收錄時補上版本界線：前兩類在 Java 9 之後已經不存在">Java 9 把執行環境改成模組化映像檔之後，<code>rt.jar</code> 與 <code>jre/lib/ext</code> 這個擴充機制都已經拿掉了，現在實務上只剩你自己設定的類別路徑（以及模組路徑）</mark><a class="fixsrc" href="https://openjdk.org/jeps/220" target="_blank" rel="noopener">出處</a>。日常開發多半交給 Maven 或 Gradle 處理，很少手動設。</p>
 </section>
 
 <section>
@@ -64,7 +64,7 @@ java -cp out tw.example.app.Main</code></pre>
 </tbody>
 </table></div>
 <p><code>equals(Object obj)</code> 的參數之所以是 <code>Object</code>，就是要讓任何物件都傳得進來比較。<code>System.out.println(物件)</code> 印的是 <code>toString()</code> 的結果；沒覆寫的話那串預設內容對人類沒什麼意義，所以自訂類別通常會給一個好讀的版本。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「protected void finalize() └>JDK 9 列為淘汰，因為不常用且Java有自動回收機制，取代C++的解構式」，查證後補上後續：Java 18 起已進一步標記為準備移除"><code>Object</code> 還有一個 <code>finalize()</code>，原筆記說它在 Java 9 被標記廢棄，這是對的；後續還有一步——Java 18 起已經標記為<strong>準備移除</strong>，官方明講不要靠它釋放資源</mark><a class="fixsrc" href="https://openjdk.org/jeps/421" target="_blank" rel="noopener">出處</a>。要收尾請用 try-with-resources（第 7 課）。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「protected void finalize() └>JDK 9 列為淘汰，因為不常用且Java有自動回收機制，取代C++的解構式」，查證後補上後續：Java 18 起已進一步標記為準備移除"><code>Object</code> 還有一個 <code>finalize()</code>，Java 9 起被標記為廢棄，Java 18 起更進一步標記為<strong>準備移除</strong>，官方明講不要靠它釋放資源</mark><a class="fixsrc" href="https://openjdk.org/jeps/421" target="_blank" rel="noopener">出處</a>。要收尾請用 try-with-resources（第 7 課）。</p>
 </section>
 
 <section>
@@ -118,7 +118,7 @@ int number = boxed;   // 自動拆箱
 int parsed = Integer.parseInt("42");      // 回傳 int
 Integer wrapped = Integer.valueOf("42");  // 回傳 Integer</code></pre>
 <p class="formula"><code>parseXxx()</code> 給你基本型別，<code>valueOf()</code> 給你包裝物件</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Integer i = new Integer(1); JDK 9 以後改用 Integer i = Integer.valueOf(10); 不再用new建立物件，不用浪費記憶體空間」，查證後補上後續：Java 16 起這些建構子已標記為準備移除">原筆記說 Java 9 起改用 <code>Integer.valueOf()</code>，這是對的；後續還有一步——Java 16 起，包裝類別的建構子已經標記為<strong>準備移除</strong>。在 Java 21、25 還是編得過，只是會跳警告——但既然官方已經預告要拿掉，新程式就別再寫 <code>new Integer(...)</code> 了</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Integer.html#%3Cinit%3E(int)" target="_blank" rel="noopener">出處</a>。<code>valueOf()</code> 省的不只是一次配置——小範圍的整數它會重複使用快取好的物件。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Integer i = new Integer(1); JDK 9 以後改用 Integer i = Integer.valueOf(10); 不再用new建立物件，不用浪費記憶體空間」，查證後補上後續：Java 16 起這些建構子已標記為準備移除">建立包裝物件請寫 <code>Integer.valueOf()</code>，Java 9 起就是這樣建議的；Java 16 起更進一步，包裝類別的建構子已經標記為<strong>準備移除</strong>。在 Java 21、25 還是編得過，只是會跳警告——但既然官方已經預告要拿掉，新程式就別再寫 <code>new Integer(...)</code> 了</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Integer.html#%3Cinit%3E(int)" target="_blank" rel="noopener">出處</a>。<code>valueOf()</code> 省的不只是一次配置——小範圍的整數它會重複使用快取好的物件。</p>
 <p>兩個常見的坑：</p>
 <ul class="plainlist">
 <li><strong>比包裝物件的值要用 <code>equals()</code></strong>。因為有快取，<code>==</code> 在小數字時看起來會相等、換成大數字又不相等，很容易誤判。</li>

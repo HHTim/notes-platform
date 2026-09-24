@@ -8,7 +8,7 @@
 <p>它最大的價值之一是<strong>建立團隊的共同語言</strong>：說一句「這裡用策略模式」，比逐句描述「把好幾種演算法各包成一個可替換的物件」省事得多。</p>
 <blockquote>先確認哪裡會變、有什麼限制，再選模式；不要先選模式，再回頭找地方套。</blockquote>
 <p class="muted">模式不是越多越好。問題很單純時，直接而清楚的程式碼，通常比先蓋一套複雜架構更好維護。</p>
-<p class="muted">GoF 那本書總共 23 種模式，分成三群——這個總表與「創建型五個是哪五個」在面試集第 1 課〈Java 基礎快答〉有整理過（原筆記把 Abstract Factory 寫成 Abstract Method，那裡已經更正）。</p>
+<p class="muted">GoF 那本書總共 23 種模式，分成三群——這個總表與「創建型五個是哪五個」在面試集第 1 課〈Java 基礎快答〉有整理過。</p>
 </section>
 
 <section>
@@ -46,7 +46,7 @@
 <section>
 <p class="era">單例控制的是數量與入口</p>
 <h3 class="head">Singleton 的核心結構</h3>
-<p>單例模式（Singleton）確保某個類別在指定範圍內只有一個實例，並提供一致的取得方式。原筆記整理的三個條件很精準：<strong>該類別只能有一個實例、它自己負責建立那個實例、它提供一個不必實體化就能呼叫的取得方法。</strong></p>
+<p>單例模式（Singleton）確保某個類別在指定範圍內只有一個實例，並提供一致的取得方式。三個條件就講完它：<strong>該類別只能有一個實例、它自己負責建立那個實例、它提供一個不必實體化就能呼叫的取得方法。</strong></p>
 <p>最基本的結構：私有建構子 ＋ 保存實例的靜態欄位 ＋ 公開的取得入口。</p>
 <pre><code>public final class AppRegistry {
     private static final AppRegistry INSTANCE = new AppRegistry();
@@ -57,21 +57,21 @@
         return INSTANCE;
     }
 }</code></pre>
-<p>這種「一開始就建好」（原筆記叫餓漢式）結構單純，而且靠類別初始化機制就完成了安全發布。如果建立成本低、程式又一定會用到它，通常不需要為了「延遲」去增加同步的複雜度。</p>
+<p>這種「一開始就建好」（也叫餓漢式）結構單純，而且靠類別初始化機制就完成了安全發布。如果建立成本低、程式又一定會用到它，通常不需要為了「延遲」去增加同步的複雜度。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記把 Singleton 定義成「A class that is instantiated exactly once(只被實體化一次的class)」，查證後補上界線：唯一性的範圍是一個類別載入器，不是整台機器">「只有一個」的範圍要講清楚：它是<strong>一個類別載入器（class loader）底下只有一個</strong>。同一支程式跑兩個行程，就有兩份實例；應用程式伺服器上不同的應用各有自己的載入器，也各有一份。所以單例不是分散式系統裡的「全域唯一」</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html#jvms-5.3" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
 <p class="era">延遲建立遇上並行</p>
 <h3 class="head">Lazy Singleton 的競爭條件</h3>
-<p>原筆記示範的延遲建立（lazy initialization）寫法，在多執行緒下並不安全——兩條執行緒可能同時看到 <code>instance == null</code>，然後各建一個：</p>
+<p>最直觀的延遲建立（lazy initialization）寫法，在多執行緒下並不安全——兩條執行緒可能同時看到 <code>instance == null</code>，然後各建一個：</p>
 <pre><code>public static Service getInstance() {
     if (instance == null) {        // 兩條執行緒可能同時走到這
         instance = new Service();
     }
     return instance;
 }</code></pre>
-<p>原筆記給的兩種修法都對。第一種是<strong>雙重檢查鎖定</strong>：</p>
+<p>有兩種修法。第一種是<strong>雙重檢查鎖定</strong>：</p>
 <pre><code>private static volatile Service instance;   // volatile 不能省
 
 public static Service getInstance() {
@@ -85,7 +85,7 @@ public static Service getInstance() {
     return instance;
 }</code></pre>
 <p class="muted">那個 <code>volatile</code> 是這段程式的命脈。沒有它，因為第 10 課講的指令重排序，別的執行緒可能拿到一個「參考已經指過去、但建構子還沒跑完」的半成品物件。</p>
-<p>第二種是<strong>靜態內部類別持有者</strong>，原筆記把它列為推薦做法——寫起來最短，而且延遲建立與執行緒安全都由類別初始化機制保證，一個同步字都不必寫：</p>
+<p>第二種是<strong>靜態內部類別持有者</strong>，也是最常被推薦的做法——寫起來最短，而且延遲建立與執行緒安全都由類別初始化機制保證，一個同步字都不必寫：</p>
 <pre><code>public final class Service {
     private Service() { }
 
@@ -103,7 +103,7 @@ public static Service getInstance() {
 
     public void register(String name) { /* ... */ }
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把 enum 寫法標成「Singleton Pattern最佳解」，並列出三點：「自動支持serialization」「防止reflection attack」「缺點是不能繼承其他類別」，查證後補充：這兩項優點屬實，但測試時比較難替換，說「最佳解」過頭了">原筆記列的兩個優點都是真的：列舉實例的建立與序列化由語言本身保證，反射也破壞不了它</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-8.html#jls-8.9" target="_blank" rel="noopener">出處</a>。延遲建立這點它其實跟上面的持有者寫法一樣：列舉常數在類別初始化時建立，而類別初始化要等到第一次主動使用才發生。但說它是「最佳解」就過頭了——它一樣把相依藏起來，測試時很難換掉。<strong>該問的是「全域唯一而且到處拿得到」真的是需求嗎</strong>，而不是哪種寫法最方便。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把 enum 寫法標成「Singleton Pattern最佳解」，並列出三點：「自動支持serialization」「防止reflection attack」「缺點是不能繼承其他類別」，查證後補充：這兩項優點屬實，但測試時比較難替換，說「最佳解」過頭了">列舉寫法有兩個真正的優點：列舉實例的建立與序列化由語言本身保證，反射也破壞不了它</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-8.html#jls-8.9" target="_blank" rel="noopener">出處</a>。延遲建立這點它其實跟上面的持有者寫法一樣：列舉常數在類別初始化時建立，而類別初始化要等到第一次主動使用才發生。但說它是「最佳解」就過頭了——它一樣把相依藏起來，測試時很難換掉。<strong>該問的是「全域唯一而且到處拿得到」真的是需求嗎</strong>，而不是哪種寫法最方便。</p>
 </section>
 
 <section>
