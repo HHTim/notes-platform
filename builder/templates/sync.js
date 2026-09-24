@@ -63,6 +63,16 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     setHint('已同步（' + esc(user.displayName || user.email) + '）· <a href="#" id="syncOut">登出</a>');
     bindLogout();
   }
+  /* 已登入、但白名單或進度暫時讀不到（例如斷線）：不是授權問題，也不是沒登入。
+     不能借用「登入後跨裝置同步」那個連結當重試——同一個帳號再登入 uid 不變，
+     Firebase 的 onAuthStateChanged 不會再觸發，點了沒有任何反應。
+     所以這裡自己給一個「重試」連結，直接重跑 loadAndMerge。 */
+  function showRetry(user) {
+    synced = false;
+    setHint('暫時連不上雲端 · <a href="#" id="syncRetry">重試</a>');
+    var a = document.getElementById('syncRetry');
+    if (a) a.addEventListener('click', function (e) { e.preventDefault(); loadAndMerge(user); });
+  }
 
   function pushCloud(data) {
     if (!synced || !uid) return;
@@ -71,13 +81,14 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     db.collection('progress').doc(uid).set(patch, { merge: true })['catch'](function () {});
   }
 
-  auth.onAuthStateChanged(function (user) {
-    if (!user) { showLoggedOut(); return; }
+  /* 登入後的整套流程：讀白名單 → 讀雲端進度 → 與本機合併 → 寫回本機並推上雲端。
+     登入時跑一次；讀取失敗後點「重試」再跑一次。 */
+  function loadAndMerge(user) {
     /* 白名單＝Firestore 裡一份 email 清單；文件存在才算在名單上 */
     db.collection('whitelist').doc(user.email).get().then(function (snap) {
       if (!snap.exists) { showUnauthorized(); return; }
-      uid = user.uid;
-      db.collection('progress').doc(uid).get().then(function (p) {
+      db.collection('progress').doc(user.uid).get().then(function (p) {
+        uid = user.uid;
         var cloud = (p.exists && p.data()[course.module]) || {};
         var merged = NotesSync.merge(course.loadDone(), cloud);
         course.saveDone(merged);   // 寫回本機（此刻 synced 還是 false，事件不會重複推雲端）
@@ -85,17 +96,18 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
         showSynced(user);          // 從這裡開始，之後的每次作答才會推雲端
         pushCloud(merged);         // 合併結果推上雲端一次
       })['catch'](function () {
-        /* 在名單上，但進度暫時讀不到（例如斷線）：不是授權問題。
-           顯示「沒登入」那行——「進度只存在這台裝置」此刻是事實，
-           點登入連結會重跑登入流程，等於重試一次。 */
-        showLoggedOut();
+        showRetry(user);           // 在名單上，但進度暫時讀不到
       });
     })['catch'](function (err) {
-      /* 讀白名單失敗：規則拒絕（permission-denied）才是授權問題；
-         其他失敗（例如斷線）照「沒登入」那行顯示，內容才是真的。 */
+      /* 讀白名單失敗：規則拒絕（permission-denied）才是授權問題；其他失敗（例如斷線）給重試 */
       if (err && err.code === 'permission-denied') { showUnauthorized(); }
-      else { showLoggedOut(); }
+      else { showRetry(user); }
     });
+  }
+
+  auth.onAuthStateChanged(function (user) {
+    if (!user) { showLoggedOut(); return; }
+    loadAndMerge(user);
   });
 
   /* 之後每次對答案，course.js 存檔時會發這個事件 */
