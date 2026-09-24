@@ -59,5 +59,28 @@ class TestTagBalance(unittest.TestCase):
         self.assertIn('<section>', msg)
 
 
+class TestSlugs(unittest.TestCase):
+    def test_duplicate_slug_fails_naming_both_lessons(self):
+        # 兩課同 slug：頁面裡的 QUIZ 字典後者會蓋掉前者，網址也分不出是哪一課
+        content, out = fake_site([('01-one', 'same', LESSON_OK), ('02-two', 'same', LESSON_OK)])
+        with self.assertRaises(SystemExit) as cm:
+            builder.build(content_dir=content, out_dir=out)
+        msg = str(cm.exception)
+        self.assertIn('demo/01-one', msg)
+        self.assertIn('demo/02-two', msg)
+        self.assertIn('same', msg)
+
+    def test_illegal_slug_fails(self):
+        # course.js 的路由只接 ^[a-z0-9-]+$；大寫、底線、中文都進不了頁
+        for bad in ('Has-Upper', 'has_underscore', '中文', 'has space'):
+            with self.subTest(slug=bad):
+                content, out = fake_site([('01-one', bad, LESSON_OK)])
+                with self.assertRaises(SystemExit) as cm:
+                    builder.build(content_dir=content, out_dir=out)
+                msg = str(cm.exception)
+                self.assertIn('demo/01-one', msg)
+                self.assertIn(bad, msg)
+
+
 if __name__ == '__main__':
     unittest.main()

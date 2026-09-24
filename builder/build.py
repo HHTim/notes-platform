@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # 讀 content/ 全部，組出整個平台到 dist/（每次整站重建，不做增量）
-import json, shutil
+import json, re, shutil
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -59,6 +59,28 @@ def load_templates(tpl_dir):
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
 
 
+SLUG_RE = re.compile(r'^[a-z0-9-]+$')   # 要跟 course.js 的路由 /^#\/lesson\/([a-z0-9-]+)$/ 一致
+
+
+def check_slugs(mods):
+    """slug 全站唯一、只含小寫英數與連字號。撞名會讓頁面裡的 QUIZ 字典後者蓋前者；
+    不合法的 slug 路由不認，那一課永遠開不到。不合就中止建置並說是哪幾課。"""
+    seen = {}
+    errors = []
+    for mod in mods:
+        for L in mod['lessons']:
+            where = '%s/%s' % (mod['id'], L['dir'])
+            slug = L['slug']
+            if not SLUG_RE.match(slug):
+                errors.append('%s 的 slug「%s」不合法：只能用小寫英文字母、數字、連字號' % (where, slug))
+            if slug in seen:
+                errors.append('%s 與 %s 的 slug 撞名，都叫「%s」' % (seen[slug], where, slug))
+            else:
+                seen[slug] = where
+    if errors:
+        raise SystemExit('建置中止：課程 slug 有問題\n  ' + '\n  '.join(errors))
+
+
 def load_site(content_dir):
     site = json.loads((content_dir / 'modules.json').read_text(encoding='utf-8'))
     mods = []
@@ -73,6 +95,7 @@ def load_site(content_dir):
             L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             L['assets'] = ldir / 'assets'
         mods.append(mod)
+    check_slugs(mods)
     fb = content_dir / 'firebase.json'
     site['firebase'] = json.loads(fb.read_text(encoding='utf-8')) if fb.exists() else None
     return site, mods
