@@ -22,7 +22,7 @@
 <section>
 <p class="era">衝突裁判</p>
 <h3 class="head">層疊、特定度與繼承一起決定結果</h3>
-<p>當多條宣告競爭同一屬性時，瀏覽器會考量來源與重要性、層（cascade layer）、特定度、作用範圍鄰近性及出現順序。只有前面的判斷仍打平時，較後面的宣告才勝出。</p>
+<p>當多條宣告競爭同一屬性時，瀏覽器會考量來源與重要性、層疊層（cascade layer，用 <code>@layer</code> 把樣式分組，先決定組與組之間誰優先）、特定度、作用範圍鄰近性（<code>@scope</code> 裡離目標元素比較近的規則優先）及出現順序。只有前面的判斷仍打平時，較後面的宣告才勝出。</p>
 <p class="formula">一般選擇器權重概念：ID ＞ class／屬性／偽類 ＞ 元素／偽元素</p>
 <pre><code>.title { color: blue; }
 h1.title { color: red; }
@@ -50,7 +50,7 @@ h1.title { color: red; }
 <section>
 <p class="era">正常排版流</p>
 <h3 class="head">block、inline 與 inline-block</h3>
-<p>區塊盒（block box）通常在正常流中另起一行，行內盒（inline box）隨文字排列。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Block Element：width = Device Width，頁面有多寬，該 block 就有多寬(width: 100%)」，查證後更正：正常流中 width: auto 的區塊盒是「延伸填滿容器的行內空間」，並不是被宣告成 width: 100%，兩者在有 padding 或 margin 時結果不同">正常流中的區塊盒預設（<code>width: auto</code>）會延伸填滿容器的行內方向空間，而不是等同宣告 <code>width: 100%</code>——後者在盒子另有 padding 或 margin 時會撐出容器</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_display/Block_and_inline_layout_in_normal_flow" target="_blank" rel="noopener">出處</a>。</p>
+<p>區塊盒（block box）通常在正常流中另起一行，行內盒（inline box）隨文字排列。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Block Element：width = Device Width，頁面有多寬，該 block 就有多寬(width: 100%)」，查證後更正：正常流中 width: auto 的區塊盒是「延伸填滿容器的行內空間」，並不是被宣告成 width: 100%，兩者在有 padding 或 margin 時結果不同。CSS 2.2 §10.3.3 的等式：「margin-left + border-left-width + padding-left + width + padding-right + border-right-width + margin-right = width of containing block」「If width is set to auto, any other auto values become 0 and width follows from the resulting equality.」——width: auto 是用容器寬度扣掉 margin、border、padding 算出來的，所以剛好塞滿；width: 100% 則是內容寬就等於容器寬，再加上 padding、margin 就超出">正常流中的區塊盒預設（<code>width: auto</code>）會延伸填滿容器的行內方向空間，而不是等同宣告 <code>width: 100%</code>——後者在盒子另有 padding 或 margin 時會撐出容器</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_display/Block_and_inline_layout_in_normal_flow" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.w3.org/TR/CSS22/visudet.html#blockwidth" target="_blank" rel="noopener">CSS 2.2</a>。</p>
 <p>一般非替換的 inline 元素不適合直接用 <code>width</code>、<code>height</code> 控制尺寸；<code>inline-block</code> 則能保持同行排列，同時接受盒子尺寸。<code>display: none</code> 會讓元素不產生盒子，也不占版面。<code>img</code>、<code>input</code> 等替換元素有自己的尺寸行為，不宜簡化成「固定五種 inline-block 元素」。</p>
 </section>
 
@@ -74,7 +74,7 @@ h1.title { color: red; }
 <section>
 <p class="era">精準定位</p>
 <h3 class="head">position 決定元素以誰為座標基準</h3>
-<ul class="plainlist"><li><code>static</code>：依正常流排列，位移屬性通常不起作用。</li><li><code>relative</code>：保留原位置占位，再相對自己的正常位置偏移；也常用來建立 absolute 的包含區塊。</li><li><code>absolute</code>：脫離正常流，通常相對最近的定位祖先排列。</li><li><code>fixed</code>：脫離正常流，通常相對視窗固定。</li><li><code>sticky</code>：先留在正常流，捲動到指定門檻後於所屬捲動區域內黏住。</li></ul>
+<ul class="plainlist"><li><code>static</code>：依正常流排列，<code>top</code>、<code>right</code>、<code>bottom</code>、<code>left</code> 與 <code>z-index</code> 都不起作用。</li><li><code>relative</code>：保留原位置占位，再相對自己的正常位置偏移；也常用來建立 absolute 的包含區塊。</li><li><code>absolute</code>：脫離正常流，通常相對最近的定位祖先排列。</li><li><code>fixed</code>：脫離正常流，通常相對視窗固定。</li><li><code>sticky</code>：先留在正常流，捲動到指定門檻後於所屬捲動區域內黏住。</li></ul>
 <p><code>z-index</code> 比較的是堆疊脈絡（stacking context，瀏覽器分層比大小的範圍）中的層級，並非只要數字較大就能跨越所有祖先蓋住其他元素。<mark class="fixnote" tabindex="0" data-note="原筆記寫 relative、absolute、fixed、sticky 都「Stacking context (可以設定 z-index)」，查證後更正：relative 與 absolute 要搭配非 auto 的 z-index 才建立堆疊脈絡；fixed 與 sticky 才是一律建立">relative 或 absolute 要搭配非 auto 的 <code>z-index</code> 才會建立堆疊脈絡；<code>fixed</code> 與 <code>sticky</code> 則一律建立</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_positioned_layout/Stacking_context" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 

@@ -13,15 +13,15 @@
   → 接收 HTTP 回應
   → 解析資源、版面配置、繪製
   → 持續載入與互動</code></pre>
-<p>實際流程會因快取、Service Worker、代理伺服器、CDN、HTTP 版本與既有連線而縮短或改道。因此這是一張理解用地圖，不是每次都逐格執行的固定劇本。</p>
+<p>實際流程會因快取、Service Worker（瀏覽器裡替網頁攔截請求、離線也能回應的背景程式）、代理伺服器、CDN、HTTP 版本與既有連線而縮短或改道。因此這是一張理解用地圖，不是每次都逐格執行的固定劇本。</p>
 </section>
 
 <section>
 <p class="era">第一站</p>
 <h3 class="head">瀏覽器解析 URL</h3>
 <p>以 <code>https://www.example.com:443/products?q=book#reviews</code> 為例：</p>
-<div class="tablewrap"><table><thead><tr><th>名稱</th><th>內容</th><th>是否傳給伺服器</th></tr></thead><tbody><tr><td>Scheme</td><td>https</td><td>否（瀏覽器用它決定連線方式與是否加密）</td></tr><tr><td>Host</td><td>www.example.com</td><td>會</td></tr><tr><td>Port</td><td>443</td><td>否（用於建立連線；非預設埠會跟著出現在 Host 標頭）</td></tr><tr><td>Path</td><td>/products</td><td>會</td></tr><tr><td>Query</td><td>q=book</td><td>會</td></tr><tr><td>Fragment</td><td>reviews</td><td>不會隨請求送出，由瀏覽器端使用</td></tr></tbody></table></div>
-<p>瀏覽器也可能先檢查 HSTS、安全政策、HTTP 快取及 Service Worker，判斷是否升級為 HTTPS、直接使用快取，或由本機程式攔截處理。</p>
+<div class="tablewrap"><table><thead><tr><th>名稱</th><th>內容</th><th>是否傳給伺服器</th></tr></thead><tbody><tr><td>Scheme</td><td>https</td><td>看版本：HTTP/1.1 不會出現在請求行，瀏覽器只用它決定連線方式與是否加密；HTTP/2 與 HTTP/3 則以 <code>:scheme</code> 偽標頭（pseudo-header，以冒號開頭、協定自己用的標頭欄位）送出<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1" target="_blank" rel="noopener">RFC 9113</a><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1" target="_blank" rel="noopener">RFC 9114</a></td></tr><tr><td>Host</td><td>www.example.com</td><td>會</td></tr><tr><td>Port</td><td>443</td><td>否（用於建立連線；非預設埠會跟著出現在 Host 標頭，HTTP/2 與 HTTP/3 則出現在 <code>:authority</code> 偽標頭）</td></tr><tr><td>Path</td><td>/products</td><td>會</td></tr><tr><td>Query</td><td>q=book</td><td>會</td></tr><tr><td>Fragment</td><td>reviews</td><td>不會隨請求送出，由瀏覽器端使用</td></tr></tbody></table></div>
+<p>瀏覽器也可能先檢查 HSTS（HTTP Strict Transport Security，讓瀏覽器記住「這個網站以後一律走 HTTPS」的機制）、安全政策、HTTP 快取及 Service Worker，判斷是否升級為 HTTPS、直接使用快取，或由本機程式攔截處理。</p>
 </section>
 
 <section>
@@ -38,7 +38,7 @@
 <pre><code>用戶端 → 伺服器：SYN
 伺服器 → 用戶端：SYN + ACK
 用戶端 → 伺服器：ACK</code></pre>
-<p>若是 HTTPS，接著進行 TLS 交握，協商加密參數、驗證憑證並建立工作階段金鑰。<mark class="fixnote" tabindex="0" data-note="原筆記寫「（HTTPS）TCP 三次握手完成後，會進行 TLS 握手」，查證後補充：這是 HTTP/1.1 與 HTTP/2 的流程；HTTP/3 走 QUIC，連線建立與 TLS 1.3 整合在一起，沒有獨立的 TCP 交握">「先 TCP 三向交握、再 TLS 交握」是 HTTP/1.1 與 HTTP/2 的劇本；HTTP/3 透過 QUIC 建立連線，傳輸與 TLS 1.3 的安全性合在同一套交握裡，不會先做獨立的 TCP 三向交握</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">出處</a>。</p>
+<p>若是 HTTPS，接著進行 TLS 交握，協商加密參數、驗證憑證並建立工作階段金鑰。<mark class="fixnote" tabindex="0" data-note="原筆記寫「（HTTPS）TCP 三次握手完成後，會進行 TLS 握手」，查證後補充：這是 HTTP/1.1 與 HTTP/2 的流程；HTTP/3 走 QUIC，連線建立與 TLS 1.3 整合在一起，沒有獨立的 TCP 交握。QUIC 與 TLS 1.3 的關係見 RFC 9001：「This document describes how QUIC [QUIC-TRANSPORT] is secured using TLS [TLS13].」「QUIC carries TLS handshake data in CRYPTO frames」">「先 TCP 三向交握、再 TLS 交握」是 HTTP/1.1 與 HTTP/2 的劇本；HTTP/3 透過 QUIC 建立連線，傳輸與 TLS 1.3 的安全性合在同一套交握裡，不會先做獨立的 TCP 三向交握</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9001.html" target="_blank" rel="noopener">RFC 9001</a>。</p>
 </section>
 
 <section>
