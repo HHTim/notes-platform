@@ -20,7 +20,7 @@
 </tbody>
 </table></div>
 <p>「共用記憶體、各有自己的堆疊」這句是關鍵：執行緒之間透過參考碰得到同一個物件，但各自方法裡的區域變數是獨立的。</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「一個 CPU 一次只能執行一個 Process」，那是單核心年代的講法。這是作業系統與硬體的事實，不在 Java 官方文件的範圍內，所以標成補充而不是更正">「一個 CPU 一次只能執行一個行程」這句話在單核心年代成立，放到今天要改成<strong>一個處理核心</strong>——八核心的 CPU 在同一瞬間真的跑得動八件事。下面「並行」跟「平行」的差別講的正是這件事</mark>。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「一個 CPU 一次只能執行一個 Process」，那是單核心年代的講法。這是作業系統與硬體的事實，不在 Java 官方文件的範圍內，所以標成補充而不是更正">「一個 CPU 一次只能執行一個行程」這句話在單核心年代成立，放到今天要改成<strong>一個處理核心</strong>——八核心的 CPU 在同一瞬間真的跑得動八件事。下面「並行」跟「平行」的差別講的正是這件事</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/procthread.html" target="_blank" rel="noopener">出處</a>。</p>
 <div class="terms">
 <div class="term"><b>並行 concurrency</b><span>多件事在一段時間內交錯推進。單核心靠快速切換也做得到。</span></div>
 <div class="term"><b>平行 parallelism</b><span>多件事在同一瞬間真的同時執行。要有多個核心才可能。</span></div>
@@ -45,7 +45,7 @@ worker.join();   // 等 worker 跑完再往下</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「join(long milliseconds) -> 等到時間倒數完，其他執行緒就會強制加入」，查證後更正：join(毫秒) 是最多等這麼久，時間到就不等了，不是強制介入對方"><code>join(毫秒)</code> 的意思是「<strong>最多</strong>等這麼久」——對方提早結束就提早往下走，時間到了對方還沒完就不等了。它不會去強制中斷或介入對方執行緒</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#join(long)" target="_blank" rel="noopener">出處</a>。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記把 yield() 列在「禮讓的執行緒(Polite Thread)」底下，寫「用`yield()`方法改進自願移出執行(Running)狀態至預備(Ready)狀態」，講得像一定會生效，查證後更正：官方文件明寫 yield() 只是給排程器的提示，排程器可以直接忽略"><code>yield()</code> 官方文件的原話是「給排程器的一個提示，表示目前這條執行緒願意讓出處理器」，而且明講<strong>排程器可以忽略這個提示</strong>，還補了一句「很少有適合使用這個方法的場合」</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">優先權（1 到 10，預設 5）的通說是「優先權較高者先執行，優先權相等時 CPU 任選其一」。但實際排到誰跑，取決於作業系統的排程器，不同平台差很多——<strong>不要拿優先權來保證程式的正確性</strong>。一句話總結：<strong>多執行緒難以預測、順序無法完全保證、切換可能發生在任何時刻</strong>。</p>
-<p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條，每個進來的請求分一條。</p>
+<p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條（設定鍵是 <code>server.tomcat.threads.max</code>），每個進來的請求分一條<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>

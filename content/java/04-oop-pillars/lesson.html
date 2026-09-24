@@ -14,7 +14,7 @@
 <tr><th><code>private</code></th><td>可</td><td>不可</td><td>不可</td><td>不可</td></tr>
 </tbody>
 </table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 protected 是「Visible to the package and all subclasses」「1.同套件底下類別 或 2.所有其子類別都可以存取」，查證後補上規格上的限制：不同套件的子類別只能透過自己（或自己子型別）的參考去存取那個 protected 成員，不能拿父類別型別的參考亂存取"><code>protected</code> 那一格的「可，但有限制」是重點：不同套件的子類別確實看得到 <code>protected</code> 成員，但只能透過<strong>自己或自己子型別</strong>的參考去存取，不能拿一個父類別型別的參考就隨便碰</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.6.2" target="_blank" rel="noopener">出處</a>。面試集第 1 課〈Java 基礎快答〉的表格寫「同套件的類別＋所有子類別」，那是速查用的簡版，這裡補的是規格上的細節。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 protected 是「Visible to the package and all subclasses」「1.同套件底下類別 或 2.所有其子類別都可以存取」，查證後補上規格上的限制：不同套件的子類別只能透過自己（或自己子型別）的參考去存取那個 protected 成員，不能拿父類別型別的參考亂存取"><code>protected</code> 那一格的「可，但有限制」是重點：不同套件的子類別確實看得到 <code>protected</code> 成員，但只能透過<strong>自己或自己子型別</strong>的參考去存取，不能拿一個父類別型別的參考就隨便碰</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.6.2" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">兩個限制要記得：頂層類別只能用 <code>public</code> 或不寫（內部類別四種都能用）；區域變數不能加任何存取修飾子，因為它的能見範圍早就由所在的方法決定了。</p>
 </section>
 
@@ -71,7 +71,7 @@ class Manager extends Employee {
 }</code></pre>
 <p>建立子類別物件時，<strong>先完成父類別那一段，再完成子類別</strong>，這樣才能保證共同資料一定初始化過。<code>super(...)</code> 呼叫的是直接父類別的建構子；沒寫的話編譯器會自己補一個 <code>super()</code>。<code>super(...)</code> 與 <code>this(...)</code> 只能擇一。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「建構子中若有出現 super(...),一定要放在第一個敘述位置」「super(...) &amp; this(...)都只能放在第一個敘述位置，所以是擇一使用!!」，在 Java 24 以前都是對的，收錄時補上版本界線：Java 25 起兩者前面可以先放敘述">「一定要放在第一個敘述」這條到 Java 24 為止都成立，Java 25 放寬了：<code>super(...)</code> 與 <code>this(...)</code> 前面可以先寫敘述，常見用途是<strong>先驗證參數再呼叫父類別建構子</strong>；限制是那段前置程式不能讀取正在建立中的物件（不能用 <code>this</code>、不能讀欄位、不能呼叫實體方法），但可以指定它自己的欄位——先把欄位填好再交給父類別建構子正是這個功能的用途之一</mark><a class="fixsrc" href="https://openjdk.org/jeps/513" target="_blank" rel="noopener">出處</a>。不變的是：兩者仍然只能擇一，而且父類別那一段一定先完成。</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「super：1. 只會出現在override方法裡」，這句說得太滿；它第 3 點講「不加 super. 會變成自己呼叫自己」那句沒錯。這一條沒有在官方文件上找到可以直接對照的原文，所以標成補充而不是更正"><code>super.方法()</code> 寫在子類別的任何實體方法裡都合法，只是<strong>最常</strong>出現在覆寫方法中——因為那裡不加 <code>super.</code> 就變成自己呼叫自己。真正的限制是不能用在靜態環境裡</mark>。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「super：1. 只會出現在override方法裡」，這句說得太滿，查證後更正；它第 3 點講「不加 super. 會變成自己呼叫自己」那句沒錯"><code>super.方法()</code> 寫在子類別的任何實體方法裡都合法，只是<strong>最常</strong>出現在覆寫方法中——因為那裡不加 <code>super.</code> 就變成自己呼叫自己。規格對這個寫法只訂了兩條限制：被呼叫的方法不能是抽象的，而且不能寫在靜態環境裡</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.12.3" target="_blank" rel="noopener">出處</a>。</p>
 <p>另外 <code>super.</code> 不能越級，只找得到直接父類別。</p>
 <p><code>final</code> 放在不同位置有不同意思：</p>
 <div class="terms">
@@ -124,7 +124,7 @@ for (Animal animal : animals) {
 }</code></pre>
 <p>這就是多型的價值：再多加一種 <code>Animal</code> 子類別，走訪這個陣列的程式通常一個字都不用改，也省掉一長串 <code>if (是狗) … else if (是貓) …</code>。</p>
 <p class="formula">變數<strong>叫得動</strong>哪些方法，看宣告型別；實際<strong>執行</strong>哪個版本，看執行期的物件</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記的比較表寫「靜態繫結速度較快、動態繫結速度較慢」，觀念上沒錯，收錄時補上實務上的界線">常看到的說法是「靜態繫結速度較快、動態繫結速度較慢」。觀念上沒錯，但現在的 JVM 會在執行期分析實際型別並把呼叫最佳化掉，實務上大多數情況量不出差別——不要為了這個理由避開多型</mark>。</p>
+<p class="muted">常看到的說法是「靜態繫結速度較快、動態繫結速度較慢」。觀念上沒錯，但現在的 JVM 會在執行期分析實際型別並把呼叫最佳化掉，實務上大多數情況量不出差別——不要為了這個理由避開多型。</p>
 </section>
 
 <section>
