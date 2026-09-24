@@ -31,7 +31,8 @@
 <tr><td>取樣（Sampling）</td><td>讓伺服器反過來請主機用模型生成內容</td><td>互相呼叫、成本、資料邊界不清</td></tr>
 </tbody></table></div>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示模板列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示），並有 <code>chat.mcp.serverSampling</code> 這個設定可以控管</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">不過取樣與 Roots 這兩項已經準備退場：MCP 規格在 2026-07-28 版把它們標為淘汰，新的實作不該再採用，現有實作應該改用別的做法（取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑），最快會在 2027-07-28 之後的版本被移除。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>另外用戶端還有 Elicitation（伺服器中途向使用者要一項補充資訊）。不要從「協定有這項能力」推論「我手上這套產品一定支援」，兩者是不同層次。</p>
+<p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。要注意的是「協定有這項能力」推論不出「我手上這套產品一定支援」，兩者是不同層次。</p>
+<p class="muted">取樣則要再多看一步。它跟 Roots 已經準備退場：MCP 規格在 2026-07-28 版把這兩項標為淘汰，最快會在 2027-07-28 之後的版本被移除，並給了替代做法——取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>所以取樣現在的狀態是「編輯器支援得到，規格卻已經不建議」：舊的實作還會動，但新的流程不要再建立在它上面。</p>
 </section>
 
 <section>
@@ -151,7 +152,7 @@ description: 審查指定介面的授權風險
 <tr><td>整串留底或給別人</td><td>命令面板的 <code>Chat: Export Chat...</code>，存成一個 JSON 檔</td></tr>
 </tbody></table></div>
 <p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/sessions/chat-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
-<p class="muted">早期有個 <code>/save</code> 指令把對話存成提示檔，官方現行的斜線指令總表裡<strong>沒有列</strong>它；要把對話變成可重複執行的檔案，列出來的是 <code>/create-prompt</code>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過該頁自己註明「The available commands depend on the current chat surface, session type, agent, and enabled features.」，所以「總表沒有列」不等於「這個指令不存在」，實際還是以你手上那個版本列出來的指令為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記記的是用 /save 把對話存成提示檔，查證後更正：官方現行的斜線指令總表沒有列這個名字">要把對話變成可重複執行的檔案，官方現行的斜線指令總表列出來的是 <code>/create-prompt</code></mark>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過總表自己註明「Type <code>/</code> to see commands available in the current session. Availability depends on the chat surface, harness, role, and enabled features.」，所以「總表沒有列」不等於「官方說這個指令不存在」，實際還是以你手上那個版本打 <code>/</code> 跳出來的清單為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
 </section>
 
 <section>
