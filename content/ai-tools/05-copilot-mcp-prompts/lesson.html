@@ -96,7 +96,7 @@
   }
 }</code></pre>
 <p>之後在對話裡打 <code>#reader</code>，這一整組就一起帶進去。官方也說明三個欄位各是什麼：<code>tools</code> 是工具名稱的陣列（可以放內建工具、MCP 工具或擴充功能提供的工具），<code>description</code> 是在工具選單裡顯示的說明，<code>icon</code> 是圖示。</p>
-<p class="muted">VS Code 自己也內建了幾組，在工具總表裡直接標成 tool set：<code>#read</code>（讀工作區的檔案）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區）、<code>#execute</code>（在你的機器上執行程式）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（操作內建瀏覽器）、<code>#agent</code>（把工作分派給其他代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">VS Code 自己也內建了幾組，官方的說法是「Tool sets group related tools. For example, <code>#search</code> groups workspace search tools.」：<code>#read</code>（讀工作區的檔案與執行輸出）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區的檔案與 Notebook，也就是可以邊寫程式邊看執行結果的那種檔案）、<code>#execute</code>（執行指令、任務與 Notebook 的儲存格）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（用瀏覽器工具瀏覽、檢查與操作頁面）、<code>#agent</code>（把工作分派給子代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -147,12 +147,12 @@ description: 審查指定介面的授權風險
 <p>對話越長，舊的資訊越容易干擾新的問題。常見的需求有三種：清空上下文、把這次的對話存成之後可以重跑的檔案、把整串對話留底或給別人。對應的做法如下。</p>
 <div class="tablewrap"><table><thead><tr><th>你想做的事</th><th>現行官方列的做法</th></tr></thead><tbody>
 <tr><td>不要讓舊對話影響新問題</td><td><code>/clear</code>：官方的說明是「Start a new chat and archive or mark the current chat as done.」——開一個新對話，並把目前這個封存或標記為完成</td></tr>
-<tr><td>對話太長、超出模型能看的範圍</td><td><code>/compact</code>：「Compact the conversation context in a supported agent session. Useful when a conversation grows too long for the model's context window.」——把前面的內容壓成摘要，繼續同一串</td></tr>
-<tr><td>把這次的做法變成下次可以重跑的檔案</td><td><code>/create-prompt</code>：「In a local agent session, generate a prompt file.」</td></tr>
+<tr><td>對話太長、超出模型能看的範圍</td><td><code>/compact</code>：總表把它跟 <code>/fork</code> 併成一列——「Compact context, or branch the conversation with its history.」——壓縮上下文，或是連同歷史把對話分岔成另一串；要繼續同一串的是 <code>/compact</code></td></tr>
+<tr><td>把這次的做法變成下次可以重跑的檔案</td><td><code>/create-prompt</code>：總表把它跟 <code>/create-agent</code>、<code>/create-instructions</code>、<code>/create-skill</code>、<code>/create-hook</code> 併成一列——「Generate a customization in a local agent session.」——在本機代理的工作階段裡產生一份自訂設定</td></tr>
 <tr><td>整串留底或給別人</td><td>命令面板的 <code>Chat: Export Chat...</code>，存成一個 JSON 檔</td></tr>
 </tbody></table></div>
 <p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/sessions/chat-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記記的是用 /save 把對話存成提示檔，查證後更正：官方現行的斜線指令總表沒有列這個名字">要把對話變成可重複執行的檔案，官方現行的斜線指令總表列出來的是 <code>/create-prompt</code></mark>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過總表自己註明「Type <code>/</code> to see commands available in the current session. Availability depends on the chat surface, harness, role, and enabled features.」，所以「總表沒有列」不等於「官方說這個指令不存在」，實際還是以你手上那個版本打 <code>/</code> 跳出來的清單為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
+<p class="muted">要把對話變成可重複執行的檔案，官方現行的斜線指令總表列出來的是 <code>/create-prompt</code>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過總表自己註明「Type <code>/</code> to see commands available in the current session. Availability depends on the chat surface, harness, role, and enabled features.」，所以「總表沒有列」不等於「官方說這個指令不存在」，實際還是以你手上那個版本打 <code>/</code> 跳出來的清單為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
 </section>
 
 <section>
@@ -160,11 +160,11 @@ description: 審查指定介面的授權風險
 <h3 class="head">專案以外的東西，怎麼指給它看</h3>
 <p>第 3 課有一張表，列了怎麼把選取的程式碼、問題清單、版本控制的差異、整個工作區指給它看。還有三種材料來自<strong>工作區以外</strong>，補在這裡。</p>
 <div class="tablewrap"><table><thead><tr><th>想給的材料</th><th>現行寫法</th><th>官方說明</th></tr></thead><tbody>
-<tr><td>GitHub 上某個儲存庫的原始碼</td><td><code>#githubRepo</code>，後面接 <code>owner/repo</code>（GitHub 上「帳號／儲存庫名稱」的寫法）</td><td>「Semantic search a GitHub repository for relevant source code snippets. Specify a repository using <code>owner/repo</code>.」（<strong>語意搜尋</strong>＝照意思找相關的段落，不是只比對字面）</td></tr>
-<tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>「Text search a GitHub repository or organization for files containing specific keywords or code patterns.」</td></tr>
-<tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>「Fetch the content from a given web page.」官方示範是「Summarize #web/fetch code.visualstudio.com/updates.」</td></tr>
+<tr><td>GitHub 上某個儲存庫的原始碼</td><td><code>#githubRepo</code>，後面接 <code>owner/repo</code>（GitHub 上「帳號／儲存庫名稱」的寫法）</td><td>「Search a GitHub repository semantically. Specify the repository as <code>owner/repo</code>.」（<strong>語意搜尋</strong>＝照意思找相關的段落，不是只比對字面）</td></tr>
+<tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>「Search a GitHub repository or organization for text or code patterns.」</td></tr>
+<tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>「Fetch a web page.」</td></tr>
 </tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫抓外部網頁的引用方式是「#fetch」，查證後更正：這屬於名稱改過的舊寫法。現行官方的內建工具總表把抓網頁的工具列為 #web/fetch（歸在 #web 這組底下），整張表裡沒有 #fetch 這個名字">抓網頁那個現在要打 <code>#web/fetch</code>——官方的內建工具總表把它歸在 <code>#web</code> 這組底下，跟第 3 課提過的 <code>#codebase</code> 改成 <code>#search/codebase</code> 是同一波改名</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫抓外部網頁的引用方式是「#fetch」，查證後更正：這屬於名稱改過的舊寫法。現行官方的內建工具總表把抓網頁的工具列為 #web/fetch（歸在 #web 這組底下），整張表裡沒有 #fetch 這個名字">抓網頁那個現在要打 <code>#web/fetch</code>——官方的內建工具總表把它歸在 <code>#web</code> 這組底下，跟第 3 課提過的 <code>#codebase</code> 改成 <code>#search/codebase</code> 是同一波改名</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">早期用 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構）做這件事，現行官方的內建工具總表與瀏覽器工具那一頁都沒有列這個名字。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做：官方說「Browser tools give agents a visual and interactive feedback loop for web development.」，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
 <p>這三種材料都來自你的工作區以外，所以下一段那條規矩對它們特別重要。</p>
 </section>
