@@ -31,8 +31,8 @@
 <tr><td>取樣（Sampling）</td><td>讓伺服器反過來請主機用模型生成內容</td><td>互相呼叫、成本、資料邊界不清</td></tr>
 </tbody></table></div>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示模板列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示）</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>；要控管哪些模型開放給伺服器取樣，用的是 <code>chat.mcp.serverSampling</code> 這個設定。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。要注意的是「協定有這項能力」推論不出「我手上這套產品一定支援」，兩者是不同層次。</p>
 <p class="muted">取樣則要再多看一步。它跟 Roots 已經準備退場：MCP 規格在 2026-07-28 版把這兩項標為淘汰，最快會在 2027-07-28 之後的版本被移除，並給了替代做法——取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>所以取樣現在的狀態是「編輯器支援得到，規格卻已經不建議」：舊的實作還會動，但新的流程不要再建立在它上面。</p>
+<p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。要注意的是「協定有這項能力」推論不出「我手上這套產品一定支援」，兩者是不同層次。</p>
 </section>
 
 <section>
@@ -145,7 +145,7 @@ description: 審查指定介面的授權風險
 <section>
 <p class="era">對話管理</p>
 <h3 class="head">換一個乾淨的開始，或把這段留下來</h3>
-<p>對話越長，舊的資訊越容易干擾新的問題。常見的需求有三種：清空上下文、把這次的對話存成之後可以重跑的檔案、把整串對話留底或給別人。對應的做法如下。</p>
+<p>對話越長，舊的資訊越容易干擾新的問題。要處理的需求有三種：清空上下文、把這次的對話存成之後可以重跑的檔案、把整串對話留底或給別人。對應的做法如下。</p>
 <div class="tablewrap"><table><thead><tr><th>你想做的事</th><th>現行官方列的做法</th></tr></thead><tbody>
 <tr><td>不要讓舊對話影響新問題</td><td><code>/clear</code>：官方的說明是「Start a new chat and archive or mark the current chat as done.」——開一個新對話，並把目前這個封存或標記為完成</td></tr>
 <tr><td>對話太長、超出模型能看的範圍</td><td><code>/compact</code>：總表把它跟 <code>/fork</code> 併成一列——「Compact context, or branch the conversation with its history.」——壓縮上下文，或是連同歷史把對話分岔成另一串；要繼續同一串的是 <code>/compact</code></td></tr>
