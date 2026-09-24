@@ -48,7 +48,7 @@ int affected = jdbcTemplate.update(sql, params);</code></pre>
 <p class="era">從資料列走向物件關聯</p>
 <h3 class="head">ORM、JPA、Hibernate 與 Spring Data JPA</h3>
 <div class="terms"><div class="term"><b>JPA</b><span>持久化的規格，定義實體、關聯與 EntityManager 等 API；已改名 Jakarta Persistence。</span></div><div class="term"><b>Hibernate</b><span>最常見的 JPA 實作，同時也提供自己的 Session API。</span></div><div class="term"><b>Spring Data JPA</b><span>站在 JPA 之上的 Spring Data 模組，用 Repository 把常見的資料操作抽象化。</span></div></div>
-<p>所以三者不是同一層的替代品，而是疊起來的：JPA 定規格，Hibernate 負責實作，Spring Data JPA 再幫你把 Repository 的重複程式碼省掉——原筆記那句「JPA 負責定義，Hibernate 負責實作」抓到了前兩層的關係。</p>
+<p>所以三者不是同一層的替代品，而是疊起來的：JPA 定規格，Hibernate 負責實作，Spring Data JPA 再幫你把 Repository 的重複程式碼省掉。簡單記法是：JPA 負責定義，Hibernate 負責實作。</p>
 </section>
 
 <section>
@@ -63,8 +63,8 @@ int affected = jdbcTemplate.update(sql, params);</code></pre>
     );
 }</code></pre>
 <p>常用操作有 <code>save</code>、<code>findById</code>、<code>findAll</code> 與 <code>deleteById</code>。<code>findById</code> 回傳 <code>Optional&lt;T&gt;</code>，提醒呼叫端資料可能不存在。</p>
-<p class="muted">原筆記把刪除的方法名寫成 <code>deleteByID(Id id)</code>，正確的是 <code>deleteById(ID id)</code>，大小寫不同會找不到方法。</p>
-<p class="muted">原筆記寫「save() 集 insert() + update()」，查證後這個方向是對的——<code>save</code> 兩種都做得到。要補的是它不是每次都跑兩段。官方文件說明 <code>save</code> 會先判斷這個實體有沒有被持久化過：還沒有就呼叫 <code>persist</code>，已經有就呼叫 <code>merge</code>。實際發出什麼 SQL 還會受實體狀態影響<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/jpa/entity-persistence.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">方法名的大小寫要完全一致：刪除是 <code>deleteById(ID id)</code>，寫成 <code>deleteByID</code> 就找不到方法。</p>
+<p class="muted"><code>save</code> 常被說成「集 insert 與 update 於一身」。新增與更新兩種它確實都做得到，但它不是每次都跑兩段。官方文件說明 <code>save</code> 會先判斷這個實體有沒有被持久化過：還沒有就呼叫 <code>persist</code>，已經有就呼叫 <code>merge</code>。實際發出什麼 SQL 還會受實體狀態影響<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/jpa/entity-persistence.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>方法名稱衍生查詢適合簡單條件。名稱長到看不懂，或需求變複雜時，就該換一種比較清楚的查詢寫法。</p>
 </section>
 
@@ -87,9 +87,9 @@ List&lt;Student&gt; findActiveAdults(@Param("minAge") int minAge);</code></pre>
 <h3 class="head">DataSource、EntityManagerFactory 與交易</h3>
 <p>走 JDBC 這條路時，Spring 管的是 <code>DataSource</code> 與 JDBC 模板；走 JPA 這條路時，管的是 <code>EntityManagerFactory</code>、Repository 與交易管理器。直接整合 Hibernate 時，也可以由 Spring 建立並注入 <code>SessionFactory</code>，這樣就不必再自己寫一個 <code>HibernateUtil</code>。</p>
 <p>Web 容器提供的 JNDI DataSource 也可以交給 Spring 查找並註冊成 Bean，服務就不必自己到全域目錄找連線來源，改用注入取得。</p>
-<p class="muted">原筆記在這裡寫「因為 Controller 是由 Web 容器管理（Tomcat），…這時候 Controller 就只能使用 DL 的方式（Dependency Lookup）取得 Service 物件」。放回它自己的脈絡看是對的：那一章講的是把 Spring 裝進傳統 JavaWeb 專案，控制器是 Tomcat 建立的 Servlet，容器不認得 Spring 的 Bean，只能自己去查找。要補的是它沒講到的另一種情況——改用 Spring MVC 之後，<code>@Controller</code> 是 <code>@Component</code> 的特化，會被掃描並註冊成 Spring 管理的 Bean，直接用建構式注入拿 Service 就好，不必再查找。</p>
+<p class="muted">把 Spring 裝進傳統 JavaWeb 專案時，控制器是 Tomcat 建立的 Servlet，Tomcat 不認得 Spring 的 Bean，控制器只能自己用 DL（Dependency Lookup，依賴查找）的方式去取得 Service 物件。改用 Spring MVC 之後就不必了：<code>@Controller</code> 是 <code>@Component</code> 的特化，會被掃描並註冊成 Spring 管理的 Bean，直接用建構式注入拿 Service 就好。</p>
 <p>資料存取技術與交易管理必須配套。多步驟的寫入流程要由服務層建立清楚的交易邊界，而不是讓每個 Repository 各自送交。</p>
-<p class="muted">原筆記用 <code>web.xml</code> 加 <code>ContextLoaderListener</code> 載入 Spring 組態，那是 Spring Boot 普及之前的做法。現在的專案多半靠自動組態與註解掃描，不會再寫這份部署描述檔。</p>
+<p class="muted">早期的做法是用 <code>web.xml</code> 加 <code>ContextLoaderListener</code> 載入 Spring 組態，那是 Spring Boot 普及之前的常態。現在的專案多半靠自動組態與註解掃描，不會再寫這份部署描述檔。</p>
 </section>
 
 <section>

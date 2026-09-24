@@ -15,7 +15,7 @@
 <p><code>getContextPath()</code> 取得應用程式的情境路徑，避免把部署名稱寫死；<code>getRequestURI()</code> 取得請求目標的路徑部分；<code>getQueryString()</code> 取得還沒拆開的查詢字串。</p>
 <p>處理一般表單時，直接用參數 API 就好，容器會依請求格式把資料整理好：</p>
 <ul class="plainlist"><li><code>getParameter("username")</code>：取得單一參數值。</li><li><code>getParameterValues("hobby")</code>：取得同名參數的多個值，回傳字串陣列。</li><li><code>getParameterMap()</code>：取得全部參數及其值陣列。</li></ul>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 getParameterMap() 時說「可以看到同樣的key(hobby)，會將值放在一起做字串相加(hobby: 1 2)」，查證後更正：getParameterMap() 的值型別是 String[]，同名參數是陣列裡的多個元素，不是把字串接在一起；畫面上看起來像接在一起，只是把陣列印出來的樣子">同名參數是以字串陣列保存的，不是把值串成一個字串。規格裡 <code>getParameterMap()</code> 的宣告就是 <code>Map&lt;String, String[]&gt; getParameterMap()</code>，而 <code>getParameterValues(String name)</code> 的說明是「回傳一個 <code>String</code> 陣列，裡面裝著這個請求參數的所有值」</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequest" target="_blank" rel="noopener">出處</a>。原筆記在同一段把「取多個值」的方法名寫成 <code>String[] req.getParameter(...)</code>，正確的方法名是 <code>getParameterValues(...)</code>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 getParameterMap() 時說「可以看到同樣的key(hobby)，會將值放在一起做字串相加(hobby: 1 2)」，查證後更正：getParameterMap() 的值型別是 String[]，同名參數是陣列裡的多個元素，不是把字串接在一起；畫面上看起來像接在一起，只是把陣列印出來的樣子。原筆記在同一段還把「取多個值」的方法名寫成 String[] req.getParameter(...)，正確的方法名是 getParameterValues(...)">同名參數是以字串陣列保存的，不是把值串成一個字串。規格裡 <code>getParameterMap()</code> 的宣告就是 <code>Map&lt;String, String[]&gt; getParameterMap()</code>，而 <code>getParameterValues(String name)</code> 的說明是「回傳一個 <code>String</code> 陣列，裡面裝著這個請求參數的所有值」</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequest" target="_blank" rel="noopener">出處</a>。要取同名參數的多個值，方法名是 <code>getParameterValues(...)</code>，不是 <code>getParameter(...)</code>。</p>
 <p>要讀純文字本體用 <code>getReader()</code>；圖片、壓縮檔這類二進位資料用 <code>getInputStream()</code>。兩者讀的是同一個請求本體，通常不能混用，也不能重複讀。</p>
 <p>字元編碼要在讀參數或本體之前設定；回應的內容型態與編碼也要在取得 Writer、送出回應之前確定。</p>
 <pre><code>request.setCharacterEncoding("UTF-8");
@@ -53,7 +53,7 @@ cookie.setSecure(true);
 response.addCookie(cookie);</code></pre>
 <p><code>setMaxAge()</code> 設正數是保存秒數，設零表示要求刪除，負數（預設值）表示不指定持久期限、瀏覽器關掉就沒了。刪除時還要用與原本相符的 Path、Domain 等屬性，瀏覽器才找得到正確的那一筆。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Cookie最大3KB」，查證後更正：RFC 6265 要求一般用途的瀏覽器每個 Cookie 至少支援 4096 位元組，而且這個長度是名稱、值與所有屬性加起來算的；3KB 不是規格數字">RFC 6265 第 6.1 節的原話是：一般用途的使用者代理程式「每個 Cookie 應至少支援 4096 位元組（以 Cookie 名稱、值與屬性的長度總和計算）」。3KB 不是規格數字，而且計法也不只算值</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-6.1" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">原筆記寫「Cookie 是不能儲存中文的，如需要先進行轉碼：URL 編碼」——查證後這樣寫是對的，這裡只補一句原因：它不是 Java 的限制。RFC 6265 的 <code>Set-Cookie</code> 語法把 <code>cookie-octet</code> 定義成一組指定的位元組範圍，並註明那是「排除控制字元、空白、雙引號、逗號、分號與反斜線的 US-ASCII 字元」，中文本來就不在合法字元裡，所以任何語言都得先編碼<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-4.1.1" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">Cookie 不能直接存中文，要先做 URL 編碼。這不是 Java 的限制。RFC 6265 的 <code>Set-Cookie</code> 語法把 <code>cookie-octet</code> 定義成一組指定的位元組範圍，並註明那是「排除控制字元、空白、雙引號、逗號、分號與反斜線的 US-ASCII 字元」，中文本來就不在合法字元裡，所以任何語言都得先編碼<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6265#section-4.1.1" target="_blank" rel="noopener">出處</a>。</p>
 <p>Cookie 存在使用者那端，使用者看得到、改得動、刪得掉，所以不能把它當成可信的資料來源。敏感資訊不應該明文放進去；識別資訊也要搭配 HTTPS、<code>Secure</code>、<code>HttpOnly</code> 與合適的 <code>SameSite</code> 設定。</p>
 </section>
 
@@ -69,16 +69,16 @@ String username =
 
 // 登出時讓整個 Session 失效
 session.invalidate();</code></pre>
-<p class="muted">原筆記在 Cookie 與 Session 的比較裡寫「安全性: Cookie不安全；Session較安全」。這個相對比較沒有錯，但容易讓人放心過頭：會話識別碼一樣要在網路上來回傳，被偷到就能冒用整個會話。OWASP 的工作階段管理建議是登入後更換識別碼、使用安全的 Cookie 屬性、整個工作階段都走 HTTPS，並設定閒置逾時<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。這是補充而不是事實更正，所以沒有標成更正。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「默認情況下，Session存活時間為30分鐘」，這個數字對 Tomcat 來說沒錯，但寫成「默認情況下」會讓人以為是通則；查證後更正：Servlet 規格第 7.5 節寫的是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身沒有訂數字">原筆記那句對 Tomcat 來說沒錯，但它不是通則。Servlet 規格第 7.5 節的原話是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身沒有訂數字；30 分鐘是 Tomcat 在自己的 <code>conf/web.xml</code> 裡設的值，換一個容器或改設定就不是這個數字</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.1/jakarta-servlet-spec-6.1.html" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">原筆記提到的「鈍化、活化」（伺服器正常關閉時把 Session 寫進磁碟、重啟時讀回來）確實是 Tomcat 預設管理員的行為，但那是容器層的實作與設定，不是規格保證。所以程式不該假設重啟後 Session 一定還在，也不該把大型物件塞進去。</p>
+<p class="muted">Cookie 與 Session 的比較裡常見一句「Cookie 不安全，Session 較安全」。這個相對比較沒有錯，但容易讓人放心過頭：會話識別碼一樣要在網路上來回傳，被偷到就能冒用整個會話。OWASP 的工作階段管理建議是登入後更換識別碼、使用安全的 Cookie 屬性、整個工作階段都走 HTTPS，並設定閒置逾時<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「默認情況下，Session存活時間為30分鐘」，這個數字對 Tomcat 來說沒錯，但寫成「默認情況下」會讓人以為是通則；查證後更正：Servlet 規格第 7.5 節寫的是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身沒有訂數字">Session 的預設逾時時間沒有通用的數字。Servlet 規格第 7.5 節的原話是「工作階段的預設逾時期間由 Servlet 容器定義」，規格本身不訂數字；常聽到的 30 分鐘是 Tomcat 在自己的 <code>conf/web.xml</code> 裡設的值，換一個容器或改設定就不是這個數字</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.1/jakarta-servlet-spec-6.1.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">「鈍化、活化」（伺服器正常關閉時把 Session 寫進磁碟、重啟時讀回來）是 Tomcat 預設管理員的行為，但那是容器層的實作與設定，不是規格保證。所以程式不該假設重啟後 Session 一定還在，也不該把大型物件塞進去。</p>
 </section>
 
 <section>
 <p class="era">從 Java 通往關聯式資料庫</p>
 <h3 class="head">JDBC：統一的資料庫操作介面</h3>
 <p>JDBC（Java Database Connectivity，Java 資料庫連線）是一套標準 API。Java 程式只依賴 JDBC 這組介面，各家資料庫廠商提供驅動程式（Driver）處理自家的通訊細節。就像統一插座規格：應用程式用共同介面，驅動程式負責轉接。</p>
-<p><mark class="fixnote" tabindex="0" data-note="這是舊做法不是寫錯：原筆記以 Class.forName(&quot;com.mysql.cj.jdbc.Driver&quot;) 作為註冊驅動的標準步驟，這樣寫到今天仍然能跑，只是已經不必要。DriverManager 的 javadoc 寫明它在初始化時就會嘗試載入可用的 JDBC 驅動，方式之一是「透過服務提供者載入機制載入的 java.sql.Driver 服務提供者」">原筆記這行到今天仍然跑得動，只是已經不必要了。<code>DriverManager</code> 的 javadoc 寫明它在初始化時就會自己去找驅動程式，管道之一是「透過服務提供者載入機制載入的 <code>java.sql.Driver</code> 服務提供者」——現代的驅動程式只要在 classpath 上就會被找到</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/DriverManager.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="這是舊做法不是寫錯：原筆記以 Class.forName(&quot;com.mysql.cj.jdbc.Driver&quot;) 作為註冊驅動的標準步驟，這樣寫到今天仍然能跑，只是已經不必要。DriverManager 的 javadoc 寫明它在初始化時就會嘗試載入可用的 JDBC 驅動，方式之一是「透過服務提供者載入機制載入的 java.sql.Driver 服務提供者」">先用 <code>Class.forName("com.mysql.cj.jdbc.Driver")</code> 註冊驅動程式這個步驟，到今天仍然跑得動，只是已經不必要了。<code>DriverManager</code> 的 javadoc 寫明它在初始化時就會自己去找驅動程式，管道之一是「透過服務提供者載入機制載入的 <code>java.sql.Driver</code> 服務提供者」——現代的驅動程式只要在 classpath 上就會被找到</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/DriverManager.html" target="_blank" rel="noopener">出處</a>。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「在url資料庫後面加上?useSSL=false可以提高效能」，查證後更正：useSSL=false 是關掉傳輸加密，屬於安全性降級而不是效能調校；MySQL Connector/J 8 已改用 sslMode 參數，正式環境應維持加密連線">把 <code>useSSL=false</code> 寫進連線網址是關掉傳輸加密，屬於安全性降級，不是效能調校。而且 MySQL 官方文件已經把 <code>useSSL</code> 標成「DEPRECATED：詳見 <code>sslMode</code> 屬性的說明」，現在該用的是 <code>sslMode</code>（預設值 <code>PREFERRED</code>），正式環境應該維持加密連線</mark><a class="fixsrc" href="https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-security.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>典型流程是取得 <code>Connection</code>、建立 <code>PreparedStatement</code>、設定參數、執行 SQL、處理 <code>ResultSet</code>，最後關閉資源。</p>
 <pre><code>String sql =

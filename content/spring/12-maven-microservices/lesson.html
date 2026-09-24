@@ -7,7 +7,7 @@
 <p>Maven 是 Java 專案的建置與管理工具。它像一份標準化的施工圖：用 POM（Project Object Model，專案物件模型）描述專案資訊、相依套件與建置規則，讓不同開發工具與自動化環境都能用同一套方式處理專案。</p>
 <ul class="plainlist"><li>提供標準目錄，正式程式、測試程式與資源各有固定位置。</li><li>提供編譯、測試、打包與安裝等建置流程。</li><li>用座標宣告第三方程式庫，並自動解析它們的相依套件。</li></ul>
 <div class="tablewrap"><table><thead><tr><th>目錄</th><th>用途</th></tr></thead><tbody><tr><td><code>src/main/java</code></td><td>正式的 Java 原始碼</td></tr><tr><td><code>src/main/resources</code></td><td>正式環境的資源與組態</td></tr><tr><td><code>src/test/java</code></td><td>測試的 Java 原始碼</td></tr><tr><td><code>src/test/resources</code></td><td>測試需要的資源</td></tr></tbody></table></div>
-<p class="muted">原筆記說「不同的 IDE 之間，目錄結構不一樣，無法互通」，正是這套標準目錄要解決的事——所有 IDE 用 Maven 產生的結構都一樣，專案就能互相通用。</p>
+<p class="muted">不同開發工具各自產生的目錄結構不一樣，專案很難互通，這正是這套標準目錄要解決的事：只要都走 Maven，結構就一致，同一個專案換工具打開也沒問題。</p>
 </section>
 
 <section>
@@ -31,7 +31,6 @@
 <div class="tablewrap"><table><thead><tr><th>指令</th><th>主要效果</th></tr></thead><tbody><tr><td><code>mvn clean</code></td><td>執行 clean 生命週期，清掉先前的建置產出。</td></tr><tr><td><code>mvn compile</code></td><td>編譯正式程式碼。</td></tr><tr><td><code>mvn test</code></td><td>先完成必要的前置階段，再執行測試。</td></tr><tr><td><code>mvn package</code></td><td>測試後產生 JAR 或 WAR 等成品。</td></tr><tr><td><code>mvn install</code></td><td>把成品裝進本機的 Maven 儲存庫，供其他本機專案引用。</td></tr></tbody></table></div>
 <p class="q">執行 <code>mvn package</code> 是不是只做打包？</p>
 <p>不是。它會照 default 生命週期的順序先完成前置階段，例如編譯與測試，才進到 package。</p>
-<p class="muted">原筆記在介紹 default 生命週期時把「測試」打成了「攝氏」，那是輸入法的錯字，內容本身沒問題。</p>
 </section>
 
 <section>
@@ -46,7 +45,7 @@
 <section>
 <p class="era">拆分的思維</p>
 <h3 class="head">微服務不是免費的效能按鈕</h3>
-<p>原筆記用了全聯收銀台的例子：本來收銀員要結帳又要裝袋，現在只負責結帳，裝袋交給顧客。微服務也用類似方式讓團隊與元件各自負責清楚的業務能力。差別在於軟體服務之間還多了網路延遲、失敗重試與資料一致性的問題。</p>
+<p>可以這樣比喻：全聯的收銀台本來收銀員要結帳又要裝袋，後來改成只負責結帳，裝袋交給顧客。微服務也用類似方式讓團隊與元件各自負責清楚的業務能力。差別在於軟體服務之間還多了網路延遲、失敗重試與資料一致性的問題。</p>
 <p>微服務可能帶來的好處包括獨立部署、個別擴充、技術選擇的彈性，以及把單次變更的範圍縮小。但這些好處要成立，前提是邊界劃得合理、介面穩定，而且有足夠的自動化測試與維運能力。</p>
 <p>主要的挑戰包括：</p>
 <ul class="plainlist"><li>切得太細，網路呼叫與跨團隊溝通的成本反而變高。</li><li>API 或訊息格式一改，就要處理版本相容與團隊協調。</li><li>跨服務的交易、追蹤、日誌彙整與故障排查都更難。</li><li>某個服務故障，仍可能透過同步依賴連鎖影響其他服務。</li></ul>
@@ -107,13 +106,13 @@ public class GlobalExceptionHandler {
     }
 }</code></pre>
 <p>對外的回應不要直接吐出堆疊追蹤、資料庫語法、權杖或內部主機資訊。詳細例外記進受控的日誌，回應只給穩定的錯誤碼與使用者看得懂的訊息。</p>
-<p class="muted">原筆記的範例程式來自一個工作專案，類別名、錯誤碼列舉與例外型別都是內部命名。本課換成通用示例，程式碼裡的名稱不對應任何實際系統。</p>
+<p class="muted">本節的範例是通用示例，裡面的類別名、錯誤碼列舉與例外型別都不對應任何實際系統。</p>
 </section>
 
 <section>
 <p class="era">MVC 範圍外的錯誤</p>
 <h3 class="head">Filter 丟的例外為什麼常常抓不到？</h3>
-<p><code>@ControllerAdvice</code> 只參與 DispatcherServlet 內部的例外解析。Filter 跑在 DispatcherServlet 外圍，所以它在呼叫下游之前或期間丟出的例外，不會自然進到 MVC 的全域例外處理器——這正是原筆記整篇的出發點。</p>
+<p><code>@ControllerAdvice</code> 只參與 DispatcherServlet 內部的例外解析。Filter 跑在 DispatcherServlet 外圍，所以它在呼叫下游之前或期間丟出的例外，不會自然進到 MVC 的全域例外處理器。</p>
 <p>常見的處理策略有三種：</p>
 <ul class="plainlist"><li>在 Filter 裡自己接住例外，直接設定 HTTP 狀態、內容型態與 JSON 回應。</li><li>把可共用的錯誤轉換邏輯抽成一個獨立服務，讓 Filter 與全域例外處理器共用。</li><li>把例外交給適當的例外解析器或容器的錯誤處理流程，但要避免重複寫入已經送出的回應。</li></ul>
 <pre><code>try {
@@ -125,7 +124,7 @@ public class GlobalExceptionHandler {
         errorJson(ex.getCode(), ex.getMessage())
     );
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把「使用 ServletRequestListener：這可以在請求開始和結束時執行代碼,你可以在這裡捕獲異常」列為四種處理方式之一，查證後更正：ServletRequestListener 的 requestDestroyed 只收到一個 ServletRequestEvent，裡面沒有例外物件，而且此時回應多半已經送出、改不動了，所以拿它捕捉並改寫錯誤回應行不通">原筆記列出的四種方式裡，<code>ServletRequestListener</code> 這一條行不通。它只宣告兩個方法，兩個都只吃一個 <code>ServletRequestEvent</code> 參數，沒有任何例外物件；<code>requestDestroyed</code> 的說明是「收到通知：某個 ServletRequest 即將離開這個 Web 應用程式的範圍」——那時候回應多半也已經送出、改不動了</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequestlistener" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把「使用 ServletRequestListener：這可以在請求開始和結束時執行代碼,你可以在這裡捕獲異常」列為四種處理方式之一，查證後更正：ServletRequestListener 的 requestDestroyed 只收到一個 ServletRequestEvent，裡面沒有例外物件，而且此時回應多半已經送出、改不動了，所以拿它捕捉並改寫錯誤回應行不通">有一種說法是用 <code>ServletRequestListener</code> 在請求開始與結束時捕捉例外，這條路行不通。它只宣告兩個方法，兩個都只吃一個 <code>ServletRequestEvent</code> 參數，沒有任何例外物件；<code>requestDestroyed</code> 的說明是「收到通知：某個 ServletRequest 即將離開這個 Web 應用程式的範圍」——那時候回應多半也已經送出、改不動了</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequestlistener" target="_blank" rel="noopener">出處</a>。</p>
 <p>如果是 Spring Security 的認證或授權錯誤，應該用安全框架自己提供的認證進入點與拒絕存取處理器，而不是把所有錯誤都包成一般的 Controller 例外。</p>
 </section>
 

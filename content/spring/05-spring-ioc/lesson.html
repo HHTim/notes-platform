@@ -19,7 +19,7 @@
 <p>由 Spring 容器管理的物件叫 Bean。容器負責它的實例化、相依關係組裝、初始化，以及容器關閉時的銷毀處理。</p>
 <p>依賴注入（Dependency Injection，DI）是實作 IoC 最常見的方式：容器把某個物件需要的相依物件送進去，像中央廚房把備好的食材送到各工作站。</p>
 <div class="tablewrap"><table><thead><tr><th>名詞</th><th>重點</th></tr></thead><tbody><tr><td>IoC</td><td>一種設計原則：把物件控制權交給外部容器。</td></tr><tr><td>DI</td><td>一種實作方式：由外部注入物件需要的相依項目。</td></tr><tr><td>Bean</td><td>由 Spring 容器建立與管理的物件。</td></tr><tr><td>ApplicationContext</td><td>常用的 Spring 容器介面，除了管理 Bean 還提供其他應用功能。</td></tr></tbody></table></div>
-<p class="muted">原筆記提到 IoC 的實作方式還有 DL（Dependency Lookup，依賴查找）與 Service Locator，並說 Java EE Web 容器提供的 JNDI 就是 DL 的實作。這個對照仍然成立，但現在的 Spring 專案幾乎一律走 DI 這條路。</p>
+<p class="muted">IoC 的實作方式不只 DI，還有 DL（Dependency Lookup，依賴查找）與 Service Locator；Java EE Web 容器提供的 JNDI 就是 DL 的一種實作。不過現在的 Spring 專案幾乎一律走 DI 這條路。</p>
 </section>
 
 <section>
@@ -44,7 +44,7 @@ public class MemberService {
     }
 }</code></pre>
 <p><code>@Component</code> 以及語意更明確的 <code>@Service</code>、<code>@Repository</code>、<code>@Controller</code>，可以讓類別在元件掃描時變成 Bean。只有落在掃描範圍內的類別才會被找到。</p>
-<p class="muted">原筆記寫 <code>@Autowired</code>「通常加在實體變數上」——那是描述常見寫法，不能算錯，欄位注入到現在也還能用。只是官方建議不是這一種：Spring 文件說團隊「一般提倡建構式注入，因為它讓你把應用程式元件寫成不可變物件，並確保必要的相依不會是 <code>null</code>」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a>。文件另外說明，目標 Bean 只有一個建構式時，那個建構式上「不需要再加 <code>@Autowired</code>」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired.html" target="_blank" rel="noopener">出處</a>。這是建議差異不是事實錯誤，所以只註記不標更正。</p>
+<p class="muted"><code>@Autowired</code> 常見的寫法是加在實體變數上，這種欄位注入到現在也還能用。只是官方建議不是這一種：Spring 文件說團隊「一般提倡建構式注入，因為它讓你把應用程式元件寫成不可變物件，並確保必要的相依不會是 <code>null</code>」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a>。文件另外說明，目標 Bean 只有一個建構式時，那個建構式上「不需要再加 <code>@Autowired</code>」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
@@ -60,7 +60,7 @@ public class ReportService {
     }
 }</code></pre>
 <p><code>@Qualifier</code> 適合表達「這裡明確就是要某一種實作」；<code>@Primary</code> 適合表達「整個應用程式通常用這一個」。</p>
-<p class="muted">元件掃描產生的 Bean 名稱預設是把類別名的第一個字母改小寫，所以 <code>HpPrinter</code> 會變成 <code>hpPrinter</code>——這就是原筆記那個例子裡名稱的來源。</p>
+<p class="muted">元件掃描產生的 Bean 名稱預設是把類別名的第一個字母改小寫，所以 <code>HpPrinter</code> 會變成 <code>hpPrinter</code>，上面範例裡那個名稱就是這樣來的。</p>
 </section>
 
 <section>
@@ -75,8 +75,8 @@ public class PrinterConfig {
     }
 }</code></pre>
 <p><code>@Configuration</code> 表示這是組態類別；<code>@Bean</code> 表示這個方法回傳的物件要交給容器管理。它特別適合你改不到原始碼的第三方類別，也適合需要明確建構流程的物件。</p>
-<p class="muted">原筆記寫「<code>@Bean</code> = <code>&lt;bean/&gt;</code> = <code>@Component</code> ⇒ 託管 Bean 元件」。就「三者都會讓容器管到這個物件」這個意思來說沒有錯，但等號容易讓人以為可以互換：<code>@Component</code> 加在類別上、靠元件掃描發現，<code>@Bean</code> 只能加在組態類別的方法上、由那個方法自己負責建構物件。這是精確度問題不是事實錯誤，所以只註記不標更正。</p>
-<p>XML 的 <code>&lt;bean&gt;</code> 也能達成一樣的目的，而且不必改目標類別；不過 Java 組態通常比較容易得到型別檢查與程式碼導覽。原筆記整個章節都以 XML 組態為主，那是 Spring Boot 普及之前的常態。</p>
+<p class="muted">常看到有人把 <code>@Bean</code>、<code>&lt;bean/&gt;</code> 與 <code>@Component</code> 三個畫上等號。就「三者都會讓容器管到這個物件」這個意思來說沒有錯，但等號容易讓人以為可以互換：<code>@Component</code> 加在類別上、靠元件掃描發現，<code>@Bean</code> 只能加在組態類別的方法上、由那個方法自己負責建構物件。</p>
+<p>XML 的 <code>&lt;bean&gt;</code> 也能達成一樣的目的，而且不必改目標類別；不過 Java 組態通常比較容易得到型別檢查與程式碼導覽。早期的教學多半以 XML 組態為主，那是 Spring Boot 普及之前的常態。</p>
 </section>
 
 <section>
@@ -95,7 +95,7 @@ public class CacheClient {
         // 容器關閉時釋放資源
     }
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@PostConsturct 1. 方法必須為public 2. 沒有返回值(void) 3. 方法不能有參數」，查證後更正：Jakarta Annotations 規格明講這個註解可以標在 public、protected、套件私有或 private 的方法上，不要求 public；沒有參數、沒有回傳值這兩點則成立">規格的原話是這個註解「可以標在 public、protected、套件私有或 private 的方法上」，所以不必是 public；沒有參數、沒有回傳值這兩點則成立</mark><a class="fixsrc" href="https://jakarta.ee/specifications/annotations/3.0/apidocs/jakarta.annotation/jakarta/annotation/postconstruct" target="_blank" rel="noopener">出處</a>。另外這個註解現在住在 <code>jakarta.annotation</code>：Spring 的文件說明 <code>javax.annotation</code> 整包在 JDK 9 從核心模組分出去、JDK 11 移除，Jakarta EE 9 起改到新套件<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/postconstruct-and-predestroy-annotations.html" target="_blank" rel="noopener">出處</a>。原筆記把註解名打成「@PostConsturct」，正確拼法是 <code>@PostConstruct</code>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@PostConsturct 1. 方法必須為public 2. 沒有返回值(void) 3. 方法不能有參數」，查證後更正：Jakarta Annotations 規格明講這個註解可以標在 public、protected、套件私有或 private 的方法上，不要求 public；沒有參數、沒有回傳值這兩點則成立。另外原筆記把註解名打成「@PostConsturct」，正確拼法是 @PostConstruct">規格的原話是這個註解「可以標在 public、protected、套件私有或 private 的方法上」，所以不必是 public；沒有參數、沒有回傳值這兩點則成立</mark><a class="fixsrc" href="https://jakarta.ee/specifications/annotations/3.0/apidocs/jakarta.annotation/jakarta/annotation/postconstruct" target="_blank" rel="noopener">出處</a>。另外這個註解現在住在 <code>jakarta.annotation</code>：Spring 的文件說明 <code>javax.annotation</code> 整包在 JDK 9 從核心模組分出去、JDK 11 移除，Jakarta EE 9 起改到新套件<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/postconstruct-and-predestroy-annotations.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>初始化方法不是用來遮掩循環依賴的。如果 A 需要 B、B 又需要 A，通常代表責任切得不清楚，應該先重新設計，而不是想辦法讓容器勉強把它們建出來。</p>
 </section>
 
@@ -107,7 +107,7 @@ public class CacheClient {
 
 @Value("${printer.max-pages:50}")
 private int maxPages;</code></pre>
-<p>外部設定有 <code>printer.max-pages</code> 時就用外部的值，找不到才用 <code>50</code>——這跟原筆記那題「設定檔裡也有值時採用哪一個」的答案一致：設定檔優先。</p>
+<p>外部設定有 <code>printer.max-pages</code> 時就用外部的值，找不到才用 <code>50</code>：設定檔裡的值優先，冒號後面那個只是找不到時的備援。</p>
 <p>Spring 表達式語言（Spring Expression Language，SpEL）用的是 <code>#{...}</code>，可以存取 Bean 或做運算，跟單純讀設定值的 <code>${...}</code> 用途不同。</p>
 </section>
 

@@ -5,7 +5,7 @@
 <p class="era">共同功能不該散在各處</p>
 <h3 class="head">AOP 解決的是橫切問題</h3>
 <p>會員註冊、下單、修改資料屬於商業邏輯；日誌、執行時間、權限檢查與交易控制則會同時出現在很多功能裡。後者像一條橫跨各個房間的消防管線，所以叫橫切關注點（cross-cutting concern）。</p>
-<p>如果每個方法都自己複製一份計時或日誌程式碼，不只難讀，規則一改還很容易漏改。原筆記那個印表機的例子講的正是這件事：本來 <code>print()</code> 只要印出訊息，為了記錄執行時間塞進一堆計時程式碼，換一台印表機就要再複製一次。</p>
+<p>如果每個方法都自己複製一份計時或日誌程式碼，不只難讀，規則一改還很容易漏改。舉個例子：本來 <code>print()</code> 只要印出訊息，為了記錄執行時間塞進一堆計時程式碼；換一台印表機，同樣的計時程式碼又要再複製一次。</p>
 <p>切面導向程式設計（Aspect-Oriented Programming，AOP）把這些共同邏輯抽出來，再套用到符合條件的方法上。</p>
 <blockquote>AOP 是用來補充物件導向設計的，不是把所有商業邏輯都搬進切面。</blockquote>
 </section>
@@ -22,7 +22,7 @@
 <h3 class="head">常見的通知類型</h3>
 <div class="tablewrap"><table><thead><tr><th>通知</th><th>執行時機</th><th>適合做什麼</th></tr></thead><tbody><tr><td><code>@Before</code></td><td>目標方法執行前</td><td>前置檢查、記錄輸入摘要</td></tr><tr><td><code>@After</code></td><td>目標方法結束後，不論正常或丟出例外</td><td>一定要做的收尾紀錄</td></tr><tr><td><code>@AfterReturning</code></td><td>目標方法正常回傳後</td><td>記錄成功結果</td></tr><tr><td><code>@AfterThrowing</code></td><td>目標方法丟出例外後</td><td>失敗稽核、例外紀錄</td></tr><tr><td><code>@Around</code></td><td>包住整次方法呼叫</td><td>計時、重試，或需要決定要不要繼續執行的情況</td></tr></tbody></table></div>
 <p><code>@Around</code> 的權限最大，也最容易用錯。它必須呼叫 <code>ProceedingJoinPoint.proceed()</code> 才會繼續執行目標方法，而且要正確回傳結果或把例外傳出去。</p>
-<p class="muted">原筆記把這個註解打成「@Arround」，正確拼法是 <code>@Around</code>。另外原筆記把 <code>@After</code> 寫成「在切入點的方法被呼叫後執行」，補充一句更精確的說法：它像 <code>finally</code>，方法丟例外時一樣會執行。</p>
+<p class="muted"><code>@After</code> 常被說成「在切入點的方法被呼叫後執行」。更精確的說法是：它像 <code>finally</code>，方法丟出例外時一樣會執行。</p>
 </section>
 
 <section>
@@ -42,14 +42,14 @@ public class TimingAspect {
         }
     }
 }</code></pre>
-<p><code>@Aspect</code> 宣告這個類別是切面，<code>@Component</code> 讓 Spring 管理它——原筆記特別強調兩個要一起加，因為不是 Bean 就不會生效。範例的切入點表示選取 <code>com.example.service</code> 套件及其子套件裡的方法，其中的 <code>*</code> 是任意回傳型別。</p>
+<p><code>@Aspect</code> 宣告這個類別是切面，<code>@Component</code> 讓 Spring 管理它——兩個註解要一起加，因為切面本身不是 Bean 就不會生效。範例的切入點表示選取 <code>com.example.service</code> 套件及其子套件裡的方法，其中的 <code>*</code> 是任意回傳型別。</p>
 <p>切入範圍太寬會攔到不該被影響的方法，太窄又會漏掉目標。切入點應該搭配套件、類別、方法或自訂註解把意圖講清楚。</p>
 </section>
 
 <section>
 <p class="era">代理機制帶來的邊界</p>
 <h3 class="head">寫了註解不一定會被攔截</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Spring-AOP則是AOP的實作，底層依靠JavaSE的Reflection/Proxy API」，這句只講了一半：JDK 動態代理確實是其中一條路，但 Spring AOP 還有 CGLIB 這條。查證後補全：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時會建立 CGLIB 子類別代理；另外要注意「有介面就用 JDK 動態代理」這條規則只在 spring.aop.proxy-target-class 是 false 時成立，而 Spring Boot 把它預設成 true，所以 Spring Boot 專案不論有沒有介面都走 CGLIB">原筆記這句只講了一半：JDK 動態代理確實是其中一條路，但不是唯一一條。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a>。不過上面那條「有介面就用 JDK 動態代理」的規則，只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立；Spring Boot 把這個設定預設成 <code>true</code>，所以在 Spring Boot 專案裡，有沒有介面都走 CGLIB。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Spring-AOP則是AOP的實作，底層依靠JavaSE的Reflection/Proxy API」，這句只講了一半：JDK 動態代理確實是其中一條路，但 Spring AOP 還有 CGLIB 這條。查證後補全：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時會建立 CGLIB 子類別代理；另外要注意「有介面就用 JDK 動態代理」這條規則只在 spring.aop.proxy-target-class 是 false 時成立，而 Spring Boot 把它預設成 true，所以 Spring Boot 專案不論有沒有介面都走 CGLIB">Spring AOP 的底層不是只有 JDK 動態代理（Java SE 的 Reflection/Proxy API）這一條路。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理，沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a>。不過上面那條「有介面就用 JDK 動態代理」的規則，只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立；Spring Boot 把這個設定預設成 <code>true</code>，所以在 Spring Boot 專案裡，有沒有介面都走 CGLIB。</p>
 <p>不論哪一種代理，攔截的都是「從外部進入 Bean」的呼叫。如果同一個物件裡的 A 方法直接呼叫自己的 B 方法，這次呼叫沒有經過代理，B 上的 AOP 行為就不會生效。這個狀況叫自我呼叫（self-invocation）。</p>
 <p>常見的改善方式是重新切分 Bean，讓呼叫真的跨過代理邊界。不要為了繞過設計問題，到處自己去拿代理物件。</p>
 </section>

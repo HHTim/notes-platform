@@ -37,8 +37,8 @@ public class StudentController {
 <p class="era">資料可能藏在四個地方</p>
 <h3 class="head">路徑、查詢字串、標頭與本體</h3>
 <div class="tablewrap"><table><thead><tr><th>請求裡的位置</th><th>Spring 註解</th><th>適合放什麼</th></tr></thead><tbody><tr><td>路徑 <code>/students/42</code></td><td><code>@PathVariable</code></td><td>特定資源的識別碼</td></tr><tr><td>查詢字串 <code>?page=2</code></td><td><code>@RequestParam</code></td><td>篩選、排序、分頁等條件</td></tr><tr><td>請求標頭</td><td><code>@RequestHeader</code></td><td>媒體格式、驗證資訊、追蹤資訊</td></tr><tr><td>請求本體</td><td><code>@RequestBody</code></td><td>新增或更新所需的結構化資料</td></tr></tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「request body => POST方法限定」，查證後更正：PUT 與 PATCH 同樣常帶請求本體，@RequestBody 也可以用在這些方法上；原筆記自己在〈設計RESTful API〉那篇也寫了 PUT 要同時用 @PathVariable 與 @RequestBody，前後其實互相矛盾">請求本體不是 POST 專屬。HTTP 規格定義 PUT 的語意就是「用請求訊息裡附上的內容去建立或取代目標資源的狀態」，本體是它的必要組成，PATCH 同理，<code>@RequestBody</code> 在這些方法上都用得上</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-put" target="_blank" rel="noopener">出處</a>。原筆記在另一篇也寫了 PUT 要同時用 <code>@PathVariable</code> 與 <code>@RequestBody</code>，前後其實是矛盾的。</p>
-<p>缺少必填的 <code>@RequestParam</code> 通常會直接變成用戶端錯誤（400），要讓它非必填就加 <code>required=false</code> 或 <code>defaultValue</code>。JSON 少了欄位時能不能接受，則應該由型別與驗證規則明確決定，不要依賴 Java 欄位自動變成 <code>null</code>——原筆記觀察到的「若前端送出的請求，省略了必須設置的屬性，則後端不會報錯 => 顯示null」，就是沒有加驗證時的預設行為。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「request body => POST方法限定」，查證後更正：PUT 與 PATCH 同樣常帶請求本體，@RequestBody 也可以用在這些方法上；原筆記自己在〈設計RESTful API〉那篇也寫了 PUT 要同時用 @PathVariable 與 @RequestBody，前後其實互相矛盾">請求本體不是 POST 專屬。HTTP 規格定義 PUT 的語意就是「用請求訊息裡附上的內容去建立或取代目標資源的狀態」，本體是它的必要組成，PATCH 同理，<code>@RequestBody</code> 在這些方法上都用得上</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#name-put" target="_blank" rel="noopener">出處</a>。PUT 的典型寫法就是兩個註解一起用：<code>@PathVariable</code> 指出要換掉哪一筆，<code>@RequestBody</code> 帶進新的內容。</p>
+<p>缺少必填的 <code>@RequestParam</code> 通常會直接變成用戶端錯誤（400），要讓它非必填就加 <code>required=false</code> 或 <code>defaultValue</code>。JSON 少了欄位時能不能接受，則應該由型別與驗證規則明確決定，不要依賴 Java 欄位自動變成 <code>null</code>：前端少送一個該有的屬性時，後端預設不會報錯，只會拿到 <code>null</code>，這就是沒有加驗證時的行為。</p>
 </section>
 
 <section>
@@ -52,7 +52,7 @@ public class StudentController {
 <section>
 <p class="era">JSON 的值不只四種</p>
 <h3 class="head">輸入與輸出的資料結構</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 JSON 的「Value四種類型: 整數、浮點數、字串、Boolean」，查證後更正：RFC 8259 定義 JSON 的值可以是物件、陣列、數字、字串，以及 true、false、null 這三個字面值；原筆記漏掉了物件、陣列與 null，而且數字在 JSON 裡不分整數與浮點數兩型">JSON 的值可以是物件、陣列、數字、字串，以及 <code>true</code>、<code>false</code>、<code>null</code> 這三個字面值。原筆記漏掉了物件、陣列與 <code>null</code>，而且 JSON 的數字並不分整數與浮點數兩型</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8259#section-3" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫 JSON 的「Value四種類型: 整數、浮點數、字串、Boolean」，查證後更正：RFC 8259 定義 JSON 的值可以是物件、陣列、數字、字串，以及 true、false、null 這三個字面值；原筆記漏掉了物件、陣列與 null，而且數字在 JSON 裡不分整數與浮點數兩型">JSON 的值可以是物件、陣列、數字、字串，以及 <code>true</code>、<code>false</code>、<code>null</code> 這三個字面值。常見的「整數、浮點數、字串、布林」這種四種說法漏掉了物件、陣列與 <code>null</code>，而且 JSON 的數字並不分整數與浮點數兩型</mark><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8259#section-3" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>{
   "id": 42,
   "name": "小安",
@@ -83,7 +83,7 @@ public ResponseEntity&lt;StudentResponse&gt; create(
 }</code></pre>
 <p class="muted"><code>ResponseEntity.created(...)</code> 會一次把狀態碼設成 201 並填好 <code>Location</code>，比自己寫 <code>status(HttpStatus.CREATED)</code> 再補標頭不容易漏。</p>
 <div class="terms"><div class="term"><b>@NotNull</b><span>不可以是 null，但空字串會過。</span></div><div class="term"><b>@NotEmpty</b><span>字串、集合或陣列不可以是空的。</span></div><div class="term"><b>@NotBlank</b><span>字串去掉前後空白後還要有內容，最適合姓名這類欄位。</span></div><div class="term"><b>@Min</b><span>數值的下限。</span></div></div>
-<p class="muted">驗證註解的套件名也跟著 Jakarta 改過：Spring Boot 2 以前是 <code>javax.validation</code>，Spring Boot 3 起是 <code>jakarta.validation</code>。原筆記沒有標版本，抄程式碼時要對一下自己專案的版本。</p>
+<p class="muted">驗證註解的套件名也跟著 Jakarta 改過：Spring Boot 2 以前是 <code>javax.validation</code>，Spring Boot 3 起是 <code>jakarta.validation</code>。網路上的範例多半沒有標版本，抄程式碼時要對一下自己專案是哪一版。</p>
 </section>
 
 <section>
@@ -100,7 +100,7 @@ public class ApiExceptionHandler {
     }
 }</code></pre>
 <p><code>@ControllerAdvice</code> 搭配 <code>@ExceptionHandler</code> 可以集中處理多個 Controller 的例外；純 API 的專案常直接用 <code>@RestControllerAdvice</code>。處理器可以針對具體的例外給精準回應，再留一個比較一般的例外處理當最後防線。</p>
-<p>原筆記提到的「例外處理有繼承關係」是對的：找不到處理 <code>IllegalArgumentException</code> 的方法時，會往上找 <code>RuntimeException</code>，一路到 <code>Exception</code>。所以最後防線寫到 <code>Exception</code> 就夠了。</p>
+<p>例外處理會沿著繼承關係往上找：找不到處理 <code>IllegalArgumentException</code> 的方法時，會往上找 <code>RuntimeException</code>，一路到 <code>Exception</code>。所以最後防線寫到 <code>Exception</code> 就夠了。</p>
 </section>
 
 <section>

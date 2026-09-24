@@ -9,8 +9,8 @@
 <div class="tablewrap"><table><thead><tr><th>物件世界</th><th>資料庫世界</th></tr></thead><tbody><tr><td>實體類別</td><td>資料表</td></tr><tr><td>一個物件</td><td>一筆資料列</td></tr><tr><td>屬性</td><td>欄位</td></tr><tr><td>物件識別屬性</td><td>主鍵</td></tr><tr><td>物件之間的參照</td><td>外來鍵關聯</td></tr></tbody></table></div>
 <p>Hibernate 是 ORM 框架，JPA 則是持久層的標準規格。應用程式可以透過 JPA 規格操作由 Hibernate 提供的實作，而 Hibernate 底層還是透過 JDBC 跟資料庫溝通。</p>
 <p class="formula">應用程式 → JPA／Hibernate → JDBC → 關聯式資料庫</p>
-<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記寫「JPA(Java Persistence API)」，那是它寫成當時的正式名稱。規格隨 Java EE 移交 Eclipse 基金會後改名 Jakarta Persistence，套件也從 javax.persistence 改成 jakarta.persistence">原筆記用的「Java Persistence API」是當年的正式名稱。這套規格後來改名為 Jakarta Persistence，套件也從 <code>javax.persistence</code> 改成 <code>jakarta.persistence</code></mark><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/" target="_blank" rel="noopener">出處</a>。現在的文件與程式碼看到的多半是新名字。</p>
-<p class="muted">原筆記那句「Java 官方委託 Gavin King 所寫」也不太精確。Gavin King 是 Hibernate 的作者沒錯，但規格不是委託一個人寫的：規格書第 1.1 節寫明它「是 JSR 338 專家小組成員共同合作的成果」，後面列出十幾位成員與所屬公司<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/jakarta-persistence-spec-3.1.html" target="_blank" rel="noopener">出處</a>。這一點只是背景，不影響用法，所以只註記不標更正。</p>
+<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記寫「JPA(Java Persistence API)」，那是它寫成當時的正式名稱。規格隨 Java EE 移交 Eclipse 基金會後改名 Jakarta Persistence，套件也從 javax.persistence 改成 jakarta.persistence">JPA 早年的正式名稱是「Java Persistence API」。這套規格後來改名為 Jakarta Persistence，套件也從 <code>javax.persistence</code> 改成 <code>jakarta.persistence</code></mark><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/" target="_blank" rel="noopener">出處</a>。現在的文件與程式碼看到的多半是新名字。</p>
+<p class="muted">常聽到「JPA 是 Java 官方委託 Gavin King 所寫」，這句話並不精確。Gavin King 是 Hibernate 的作者沒錯，但規格不是委託一個人寫的：規格書第 1.1 節寫明它「是 JSR 338 專家小組成員共同合作的成果」，後面列出十幾位成員與所屬公司<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/jakarta-persistence-spec-3.1.html" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">MyBatis 也能把查詢結果對映成物件，但它的設計取向和完整的 ORM 不太一樣；Spring Data JPA 則是站在 JPA 之上，再提供一層儲存庫抽象。這三者的關係第 8 課會再談。</p>
 </section>
 
@@ -34,7 +34,7 @@ try (Session session = sessionFactory.openSession()) {
         throw ex;
     }
 }</code></pre>
-<p class="muted"><code>openSession()</code> 每次都建立新的 Session；<code>getCurrentSession()</code> 則看目前的綁定設定，例如綁在執行緒上，或交給框架管理的交易。原筆記提到 Hibernate 預設把自動送交關掉，所以新增、刪除、修改都要在交易裡完成。</p>
+<p class="muted"><code>openSession()</code> 每次都建立新的 Session；<code>getCurrentSession()</code> 則看目前的綁定設定，例如綁在執行緒上，或交給框架管理的交易。Hibernate 預設把自動送交關掉，所以新增、刪除、修改都要在交易裡完成。</p>
 </section>
 
 <section>
@@ -50,7 +50,6 @@ try (Session session = sessionFactory.openSession()) {
 <p class="era">實體對映</p>
 <h3 class="head">用註解把 Java 類別接上資料表</h3>
 <p>一般 Java 物件常被叫做 POJO（Plain Old Java Object，普通 Java 物件）。加上實體對映之後，它就能變成 Hibernate 管理的實體類別。每個實體都必須有識別屬性，用 <code>@Id</code> 對應主鍵。</p>
-<p class="muted">原筆記把 POJO 的全稱打成「Plain Olid Java Object」，正確的是 Plain Old Java Object；這只是錯字，意思沒變。</p>
 <pre><code>@Entity
 @Table(name = "member")
 public class Member {
@@ -69,7 +68,7 @@ public class Member {
 
     // getter、setter
 }</code></pre>
-<p class="muted">原筆記在這裡寫了一句「請勿使用 AUTO！不值得信任！」。規格對 <code>AUTO</code> 的定義是「由持久層提供者依該資料庫挑一個適合的策略」，所以換資料庫時產生識別值的方式可能跟著換——這是它需要留意的地方。要行為可預期，明確指定 <code>IDENTITY</code> 或 <code>SEQUENCE</code> 就好<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/generationtype" target="_blank" rel="noopener">出處</a>。原筆記那句是使用建議不是事實錯誤，所以只註記不標更正。</p>
+<p class="muted">常有人建議別用 <code>AUTO</code>。原因在規格對 <code>AUTO</code> 的定義：「由持久層提供者依該資料庫挑一個適合的策略」，所以換資料庫時產生識別值的方式可能跟著換。要讓行為可預期，明確指定 <code>IDENTITY</code> 或 <code>SEQUENCE</code> 就好<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.1/apidocs/jakarta.persistence/jakarta/persistence/generationtype" target="_blank" rel="noopener">出處</a>。</p>
 <p><code>insertable = false</code> 表示產生 INSERT 時不寫這個欄位，常用來讓資料庫的預設值接手；它不等於這個 Java 屬性永遠不能改。</p>
 </section>
 
@@ -89,8 +88,8 @@ public class Member {
   &lt;/session-factory&gt;
 &lt;/hibernate-configuration&gt;</code></pre>
 <p class="muted">別把正式環境的密碼提交進版本控制。實務上會改用環境變數、祕密管理服務，或由容器提供的 DataSource。</p>
-<p>用 JNDI（Java 命名與目錄介面）時，DataSource 通常由 Servlet 容器註冊；直接跑一般的 <code>main</code> 方法時，除非另外建立相容的命名環境，否則不能假設容器提供的 JNDI 資源存在——原筆記說「main 方法啟動時 Tomcat 休息，JNDI 不會啟動」講的就是這件事。</p>
-<p class="muted">原筆記的環境建置章節指定了 STS 3.9.18、Tomcat 9.0.45 與當年的下載網址。這些版本與網址現在多半已經換過，照著點會撲空；本課只保留不隨版本改變的設定觀念。</p>
+<p>用 JNDI（Java 命名與目錄介面）時，DataSource 通常由 Servlet 容器註冊；直接跑一般的 <code>main</code> 方法時，除非另外建立相容的命名環境，否則不能假設容器提供的 JNDI 資源存在——用一般的 <code>main</code> 方法啟動時 Tomcat 根本沒跑起來，JNDI 也就不會啟動。</p>
+<p class="muted">環境建置的教學常會指定某一版開發工具、某一版 Tomcat 與當時的下載網址。這類版本與網址過一陣子就會換掉，照著點常常撲空；本課只談不隨版本改變的設定觀念。</p>
 </section>
 
 <section>
@@ -110,7 +109,7 @@ found.setUsername("mei.lin");
 
 // 刪除
 session.remove(found);</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記把 save()、delete()、saveOrUpdate() 標成「已廢棄」，那是 Hibernate 6 的狀態；Hibernate 7.0 已經把 Session#save、Session#update、Session#saveOrUpdate、Session#delete 整批移除，改用 persist()、merge()、remove()，舊呼叫在 Hibernate 7 連編譯都過不了">原筆記標「已廢棄」是 Hibernate 6 的狀態。Hibernate 7 的遷移指南寫的是「<code>Session#save</code>、<code>Session#update</code>、<code>Session#saveOrUpdate</code> 的所有形式都已移除」，以及「<code>Session#delete</code> 已移除，改用 <code>Session#remove</code>」。現在只剩 <code>persist()</code>、<code>merge()</code>、<code>remove()</code>，舊寫法在 Hibernate 7 連編譯都不會過</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記把 save()、delete()、saveOrUpdate() 標成「已廢棄」，那是 Hibernate 6 的狀態；Hibernate 7.0 已經把 Session#save、Session#update、Session#saveOrUpdate、Session#delete 整批移除，改用 persist()、merge()、remove()，舊呼叫在 Hibernate 7 連編譯都過不了">把 <code>save()</code>、<code>delete()</code>、<code>saveOrUpdate()</code> 當成「已廢棄但還能用」，是 Hibernate 6 的狀態。Hibernate 7 的遷移指南寫的是「<code>Session#save</code>、<code>Session#update</code>、<code>Session#saveOrUpdate</code> 的所有形式都已移除」，以及「<code>Session#delete</code> 已移除，改用 <code>Session#remove</code>」。現在只剩 <code>persist()</code>、<code>merge()</code>、<code>remove()</code>，舊寫法在 Hibernate 7 連編譯都不會過</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
 <p>物件已經是分離狀態時，用 <code>merge()</code> 把資料併回目前 Session 管理的實體。要注意：之後要繼續操作的是 <code>merge()</code> 回傳的那個物件，不是你傳進去的舊物件。</p>
 <pre><code>Member managed = session.merge(detachedMember);
 managed.setUsername("new-name");</code></pre>
@@ -120,7 +119,7 @@ managed.setUsername("new-name");</code></pre>
 <p class="era">Web 應用程式的注意事項</p>
 <h3 class="head">延遲載入與交易邊界</h3>
 <p>延遲載入（Lazy Loading）會先放一個代理物件或還沒初始化的集合，等程式真的去讀關聯資料時才查詢。它能避免一次載入太多資料，但如果 Session 已經關了才去讀還沒載入的關聯，就會失敗。</p>
-<p class="muted">原筆記在「改善方法」裡寫「上述方法一、二不使用；建議使用三. 自訂義 Filter」，把連線與交易控制都搬到 Filter 上，讓 Session 活到畫面畫完。這個做法有個名字叫 Open Session in View，在 Spring Boot 對應的是 <code>spring.jpa.open-in-view</code> 這個設定（預設開著）。它的代價是查詢時機變得難以掌握，也容易在畫面渲染階段冒出一大堆額外查詢，所以現在多半不建議依賴它。這是取捨判斷不是事實更正，只註記不標更正。</p>
+<p class="muted">有一種常見的解法是把連線與交易控制搬到 Filter 上，讓 Session 活到畫面畫完。這個做法有個名字叫 Open Session in View，在 Spring Boot 對應的是 <code>spring.jpa.open-in-view</code> 這個設定（預設開著）。它的代價是查詢時機變得難以掌握，也容易在畫面渲染階段冒出一大堆額外查詢，所以現在多半不建議依賴它。</p>
 <p>比較穩的做法是在服務層的交易裡把回應需要的資料查齊，或直接投影成 DTO（Data Transfer Object，資料傳輸物件）。</p>
 <blockquote>先定義這個使用情境需要哪些資料，再決定要立即載入、查詢時 JOIN FETCH，還是投影成 DTO；不要把延遲載入當成自動解決效能問題的開關。</blockquote>
 </section>
