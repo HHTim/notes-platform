@@ -22,7 +22,7 @@
 <p><b>正解：欠擬合與高偏差。</b>模型對問題做了過度簡化的假設，連訓練資料裡的主要模式都掌握不了。</p>
 <p class="muted">如果是訓練表現極佳、測試表現很差，那才比較像過度擬合與高變異。</p>
 <blockquote>題目若問「機器學習的三大典型範式」，學術上一般是指監督式、非監督式與強化學習。深度學習是多層神經網路這項技術，可以用在不同的學習範式裡，嚴格說不該跟學習範式並列。</blockquote>
-<p class="muted">但這份題庫沒有照學術分類走——它的標準答案把三大類寫成監督式、非監督式與<b>深度學習</b>。原筆記自己也註記了這個出入。實際考試遇到時，照題庫的答案選；心裡知道嚴謹的講法是另一套就好。</p>
+<p class="muted">但這份題庫沒有照學術分類走——它的標準答案把三大類寫成監督式、非監督式與<b>深度學習</b>。實際考試遇到時，照題庫的答案選；心裡知道嚴謹的講法是另一套就好。</p>
 </section>
 
 <section>
@@ -43,12 +43,12 @@
 <p class="era">主題三｜SageMaker 工具與推論模式</p>
 <h3 class="head">觀念整理：依工作階段辨認服務</h3>
 <p>遇到 SageMaker 服務配對題，可以把機器學習流程想成一條生產線：Data Wrangler 整理原料（資料準備與轉換）；Ground Truth 請人貼標籤（資料標記與人工參與）；Canvas 讓不寫程式的人用視覺化介面建模型；Clarify 檢查決策有沒有偏頗並說明原因（偏見檢測與可解釋性）。</p>
-<p class="muted">原筆記寫「SageMaker Data Wrangler 提供超過 300 種內建資料轉換」——查證後這個數字是對的，AWS 產品頁的原句是「用 SQL 與超過 300 種內建轉換快速選取、匯入並轉換資料，不必寫程式」<a class="fixsrc" href="https://aws.amazon.com/sagemaker/ai/data-wrangler/" target="_blank" rel="noopener">出處</a>。同一頁也說明 Data Wrangler 現在已經併進 SageMaker Canvas，不再是獨立入口；功能還在，位置換了。這種數量型的宣傳數字會隨版本增減，記得住「它負責視覺化的資料準備」比記住 300 這個數字有用。</p>
+<p class="muted">Data Wrangler 常被題目拿「超過 300 種內建資料轉換」當線索。AWS 產品頁的原句是「用 SQL 與超過 300 種內建轉換快速選取、匯入並轉換資料，不必寫程式」<a class="fixsrc" href="https://aws.amazon.com/sagemaker/ai/data-wrangler/" target="_blank" rel="noopener">出處</a>。同一頁也說明 Data Wrangler 現在已經併進 SageMaker Canvas，不再是獨立入口；功能還在，位置換了。這種數量型的宣傳數字會隨版本增減，記得住「它負責視覺化的資料準備」比記住 300 這個數字有用。</p>
 <p>題幹如果強調清理缺失值、編碼、移除重複資料、特徵工程而且少寫程式，優先想到 Data Wrangler。如果強調貸款核准對特定群體公不公平，或要解釋哪些特徵影響了預測，則優先想到 Clarify。</p>
 <p>Clarify 不等於所有的模型營運工具。超參數搜尋屬於模型調校；持續觀察已部署模型的品質與漂移通常屬於模型監控；不寫程式建模則對應 Canvas。考題常把這些相鄰的功能互換名稱來做誘答。</p>
 <div class="tablewrap"><table><thead><tr><th>需求線索</th><th>優先聯想到的服務</th></tr></thead><tbody><tr><td>視覺化清理與轉換資料</td><td>SageMaker Data Wrangler</td></tr><tr><td>不寫程式建立模型</td><td>SageMaker Canvas</td></tr><tr><td>建立高品質的標記資料</td><td>SageMaker Ground Truth</td></tr><tr><td>偏見檢測與模型可解釋性</td><td>SageMaker Clarify</td></tr></tbody></table></div>
 <p>推論模式則要看回應時間、單次工作大小與處理對象。即時推論適合需要低延遲、持續接收個別請求的服務；非同步推論適合單次請求比較大或處理比較久，而且呼叫端不必留在線上等；批次轉換適合一次處理已經備妥的整批資料。</p>
-<p class="muted">原筆記寫「SageMaker 非同步推論的輸入資料可達 1 GB，處理時間可長達一小時」——查證後兩個數字都是對的，AWS 官方的說法是非同步推論適合最大 1GB 的內容與最長一小時的處理時間，而且沒有請求時可以把執行個體縮到零<a class="fixsrc" href="https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">非同步推論的兩個額度數字：AWS 官方的說法是非同步推論適合最大 1GB 的內容與最長一小時的處理時間，而且沒有請求時可以把執行個體縮到零<a class="fixsrc" href="https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>不過非同步推論的關鍵不是死背額度，而是「提交工作、稍後取回結果」這個行為。題目如果是替整份離線資料集一次產生預測，通常該選批次轉換；如果是購物網站正在等一筆推薦，那就偏向即時推論。</p>
 <p class="q">代表題：研究人員上傳大型基因資料，每筆分析都要跑很久，而且不需要立即回應，該考慮哪種模式？</p>
 <p><b>正解：非同步推論。</b>呼叫端可以先送出請求，等處理完成後再取得結果。</p>

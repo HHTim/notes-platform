@@ -23,7 +23,6 @@
 <p>政策可以套在不同管理層級，並影響底下的資源。設計權限時要看完整階層，不能只看資源旁邊那一條設定。</p>
 <p>更精確地說，權限是<b>往下累加</b>的。Google 的原文是：「一個資源的有效允許政策，是設定在該資源上的允許政策，與從其父項繼承而來的允許政策的聯集。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control" target="_blank" rel="noopener">出處</a>（聯集＝把兩邊的權限全部合起來算，重複的只算一次。）</p>
 <p class="q">這句話的實務後果是：你在 Project 上「少給」某個人權限，並不會把他在 Organization 或 Folder 那一層已經拿到的權限收回來。往下看只會越看越多，不會越看越少。</p>
-<p class="muted">原筆記把這件事寫成「假設我在 Organization 得到某一個權限，在往下的 Folder &amp; Project 的各層級，都會是我在 Organization 得到的權限」，後面還特地用一題自問自答點名這個機制叫「權限聯集 (Union)」、並寫下「所有權限加總」與「不會被覆蓋」——查證後這些講法都是對的，跟上面 Google 那條規則一致<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control" target="_blank" rel="noopener">出處</a>。</p>
 <p>所以查一個人為什麼碰得到某個資源，要從 Organization 一路看到資源本身，不能只看資源旁邊那一格。真的要在低層擋掉上層給出去的東西，得另外用拒絕政策（deny policy），那是一套跟允許政策分開的機制。</p>
 </section>
 
@@ -31,8 +30,8 @@
 <p class="era">地理位置</p>
 <h3 class="head">Region 是地理區域，Zone 是裡面的部署與故障隔離位置</h3>
 <p>Region 是 Google Cloud 的獨立地理區域；Zone 是 Region 內的部署位置，也是故障隔離單位。一般的 Compute Engine VM 屬於 Zonal Resource，所以建立時要選 Zone。</p>
-<p class="muted">原筆記寫「一個 Region 包含至少 3 個 Zones」——查證後這個講法是對的，Google 官方文件寫的是一個 Region 由三個或以上的 Zone 組成<a class="fixsrc" href="https://docs.cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。同一頁還寫了通則是這些 Zone 分布在三座以上的實體資料中心，但緊接著列了例外：斯德哥爾摩、墨西哥、大阪、蒙特婁這四個 Region，三個 Zone 只落在一或兩座實體資料中心。所以「一個 Zone 對應一棟資料中心」不能當定律——這點原筆記自己也提醒過，別把 Zone 記成固定的實體資料中心階層。</p>
-<p>不過原筆記另外兩個延遲數字要小心：<mark class="fixnote" tabindex="0" data-note="原筆記寫「同一 Region 內的 Zones 網路延遲：&lt; 5ms」「Zone 關鍵特性：網路延遲 &lt; 1ms」，查證後更正：Google 官方的區域與可用區文件只說 Zone 之間有高頻寬、低延遲的網路連線，並沒有把 5ms 或 1ms 寫成承諾。這不是說實測跑不出這種數字，而是說它不是可以拿來當設計保證的官方規格">Google 的區域與可用區文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線，並沒有把「小於 5 毫秒」或「小於 1 毫秒」寫成承諾</mark><a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">一個 Region 有幾個 Zone？Google 官方文件寫的是一個 Region 由三個或以上的 Zone 組成<a class="fixsrc" href="https://docs.cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。同一頁還寫了通則是這些 Zone 分布在三座以上的實體資料中心，但緊接著列了例外：斯德哥爾摩、墨西哥、大阪、蒙特婁這四個 Region，三個 Zone 只落在一或兩座實體資料中心。所以「一個 Zone 對應一棟資料中心」不能當定律，別把 Zone 記成固定的實體資料中心階層。</p>
+<p>另外兩個常被引用的延遲數字要小心：<mark class="fixnote" tabindex="0" data-note="原筆記寫「同一 Region 內的 Zones 網路延遲：&lt; 5ms」「Zone 關鍵特性：網路延遲 &lt; 1ms」，查證後更正：Google 官方的區域與可用區文件只說 Zone 之間有高頻寬、低延遲的網路連線，並沒有把 5ms 或 1ms 寫成承諾。這不是說實測跑不出這種數字，而是說它不是可以拿來當設計保證的官方規格">Google 的區域與可用區文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線，並沒有把「小於 5 毫秒」或「小於 1 毫秒」寫成承諾</mark><a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>。</p>
 <p>講清楚一點：這不代表實測跑不出那種數字。Google 在選區域指南裡給了一條估算法則——「每 100 公里約 1 毫秒來回延遲」，而且同一段還提醒：網路不會走理想路徑，實際距離通常是地圖直線距離的 1.5 到 2 倍，估的時候要把這個倍數算進去<a class="fixsrc" href="https://docs.cloud.google.com/solutions/best-practices-compute-engine-region-selection" target="_blank" rel="noopener">出處</a>。同一 Region 的 Zone 通常只隔幾公里到幾十公里，所以實際延遲很低是合理的。</p>
 <p>差別在於：那是估算，不是可以拿來當設計保證的規格。要規劃對延遲敏感的架構，就實測自己那組 Region 與 Zone——Google 的 Network Intelligence Center 也有區域配對的實測延遲可看——別把記憶中的數字當承諾。</p>
 <p>選位置時通常要一起考慮使用者延遲、資料落地、災難復原、那裡有沒有你要的服務或硬體，以及資料傳輸成本。把 VM 分散到不同 Zone 能降低單一 Zone 故障的影響，但要自動導流還是得搭配負載平衡、健康檢查或其他故障切換設計。</p>
@@ -69,7 +68,7 @@
 <h3 class="head">GCE 像向 Google 租一台可以遠端管理的虛擬電腦</h3>
 <p>Google Compute Engine（GCE）是基礎設施即服務（Infrastructure as a Service，IaaS）。Google 維護底層實體硬體，使用者選 VM 規格、作業系統、磁碟與網路，並負責作業系統更新、應用程式，以及多數 VM 內部的安全設定。</p>
 <p>GCE 適合需要控制作業系統、安裝特定軟體、跑傳統應用程式，或工作負載還不適合容器化的情況。它給你較高的控制度，也代表要承擔較多維運責任。</p>
-<p class="muted">原筆記把 GCE 的計費特色列為「Sub-hour billing（以秒計費）」與「Sustained-use discounts（持續使用折扣）」——查證後兩項都仍然存在，但要補兩個條件：官方說明是每分鐘起跳，滿一分鐘之後才以一秒為單位計費；而持續使用折扣只適用於部分機器系列（例如 N1、N2、N2D、C2、M1、M2），較新的機型不在其中<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/sustained-use-discounts" target="_blank" rel="noopener">出處</a>。實際計價一律以當下的官方定價與帳務文件為準。</p>
+<p class="muted">GCE 常被提到的兩個計費特色是「以秒計費」與「持續使用折扣」（sustained-use discount，同一個月裡跑得夠久就自動打折）。兩項都存在，但各有一個條件：以秒計費是每分鐘起跳，滿一分鐘之後才以一秒為單位計費；持續使用折扣只適用於部分機器系列（例如 N1、N2、N2D、C2、M1、M2），較新的機型不在其中<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/sustained-use-discounts" target="_blank" rel="noopener">出處</a>。實際計價一律以當下的官方定價與帳務文件為準。</p>
 </section>
 
 <section>
@@ -96,7 +95,7 @@
 <p>它有個一開始容易卡住的雙重身分。官方寫的是：「服務帳戶是主體（principal）。這表示你可以授予服務帳戶存取 Google Cloud 資源的權限……然而，服務帳戶同時也是資源。這表示你可以讓其他主體取得存取這個服務帳戶的權限。」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/service-account-overview" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">「這個服務帳戶能做什麼」和「誰可以使用這個服務帳戶」是兩件要分開設定的事。</p>
 <p class="muted">講到「程式怎麼拿到這個身分」時要補一個前提：用<b>服務帳戶金鑰</b>（service account key，一個下載下來的憑證檔）確實做得到，也還能用，但這是 Google 現在明講要盡量避開的做法——最佳做法文件寫的是「我們建議你盡可能避免使用服務帳戶金鑰」。理由有三個：金鑰是誰拿去用的查不出來（稽核紀錄只看得到服務帳戶動過資源，看不出是誰用了那把金鑰）、有建立金鑰權限的人可以藉此取得比自己更大的權限，以及「任何持有服務帳戶金鑰的人都能使用它」。建議的替代做法是把服務帳戶直接附加到資源上（VM、GKE 的 Pod）、用身分模擬，或對外部工作負載用 Workload Identity 聯合<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/best-practices-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">這裡要先把兩件事分開，不然容易誤會。<b>第一件：把 A 專案的服務帳戶授權去存取 B 專案的資源</b>（例如讓它讀 B 專案的 Cloud SQL），只要在 B 專案那邊把角色授予這個服務帳戶就成立，預設就能做——原筆記寫的「Service Account 可以跨專案被授權」講的正是這件事，查證後是對的。<b>第二件：把 A 專案的服務帳戶「附加」到 B 專案的一台 VM 上</b>，讓那台機器直接以這個身分執行，才是下面要過兩關的那件事。前者是給權限，後者是把身分綁到別的專案的機器上。</p>
+<p class="muted">這裡要先把兩件事分開，不然容易誤會。<b>第一件：把 A 專案的服務帳戶授權去存取 B 專案的資源</b>（例如讓它讀 B 專案的 Cloud SQL），只要在 B 專案那邊把角色授予這個服務帳戶就成立，預設就能做。<b>第二件：把 A 專案的服務帳戶「附加」到 B 專案的一台 VM 上</b>，讓那台機器直接以這個身分執行，才是下面要過兩關的那件事。前者是給權限，後者是把身分綁到別的專案的機器上。</p>
 <p>跨專案的第二件事就卡在後面那一半。把 A 專案建立的服務帳戶，掛到 B 專案的一台 VM 上，並不是預設就能做的事，要先過兩關。第一關是放行一條機構政策的限制條件（機構政策＝organization policy，一套可以套用在組織、資料夾或專案上的規則）：那條限制條件叫 <code>iam.disableCrossProjectServiceAccountUsage</code>，只有開和關兩種值，官方的說法是要確保它「<i>未被強制執行</i>」。這一條要注意設定的位置——官方寫「它預設就是強制執行的，而且只能設定在專案層級，不能設在資料夾或組織層級」，所以去組織那一層找會找不到。第二關是要讓目標服務的服務代理（service agent，Google 代表某個服務去做事的內建帳號），在那個服務帳戶上取得「服務帳戶權杖建立者」角色（<code>roles/iam.serviceAccountTokenCreator</code>）——權杖（token）就是那張有時效的臨時通行證，有了這個角色才能替那個服務帳戶簽發通行證<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">開通之後會多一個副作用值得先知道：IAM 會自動替放服務帳戶的那個專案加上一道「專案鎖」（project lien），用途是擋住誤刪整個專案。官方原文是「IAM 會新增一道專案鎖，防止該專案被刪除」，來源標記是 <code>iam.googleapis.com/cross-project-service-accounts</code>。所以那個專案之後想刪會刪不掉，要先處理這道鎖<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
 </section>

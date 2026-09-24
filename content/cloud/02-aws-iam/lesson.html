@@ -6,7 +6,7 @@
 <h3 class="head">Region 是地理區域，Availability Zone 是故障隔離位置</h3>
 <p>AWS Region 是 AWS 在某個地理範圍提供服務的區域。很多 AWS 資源會建立在你選的 Region 裡；切到另一個 Region 時，不要預期原本那個 Region 的區域性資源會自動跟著出現。</p>
 <p>一個 Region 裡面有多個可用區（Availability Zone，AZ）。AZ 之間用低延遲網路互連，同時保有故障隔離能力。把工作負載分散到多個 AZ，可以降低單一位置壞掉就整個服務中斷的風險。</p>
-<p class="muted">原筆記寫「要成為一個 Region，必須包含三個以上的 AZ」——查證後這個講法是對的，AWS 官方寫的是每個 Region 至少由三個彼此隔離、實體分開的 AZ 組成<a class="fixsrc" href="https://aws.amazon.com/about-aws/global-infrastructure/regions_az/" target="_blank" rel="noopener">出處</a>。AWS 的另一份白皮書補充了為什麼要這樣切：同一 Region 內的 AZ 最遠相距約 100 公里，遠到不會一起遭災，又近到延遲夠低、可以用同步複寫<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/availability-zones.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">一個 Region 不會只有一兩個 AZ：AWS 官方寫的是每個 Region 至少由三個彼此隔離、實體分開的 AZ 組成<a class="fixsrc" href="https://aws.amazon.com/about-aws/global-infrastructure/regions_az/" target="_blank" rel="noopener">出處</a>。為什麼要這樣切，AWS 的容錯邊界白皮書講得很清楚：同一 Region 內的 AZ 最遠相距約 100 公里，遠到不會一起遭災，又近到延遲夠低、可以用同步複寫<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/availability-zones.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>要注意的是：跨 AZ 擺放資源只是把隔離的地基打好；要讓流量自動轉向，還是得搭配健康檢查、負載平衡和資料備援設計。</p>
 </section>
 
@@ -29,7 +29,7 @@
 <p class="era">IAM 骨架</p>
 <h3 class="head">先回答三件事：誰、對哪個資源、做什麼</h3>
 <p>AWS Identity and Access Management（IAM）管兩件事：身分驗證（authentication）確認「你是誰」，授權（authorization）決定「你能做什麼」。</p>
-<p>IAM 是<b>全球服務</b>：你建立的 User、Group、Role 與 Policy 不隸屬於任何一個 Region，切到哪個 Region 看到的都是同一份。這跟這一課開頭講的「區域性資源不會自動跟著你換 Region」正好相反，所以值得單獨記一筆。（原筆記在 IAM 那一節的第一個項目就寫了 <code>Global</code>——查證後這點原筆記記對了。）AWS 的容錯邊界白皮書把這類服務的共同點寫成：「因為它們的資源不屬於特定 Region，通常被稱為全球（global）服務。」<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/global-services.html" target="_blank" rel="noopener">出處</a></p>
+<p>IAM 是<b>全球服務</b>：你建立的 User、Group、Role 與 Policy 不隸屬於任何一個 Region，切到哪個 Region 看到的都是同一份。這跟這一課開頭講的「區域性資源不會自動跟著你換 Region」正好相反，所以值得單獨記一筆。AWS 的容錯邊界白皮書把這類服務的共同點寫成：「因為它們的資源不屬於特定 Region，通常被稱為全球（global）服務。」<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/global-services.html" target="_blank" rel="noopener">出處</a></p>
 <p class="muted">「全球」講的是資源的適用範圍，不是說整個 IAM 跑在同一個地方。同一份白皮書把 IAM 拆成兩半來看：負責「改設定」的控制平面（control plane，建立與修改使用者、角色、政策那些操作）只設在一個 Region；負責「每次請求都判斷准不准」的資料平面（data plane）則在每個 Region 各有一套獨立的。原文是「在 aws 分區中，IAM 服務的控制平面位於 us-east-1 區域，並在該分區的每個區域中有各自隔離的資料平面」（分區＝partition，AWS 把全球切成幾塊彼此獨立的大區塊，一般商用 Region 都在名為 aws 的那一塊）。這個差別在災難演練時會咬人，白皮書因此直接建議：「不要在你的復原路徑中依賴分區型服務的控制平面」——也就是別等到故障切換的當下才去建角色、改政策<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/global-services.html" target="_blank" rel="noopener">出處</a>。</p>
 <div class="terms"><p><b>IAM User：</b>長期存在於 AWS 帳號中的身分，可以搭配主控台密碼或程式用的憑證。</p><p><b>User Group：</b>IAM User 的集合，方便把共同權限集中管理；群組本身不是一個可以登入的身分。</p><p><b>IAM Role：</b>可以被人員、應用程式或 AWS 服務「承接」的身分，通常搭配短期憑證。</p><p><b>Policy：</b>一份政策文件，寫清楚允許或拒絕哪些動作、作用在哪些資源、有什麼條件。</p></div>
 <p>Role 搭配的短期憑證由 AWS Security Token Service（STS）發出。<mark class="fixnote" tabindex="0" data-note="原筆記寫「STS (Security Token Service) 每 15 分鐘有效，配合 IAM role，分發給 IAM user、AWS service」，查證後更正：15 分鐘是可以要求的最短效期下限，不是固定效期。承接角色時可要求的範圍是 15 分鐘到該角色的「最長工作階段時間」設定（可設 1 到 12 小時），沒特別指定的預設是 1 小時；另外用一組角色憑證再去承接另一個角色（角色串接）時，上限固定為 1 小時">15 分鐘是可以要求的最短效期，不是「每 15 分鐘就失效」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_manage-assume.html" target="_blank" rel="noopener">出處</a>。承接角色時可以要求 15 分鐘到該角色「最長工作階段時間」之間的任一長度（這個設定可以調 1 到 12 小時），沒指定的話預設 1 小時。拿一組角色憑證再去承接另一個角色（角色串接）時，上限固定是 1 小時，而且不管個別角色設定多長都一樣<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html#id_roles_terms-and-concepts" target="_blank" rel="noopener">出處</a>。</p>
@@ -80,7 +80,6 @@ Lambda 的資源型政策
 <p class="era">先驗再上</p>
 <h3 class="head">兩個內建工具：上線前先模擬，上線後持續盤點</h3>
 <p>政策寫完最怕兩種失誤：以為擋住了其實沒擋住，以及給過頭了卻沒人發現。IAM 對這兩件事各給了一個工具，一個事前用、一個事後用。</p>
-<p class="muted">這一節不是從原筆記來的，是依 AWS 官方文件另外補寫的——原筆記的 IAM 那幾篇裡沒有提過這兩個工具。之所以補，是因為原筆記整章都在教怎麼寫政策，卻沒有講「寫完怎麼確認自己沒寫錯」。</p>
 <div class="terms">
 <p><b>IAM 政策模擬器（IAM policy simulator）</b>：事前用的。挑一個現有身分，或貼一份還沒套上去的政策，再指定要測的動作與資源，它會回答這個請求會被允許還是拒絕，並指出是哪一條政策造成這個結果。官方說明是「你模擬 AWS 會如何根據那些政策評估一個請求，而不會真的向任何 AWS 服務送出請求」<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html" target="_blank" rel="noopener">出處</a>，所以拿刪除類的危險動作去試也不會真的動到東西。</p>
 <p><b>IAM Access Analyzer（存取分析器）</b>：事後用的。它持續掃你的資源與身分，把問題寫成一則則「發現項目」（finding）。官方列出的能力包括：找出組織與帳號裡分享給外部對象的資源、找出沒在用的權限、依政策語法與 AWS 最佳做法檢查政策，以及依 CloudTrail（AWS 記錄誰在什麼時候呼叫了哪個 API 的稽核服務）的實際使用紀錄反推出一份剛好夠用的政策<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" target="_blank" rel="noopener">出處</a>。</p>

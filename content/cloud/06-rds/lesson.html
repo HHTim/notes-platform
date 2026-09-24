@@ -35,7 +35,7 @@
 <p class="era">資料庫通常躲在內網</p>
 <h3 class="head">Subnet Group 與 Security Group</h3>
 <p>資料庫通常部署在私有子網路，避免直接暴露在網際網路上。DB Subnet Group 告訴 RDS 可以在哪些 Subnet 裡配置資料庫資源。</p>
-<p class="muted">原筆記寫「每一個 RDS 的創建，都會去分配到兩個（含）以上的 Subnet，以達到 RDS 的 High Availability」——查證後這個方向是對的，AWS 官方的要求寫得更精確：每個 DB Subnet Group 必須在同一 Region 的至少兩個可用區各有一個 Subnet，而且建議每個可用區都放一個<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html" target="_blank" rel="noopener">出處</a>。重點不是「兩個 Subnet」這個數字，而是這些 Subnet 要分布在兩個以上的可用區，RDS 才有地方建新的備援端。</p>
+<p class="muted">AWS 對 DB Subnet Group 的要求是：必須在同一 Region 的至少兩個可用區各有一個 Subnet，而且建議每個可用區都放一個<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html" target="_blank" rel="noopener">出處</a>。重點不是「兩個 Subnet」這個數字，而是這些 Subnet 要分布在兩個以上的可用區，RDS 才有地方建新的備援端。</p>
 <p>Security Group 只該放行真的需要連線的來源。例如讓應用程式 EC2 所屬的 Security Group 連到資料庫連接埠，就比開放給所有 IPv4 位址安全得多。</p>
 <blockquote>不要因為「先測通再說」就把資料庫連接埠開給 0.0.0.0/0；那等於把門對整個網際網路打開。</blockquote>
 <pre><code>管理者
@@ -52,7 +52,7 @@
 <p>RDS 的自動備份會搭配儲存磁碟快照與資料庫交易日誌（Transaction Log），支援在保留期間內做時間點復原（Point-in-Time Recovery）。復原時通常不是把原資料庫直接倒轉，而是建立一個新的資料庫執行個體。</p>
 <p>手動 DB Snapshot 是由使用者主動建立的復原點。從 Snapshot 復原時，同樣會產生新的資料庫執行個體，再由你去檢查資料、網路與參數設定。</p>
 <div class="tablewrap"><table><thead><tr><th>方式</th><th>適用需求</th><th>復原結果</th></tr></thead><tbody><tr><td>時間點復原</td><td>回到保留期間內比較精確的某個時間</td><td>建立新的資料庫執行個體</td></tr><tr><td>手動 Snapshot</td><td>保留明確的里程碑或長期復原點</td><td>由 Snapshot 建立新的資料庫執行個體</td></tr><tr><td>Multi-AZ Standby</td><td>主要端故障時快速接手</td><td>執行容錯移轉，救不回誤刪的資料</td></tr></tbody></table></div>
-<p class="muted">原筆記寫「RDS 會定期去備份 Standby Instance，這個備份以天為單位」「Transaction Log 的自動備份是以分鐘為單位」——查證後方向沒錯：AWS 官方說自動備份是在你指定的備份時段建立儲存磁碟快照，另外持續備份交易日誌以支援時間點復原<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html" target="_blank" rel="noopener">出處</a>。但官方文件並沒有把頻率固定寫成「天」和「分鐘」，實際的備份時段、保留期間與可復原的時間範圍會因資料庫引擎與設定而不同，要以主控台顯示的為準。</p>
+<p class="muted">備份頻率不要背成固定數字。AWS 官方說自動備份是在你指定的備份時段建立儲存磁碟快照，另外持續備份交易日誌以支援時間點復原<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html" target="_blank" rel="noopener">出處</a>，但並沒有把頻率寫死成「一天一次」「一分鐘一次」。實際的備份時段、保留期間與可復原的時間範圍會因資料庫引擎與設定而不同，要以主控台顯示的為準。</p>
 </section>
 
 <section>
