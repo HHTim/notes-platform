@@ -7,14 +7,19 @@ permissions:
   contents: read
   pages: write
   id-token: write
+# 同一時間只跑一個部署；排隊中的舊 run 會被略過，但正在跑的不取消，讓已開始的發佈完整跑完
+# （照 GitHub 官方 Pages 範本 actions/starter-workflows 的 pages/static.yml）
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'   # 跟本機一致（python3 --version → 3.14.x），避免 CI 與本機建置結果不同
       - name: 測試
         run: python3 -m unittest discover -s builder/tests -v
       - name: 建置
