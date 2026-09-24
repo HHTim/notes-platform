@@ -32,7 +32,7 @@
 </tbody></table></div>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示模板列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示）</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>；要控管哪些模型開放給伺服器取樣，用的是 <code>chat.mcp.serverSampling</code> 這個設定。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a></p>
 <p class="muted">取樣則要再多看一步。它跟 Roots 已經準備退場：MCP 規格在 2026-07-28 版把這兩項標為淘汰，最快會在 2027-07-28 之後的版本被移除，並給了替代做法——取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>所以取樣現在的狀態是「編輯器支援得到，規格卻已經不建議」：舊的實作還會動，但新的流程不要再建立在它上面。</p>
-<p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。要注意的是「協定有這項能力」推論不出「我手上這套產品一定支援」，兩者是不同層次。</p>
+<p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。VS Code 也支援這項，擴充功能開發指南把它跟工具、資源、提示模板列在一起：「Elicitation: request input from the user」。<a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>不過通則要記得：「協定有這項能力」推論不出「手上這套產品一定支援」，兩者是不同層次，實際還是看該產品自己的文件。</p>
 </section>
 
 <section>
@@ -118,7 +118,7 @@
 <section>
 <p class="era">提示檔</p>
 <h3 class="head">把成功的對話變成可以維護的資產</h3>
-<p>提示檔適合那種會重複出現、輸入可以替換、輸出可以驗收的任務。放在專案的 <code>.github/prompts/</code> 就能跟同事共用、進版本控制，在對話裡打 <code>/</code> 加名稱就叫得出來；放在個人設定裡則是自己跨專案用。內容支援 <code>${selection}</code>（目前選取內容）、<code>${input:變數名}</code>（執行時問你要填什麼）這類變數，也可以用 Markdown 連結去引用另一份提示檔或指示檔，把流程拆成好幾份小的。</p>
+<p>提示檔適合那種會重複出現、輸入可以替換、輸出可以驗收的任務。放在專案的 <code>.github/prompts/</code> 就能跟同事共用、進版本控制，在對話裡打 <code>/</code> 加名稱就叫得出來；放在個人設定裡則是自己跨專案用。內容支援 <code>${selection}</code>（目前選取內容）、<code>${input:變數名}</code>（執行時問你要填什麼）這類變數。要指某個檔案給它看，官方寫的是兩種寫法——Markdown 連結或 <code>#file:</code>（「You can reference files in the prompt body by using Markdown links or the <code>#file:</code> syntax.」），工作區裡的檔案用相對於這份提示檔的路徑；把流程拆成好幾份小的、彼此用連結串起來也是同一招。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a></p>
 <pre><code>---
 description: 審查指定介面的授權風險
 ---
@@ -127,8 +127,8 @@ description: 審查指定介面的授權風險
 檢查 ${input:routeName} 的身分驗證與授權流程。
 
 參考：
-- ${file}
-- 專案安全規範
+- #file:../../src/middleware/auth.ts
+- [專案安全規範](../instructions/security.instructions.md)
 
 限制：
 - 只分析，不改檔案、不執行外部指令。
@@ -139,7 +139,7 @@ description: 審查指定介面的授權風險
 2. 每項發現對應的程式碼依據
 3. 建議修正與待確認的假設</code></pre>
 <p>不要把整段聊天原封不動存起來；刪掉當時才有的偶然資訊，留下用途、必要輸入、允許範圍、禁止事項、輸出格式與完成條件。流程長的話拆成幾份小提示、明確傳遞中間產物，比做一份越長越大的提示好維護。</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">現行官方頁面已經沒有 <code>chat.promptFiles</code> 這個設定，不必再手動開啟；同一頁還標示提示檔在 Agent Host 工作階段已淘汰、不會被載入，只有本機代理還讀得到，而本機代理未來也會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a>——所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。另外，把對話存成提示檔、或匯出成一份檔案給別人匯入這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">提示檔沒有 <code>chat.promptFiles</code> 這個開關要打開。管提示檔的設定名稱是 <code>chat.promptFilesLocations</code>：2025 年 4 月的 VS Code 更新說明寫「The <code>chat.promptFilesLocations</code> setting lists the folder where prompt files are looked for.」（這個設定列出去哪些資料夾找提示檔），現行的設定總表又把它標成 (Deprecated)，也就是已淘汰，說明寫著這個設定與本機代理未來都會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/updates/v1_100" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a>。提示檔在 Agent Host 工作階段也已淘汰、不會被載入，只有本機代理還讀得到；官方給的下一步是「Use prompt file migration to convert existing prompts to agent skills.」——把既有的提示檔轉成 agent skills（技能檔，一份 <code>SKILL.md</code>，檔頭寫名稱與用途、內文寫指示）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/agent-skills" target="_blank" rel="noopener">出處</a>所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。另外，把對話存成提示檔、或匯出成一份檔案給別人匯入這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
 </section>
 
 <section>
@@ -152,7 +152,7 @@ description: 審查指定介面的授權風險
 <tr><td>把這次的做法變成下次可以重跑的檔案</td><td><code>/create-prompt</code>：總表把它跟 <code>/create-agent</code>、<code>/create-instructions</code>、<code>/create-skill</code>、<code>/create-hook</code> 併成一列——「Generate a customization in a local agent session.」——在本機代理的工作階段裡產生一份自訂設定</td></tr>
 <tr><td>整串留底或給別人</td><td>命令面板的 <code>Chat: Export Chat...</code>，存成一個 JSON 檔</td></tr>
 </tbody></table></div>
-<p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/sessions/chat-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
+<p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/sessions/manage-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
 <p class="muted">要把對話變成可重複執行的檔案，官方現行的斜線指令總表列出來的是 <code>/create-prompt</code>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過總表自己註明「Type <code>/</code> to see commands available in the current session. Availability depends on the chat surface, harness, role, and enabled features.」，所以「總表沒有列」不等於「官方說這個指令不存在」，實際還是以你手上那個版本打 <code>/</code> 跳出來的清單為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為淘汰，所以別把長期流程全押在它身上。</p>
 </section>
 
@@ -165,7 +165,7 @@ description: 審查指定介面的授權風險
 <tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>「Search a GitHub repository or organization for text or code patterns.」</td></tr>
 <tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>「Fetch a web page.」</td></tr>
 </tbody></table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫抓外部網頁的引用方式是「#fetch」，查證後更正：這屬於名稱改過的舊寫法。現行官方的內建工具總表把抓網頁的工具列為 #web/fetch（歸在 #web 這組底下），整張表裡沒有 #fetch 這個名字">抓網頁那個現在要打 <code>#web/fetch</code>——官方的內建工具總表把它歸在 <code>#web</code> 這組底下，跟第 3 課提過的 <code>#codebase</code> 改成 <code>#search/codebase</code> 是同一波改名</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">現行工具總表把抓網頁的工具寫成 <code>#web/fetch</code>，歸在 <code>#web</code> 這組底下，跟第 3 課的 <code>#search/codebase</code> 是同一種「工具組／工具」的寫法；表上沒有列 <code>#fetch</code> 這個不帶前綴的舊短名，也看不出它還能不能打。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a></p>
 <p class="muted">早期用 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構）做這件事，現行官方的內建工具總表與瀏覽器工具那一頁都沒有列這個名字。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做：官方說「Browser tools give agents a visual and interactive feedback loop for web development.」，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
 <p>這三種材料都來自你的工作區以外，所以下一段那條規矩對它們特別重要。</p>
 </section>

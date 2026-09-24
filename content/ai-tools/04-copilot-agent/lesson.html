@@ -40,7 +40,7 @@
 <p class="era">上下文與索引</p>
 <h3 class="head">地圖幫你找路，但不等於它看懂了整片土地</h3>
 <p>工作區索引（workspace index，替專案先建好的搜尋地圖）幫系統從一堆檔案裡找出可能相關的片段。它改善跨檔搜尋，但不代表模型已經理解整個系統。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫索引分三級：遠端索引、本地／進階索引（適用少於 2500 個檔案，用 Copilot: Build Local Workspace Index 建立）、基本索引（超過 2500 個檔案時的備案），查證後更正">現行文件改用三種索引來源來描述——GitHub 儲存庫、Azure DevOps 儲存庫，以及其他本機資料夾——沒有再列 2,500 個檔案的門檻或「基本索引」這一級，手動重建的指令也改成「Build Codebase semantic index」</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/workspace-context" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫索引分三級：遠端索引、本地／進階索引（適用少於 2500 個檔案，用 Copilot: Build Local Workspace Index 建立）、基本索引（超過 2500 個檔案時的備案），查證後更正">現行文件改用三種索引來源來描述——GitHub 儲存庫、Azure DevOps 儲存庫，以及其他本機資料夾——沒有再列 2,500 個檔案的門檻或「基本索引」這一級，手動重建的指令也改成「Build Codebase semantic index」</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/workspace-context" target="_blank" rel="noopener">出處</a>。VS Code 1.114 的更新說明把這次簡化寫得很直白：「Previously, we had the concept of both a "local index" and a "remote index". The local indexes were limited to a few thousand files and weren't always semantic. … Now there's just a single state: is your codebase semantically indexed or not? No more local vs remote.」——以前分本機索引與遠端索引兩種，本機索引限制在幾千個檔案、也不一定做得到語意搜尋；現在只剩「這個專案有沒有建語意索引」一種狀態。<a class="fixsrc" href="https://code.visualstudio.com/updates/v1_114" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li>先給需求文件、入口檔、關鍵介面與相關測試。</li>
 <li>要它列出實際參考了哪些檔案、做了哪些假設。</li>
@@ -55,7 +55,7 @@
 <h3 class="head">把常設規章寫進指示檔</h3>
 <p>指示檔（instructions，放團隊長期規範的檔案）適合放架構邊界、命名方式、測試政策、不准用的套件這類長期有效的規則，像辦公室的常設規章，不必每次委託都重講一次。</p>
 <p>現行支援的位置有幾種。<code>.github/copilot-instructions.md</code> 放在儲存庫根目錄的 <code>.github</code> 資料夾裡，官方說它是給 Copilot 工作階段用的「project-wide guidance」，也就是整個專案通用的指引；<code>.github/instructions/</code> 底下的 <code>*.instructions.md</code> 則用 <code>applyTo</code> 這個檔案路徑比對規則（glob，用萬用字元描述一批檔案路徑的寫法，例如 <code>'**/*.py'</code>）指定範圍，官方的說法是「VS Code automatically attaches files with an <code>applyTo</code> pattern that matches the files being changed.」——改到的檔案符合樣式時才自動附上。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-instructions" target="_blank" rel="noopener">出處</a></p>
-<p>另外兩種不是 Copilot 自己的格式。<code>AGENTS.md</code> 放在儲存庫根目錄，官方說它是「a cross-agent format for project guidance」——跨工具通用的專案指引格式，Copilot 與 OpenAI Codex 等多套工具都支援。<code>CLAUDE.md</code> 則是 Claude 的工作階段在用的格式，一樣放在儲存庫根目錄；VS Code 內建的代理要跟著讀它，得先開 <code>chat.useClaudeMdFile</code> 這個設定。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-instructions" target="_blank" rel="noopener">出處</a></p>
+<p>另外兩種不是 Copilot 自己的格式。<code>AGENTS.md</code> 放在儲存庫根目錄，官方說它是「a cross-agent format for project guidance」——跨工具通用的專案指引格式，Copilot 與 OpenAI Codex 等多套工具都支援。<code>CLAUDE.md</code> 則是 Claude 的工作階段在用的格式，一樣放在儲存庫根目錄；VS Code 內建的代理要不要跟著讀它，由 <code>chat.useClaudeMdFile</code> 這個設定控制，官方設定總表寫的說明是「Enable or disable using CLAUDE.md files as always-on custom instructions.」、預設值 <code>true</code>——預設就是開著的，要它別讀才需要動這個設定。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-instructions" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a></p>
 <pre><code>---
 applyTo: "**/*.test.ts"
 ---
@@ -71,7 +71,7 @@ applyTo: "**/*.test.ts"
 <p class="era">模型與額度</p>
 <h3 class="head">依風險跟任務挑，不要追名稱</h3>
 <p>可用的模型、預設模型、倍率與支援的模式都會變動。選的時候比較任務表現、延遲、成本、資料政策與用工具的能力，不要把某個模型永久貼上「最強」的標籤。</p>
-<p>計費方式也改過。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Free：每月 2,000 次程式碼完成，50 次進階請求；Pro：無限制；超過配額後每個進階請求約 0.04 美元；2025/5/5 前 Pro/Pro+ 享有無限次進階請求」，查證後更正；那段紅利期規則也早已過期">現行方案改用額度（AI credits）計算：Pro 每月 1,000 點基本額度加 500 點彈性額度、Pro+ 每月 3,900 點加 3,100 點；每次 0.04 美元的加購價，只適用於還在舊制的年約用戶（舊制是 Pro 每月 300 次、Pro+ 每月 1,500 次進階請求）</mark><a class="fixsrc" href="https://docs.github.com/en/copilot/get-started/plans" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.github.com/en/copilot/concepts/billing/copilot-requests" target="_blank" rel="noopener">出處</a>。</p>
+<p>計費方式也改過。<mark class="fixnote" tabindex="0" data-note="原筆記寫「Free：每月 2,000 次程式碼完成，50 次進階請求；Pro：無限制；超過配額後每個進階請求約 0.04 美元；2025/5/5 前 Pro/Pro+ 享有無限次進階請求」，查證後更正；那段紅利期規則也早已過期">現行方案改用額度（AI credits）計算：Pro 每月 1,000 點基本額度加 500 點彈性額度、Pro+ 每月 3,900 點加 3,100 點；每次 0.04 美元的加購價，只適用於 2026 年 6 月 1 日之後仍留在舊制的年約用戶（舊制是 Pro 每月 300 次、Pro+ 每月 1,500 次進階請求）</mark><a class="fixsrc" href="https://docs.github.com/en/copilot/get-started/plans" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.github.com/en/copilot/reference/copilot-billing/request-based-billing-legacy/copilot-requests" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">額度不夠用時，坊間會出現自帶金鑰、拿其他平台的免費額度來「繞過速率限制」的做法。官方方案頁面沒有這種用法，而且它牽涉費用、資料保留、訓練政策、地區與公司合規；拿私人金鑰規避組織的治理規則，不該這樣做。</p>
 </section>
 
