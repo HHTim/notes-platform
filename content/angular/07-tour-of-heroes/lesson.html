@@ -1,13 +1,14 @@
-<!-- 來源：HackMD「[英雄之旅](https://angular.tw/tutorial/tour-of-heroes)」（官方教學筆記，Angular 19） · 收錄日期：2026-09-21 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>照官方「英雄之旅」七步，用 standalone 寫法完成一個小型應用</li><li>把前六課的元件、綁定、服務、路由串在一起實際用一遍</li><li>用 RxJS 把搜尋輸入整理成防抖、去重、只留最新的資料流</li></ul></div>
+<!-- 來源：HackMD「英雄之旅」（Angular v17 時期官方教學〈Tour of Heroes〉的筆記；筆記原連結 https://angular.tw/tutorial/tour-of-heroes 已 404，教學正本現存於 https://v17.angular.io/tutorial/tour-of-heroes） · 收錄日期：2026-09-21 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>照 Angular v17 時期官方教學〈英雄之旅〉的七步，用 standalone 寫法完成一個小型應用程式</li><li>把前六課的元件、綁定、服務、路由串在一起實際用一遍</li><li>用 RxJS（處理非同步資料流的函式庫）把搜尋輸入整理成「等使用者停手才動作、略過重複字串、只留最新請求」的資料流</li></ul></div>
 
 <section>
 <p class="era">Step 1，建立專案</p>
-<h3 class="head">應用骨架</h3>
+<h3 class="head">應用程式骨架</h3>
+<p>這一課照 Angular v17 時期的官方教學〈英雄之旅〉（Tour of Heroes）走：現行 angular.dev 已改用別的入門教學，這一份仍留在 v17 的存檔文件裡可以對照<a class="fixsrc" href="https://v17.angular.io/tutorial/tour-of-heroes" target="_blank" rel="noopener">出處</a>。教學原文以 NgModule 寫，本課全部改成 standalone 寫法。</p>
 <pre><code>npx @angular/cli new tour-of-heroes
 cd tour-of-heroes
 npm start</code></pre>
-<p>確認根元件能顯示標題，再清掉產生器附帶的示範內容。舊版教材以 <code>AppModule</code> 啟動；新版對應到 <code>bootstrapApplication</code> 與 <code>app.config.ts</code>。</p>
+<p>確認根元件能顯示標題，再清掉產生器附帶的示範內容。教學原文以 <code>AppModule</code> 啟動；standalone 寫法對應到 <code>bootstrapApplication</code> 與 <code>app.config.ts</code>。</p>
 </section>
 
 <section>
@@ -24,7 +25,7 @@ hero: Hero = { id: 1, name: '疾風俠' };</code></pre>
   名稱：
   &lt;input [(ngModel)]="hero.name" placeholder="英雄名稱"&gt;
 &lt;/label&gt;</code></pre>
-<p>元件的 <code>imports</code> 要加 <code>FormsModule</code> 才能用 <code>ngModel</code>。<span class="muted">至於內建管道（pipe），常見說法是「必須匯入 <code>CommonModule</code>」——匯入 <code>CommonModule</code> 可行，但 standalone 元件也可以只匯入用到的那個管道（如 <code>UpperCasePipe</code>），打包更精準。</span></p>
+<p>元件的 <code>imports</code> 要加 <code>FormsModule</code> 才能用 <code>ngModel</code>。<span class="muted">內建管道（pipe）整包匯入 <code>CommonModule</code> 可行，但 standalone 元件也可以只匯入用到的那個管道（如 <code>UpperCasePipe</code>），打包更精準<a class="fixsrc" href="https://angular.dev/guide/templates/pipes" target="_blank" rel="noopener">出處</a>。</span></p>
 </section>
 
 <section>
@@ -92,7 +93,7 @@ ngOnInit(): void {
   &lt;a routerLink="/heroes"&gt;英雄清單&lt;/a&gt;
 &lt;/nav&gt;
 &lt;router-outlet /&gt;</code></pre>
-<p>詳細頁從 <code>ActivatedRoute</code> 讀 <code>id</code>，再請服務拿英雄。舊教材把 <code>RouterModule.forRoot(routes)</code> 放進 NgModule；standalone 寫法改由 <code>provideRouter(routes)</code> 提供。<code>pathMatch: 'full'</code> 表示整段路徑完全相符才轉址，空路徑的轉址一定要配它。</p>
+<p>詳細頁從 <code>ActivatedRoute</code> 讀 <code>id</code>，再請服務拿英雄。教學原文把 <code>RouterModule.forRoot(routes)</code> 放進 NgModule；standalone 寫法改由 <code>provideRouter(routes)</code> 提供。<code>pathMatch: 'full'</code> 表示整段路徑完全相符才轉址，空路徑的轉址一定要配它。</p>
 </section>
 
 <section>
@@ -122,7 +123,7 @@ searchHeroes(term: string): Observable&lt;Hero[]&gt; {
     : of([]);
 }</code></pre>
 <p>教學用 <code>angular-in-memory-web-api</code> 模擬伺服器：安裝後在 <code>app.config.ts</code> 設定，它會在瀏覽器端攔截 HTTP 請求、回傳假資料，讓你沒有後端也能練完整的增刪改查；正式產品改接真正的 API。<span class="muted">這個套件與各 Angular 版本的相容性、standalone 的設定細節，動手前照套件目前的文件確認。</span></p>
-<p>搜尋輸入交給 RxJS 的 <code>Subject&lt;string&gt;</code>（可以手動塞值進去的 Observable），再串三個運算子：<code>debounceTime(300)</code> 等使用者停頓 300 毫秒才動作、<code>distinctUntilChanged()</code> 忽略跟上次相同的字串、<code>switchMap</code> 一有新搜尋就改訂最新的請求，舊請求的結果不會蓋掉新的。</p>
+<p>搜尋輸入交給 RxJS 的 <code>Subject&lt;string&gt;</code>（一種可以手動塞值進去的 Observable；Observable 是 RxJS 的資料流物件，值會陸續送來、要訂閱才拿得到），再串三個運算子：<code>debounceTime(300)</code> 等使用者停頓 300 毫秒才動作、<code>distinctUntilChanged()</code> 忽略跟上次相同的字串、<code>switchMap</code> 一有新搜尋就改訂最新的請求，舊請求的結果不會蓋掉新的。</p>
 <pre><code>private searchTerms = new Subject&lt;string&gt;();
 
 heroes$ = this.searchTerms.pipe(
@@ -144,7 +145,7 @@ search(term: string): void {
 <li>從儀表板能進到英雄詳細頁。</li>
 <li>英雄清單能選取、新增、修改與刪除。</li>
 <li>重新導覽後，路由參數仍載入正確的英雄。</li>
-<li>搜尋有防抖，且舊請求不會覆蓋較新的結果。</li>
+<li>搜尋會等使用者停手才送出，且舊請求不會覆蓋較新的結果。</li>
 <li>HTTP 錯誤有可理解的處理方式。</li>
 <li>正式建置與測試都通過。</li>
 </ul>
@@ -152,7 +153,7 @@ search(term: string): void {
 
 <div class="keys"><p class="lbl">重點整理</p><ul>
 <li>七步依序練：骨架、雙向編輯、清單、子元件、服務、路由、HTTP。</li>
-<li>standalone 把舊 NgModule 的設定拆到元件 <code>imports</code> 與應用層 providers。</li>
+<li>standalone 把舊 NgModule 的設定拆到元件 <code>imports</code> 與應用程式層 providers。</li>
 <li>資料取得放服務，元件不管來源是假資料還是真後端。</li>
-<li>搜尋資料流三件套：<code>debounceTime</code> 防抖、<code>distinctUntilChanged</code> 去重、<code>switchMap</code> 只留最新。</li>
+<li>搜尋資料流的三個運算子：<code>debounceTime</code> 等停手、<code>distinctUntilChanged</code> 略過重複、<code>switchMap</code> 只留最新。</li>
 </ul></div>

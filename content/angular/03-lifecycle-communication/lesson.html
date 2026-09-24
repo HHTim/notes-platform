@@ -14,7 +14,7 @@
 <tr><td><code>ngOnDestroy</code></td><td>元件退場前，取消訂閱、清計時器、釋放資源。</td></tr>
 </tbody>
 </table></div>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「就生命週期而言：constructor => ngOnchanges() => ngOninit() => ngOnDestroy()」，查證後更正：這份順序漏了中間一整段，且 ngOnChanges 只在元件有綁定輸入值時執行">完整的初始化順序是 constructor → <code>ngOnChanges</code> → <code>ngOnInit</code> → <code>ngDoCheck</code> → <code>ngAfterContentInit</code> → <code>ngAfterContentChecked</code> → <code>ngAfterViewInit</code> → <code>ngAfterViewChecked</code>，銷毀時才是 <code>ngOnDestroy</code>；而且 <code>ngOnChanges</code> 只有在元件有綁定的輸入值時才會執行</mark><a class="fixsrc" href="https://angular.dev/guide/components/lifecycle" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">完整的初始化順序是 constructor → <code>ngOnChanges</code> → <code>ngOnInit</code> → <code>ngDoCheck</code> → <code>ngAfterContentInit</code> → <code>ngAfterContentChecked</code> → <code>ngAfterViewInit</code> → <code>ngAfterViewChecked</code>，銷毀時才是 <code>ngOnDestroy</code><a class="fixsrc" href="https://angular.dev/guide/components/lifecycle" target="_blank" rel="noopener">出處</a>；而且 <code>ngOnChanges</code> 只有在元件有綁定的輸入值、且至少一個值變了才會執行<a class="fixsrc" href="https://angular.dev/api/core/OnChanges" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted"><code>constructor</code> 是 TypeScript 類別本身的建構函式，不算 Angular 的生命週期 hook；依賴注入在這裡發生，但初始化邏輯建議放 <code>ngOnInit</code>。</p>
 </section>
 
@@ -58,7 +58,8 @@ counter?: CounterComponent;
 ngAfterViewInit(): void {
   this.counter?.increment();
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「如果要使用 @ViewChild，必須要在父元件的整個視圖渲染完後，才有辦法取得子元件的方法，所以必須寫在 ngAfterViewInit()，否則在 constructor、ngOnInit() 去調用子組件方法時，會是 undefined」，查證後更正：那是預設（static: false）的行為，static: true 時 ngOnInit 前就可取得">查詢結果何時可用取決於 <code>static</code> 設定：預設（<code>static: false</code>）在 <code>ngAfterViewInit</code> 之前解析，所以 <code>ngOnInit</code> 拿到的是 undefined；設 <code>static: true</code> 則在 <code>ngOnInit</code> 之前就解析好，但結果不會隨檢視變動更新</mark><a class="fixsrc" href="https://angular.dev/api/core/ViewChild" target="_blank" rel="noopener">出處</a>。能用 Input／Output 描述父子關係時，通常比直接呼叫子元件方法更鬆耦合。</p>
+<p class="muted">查詢結果何時可用取決於 <code>static</code> 設定：預設（<code>static: false</code>）在 <code>ngAfterViewInit</code> 之前解析，所以 <code>ngOnInit</code> 拿到的是 undefined；設 <code>static: true</code> 則在 <code>ngOnInit</code> 之前就解析好，但結果不會隨檢視變動更新<a class="fixsrc" href="https://angular.dev/api/core/ViewChild" target="_blank" rel="noopener">出處</a>。</p>
+<p>能用 Input／Output 描述父子關係時，通常比直接呼叫子元件方法更鬆耦合。</p>
 </section>
 
 <section>
@@ -85,12 +86,25 @@ export class CourseService {
     return [];
   }
 }</code></pre>
+<p>元件要拿到服務，用 <code>inject()</code> 函式在類別欄位宣告時直接取：寫 <code>inject(CourseService)</code>，Angular 就把對應的實例送進來，之後用 <code>this.courseService</code> 呼叫它的方法即可。後面幾課出現的 <code>this.router</code>、<code>this.heroService</code>、<code>this.http</code> 都是這樣拿到的<a class="fixsrc" href="https://angular.dev/guide/di" target="_blank" rel="noopener">出處</a>。</p>
+<pre><code>import { Component, inject } from '@angular/core';
+
+@Component({ selector: 'app-course-list', /* ... */ })
+export class CourseListComponent {
+  private courseService = inject(CourseService);
+  courses: Course[] = [];
+
+  ngOnInit(): void {
+    this.courses = this.courseService.getCourses();
+  }
+}</code></pre>
+<p class="muted"><code>inject()</code> 要在元件、指令或服務「建構期間」呼叫——寫在欄位初始值或建構函式本體裡都可以，官方把這種可以呼叫的地方稱為注入情境（injection context）；在其他時機（例如按鈕事件的處理函式裡）呼叫會報錯。</p>
 </section>
 
 <section>
 <p class="era">新寫法概覽</p>
-<h3 class="head">訊號（signals）：這幾年 Angular 最大的寫法轉向</h3>
-<p>上面講的 <code>@Input</code>／<code>@Output</code>／<code>EventEmitter</code> 是裝飾器寫法，既有專案裡大多長這樣。官方文件現在已經改用<strong>訊號（signal，一個「會通知誰在用我」的值）</strong>當主要寫法——元件輸入的官方指南通篇示範的是 <code>input()</code> 而不是 <code>@Input</code>。維護新專案時會直接遇到訊號，所以這裡給一張對照表當地圖。</p>
+<h3 class="head">訊號（signals）：官方現行主推的寫法</h3>
+<p>上面講的 <code>@Input</code>／<code>@Output</code>／<code>EventEmitter</code> 是裝飾器寫法，既有專案裡大多長這樣。官方文件已改用<strong>訊號（signal，一個「會通知誰在用我」的值）</strong>當主要寫法：元件輸入的官方指南以 <code>input()</code> 為主，<code>@Input</code> 裝飾器另立一節，並註明「remains fully supported」（仍完整支援）<a class="fixsrc" href="https://angular.dev/guide/components/inputs" target="_blank" rel="noopener">出處</a>。維護新專案時會直接遇到訊號，所以這裡給一張對照表當地圖。</p>
 <div class="tablewrap"><table>
   <thead><tr><th>要做的事</th><th>裝飾器寫法</th><th>訊號寫法（官方現行）</th></tr></thead>
   <tbody>
@@ -105,7 +119,8 @@ export class CourseService {
 <p class="formula">舊專案看得懂裝飾器，新專案直接寫訊號</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>官方現行寫法已轉向訊號：<code>input()</code>／<code>output()</code>／<code>signal()</code>／<code>computed()</code>，本課的裝飾器寫法用於維護既有專案。</li>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>官方建議新專案用訊號寫法：<code>input()</code>／<code>output()</code>／<code>signal()</code>／<code>computed()</code>；<code>@Input</code> 等裝飾器仍完整支援，用於維護既有專案。</li>
+<li>元件拿服務用 <code>inject(XxxService)</code> 寫在欄位初始值；<code>inject()</code> 只能在建構期間呼叫。</li>
 <li>初始化寫在 <code>ngOnInit</code>、清理寫在 <code>ngOnDestroy</code>；<code>ngOnChanges</code> 只在有綁定輸入值時執行。</li>
 <li>父傳子用 Input（<code>[子元件變數]="父元件變數"</code>），子傳父用 Output＋<code>$event</code>。</li>
 <li><code>@ViewChild</code> 預設在 <code>ngAfterViewInit</code> 前解析；<code>static: true</code> 才能在 <code>ngOnInit</code> 前拿到。</li>

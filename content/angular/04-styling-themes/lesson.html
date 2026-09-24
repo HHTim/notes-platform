@@ -1,10 +1,10 @@
 <!-- 來源：HackMD「Angular - 零基礎入門教程 - 2024 最新版(BiliBili) Chapter 20 ~ 28」，樣式穿透與公共樣式取自「Chapter 37 ~ 42」「Chapter 43 ~ End」 · 收錄日期：2026-09-21 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>知道靜態資產與圖示怎麼放、全域樣式與元件樣式怎麼分工</li><li>理解樣式封裝，客製第三方元件時知道為什麼不該把 <code>::ng-deep</code> 當預設解法</li><li>用 localStorage 保存主題偏好，並在應用啟動時套回來</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>知道靜態資產與圖示怎麼放、全域樣式與元件樣式怎麼分工</li><li>理解樣式封裝，客製第三方元件時知道為什麼不該把 <code>::ng-deep</code> 當預設解法</li><li>用 localStorage 保存主題偏好，並在應用程式啟動時套回來</li></ul></div>
 
 <section>
 <p class="era">資產與圖示</p>
 <h3 class="head">靜態資產放哪裡</h3>
-<p>圖片、字型等靜態資產放在專案設定指定的資產目錄。<mark class="fixnote" tabindex="0" data-note="原筆記寫「我們經常需要添加靜態資源到專案內，通常會將其存放在 ./src/assets 中」，查證後更正：Angular 18 起新專案預設改用 public/ 目錄">Angular 18 起，新專案的預設資產目錄是與 <code>src/</code> 同層的 <code>public/</code>（<code>angular.json</code> 的 assets 設定指向它）；<code>src/assets</code> 是舊版預設，既有專案仍可沿用或在 <code>angular.json</code> 自行設定</mark><a class="fixsrc" href="https://angular.dev/reference/configs/file-structure" target="_blank" rel="noopener">出處</a>。改了 <code>angular.json</code> 的建置設定後，記得重新啟動開發伺服器才會生效。</p>
+<p>圖片、字型等靜態資產放在專案設定指定的資產目錄。<mark class="fixnote" tabindex="0" data-note="原筆記寫「我們經常需要添加靜態資源到專案內，通常會將其存放在 ./src/assets 中」，查證後更正：Angular 18 起新專案預設改用 public/ 目錄">Angular 18 起，新專案的預設資產目錄是與 <code>src/</code> 同層的 <code>public/</code>（<code>angular.json</code> 的 assets 設定指向它）；<code>src/assets</code> 是舊版預設，既有專案仍可沿用或在 <code>angular.json</code> 自行設定</mark><a class="fixsrc" href="https://angular.dev/reference/configs/file-structure" target="_blank" rel="noopener">目錄說明</a><a class="fixsrc" href="https://github.com/angular/angular-cli/releases/tag/18.0.0" target="_blank" rel="noopener">v18 改版紀錄</a>。改了 <code>angular.json</code> 的建置設定後，記得重新啟動開發伺服器才會生效。</p>
 <p>圖示套件也一樣：只註冊真正用到的圖示，像出門只帶會用到的工具，避免把整套圖示全部打包進產出檔、讓專案越長越肥。</p>
 </section>
 
@@ -41,13 +41,14 @@ body {
 :host .title {
   font-weight: 700;
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記以「:host 搭配 ::ng-deep 達到樣式穿透」作為客製第三方元件的解法，查證後補充：官方明言強烈不建議新程式使用 ::ng-deep，它只為回溯相容而保留"><code>::ng-deep</code> 會拆掉封裝、讓選擇器穿透到子元件，Angular 官方強烈不建議新程式使用，保留它只是為了回溯相容</mark><a class="fixsrc" href="https://angular.dev/guide/components/styling" target="_blank" rel="noopener">出處</a>。要客製第三方元件的外觀，優先順序是：套件提供的主題 API、CSS 變數、可設定的 class，再來才是範圍收窄的全域樣式。</p>
+<p class="muted"><code>::ng-deep</code> 會拆掉封裝、讓選擇器穿透到子元件，今天仍然能用，但 Angular 官方強烈不建議新程式使用，保留它只是為了回溯相容<a class="fixsrc" href="https://angular.dev/guide/components/styling" target="_blank" rel="noopener">出處</a>。</p>
+<p>要客製第三方元件的外觀，優先順序是：套件提供的主題 API、CSS 變數、可設定的 class，再來才是範圍收窄的全域樣式。</p>
 </section>
 
 <section>
 <p class="era">偏好保存</p>
 <h3 class="head">localStorage、sessionStorage、Cookie 與 Session</h3>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「HTTP 為無狀態協議，每次請求、獲取數據，前端頁面與服務端都需要重新連接」，查證後更正：無狀態指的是伺服器不保留前一個請求的狀態，與底層連線是否重用是兩回事——HTTP/1.1 起預設 keep-alive，同一條 TCP 連線可以連續送很多個請求">HTTP 本身無狀態，指的是伺服器不記得上一個請求是誰發的，而不是每次都要重新建立連線</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x" target="_blank" rel="noopener">出處</a>。要讓「使用者選的主題」或「登入狀態」留下來，得靠瀏覽器端或伺服器端的保存機制：</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「HTTP 為無狀態協議，每次請求、獲取數據，前端頁面與服務端都需要重新連接」，查證後更正：無狀態指的是伺服器不保留前一個請求的狀態，與底層連線是否重用是兩回事——HTTP/1.1 起預設 keep-alive，同一條 TCP 連線可以連續送很多個請求">HTTP 本身無狀態，指的是伺服器不記得上一個請求是誰發的，而不是每次都要重新建立連線</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview" target="_blank" rel="noopener">無狀態的定義</a><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x" target="_blank" rel="noopener">連線重用</a>。要讓「使用者選的主題」或「登入狀態」留下來，得靠瀏覽器端或伺服器端的保存機制：</p>
 <div class="tablewrap"><table>
 <thead><tr><th>機制</th><th>生命週期與範圍</th><th>適合用途</th></tr></thead>
 <tbody>
@@ -57,13 +58,13 @@ body {
 <tr><td>伺服器 Session</td><td>資料放伺服器，瀏覽器通常只拿一個識別碼</td><td>登入狀態與敏感的工作階段資料</td></tr>
 </tbody>
 </table></div>
-<p class="muted">Web Storage（localStorage 與 sessionStorage 的統稱）只能存字串，物件要先用 JSON 轉換。<mark class="fixnote" tabindex="0" data-note="原筆記把「用戶登入狀態（配合 JWT token）」列為 localStorage 的適用場景，查證後更正：localStorage 的內容任何同源的 JavaScript 都讀得到，跨站腳本攻擊（XSS）一旦得手就能整包帶走；OWASP 建議權杖不要放在 Web Storage">敏感憑證（例如登入用的 JWT）不要只因為方便就放 localStorage</mark><a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#local-storage" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">Web Storage（localStorage 與 sessionStorage 的統稱）只能存字串，物件要先用 JSON 轉換。<mark class="fixnote" tabindex="0" data-note="原筆記把「用戶登入狀態（配合 JWT token）」列為 localStorage 的適用場景，查證後更正：localStorage 的內容任何同源的 JavaScript 都讀得到，跨站腳本攻擊（XSS）一旦得手就能整包帶走；OWASP 建議權杖不要放在 Web Storage">敏感憑證（例如登入用的 JWT，JSON Web Token，一串夾帶登入身分、附簽章的權杖字串）不要只因為方便就放 localStorage</mark><a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#local-storage" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
 <p class="era">主題初始化</p>
 <h3 class="head">在第一個畫面出現前套回偏好</h3>
-<p>主題存進 localStorage 之後還差一步：重新整理頁面時，要在畫面出現前把它讀回來套用，不然會先閃一下預設主題。Angular 的應用初始化機制就是做這件事。要注意寫法換過一輪：<code>APP_INITIALIZER</code> 這個舊寫法自 Angular 19 起標記為棄用，官方建議改用 <code>provideAppInitializer</code>（<a class="fixsrc" href="https://angular.dev/api/core/APP_INITIALIZER" target="_blank" rel="noopener">出處</a>）：</p>
+<p>主題存進 localStorage 之後還差一步：重新整理頁面時，要在畫面出現前把它讀回來套用，不然會先閃一下預設主題。Angular 的應用程式初始化機制就是做這件事。要注意寫法換過一輪：<code>APP_INITIALIZER</code> 這個舊寫法自 Angular 19 起標記為棄用，官方建議改用 <code>provideAppInitializer</code>（<a class="fixsrc" href="https://angular.dev/api/core/APP_INITIALIZER" target="_blank" rel="noopener">出處</a>）：</p>
 <pre><code>import { provideAppInitializer, inject } from '@angular/core';
 
 export const appConfig = {
@@ -74,7 +75,7 @@ export const appConfig = {
     })
   ]
 };</code></pre>
-<p>啟動流程概念上是：執行進入點 <code>main.ts</code> → 讀取應用設定 <code>app.config.ts</code> → 執行所有初始化函式 → 建立根元件。初始化函式回傳 Promise 或 Observable 時，Angular 會等它完成才往下走。</p>
+<p>啟動流程概念上是：執行進入點 <code>main.ts</code> → 讀取應用程式設定 <code>app.config.ts</code> → 執行所有初始化函式 → 建立根元件。初始化函式回傳 Promise（代表一件還沒完成的非同步工作）或 Observable（RxJS 的資料流物件，值會陸續送來、要訂閱才拿得到）時，Angular 會等它完成才往下走。</p>
 </section>
 
 <section>

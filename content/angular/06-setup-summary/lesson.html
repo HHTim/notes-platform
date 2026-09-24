@@ -4,7 +4,7 @@
 <section>
 <p class="era">開始之前</p>
 <h3 class="head">準備工具與版本</h3>
-<p>需要 Node.js、隨附的套件管理工具 npm、Git，以及支援 TypeScript 的編輯器（VS Code 加 Angular Language Service 擴充是常見組合）。<mark class="fixnote" tabindex="0" data-note="原筆記寫「檢查 Node.js 版本（建議 16+ 版本）」，查證後更正：Angular 17 就要求 Node 18.13 以上，16 帶不動">Node.js 的版本要看目標 Angular 版本的相容性表：Angular 17 要求 <code>^18.13.0 || ^20.9.0</code>，Angular 20 要求 <code>^20.19.0 || ^22.12.0 || ^24.0.0</code>，「16+」已經不夠</mark><a class="fixsrc" href="https://angular.dev/reference/versions" target="_blank" rel="noopener">出處</a>。</p>
+<p>需要 Node.js、隨附的套件管理工具 npm、Git，以及支援 TypeScript 的編輯器（VS Code 加 Angular Language Service 擴充是常見組合）。<mark class="fixnote" tabindex="0" data-note="原筆記寫「檢查 Node.js 版本（建議 16+ 版本）」，查證後更正：Angular 17 就要求 Node 18.13 以上，16 帶不動">Node.js 的版本要看目標 Angular 版本的相容性表，每個大版本的門檻都不同：例如 Angular 17 要求 <code>^18.13.0 || ^20.9.0</code>，Angular 22 要求 <code>^22.22.3 || ^24.15.0 || ^26.0.0</code>，「16+」已經低於任何現行版本的門檻</mark><a class="fixsrc" href="https://angular.dev/reference/versions" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>node -v
 npm -v
 git --version</code></pre>
@@ -42,7 +42,7 @@ npm start</code></pre>
 <tbody>
 <tr><td>拆分畫面</td><td>standalone 元件、Input、Output</td></tr>
 <tr><td>切換頁面</td><td>Router、routerLink、router-outlet</td></tr>
-<tr><td>呼叫 API</td><td><code>provideHttpClient()</code>、HttpClient、Observable</td></tr>
+<tr><td>呼叫 API</td><td><code>provideHttpClient()</code>、HttpClient、Observable（RxJS 的資料流物件，值會陸續送來、要訂閱才拿得到）</td></tr>
 <tr><td>簡單表單</td><td>FormsModule、ngModel（樣板驅動表單）</td></tr>
 <tr><td>複雜表單</td><td>響應式表單（Reactive Forms）＋驗證器</td></tr>
 <tr><td>共用邏輯</td><td>Service、依賴注入</td></tr>
@@ -64,18 +64,18 @@ npm start</code></pre>
 <ul class="plainlist">
 <li>用 <code>ng build</code> 驗證正式建置能過。</li>
 <li>跑專案設定的測試指令（預設 <code>ng test</code>）。</li>
-<li>大型功能用路由層級的延遲載入（<code>loadComponent</code>），首包不揹全部程式。</li>
+<li>大型功能用路由層級的延遲載入（<code>loadComponent</code>），第一次載入的程式檔不必包含整個應用程式。</li>
 <li>清單用穩定的 <code>track</code> 值。</li>
 <li>驗證輸入並使用 HTTPS；前端驗證擋不住直接打 API 的人，後端驗證不能省。</li>
 </ul>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記的常用命令表寫「ng build --prod」，查證後更正：--prod 於 CLI v12 棄用、v14 移除，現在會報 Unknown argument">舊教材的 <code>ng build --prod</code> 已經不能用：這個參數在 CLI v12 棄用、v14 移除，現代 CLI 的 <code>ng build</code> 預設就是正式組態，要指定時用 <code>ng build --configuration production</code></mark><a class="fixsrc" href="https://github.com/angular/angular-cli/releases/tag/v12.0.0" target="_blank" rel="noopener">v12 棄用</a><a class="fixsrc" href="https://github.com/angular/angular-cli/releases/tag/14.0.0" target="_blank" rel="noopener">v14 移除</a>。</p>
-<p class="muted">常用命令表裡常出現的 <code>ng lint</code> 有個前提：新專案預設沒有安裝 lint（程式碼風格與常見錯誤的靜態檢查）工具，第一次執行會問你要不要裝 angular-eslint，裝好才有得跑。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記的常用指令表寫「ng build --prod」，查證後更正：--prod 於 CLI v12 棄用、v14 移除，現在會報 Unknown argument">舊版 CLI 的 <code>ng build --prod</code> 已經不能用：這個參數在 CLI v12 棄用、v14 移除，現代 CLI 的 <code>ng build</code> 預設就是正式組態，要指定時用 <code>ng build --configuration production</code></mark><a class="fixsrc" href="https://github.com/angular/angular-cli/releases/tag/v12.0.0" target="_blank" rel="noopener">v12 棄用</a><a class="fixsrc" href="https://github.com/angular/angular-cli/releases/tag/14.0.0" target="_blank" rel="noopener">v14 移除</a>。</p>
+<p class="muted"><code>ng lint</code> 有個前提：新專案預設沒有安裝 lint（程式碼風格與常見錯誤的靜態檢查）工具，要先用 <code>ng add</code> 加上 angular-eslint 這類套件才有得跑<a class="fixsrc" href="https://angular.dev/cli/lint" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <div class="keys"><p class="lbl">重點整理</p><ul>
-<li>Node.js 版本照目標 Angular 版本的相容性表挑，Angular 17 起最低 18.13。</li>
+<li>Node.js 沒有一個「Angular 通用」的最低版本：各版本的下限不同，以官方相容性表為準，例如 17.x 是 18.13、22.x 是 22.22。</li>
 <li>新專案用 <code>npx @angular/cli new</code>；接手專案乾淨安裝用 <code>npm ci</code>。</li>
-<li>API 用 <code>provideHttpClient()</code>、路由用 <code>provideRouter(routes)</code> 在應用層明確提供。</li>
+<li>API 用 <code>provideHttpClient()</code>、路由用 <code>provideRouter(routes)</code> 在應用程式層明確提供。</li>
 <li>簡單表單用 ngModel、複雜表單用響應式表單。</li>
 <li><code>ng build --prod</code> 已移除；交付前至少過正式建置與測試。</li>
 </ul></div>
