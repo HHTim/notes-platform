@@ -1,10 +1,10 @@
-<!-- 來源：rescue/distributed-lock-redis.artifact.html（舊對話救回的 artifact，已剝殼）· 收錄日期：2026-09-04 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出鎖搬到多台機器後為什麼失效、分散式鎖怎麼補救</li><li>看懂 SET … NX EX 這行指令，講出用 Redis 當鎖的三個坑</li><li>分清四種擺法差在哪，以及為什麼哨兵和叢集也救不了鎖</li></ul></div>
+<!-- 來源：第一期從舊對話救回的 Redis 分散式鎖頁面（rescue/distributed-lock-redis.artifact.html，已刪），2026-09-29 依官方文件重寫 · 收錄日期：2026-09-04 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出鎖搬到多台機器後為什麼失效，以及分散式鎖補救的原理</li><li>寫出單一 Redis 當鎖的正確寫法，並講出值為什麼要唯一、上鎖為什麼要一條指令、釋放為什麼要比對值</li><li>解釋「鎖過期但工作沒做完」與「時鐘被調動」這兩個難題，以及 fencing token 真正擋在哪一端</li><li>說出 Redlock 是什麼、Kleppmann 與 antirez 各自的論點，並判斷什麼情況該改用 etcd 或 ZooKeeper</li></ul></div>
 <section>
     <p class="era">先講「鎖」</p>
     <h3 class="head">鎖就是廁所門閂</h3>
     <p>一個人進去、把門閂上，其他人只能在外面等。等他出來、門閂打開，下一個才進得去。</p>
-    <p>程式裡也一樣：同一份資料（例如帳戶餘額）同一時間只准一個人改，避免兩個人同時扣款、扣成一次。</p>
+    <p>程式裡也一樣：同一份資料（例如帳戶餘額）同一時間只准一個執行流程改，避免兩個請求同時扣款、扣成一次。</p>
 
     <figure>
       <svg viewBox="0 0 720 200" role="img" aria-label="同一台伺服器裡，兩件工作搶同一個鎖，只有一個能通過去改餘額">
@@ -44,7 +44,7 @@
 <section>
     <p class="era">問題來了</p>
     <h3 class="head">變成三台機器，門閂就管不到別人了</h3>
-    <p>為了撐流量，同一套程式會複製成好幾台一起跑。可是每台機器的記憶體是各自獨立的——<strong>A 台舉的旗子，B 台看不到</strong>。</p>
+    <p>為了撐流量，同一套程式會複製成好幾台一起跑。可是每台機器的記憶體是各自獨立的——<strong>第一台舉的旗子，第二台看不到</strong>。程式語言內建的鎖（Java 的 <code>synchronized</code>、<code>ReentrantLock</code> 這類）只管得到自己那個行程，跨機器等於沒鎖。</p>
 
     <figure>
       <svg viewBox="0 0 760 300" role="img" aria-label="三台伺服器各自有自己的鎖，三台同時扣同一筆餘額">
@@ -74,7 +74,7 @@
           <line x1="248" y1="150" x2="548" y2="152"/>
           <line x1="248" y1="237" x2="548" y2="164"/>
         </g>
-        <text x="392" y="96" font-size="13" text-anchor="middle" fill="var(--danger)">同一秒，三個人都覺得自己拿到鎖</text>
+        <text x="392" y="96" font-size="13" text-anchor="middle" fill="var(--danger)">同一秒，三個請求都覺得自己拿到鎖</text>
 
         <rect x="560" y="112" width="170" height="80" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
         <text x="645" y="146" font-size="15" text-anchor="middle">帳戶餘額</text>
@@ -91,9 +91,9 @@
   </section>
 <section>
     <p class="era">解法</p>
-    <h3 class="head">分散式鎖 = 大家去同一個櫃檯拿鑰匙</h3>
-    <p>把鎖搬出去，放到一個所有機器都看得到的地方。誰先拿到那把唯一的鑰匙，誰才能動手。</p>
-    <p class="muted">Redis 常被拿來當這個櫃檯，因為它夠快（毫秒等級）而且大家本來就有裝。</p>
+    <h3 class="head">分散式鎖＝大家去同一個櫃檯拿鑰匙</h3>
+    <p>把鎖搬出去，放到一個所有機器都看得到的地方。誰先拿到那把唯一的鑰匙，誰才能動手。這個「櫃檯」在文獻裡叫分散式鎖管理器（Distributed Lock Manager，簡稱 DLM）。Redis 官方鎖頁面的開場就是這個定位：分散式鎖是「不同行程必須互斥地操作共用資源」時很有用的基本工具（a very useful primitive in many environments where different processes must operate with shared resources in a mutually exclusive way）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="muted">Redis 常被拿來當這個櫃檯，因為它夠快（毫秒等級）、指令簡單，而且很多系統本來就有裝。</p>
 
     <figure>
       <svg viewBox="0 0 760 290" role="img" aria-label="三台伺服器都向同一個 Redis 要鎖，只有一台拿到，才能去改餘額">
@@ -138,30 +138,47 @@
     </figure>
   </section>
 <section>
-    <p class="era">實際上怎麼寫</p>
-    <h3 class="head">一行指令就是一把鎖</h3>
-    <p><code>SET 訂單123 我的名字 NX EX 30</code></p>
-    <p><code>NX</code> 的意思是「這個名字目前沒人用，才寫得進去」——所以第一個寫進去的人贏，其他人會收到失敗。<code>EX 30</code> 是「30 秒後這筆自動消失」。</p>
-    <p>做完事情就把它刪掉，換下一個人。</p>
+    <p class="era">單一 Redis 的正確寫法</p>
+    <h3 class="head">一行指令就是一把鎖，但有三個地方不能省</h3>
+    <p>Redis 官方給的上鎖寫法是一條指令：</p>
+    <p><code>SET 訂單123 a8f3c2…（這次上鎖專用的隨機值） NX PX 30000</code></p>
+    <p><code>NX</code> 的意思是「這個鍵目前不存在，才寫得進去」，所以第一個寫進去的請求贏，其他人會收到失敗；<code>PX 30000</code> 是「30000 毫秒（30 秒）後這個鍵自動消失」（<code>EX</code> 是同一件事但以秒計）。<code>SET</code> 指令頁寫明 <code>NX</code> 是「Only set the key if it does not already exist」、<code>PX</code> 是「Set the specified expire time, in milliseconds」<a class="fixsrc" href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">出處</a>。</p>
+    <p>第二個參數是<strong>這次上鎖專用的隨機值</strong>，像領號碼牌，等一下還鎖要憑它。官方原文：這個值「必須在所有客戶端、所有上鎖請求之間都是唯一的」（This value must be unique across all clients and all lock requests）；官方建議的產生法是從 <code>/dev/urandom</code> 取 20 個位元組，或者「用微秒精度的 UNIX 時間戳接上客戶端 ID」（a UNIX timestamp with microsecond precision, concatenating the timestamp with a client ID）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
 
-    <h3 style="margin-top:8px">三個常見的坑</h3>
+    <h3 class="head">三個不能省的地方</h3>
     <div class="pits">
       <div class="pit">
         <span class="n">1</span>
-        <p><strong>忘了設過期時間。</strong>拿到鎖的機器當場斷電，鎖永遠留在那裡，後面全部卡死。所以 <code>EX</code> 一定要寫。</p>
+        <p><strong>上鎖要一條指令完成，不能拆成兩步。</strong>早期寫法是先 <code>SETNX</code>（不存在才寫）再 <code>EXPIRE</code>（設過期）。兩步之間如果程式掛掉，就留下一把永遠不會過期的鎖，後面全部卡死。<code>SET</code> 一條指令同時帶 <code>NX</code> 與 <code>PX</code>，要嘛整個成功、要嘛整個失敗，這叫原子操作（atomic operation，中間不會被別的指令插進來）。<code>SET</code> 指令頁也註明它的選項可以取代 <code>SETNX</code>、<code>SETEX</code>、<code>PSETEX</code>，這些舊指令未來可能被移除<a class="fixsrc" href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="pit">
         <span class="n">2</span>
-        <p><strong>刪到別人的鎖。</strong>我的鎖過期了、換 B 拿到，我這時才做完、順手一刪——刪掉的是 B 的。所以要先確認「這把鎖上面寫的是不是我的名字」，而且<strong>確認和刪除必須是同一個不會被插隊的動作</strong>（實務上用 Lua 腳本，一小段送進 Redis 裡面整段一起跑的程式）。</p>
+        <p><strong>值要每次隨機，不能用機器名字。</strong>假設值寫成「伺服器 1」：同一台機器上的請求甲鎖過期了、請求乙接著拿到鎖，值一樣是「伺服器 1」。甲這時做完回來，比對值「是自己的」、順手一刪——刪掉的是乙的鎖。值每次隨機，甲拿的是 <code>a8f3…</code>、乙拿的是 <code>7c19…</code>，甲回來比對不符就刪不掉。這正是官方要求值「在所有上鎖請求之間唯一」的原因<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="pit">
         <span class="n">3</span>
-        <p><strong>事情做太久，鎖先過期了。</strong>你以為還鎖著，其實別人已經進來了。解法是背景每隔一段時間幫鎖續命，或是把過期時間設得比最慢的情況再長一些。</p>
+        <p><strong>釋放時要「比對值＋刪除」一氣呵成。</strong>直接 <code>DEL</code> 不安全——官方原文：「只用 DEL 不安全，因為一個客戶端可能刪掉另一個客戶端的鎖」（Using just DEL is not safe as a client may remove another client's lock）。Redis 8.4 起有專用指令 <code>DELEX 訂單123 IFEQ a8f3c2…</code>，意思是「值等於這個才刪」，指令頁寫「Delete the key only if its value is equal to ifeq-value」，標示 Available since 8.4.0<a class="fixsrc" href="https://redis.io/docs/latest/commands/delex/" target="_blank" rel="noopener">出處</a>。更舊的版本用 Lua 腳本（一小段送進 Redis 裡整段一起跑的程式）做同一件事：<code>if redis.call("get",KEYS[1]) == ARGV[1] then return redis.call("del",KEYS[1]) else return 0 end</code><a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。分成「先 GET 比對、再 DEL」兩條指令會有同樣的插隊問題：比對完到刪除之間鎖可能剛好過期並被別人拿走。</p>
       </div>
     </div>
+
+    <p class="muted">過期時間的取捨：官方把它叫「鎖的有效時間」（lock validity time），既是自動釋放的時間，也是持有者「在別人可能再拿到鎖之前，能用來完成工作的時間」<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。設太短，工作沒做完鎖就沒了；設太長，持有者當機後大家要多等很久。</p>
   </section>
 <section>
-    <p class="era">REDIS 的四種擺法</p>
+    <p class="era">核心難題</p>
+    <h3 class="head">鎖過期了，工作卻還沒做完</h3>
+    <p>上面第三個地方只擋住「刪錯鎖」，擋不住更根本的問題：<strong>鎖已經到期換人拿走，原持有者卻還在動資料</strong>。程式以為還鎖著，其實別人已經進來了。造成這種情況的不一定是程式寫得慢——Martin Kleppmann（分散式系統研究者，《Designing Data-Intensive Applications》作者）舉的例子是垃圾回收暫停（GC pause，程式語言自動清理記憶體時整支程式停住）：「如果 GC 暫停比租約到期時間還長，而客戶端沒有察覺已經到期，它可能繼續做出不安全的變更」（if the GC pause lasts longer than the lease expiry period, and the client doesn't realise that it has expired, it may go ahead and make some unsafe change）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。網路延遲、機器被暫停、磁碟卡住，都會有同樣效果。</p>
+    <p><strong>續約（extending the lock）</strong>是常見的補救：把有效時間設短一點，工作進行中在背景定期延長。Redis 官方建議的做法是送一段 Lua 腳本「當鍵存在、而且值仍然是這個客戶端上鎖時給的隨機值，才延長它的 TTL」（extends the TTL of the key if the key exists and its value is still the random value the client assigned when the lock was acquired）；TTL（time to live）就是剩餘存活時間<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。Java 的 Redisson 這類程式庫內建了這個機制。</p>
+    <p>但續約有極限。續約靠的是持有者「還活著、還來得及送指令」，而讓鎖過期的原因（GC 暫停、網路斷線）正好會讓續約也送不出去。官方在「Disclaimer about consistency」裡直接說：「延長鎖的壽命也是一個選項，但不要假設只要拿到鎖的行程還活著，鎖就一直是它的」（Extending locks' lifetime is also an option, but don´t assume that a lock is retained as long as the process that had acquired it is alive）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。真正把這個洞補起來的是後面會講的 fencing token。</p>
+  </section>
+<section>
+    <p class="era">另一個難題</p>
+    <h3 class="head">Redis 的到期看的是牆上時鐘</h3>
+    <p>鎖的過期靠 Redis 機器上的時間。Redis 用的是牆上時鐘（wall clock，機器上「現在幾點幾分」的那個時間，會被管理員手動改、也會被網路校時程式調整），不是單向往前走的計時器（monotonic clock，只會增加、不會被調回去的計數器）。官方原文：「Redis 的 TTL 到期機制沒有使用單調時鐘。這表示牆上時鐘的偏移可能導致一把鎖被多個行程同時取得」（Redis is not using monotonic clock for TTL expiration mechanism. That means that a wall-clock shift may result in a lock being acquired by more than one process）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+    <p>具體來說：時間被往前調 30 秒，一把還剩 20 秒的鎖會立刻消失，下一個請求馬上拿到，兩個持有者並存；時間被往後調，鎖會比預期多活一段，大家白等。官方接著說這問題「可以透過禁止管理員手動設定伺服器時間、並正確設定 NTP 來緩解，但實際上仍有機會發生並破壞一致性」（Even though the problem can be mitigated by preventing admins from manually setting the server's time and setting up NTP properly, there's still a chance of this issue occurring in real life and compromising consistency）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。NTP（Network Time Protocol）是讓機器跟標準時間對時的網路協定。</p>
+    <p class="muted">Redis 作者 antirez（Salvatore Sanfilippo）的建議是兩件事：不要手動跳改時間，以及「使用不會直接跳改時間、而是把調整量分散在較長時間內慢慢補的 ntpd」（using an ntpd that does not change the time by jumping directly, but by distributing the change over the course of a larger time span）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。這叫時間平滑調整（slewing），是校時程式的一個設定。</p>
+  </section>
+<section>
+    <p class="era">Redis 的四種擺法</p>
     <h3 class="head">從一台，到一整排</h3>
     <p>這四種是「Redis 本身怎麼架」，跟鎖是兩件事，但等一下會發現它們會互相打架。</p>
 
@@ -170,7 +187,7 @@
       <figure>
         <svg viewBox="0 0 380 230" role="img" aria-label="單機：只有一台 Redis，掛了就全停">
           <rect x="120" y="30" width="140" height="44" rx="5" fill="none" stroke="currentColor" stroke-opacity=".5"/>
-          <text x="190" y="58" font-size="14" text-anchor="middle">你的程式</text>
+          <text x="190" y="58" font-size="14" text-anchor="middle">應用程式</text>
           <line x1="190" y1="78" x2="190" y2="112" stroke="currentColor" stroke-width="2" marker-end="url(#b1)"/>
           <rect x="110" y="118" width="160" height="66" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
           <text x="190" y="158" font-size="16" text-anchor="middle" fill="var(--gold)">Redis</text>
@@ -230,7 +247,7 @@
 
           <line x1="248" y1="52" x2="168" y2="48" stroke="var(--ok)" stroke-dasharray="4 4" marker-end="url(#b4)"/>
           <line x1="248" y1="126" x2="168" y2="140" stroke="var(--ok)" stroke-dasharray="4 4" marker-end="url(#b4)"/>
-          <text x="208" y="90" font-size="11" text-anchor="middle" fill="var(--ok)">每秒探活</text>
+          <text x="208" y="90" font-size="11" text-anchor="middle" fill="var(--ok)">PING 確認活著</text>
 
           <text x="190" y="196" font-size="13" text-anchor="middle" fill="var(--ok)">主機掛了 → 自動把從機升為新主機</text>
           <text x="190" y="216" font-size="12" text-anchor="middle" opacity=".65">資料量還是「一台能裝多少」</text>
@@ -243,12 +260,12 @@
             </marker>
           </defs>
         </svg>
-        <figcaption><strong>哨兵（Sentinel）</strong>：多養一組看門的程序，專門盯著主機有沒有活著，掛了自動換人。</figcaption>
+        <figcaption><strong>哨兵（Sentinel）</strong>：多養一組看門的程序，專門盯著主機有沒有活著，掛了自動換人。官方建議至少三個哨兵，放在會各自獨立故障的機器上<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/" target="_blank" rel="noopener">出處</a>。</figcaption>
       </figure>
 
       <figure>
         <svg viewBox="0 0 380 230" role="img" aria-label="叢集：資料依編號切成三段，分別放在三組主從上">
-          <text x="190" y="22" font-size="12" text-anchor="middle" opacity=".7">依 key 算出編號，決定去哪一組</text>
+          <text x="190" y="22" font-size="12" text-anchor="middle" opacity=".7">依鍵名算出編號，決定去哪一組</text>
           <line x1="190" y1="30" x2="190" y2="46" stroke="currentColor" stroke-opacity=".5"/>
           <line x1="66" y1="46" x2="314" y2="46" stroke="currentColor" stroke-opacity=".5"/>
           <g stroke="currentColor" stroke-opacity=".5">
@@ -292,7 +309,7 @@
           <text x="190" y="200" font-size="13" text-anchor="middle" fill="var(--ok)">資料量和流量可以一直往上加機器</text>
           <text x="190" y="219" font-size="12" text-anchor="middle" opacity=".65">每組自己也會自動換主機</text>
         </svg>
-        <figcaption><strong>叢集（Cluster）</strong>：資料被分成 16384 個號碼段，分給好幾組主從各管一段。</figcaption>
+        <figcaption><strong>叢集（Cluster）</strong>：資料被分成 16384 個號碼段（官方叫 hash slot，雜湊槽），分給好幾組主從各管一段；鍵名經 CRC16 運算後對 16384 取餘數決定去哪一槽<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank" rel="noopener">出處</a>。</figcaption>
       </figure>
 
     </div>
@@ -330,7 +347,7 @@
           <tr>
             <th scope="row">哨兵</th>
             <td>一台的量</td>
-            <td class="good">自動換人（幾十秒）</td>
+            <td class="good">自動換人（依設定，數秒到一分鐘）</td>
             <td>中</td>
             <td>資料塞得下一台，但不能停</td>
           </tr>
@@ -345,13 +362,14 @@
       </table>
     </div>
 
-    <p class="muted">雲端的託管服務（例如 GCP 的 Memorystore、AWS 的 ElastiCache）幫你把哨兵那一段包起來了，你只會看到「基本版」和「高可用版／叢集版」這種選項。</p>
+    <p class="muted">哨兵多久判定主機掛了，由 <code>down-after-milliseconds</code> 決定——官方定義是「一個實例在多少毫秒內沒有回應（不回 PING 或回錯誤），哨兵就開始認為它掛了」；官方範例檔用 5000 到 60000 毫秒<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="muted">雲端的代管服務把自動換主機那一段包起來了。Google Cloud 的 Memorystore for Redis 分成 Basic Tier（官方：「Provides a cache with no replication」，沒有複本、不會自動換主機，適合「能承受冷啟動與整個快取清空」的用途）與 Standard Tier（「Provides redundancy and availability using replication」，有複本、主機故障時自動切到複本）<a class="fixsrc" href="https://docs.cloud.google.com/memorystore/docs/redis/redis-tiers" target="_blank" rel="noopener">出處</a>。AWS 的 ElastiCache 則分成兩種操作方式：Serverless（無伺服器，不用自己選節點）與自建節點叢集（node-based cluster）；自建時可以選單一可用區或多可用區（Multi-AZ），以及開不開 cluster mode（開了才能水平擴充）<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html" target="_blank" rel="noopener">出處</a>。</p>
   </section>
 <section>
     <p class="era">最重要的一段</p>
     <h3 class="head">換成哨兵或叢集，鎖還是會破</h3>
     <p>很多人以為「架成哨兵就安全了」。<strong>剛好相反</strong>——自動換主機這件事，正是鎖出事的時候。</p>
-    <p>因為主機把資料複製給從機是<strong>非同步</strong>的：主機先回你「好，鎖給你」，才慢慢把這筆送去從機。中間那零點幾秒如果主機掛了，那筆鎖就消失了。</p>
+    <p>因為主機把資料複製給從機是<strong>非同步</strong>的：主機先回應「好，鎖給你」，才慢慢把這筆送去從機。中間那零點幾秒如果主機掛了，那筆鎖就消失了。Redis 官方鎖頁面把這個競態條件（race condition，結果取決於誰先誰後的情況）寫成四步：客戶端 A 在主機拿到鎖 → 主機在這筆寫入傳到從機之前當掉 → 從機被升為主機 → 客戶端 B 拿到同一個資源的鎖，官方標註「SAFETY VIOLATION!」（違反安全性）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
 
     <figure>
       <svg viewBox="0 0 760 330" role="img" aria-label="時間軸：A 向主機拿到鎖，資料還沒複製到從機主機就掛了，從機升為新主機後 B 也拿到同一把鎖">
@@ -411,40 +429,62 @@
       <figcaption>叢集也一樣——每一組主從內部都是同樣的複製方式，同樣會發生。這不是設定錯了，是這種複製方式本來就這樣。</figcaption>
     </figure>
 
-    <p class="muted">Redis 官方提出過一種叫 Redlock 的做法：向五台<strong>互相獨立</strong>的 Redis 同時要鎖，超過一半答應才算數。但學界對它是否真的安全一直有爭論，而且要多養五台，用的人不多。</p>
+    <p>這不是鎖專屬的問題，是 Redis 複製的本性。哨兵頁面的「部署前一定要知道的事」第三條：「Sentinel 加 Redis 這套分散式系統不保證故障期間已確認的寫入會被保留，因為 Redis 使用非同步複製」（Sentinel + Redis distributed system does not guarantee that acknowledged writes are retained during failures, since Redis uses asynchronous replication）<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/" target="_blank" rel="noopener">出處</a>。叢集頁面同樣寫：「Redis Cluster 不保證強一致性……Redis Cluster 會丟寫入的第一個原因是它使用非同步複製」（Redis Cluster does not guarantee strong consistency … The first reason why Redis Cluster can lose writes is because it uses asynchronous replication）<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="muted">官方也說了什麼時候可以接受：「有時在特殊情況下（例如故障期間）多個客戶端同時持有鎖是完全可以接受的。如果是這種情況，可以用複製為基礎的方案」（Sometimes it is perfectly fine that, under special circumstances, for example during a failure, multiple clients can hold the lock at the same time. If this is the case, you can use your replication based solution）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
   </section>
 <section>
-    <p class="era">那到底怎麼辦</p>
-    <h3 class="head">先問一句：鎖破了會怎樣？</h3>
-    <p>這題沒有「一定要怎樣」的答案，取決於重複做一次的後果有多嚴重。</p>
+    <p class="era">官方的答案</p>
+    <h3 class="head">Redlock：向五台獨立的 Redis 同時要鎖</h3>
+    <p>既然一組主從會在換主機時丟鎖，Redis 官方提出的做法是<strong>不用複製</strong>，改用 N 台（範例是 5 台）<strong>互相獨立</strong>的 Redis 主機，各自跑在不同的電腦或虛擬機上，讓它們「以大致獨立的方式故障」。官方把這套演算法叫 Redlock，取鎖的步驟是<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>：</p>
+    <ul class="plainlist">
+      <li>第一步：記下目前時間（毫秒）。</li>
+      <li>第二步：用同一個鍵名、同一個隨機值，<strong>並行</strong>向全部 N 台送上鎖指令；對每台設一個很短的等待上限（例如鎖 10 秒，等待只給 5〜50 毫秒），避免被一台掛掉的機器拖住。</li>
+      <li>第三步：算出取鎖總共花了多久。<strong>只有</strong>在「過半數（N/2+1，五台就是至少三台）答應」<strong>而且</strong>「花的時間小於鎖的有效時間」兩個條件都成立時，才算拿到鎖。</li>
+      <li>第四步：拿到後，實際有效時間＝原本的有效時間減掉取鎖花掉的時間。</li>
+      <li>第五步：沒拿到（不夠多台答應，或有效時間已經是負的），就去全部 N 台解鎖，連自己以為沒鎖成功的那幾台也一起解。</li>
+    </ul>
+    <p>官方為它列了三個目標：安全性——「任一時刻只有一個客戶端能持有鎖」（At any given moment, only one client can hold a lock）；活性 A——不會死鎖，持有者當機或斷線後鎖終究會被釋放；活性 B——容錯，「只要多數 Redis 節點活著，客戶端就能取得與釋放鎖」（As long as the majority of Redis nodes are up, clients are able to acquire and release locks）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+    <p>Redlock 也有自己的時間假設。官方寫：它「依賴這樣的假設：雖然各行程之間沒有同步的時鐘，但每個行程的本機時間以大致相同的速率前進，誤差相對於鎖的自動釋放時間很小」（the local time in every process updates at approximately at the same rate, with a small margin of error compared to the auto-release time of the lock）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。另外，一台 Redis 當掉重開後如果沒有把鎖寫進磁碟，那台會「忘記」自己發過的鎖，讓另一個客戶端又湊到三台；官方的對策是延後重啟（delayed restart）——重開後先等超過最長 TTL 的時間再加入，或把持久化設成 <code>fsync=always</code>（每次寫入都同步到磁碟，效能會掉）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="muted">官方頁面列了二十多個各語言的 Redlock 實作，Java 的是 Redisson<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。代價是要多養五台獨立的 Redis，而且它們不能拿來當一般快取用的那組。</p>
+  </section>
+<section>
+    <p class="era">一場公開辯論</p>
+    <h3 class="head">Kleppmann 說不安全，antirez 說沒那麼糟</h3>
+    <p>2016 年 Martin Kleppmann 發表〈How to do distributed locking〉分析 Redlock，Redis 作者 antirez 隔天以〈Is Redlock safe?〉回應。Redis 官方鎖頁面把兩篇都連在最末的「Analysis of Redlock」，並在免責聲明裡說這兩篇「非常相關」（very relevant）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。面試被問到分散式鎖，能講出兩邊各說了什麼，比背 Redlock 的五個步驟更有分量。</p>
 
     <div class="grid2">
       <div class="card">
-        <span class="badge">重做一次沒差</span>
-        <h3>直接用 Redis 就好</h3>
-        <p>例如「同一支排程不要同時跑兩份」「按鈕連點兩下擋掉」。真的漏了，頂多多跑一次，資料不會壞。</p>
+        <span class="badge">Kleppmann（質疑方）</span>
+        <h3>拿鎖是為了效率，還是為了正確？</h3>
+        <p>他先把用鎖的目的分成兩種：效率（Efficiency）——「拿鎖讓你不必白白把同一件工作做兩次」；正確性（Correctness）——「拿鎖防止並行的行程互相踩到腳、弄壞系統狀態」<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。為了效率，單一 Redis 就夠，鎖偶爾破了頂多多做一次；為了正確性，他的結論是：「如果你需要鎖來保證正確性，請不要用 Redlock。請改用正規的共識系統，例如 ZooKeeper」（if you need locks for correctness, please don't use Redlock. Instead, please use a proper consensus system such as ZooKeeper）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="card">
-        <span class="badge">不能重複，但想留著 Redis</span>
-        <h3>加一個遞增編號</h3>
-        <p>Redis 發鎖時順便發一個一直變大的號碼，寫資料時把號碼帶上；後端只收比看過的最大號碼更大的。晚到的舊號碼直接擋掉。這招英文叫 fencing token。</p>
+        <span class="badge">Kleppmann（質疑方）</span>
+        <h3>Redlock 對時間的假設太危險</h3>
+        <p>他的核心批評：「這個演算法對計時與系統時鐘做了危險的假設（基本上假設一個網路延遲有上限、操作執行時間有上限的同步系統），假設不成立時它就會違反安全性」（the algorithm makes dangerous assumptions about timing and system clocks … and it violates safety properties if those assumptions are not met）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。連官方建議的「延後重啟」也一樣，「依賴對時間的合理準確量測，時鐘一跳就會失效」（would fail if the clock jumps）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="card">
-        <span class="badge">絕對不能重複</span>
-        <h3>別用 Redis 當鎖</h3>
-        <p>改用 etcd 或 ZooKeeper。它們寫入時要多數節點都點頭才算成功，所以換主機不會把已答應的東西弄丟。代價是比較慢、要多維護一套。</p>
+        <span class="badge">antirez（回應方）</span>
+        <h3>只要時鐘「走得差不多快」就夠了</h3>
+        <p>他反駁說 Redlock 不需要各機器時間一致，只需要各自的時鐘以接近的速率前進：「它們要做到的只是，例如，能夠以最多 10% 的誤差數出 5 秒」（What they need to do is just, for example, to be able to count 5 seconds with a maximum of 10% error）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。至於時鐘被大幅跳改，他認為那是不該做的操作，等級跟手動改壞 Raft 日誌檔一樣，並建議用平滑校時的 ntpd<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="card">
-        <span class="badge">常被忽略</span>
-        <h3>其實資料庫就能擋</h3>
-        <p>唯一索引、<code>SELECT ... FOR UPDATE</code>、樂觀鎖版本號。只有一個資料庫的情況下，這通常比自己架分散式鎖更穩也更省事。</p>
+        <span class="badge">antirez（回應方）</span>
+        <h3>承認一點，其餘不接受</h3>
+        <p>他承認：「我認為 Martin 關於單調時鐘 API 的看法有道理，Redis 與 Redlock 的實作應該使用它，以避免系統時鐘被更動造成的問題」（I think Martin has a point about the monotonic API, Redis and Redlock implementations should use it to avoid issues due to the system clock being altered）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。但結論是：「我無法在分析中找到其他影響 Redlock 安全性的論點……也不認為他『需要互斥保證時不該用 Redlock』的最終結論站得住」（I can't identify other points of the analysis affecting Redlock safety … nor do I find his final conclusions that people should not use Redlock when the mutual exclusion guarantee is needed, justified）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。</p>
       </div>
     </div>
+    <p class="muted">辯論的落點可以這樣記：兩人都同意「鎖過期但持有者還在動資料」是真問題；分歧在於 Redlock 依賴的時間假設在真實機房裡算不算合理。Redis 官方後來把 Kleppmann 的兩點——要做 fencing token、Redis 到期用牆上時鐘——直接寫進了鎖頁面的免責聲明<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+  </section>
+<section>
+    <p class="era">補洞的正解</p>
+    <h3 class="head">Fencing token：真正擋住重複的是資料那一端</h3>
+    <p>回到「鎖過期但工作沒做完」。Kleppmann 提出的解法叫 fencing token（圍籬號碼牌；fencing 是「用圍籬把東西擋在外面」）：「一個每次有客戶端取得鎖時就會增加的數字（例如由鎖服務遞增）」（a fencing token is simply a number that increases (e.g. incremented by the lock service) every time a client acquires the lock）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。客戶端寫資料時把號碼一起帶上，<strong>被保護的資料那一端</strong>只接受比它看過的最大號碼更大的請求。他的例子：A 拿到 33 號後卡住，鎖過期，B 拿到 34 號並寫入；A 醒來帶著 33 號來寫，「儲存伺服器記得它已經處理過一個更高號碼（34）的寫入，所以拒絕了號碼 33 的請求」（the storage server remembers that it has already processed a write with a higher token number (34), and so it rejects the request with token 33）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
 
     <figure>
-      <svg viewBox="0 0 760 250" role="img" aria-label="遞增編號：A 拿到 33 號、B 拿到 34 號，資料庫只接受比看過的最大號碼更大的請求">
+      <svg viewBox="0 0 760 250" role="img" aria-label="遞增號碼：A 拿到 33 號、B 拿到 34 號，資料庫只接受比看過的最大號碼更大的請求">
         <rect x="20" y="88" width="140" height="70" rx="5" fill="none" stroke="var(--gold)" stroke-width="2"/>
-        <text x="90" y="118" font-size="14" text-anchor="middle" fill="var(--gold)">Redis</text>
+        <text x="90" y="118" font-size="14" text-anchor="middle" fill="var(--gold)">鎖服務</text>
         <text x="90" y="138" font-size="12" text-anchor="middle" fill="var(--gold)">發鎖 + 發號碼</text>
 
         <line x1="168" y1="108" x2="240" y2="72" stroke="currentColor" stroke-opacity=".55" marker-end="url(#d1)"/>
@@ -480,13 +520,45 @@
           </marker>
         </defs>
       </svg>
-      <figcaption>就算鎖破了、兩個人同時拿著，最後一關還是只認號碼大的那個。</figcaption>
+      <figcaption>就算鎖破了、兩個人同時拿著，最後一關是資料庫只認號碼大的那個。擋人的動作發生在資料庫端，不在鎖服務端。</figcaption>
     </figure>
+
+    <p>兩件事要分清楚。<strong>第一，Redis 不會替鎖發這種號碼。</strong>Kleppmann 直接點出：「這帶出 Redlock 的第一個大問題：它沒有任何產生 fencing token 的機制」（this leads us to the first big problem with Redlock: it does not have any facility for generating fencing tokens）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。就算自己用 <code>INCR</code> 在 Redis 做一個計數器，它跟鎖一樣是非同步複製，換主機時號碼可能倒退，倒退後資料庫端會連正當持有者一起擋掉——安全性保住了，但服務會卡住。要一個永不倒退的號碼，得靠後面講的 etcd、ZooKeeper 這類系統——ZooKeeper 官方說它「在每次更新上蓋一個反映全部交易順序的編號」（ZooKeeper stamps each update with a number that reflects the order of all ZooKeeper transactions），這種編號就能當 fencing token<a class="fixsrc" href="https://zookeeper.apache.org/doc/current/zookeeperOver.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>第二，保障在資料那一端，不在鎖那一端。</strong>鎖服務再可靠，只要持有者可能在鎖過期後還在動資料，就必須由被保護的資料庫、檔案系統或服務自己檢查號碼。這也是 Redis 官方免責聲明第一條要求的：「你應該實作 fencing token。這對可能耗時很久的行程特別重要，而且適用於任何分散式鎖系統」（You should implement fencing tokens. This is especially important for processes that can take significant time and applies to any distributed locking system）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="muted">antirez 的看法是號碼不一定要遞增：Redlock 每把鎖本來就帶一個大隨機值，可以拿它做「比對再寫」（Check and Set）——「開始操作共用資源時，把它的狀態設成這個 token，之後只有在寫入時 token 仍然相同，才執行讀取—修改—寫入」（we set its state to "&lt;token&gt;", then we operate the read-modify-write only if the token is still the same when we write）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。這需要資料端支援這種條件寫入，而且它擋的是「兩個持有者交錯寫」，做法不同、但檢查一樣發生在資料那一端。</p>
+  </section>
+<section>
+    <p class="era">那到底怎麼辦</p>
+    <h3 class="head">先問一句：鎖破了會怎樣？</h3>
+    <p>這題沒有「一定要怎樣」的答案，取決於重複做一次的後果有多嚴重——也就是 Kleppmann 的效率與正確性之分。</p>
+
+    <div class="grid2">
+      <div class="card">
+        <span class="badge">為了效率：重做一次沒差</span>
+        <h3>單一 Redis 就好</h3>
+        <p>例如「同一支排程不要同時跑兩份」「按鈕連點兩下擋掉」。真的漏了，頂多多跑一次，資料不會壞。照前面的正確寫法（隨機值、一條指令上鎖、比對後釋放）就夠，這也是官方說「偶爾出現競態可接受的應用裡，單一實例是可行方案」的情境<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
+      </div>
+      <div class="card">
+        <span class="badge">不能重複，但想留著 Redis</span>
+        <h3>鎖照用，資料端加 fencing token</h3>
+        <p>鎖只當「減少碰撞」的工具，真正的防線放在資料端：唯一索引、版本號欄位、只接受更大號碼的檢查。號碼要由不會倒退的地方發；Redis 自己發的號碼換主機會倒退，倒退時資料端會連正當持有者一起擋下，服務卡住但資料不會壞。</p>
+      </div>
+      <div class="card">
+        <span class="badge">為了正確性：絕對不能重複</span>
+        <h3>換有共識演算法的系統</h3>
+        <p>改用 etcd 或 ZooKeeper（兩套專門存設定與做協調的小型資料庫，寫入要多數節點同意才算成功，所以換主機不會把已答應的東西弄丟）。etcd 官方說它「以一致且容錯的方式保存中繼資料」（stores metadata in a consistent and fault-tolerant way），寫入走 Raft 共識協定，並直接列出「領導者選舉、分散式鎖」是常見用法（Common distributed patterns using etcd include leader election, distributed locks）<a class="fixsrc" href="https://etcd.io/docs/v3.5/learning/why/" target="_blank" rel="noopener">出處</a>；ZooKeeper 官方自述是「為分散式應用程式提供的分散式開源協調服務」（a distributed, open-source coordination service for distributed applications），只要多數伺服器活著就能服務，保證更新按送出順序套用<a class="fixsrc" href="https://zookeeper.apache.org/doc/current/zookeeperOver.html" target="_blank" rel="noopener">出處</a>。代價是寫入比 Redis 慢、要多維護一套。</p>
+      </div>
+      <div class="card">
+        <span class="badge">常被忽略</span>
+        <h3>其實資料庫就能擋</h3>
+        <p>唯一索引、<code>SELECT ... FOR UPDATE</code>（讀的時候順便把那幾列鎖住，直到交易結束）、樂觀鎖版本號（每列帶一個版本數字，更新時比對沒變才寫入）。只有一個資料庫的情況下，這常比自己架分散式鎖更穩也更省事——而且它本身就是「檢查在資料端」的 fencing 思路。</p>
+      </div>
+    </div>
   </section>
 <section>
     <p class="era">回到現實</p>
     <h3 class="head">放登入資訊沒問題，想當鎖要三思</h3>
-    <p>一個常見的用法：把登入者的身份與權限暫存在 Redis（雲端上就是 GCP 的 Memorystore、AWS 的 ElastiCache 這類託管服務）。<strong>這個用途沒有上面的問題</strong>——換主機時真的掉了幾筆，使用者頂多重新登入一次。</p>
-    <p>要留意的是<strong>哪天想拿 Redis 來當鎖</strong>的時候，例如「同一份文件不要被兩個人同時送出審核」。那種情境屬於上面的「不能重複」，建議先看資料庫的唯一索引擋不擋得住，擋得住就不用架鎖。</p>
+    <p>一個常見的用法：把登入者的身分與權限暫存在 Redis（雲端上就是 Memorystore、ElastiCache 這類代管服務）。<strong>這個用途沒有上面的問題</strong>——換主機時真的掉了幾筆，使用者頂多重新登入一次。</p>
+    <p>要留意的是<strong>哪天想拿 Redis 來當鎖</strong>的時候，例如「同一份文件不要被兩個人同時送出審核」。先問鎖破了會怎樣：只是多送一次審核通知，單一 Redis 加正確寫法就夠；會造成兩筆正式紀錄，就先看資料庫的唯一索引擋不擋得住，擋得住就不用架鎖；擋不住又絕對不能錯，才考慮 etcd 或 ZooKeeper。</p>
   </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>機器變多，各自記憶體裡的鎖就互相看不到，等於沒鎖。</li><li>分散式鎖就是把鎖搬到一個大家都看得到的地方，Redis 是常見選擇。</li><li>Redis 四種擺法差在「裝得下多少」和「主機掛了誰來救」：單機沒人救、主從要人工救、哨兵自動救、叢集自動救而且裝得更多。</li><li>但四種都救不了鎖——因為複製是非同步的，換主機的瞬間鎖會憑空消失。</li><li>先問「重複做一次會怎樣」。沒差就用 Redis；不能重複就加遞增編號，或乾脆用資料庫、etcd。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>機器變多，各自記憶體裡的鎖就互相看不到，等於沒鎖；分散式鎖是把鎖搬到一個大家都看得到的地方。</li><li>單一 Redis 當鎖的正確寫法：<code>SET 鍵 隨機值 NX PX 毫秒</code> 一條指令上鎖；值每次隨機、在所有請求間唯一；釋放用 <code>DELEX … IFEQ</code>（8.4 起）或 Lua 腳本「比對值再刪」。</li><li>鎖過期但工作沒做完是核心難題：續約能減少發生，但官方明說不能假設「行程活著鎖就還在」；Redis 到期用牆上時鐘，時間被調動可能讓兩個人同時持有。</li><li>主從、哨兵、叢集都是非同步複製，換主機的瞬間鎖會憑空消失；單機則是掛了全停。Redlock 用五台獨立 Redis 過半同意來避開複製，但仍依賴時鐘走速一致的假設。</li><li>Kleppmann 認為 Redlock 對時間的假設危險、正確性需求應改用 ZooKeeper 這類共識系統；antirez 認為只要時鐘走速誤差有限就安全，但承認應改用單調時鐘。</li><li>fencing token 是一個只會變大的號碼，擋人的檢查發生在資料那一端；Redis 沒有可靠的發號機制，號碼要由 etcd、ZooKeeper 這類不會倒退的系統發。</li><li>先問「重複做一次會怎樣」：為了效率用單一 Redis；為了正確性用資料庫的唯一索引或有共識演算法的系統。</li></ul></div>
