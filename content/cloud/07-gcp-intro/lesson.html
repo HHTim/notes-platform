@@ -31,7 +31,7 @@
 <h3 class="head">Region 是地理區域，Zone 是裡面的部署與故障隔離位置</h3>
 <p>Region 是 Google Cloud 的獨立地理區域；Zone 是 Region 內的部署位置，也是故障隔離單位。一般的 Compute Engine VM 屬於 Zonal Resource，所以建立時要選 Zone。</p>
 <p class="muted">一個 Region 有幾個 Zone？Google 官方文件寫的是一個 Region 由三個或以上的 Zone 組成<a class="fixsrc" href="https://docs.cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。同一頁還寫了通則是這些 Zone 分布在三座以上的實體資料中心，但緊接著列了例外：斯德哥爾摩、墨西哥、大阪、蒙特婁這四個 Region，三個 Zone 只落在一或兩座實體資料中心。所以「一個 Zone 對應一棟資料中心」不能當定律，別把 Zone 記成固定的實體資料中心階層。</p>
-<p>另外兩個常被引用的延遲數字要小心：<mark class="fixnote" tabindex="0" data-note="原筆記寫「同一 Region 內的 Zones 網路延遲：&lt; 5ms」「Zone 關鍵特性：網路延遲 &lt; 1ms」，查證後更正：Google 官方的區域與可用區文件只說 Zone 之間有高頻寬、低延遲的網路連線，並沒有把 5ms 或 1ms 寫成承諾。這不是說實測跑不出這種數字，而是說它不是可以拿來當設計保證的官方規格">Google 的區域與可用區文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線，並沒有把「小於 5 毫秒」或「小於 1 毫秒」寫成承諾</mark><a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">另外兩個常被引用的延遲數字要小心：「同一 Region 內的 Zone 之間小於 5 毫秒」「Zone 內小於 1 毫秒」這類說法很常見，但 Google 的區域與可用區文件只說同一 Region 內的 Zone 之間具有高頻寬、低延遲的網路連線<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>，沒有把這兩個毫秒數寫成承諾。</p>
 <p>講清楚一點：這不代表實測跑不出那種數字。Google 在選區域指南裡給了一條估算法則——「每 100 公里約 1 毫秒來回延遲」，而且同一段還提醒：網路不會走理想路徑，實際距離通常是地圖直線距離的 1.5 到 2 倍，估的時候要把這個倍數算進去<a class="fixsrc" href="https://docs.cloud.google.com/solutions/best-practices-compute-engine-region-selection" target="_blank" rel="noopener">出處</a>。同一 Region 的 Zone 通常只隔幾公里到幾十公里，所以實際延遲很低是合理的。</p>
 <p>差別在於：那是估算，不是可以拿來當設計保證的規格。要規劃對延遲敏感的架構，就實測自己那組 Region 與 Zone——Google 的 Network Intelligence Center 也有區域配對的實測延遲可看——別把記憶中的數字當承諾。</p>
 <p>選位置時通常要一起考慮使用者延遲、資料落地、災難復原、那裡有沒有你要的服務或硬體，以及資料傳輸成本。把 VM 分散到不同 Zone 能降低單一 Zone 故障的影響，但要自動導流還是得搭配負載平衡、健康檢查或其他故障切換設計。</p>
@@ -46,7 +46,7 @@
 地理上：建立在某個 Zone
 網路上：網路介面連到同一 Region 的 Subnet</code></pre>
 <p class="q">不要背成「Project → VPC → Region → Zone → Subnet → VM」。Region 與 Zone 是地理位置，不是建立在 VPC 裡面的子資源。</p>
-<p>上面三種講的是「資源屬於哪個範圍」。另外還有一個很容易跟 Regional 搞混的詞叫 <b>Multi-Region（多重區域）</b>，它是存資料時可以挑的地理範圍，而且比一個 Region 更大。Cloud Storage 的位置文件把三種選項並列定義：「region 是一個特定的地理位置，例如愛荷華（<code>US-CENTRAL1</code>）」、「dual-region 是一組特定的區域配對，例如東京與大阪（<code>ASIA1</code>）」、「multi-region 是一個大型地理區域，包含兩個或更多的地理區域，例如美國（<code>US</code>）」<a class="fixsrc" href="https://docs.cloud.google.com/storage/docs/locations" target="_blank" rel="noopener">出處</a>。</p>
+<p>上面三種講的是「資源屬於哪個範圍」。另外還有一個很容易跟 Regional 搞混的詞叫 <b>Multi-Region（多重區域）</b>，它是存資料時可以挑的地理範圍，而且比一個 Region 更大。Cloud Storage 的位置文件把四種選項並列定義：「zone 是一個區域裡的特定範圍，例如 <code>US-CENTRAL1-A</code>」、「region 是一個特定的地理位置，例如愛荷華（<code>US-CENTRAL1</code>）」、「dual-region 是一組特定的區域配對，例如東京與大阪（<code>ASIA1</code>）」、「multi-region 是一個大型地理區域，包含兩個或更多的地理區域，例如美國（<code>US</code>）」；其中 zone 這一種官方註明「只有 Rapid Bucket 能用」（Rapid Bucket 是高效能的區域級 bucket），一般的 bucket 選不到，所以實際在挑的還是後面三種<a class="fixsrc" href="https://docs.cloud.google.com/storage/docs/locations" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">Global 和 Multi-Region 是兩件事，別混用。Global（例如 VPC Network）的意思是「這個資源不綁任何地點」；Multi-Region 的意思是「這份資料實際被放在一整片涵蓋多個區域的範圍裡」——你還是選了地點，只是選了一大片。這樣選的用意在官方的地理位置說明裡寫得很清楚：這類跨區域的服務「設計上能在單一區域失效之後繼續運作」<a class="fixsrc" href="https://docs.cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。會挑 Multi-Region 的多半是存資料的服務，例如 Cloud Storage 的 bucket；前面提過，一般的 Compute Engine VM 是 Zonal，建立時挑的是 Zone。</p>
 </section>
 
@@ -68,7 +68,7 @@
 <h3 class="head">GCE 像向 Google 租一台可以遠端管理的虛擬電腦</h3>
 <p>Google Compute Engine（GCE）是基礎設施即服務（Infrastructure as a Service，IaaS）。Google 維護底層實體硬體，使用者選 VM 規格、作業系統、磁碟與網路，並負責作業系統更新、應用程式，以及多數 VM 內部的安全設定。</p>
 <p>GCE 適合需要控制作業系統、安裝特定軟體、跑傳統應用程式，或工作負載還不適合容器化的情況。它給你較高的控制度，也代表要承擔較多維運責任。</p>
-<p class="muted">GCE 常被提到的兩個計費特色是「以秒計費」與「持續使用折扣」（sustained-use discount，同一個月裡跑得夠久就自動打折）。兩項都存在，但各有一個條件：以秒計費是每分鐘起跳，滿一分鐘之後才以一秒為單位計費；持續使用折扣只適用於部分機器系列（例如 N1、N2、N2D、C2、M1、M2），較新的機型不在其中<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/sustained-use-discounts" target="_blank" rel="noopener">出處</a>。實際計價一律以當下的官方定價與帳務文件為準。</p>
+<p class="muted">GCE 常被提到的兩個計費特色是「以秒計費」與「持續使用折扣」（sustained-use discount，同一個月裡跑得夠久就自動打折）。兩項都存在，但各有一個條件。以秒計費是每分鐘起跳：官方寫的是所有 vCPU、GPU 與記憶體最少收一分鐘，跑 30 秒也按一分鐘算，滿一分鐘之後才改以一秒為單位計費<a class="fixsrc" href="https://cloud.google.com/compute/vm-instance-pricing" target="_blank" rel="noopener">出處</a>。持續使用折扣則只適用於部分機器系列（例如 N1、N2、N2D、C2、M1、M2），較新的機型不在其中<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/sustained-use-discounts" target="_blank" rel="noopener">出處</a>。實際計價一律以當下的官方定價與帳務文件為準。</p>
 </section>
 
 <section>
@@ -85,7 +85,7 @@
 <div class="tablewrap"><table><thead><tr><th>角色種類</th><th>誰決定內容</th><th>顆粒度</th><th>什麼時候用</th></tr></thead><tbody><tr><td>基本角色（basic）</td><td>Google 內建，範圍很寬</td><td>最粗</td><td>個人實驗、沙盒環境</td></tr><tr><td>預先定義角色（predefined）</td><td>Google 依服務維護</td><td>中等，對準單一服務</td><td>日常授權的首選</td></tr><tr><td>自訂角色（custom）</td><td>你自己挑權限組出來</td><td>最細</td><td>預先定義的都不剛好時</td></tr></tbody></table></div>
 <p>官方的定義分別是：基本角色「是權限非常寬鬆的角色，給予對 Google Cloud 資源的廣泛存取」；預先定義角色「除了基本角色之外，IAM 還提供額外的預先定義角色，對特定的 Google Cloud 資源給予細緻的存取」；自訂角色則是「IAM 也讓你建立自訂 IAM 角色」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a>。</p>
 <p>同一頁對基本角色有一則明確的警告：「基本角色包含跨所有 Google Cloud 服務的數千項權限。在正式環境中，除非別無選擇，否則不要授予基本角色。」配合前面講的權限聯集，在高層級隨手給一個基本角色，底下所有專案都會跟著吃到。</p>
-<p class="muted">名稱這幾年換過，查資料時要對得上：Owner、Editor、Viewer 這三個老面孔，官方現在歸類為<b>舊版基本角色</b>（legacy basic roles），並且寫明「舊版基本角色在 IAM 推出之前就已存在。它們原本被稱為<i>primitive roles</i>（原始角色）」；另外還有一組較新的基本角色是 Admin、Writer、Reader，但這組在 2026 年 9 月仍掛著預覽版（Preview）標示、受「Pre-GA 條款」規範，官方註明預覽版功能「以現狀提供，支援可能有限」，而且還不能從主控台授予——官方寫「你無法使用 Google Cloud 主控台授予 Reader、Writer 或 Admin 角色。請改用 API 或 gcloud CLI」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a>。所以「Primitive／Predefined／Custom 三種角色」這個講法沒有講錯東西，只是用的是舊名字——Owner、Editor、Viewer 本身還在，照樣能用。</p>
+<p class="muted">名稱換過，查資料時要對得上（以下是 2026 年 9 月的狀態）：Owner、Editor、Viewer 這三個老面孔，官方現在歸類為<b>舊版基本角色</b>（legacy basic roles），並且寫明「舊版基本角色在 IAM 推出之前就已存在。它們原本被稱為<i>primitive roles</i>（原始角色）」；另外還有一組較新的基本角色是 Admin、Writer、Reader，但這組在 2026 年 9 月仍掛著預覽版（Preview）標示、受「Pre-GA 條款」規範，官方註明預覽版功能「以現狀提供，支援可能有限」，而且還不能從主控台授予——官方寫「你無法使用 Google Cloud 主控台授予 Reader、Writer 或 Admin 角色。請改用 API 或 gcloud CLI」<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a>。所以「Primitive／Predefined／Custom 三種角色」這個講法沒有講錯東西，只是用的是舊名字——Owner、Editor、Viewer 本身還在，照樣能用。</p>
 </section>
 
 <section>

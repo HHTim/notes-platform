@@ -14,13 +14,14 @@
 <h3 class="head">Route Table 與公開、私有子網路</h3>
 <p>Route Table（路由表）像路標：它不負責准不准過，只決定封包下一站往哪走。每個 Subnet 都會關聯一張路由表，多個 Subnet 也可以共用同一張。</p>
 <p>同一個 VPC 內通常有一條本地路由（local route），所以不同 Subnet 的資源可以透過 VPC 的路由功能互通；但流量還是要通過相關的安全規則才算過關。</p>
-<div class="terms"><p><b>公開子網路（Public Subnet）</b>：它的路由表有一條通往 Internet Gateway 的路由。EC2 要直接跟網際網路來往，通常還需要公有 IPv4 位址或 Elastic IP，以及放行的安全規則。</p><p><b>私有子網路（Private Subnet）</b>：沒有讓執行個體直接經由 Internet Gateway 對外通訊的路由。需要主動連外時，可以把預設路由指向放在公開子網路裡的 NAT Gateway。</p></div>
+<div class="terms"><p><b>公開子網路（Public Subnet）</b>：它的路由表有一條通往 Internet Gateway 的路由。EC2 要直接跟網際網路來往，通常還需要公有 IPv4 位址或 Elastic IP（你先向 AWS 要下來、可以搬到別台機器上的固定公有位址），以及放行的安全規則。</p><p><b>私有子網路（Private Subnet）</b>：沒有讓執行個體直接經由 Internet Gateway 對外通訊的路由。需要主動連外時，可以把預設路由指向放在公開子網路裡的 NAT Gateway（NAT＝Network Address Translation，網路位址轉換：出去的時候把來源換成公有位址，回來的時候再換回私有位址）。</p></div>
 <p class="formula">公開子網路 ≠ 裡面的資源自動公開；路由、公有位址與安全規則，三個缺一不可。</p>
 </section>
 
 <section>
 <p class="era">三條常見流量路徑</p>
 <h3 class="head">封包實際上怎麼走</h3>
+<p>下面三張圖裡會一直出現 ENI（Elastic Network Interface，彈性網路介面），它就是掛在 EC2 上的虛擬網卡；本課後半會再細講它跟 Security Group 的關係。</p>
 <p class="q">情境一：同一個 VPC 內，兩個私有子網路怎麼互通？</p>
 <pre><code>來源 EC2
 → 來源 ENI 的 Security Group 出站檢查
@@ -61,7 +62,7 @@
 <p class="era">網卡才是網路身分</p>
 <h3 class="head">ENI、EC2 與 Security Group 的關係</h3>
 <p>ENI（Elastic Network Interface，彈性網路介面）就是虛擬網卡。EC2 是運算資源，它透過掛上 ENI 才取得私有 IP、所屬 Subnet 這些網路身分。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記的條列寫「EC2 外面包了 SG」「SG 在某一個 Subnet 裡面」，查證後更正：Security Group 是 VPC 層級的資源，關聯的對象是 ENI，不隸屬於某個 Subnet。原筆記下一段其實自己就補了「SG 其實是跟著 ENI 走的」，但那條錯的條列沒有收回，所以這裡講清楚">Security Group（安全群組）是 VPC 層級的資源，關聯的對象是 ENI，不是「住在某個 Subnet 裡」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">出處</a>。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記的條列寫「EC2 外面包了 SG」「SG 在某一個 Subnet 裡面」，查證後更正：Security Group 是 VPC 層級的資源，關聯的對象是 ENI，不隸屬於某個 Subnet。原筆記下一段其實自己就補了「SG 其實是跟著 ENI 走的」，但那條錯的條列沒有收回，所以這裡講清楚">Security Group（安全群組）是 VPC 層級的資源，關聯的對象是 ENI，不是「住在某個 Subnet 裡」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">出處</a>。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的——AWS 列出網路介面有哪些屬性時，Security groups 就明白列在那張清單裡<a class="fixsrc" href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>在條件允許時，ENI 可以從一台 EC2 卸下來，再掛到另一台 EC2。這樣就能保留部分網路設定，只換掉背後的運算資源。</p>
 </section>
 

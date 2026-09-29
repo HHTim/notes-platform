@@ -41,7 +41,7 @@
 <p class="era">Policy 結構</p>
 <h3 class="head">Effect、Action、Resource 與 Condition 組成一句授權</h3>
 <p>把政策陳述（Statement）想成一條法規：「允許或拒絕誰，在什麼條件下，對哪個資源執行哪些動作。」</p>
-<div class="tablewrap"><table><thead><tr><th>欄位</th><th>用途</th></tr></thead><tbody><tr><td>Effect</td><td>指定 Allow 或 Deny。</td></tr><tr><td>Action</td><td>指定可以執行或被拒絕的 AWS API 動作。</td></tr><tr><td>Resource</td><td>指定動作作用在哪些 AWS 資源，通常寫成 ARN。</td></tr><tr><td>Condition</td><td>限制政策何時生效，例如來源位址、標籤或請求情境。</td></tr><tr><td>Principal</td><td>指出誰是被授權或被限制的主體，常見於資源型政策與信任政策。</td></tr></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>欄位</th><th>用途</th></tr></thead><tbody><tr><td>Effect</td><td>指定 Allow 或 Deny。</td></tr><tr><td>Action</td><td>指定可以執行或被拒絕的 AWS API 動作。</td></tr><tr><td>Resource</td><td>指定動作作用在哪些 AWS 資源，通常寫成 ARN（Amazon Resource Name，AWS 資源的完整地址）。</td></tr><tr><td>Condition</td><td>限制政策何時生效，例如來源位址、標籤或請求情境。</td></tr><tr><td>Principal</td><td>指出誰是被授權或被限制的主體，常見於資源型政策與信任政策。</td></tr></tbody></table></div>
 <p class="formula">授權判斷 ≈ 主體（Principal）＋動作（Action）＋資源（Resource）＋條件（Condition）＋效果（Effect）</p>
 <p class="muted">身分型政策是附加在既有的 User、Group 或 Role 上，所以政策內容通常不另外寫 Principal；資源型政策則要指出誰能存取這個資源。</p>
 </section>
@@ -86,7 +86,7 @@ Lambda 的資源型政策
 </div>
 <p class="formula">模擬器回答「這樣寫會不會通」；Access Analyzer 回答「現在到底開了哪些沒人注意的門」。</p>
 <p class="muted">模擬器的結果不等於實際環境，官方自己就加了警語：「政策模擬器的結果可能與你的實際 AWS 環境不同。我們建議你在使用政策模擬器測試之後，再對照實際的 AWS 環境檢查你的政策，以確認得到想要的結果。」同一頁也承認，遇到比較複雜的設定時模擬結果仍可能與實際行為不同，並點名角色串接就是其中一種<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">Access Analyzer 有一個很容易漏掉的範圍限制：外部存取的分析「只分析套用在啟用它的那個 AWS 區域中的資源上的政策」，所以想看完帳號裡所有資源，得在每個有資源的 Region 各建一個外部存取分析器；未使用權限那一種分析則不受 Region 影響，不必每個 Region 各建一個<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" target="_blank" rel="noopener">出處</a>。另外 Access Analyzer 有一部分是要收費的：官方寫明未使用權限分析依分析的 IAM 角色與使用者數量計費、內部存取分析依監控的資源數量計費、自訂政策檢查依 API 請求次數計費，而且每個 Region 各建一個分析器就會各收一份錢<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">Access Analyzer 有一個很容易漏掉的範圍限制：外部存取的分析「只分析套用在啟用它的那個 AWS 區域中的資源上的政策」，所以想看完帳號裡所有資源，得在每個有資源的 Region 各建一個外部存取分析器；未使用權限那一種分析則不受 Region 影響，不必每個 Region 各建一個<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" target="_blank" rel="noopener">出處</a>。另外 Access Analyzer 有一部分是要收費的：官方寫明未使用權限分析依分析的 IAM 角色與使用者數量計費、內部存取分析依監控的資源數量計費、自訂政策檢查依 API 請求次數計費，至於「在多個 Region 各建一個就各收一份錢」這句，官方寫的範圍是未使用權限分析器，不是所有分析器<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">查文件時可能會找不到入口：2026 年 7 月起，政策模擬器搬進了 IAM 主控台，並加上模擬服務控制政策的能力，不再是獨立的模擬器網站（服務控制政策＝Service Control Policy，SCP，在 AWS Organizations 裡替整個組織或某一群帳號畫出的權限天花板，個別帳號的政策再怎麼給也不會超過它）<a class="fixsrc" href="https://aws.amazon.com/about-aws/whats-new/2026/07/iam-policy-simulator-iam-console/" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
