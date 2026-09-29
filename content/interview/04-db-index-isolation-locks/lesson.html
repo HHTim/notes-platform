@@ -1,31 +1,31 @@
 <!-- 來源：依 MySQL 8.4 參考手冊（InnoDB 索引、鎖、交易隔離、EXPLAIN、Online DDL）、PostgreSQL 現行文件（交易隔離、MVCC、VACUUM、索引類型）新寫；SQL 範例於 MySQL 8.4.11 實跑 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 InnoDB 的索引長什麼樣：為什麼用 B+ 樹、聚簇索引與二級索引差在哪、回表與覆蓋索引是什麼</li><li>判斷一條查詢用不用得到索引：最左前綴、五種讓索引失效的寫法，以及 EXPLAIN 要看哪幾欄</li><li>答出四個隔離等級各擋住哪種讀異常、MySQL 與 PostgreSQL 預設哪個、MVCC 怎麼做到讀不加鎖</li><li>分清記錄鎖、間隙鎖、Next-Key 鎖，說明悲觀鎖與樂觀鎖的取捨，並用 SHOW ENGINE INNODB STATUS 排查死結</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 InnoDB 的索引長什麼樣：為什麼用 B+ 樹、叢集索引與二級索引差在哪、回表與覆蓋索引是什麼</li><li>判斷一條查詢用不用得到索引：最左前綴、五種讓索引失效的寫法，以及 EXPLAIN 要看哪幾欄</li><li>答出四個隔離等級各擋住哪種讀異常、MySQL 與 PostgreSQL 預設哪個、MVCC 怎麼做到讀不加鎖</li><li>分清記錄鎖、間隙鎖、Next-Key 鎖，說明悲觀鎖與樂觀鎖的取捨，並用 SHOW ENGINE INNODB STATUS 排查死結</li></ul></div>
 <section>
     <p class="era">索引結構</p>
-    <h3 class="head">B+ 樹、聚簇索引與二級索引</h3>
+    <h3 class="head">B+ 樹、叢集索引與二級索引</h3>
     <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補一句版本或實務註記。ACID 與交易基礎見資料庫模組第 2 課〈SQL 三種子語言：DDL、DML、DQL〉，本課不重講。</p>
     <p class="q">面試官：索引是什麼？為什麼用 B+ 樹，不用雜湊或二元樹？</p>
     <p><strong>一句話定義：</strong>索引是資料表旁邊另外維護的一份排序好的目錄，讓資料庫不用逐列掃描就能找到目標資料列。MySQL 的主鍵、唯一鍵、一般索引都存成 B-tree（多路平衡樹，手冊統稱 B-tree；面試常說的 B+ 樹是它把資料放在葉節點的變形）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>為什麼不是二元樹：</strong>B-tree 的一個節點可以有很多個子節點，不像二元樹每個節點只能有兩個<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_b_tree" target="_blank" rel="noopener">出處</a>。InnoDB 一個索引頁預設 16KB<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>，一頁能放很多個鍵，每往下一層容量就乘上一頁的鍵數，所以樹很矮——從根到葉只要讀少少幾頁。頁（page）正是 InnoDB 在硬碟與記憶體之間一次搬動的資料單位<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_page" target="_blank" rel="noopener">出處</a>，讀幾頁就是幾次 I/O，這是「適合磁碟」的意思。</p>
     <p><strong>為什麼不是雜湊：</strong>雜湊索引只能做等號比對，不能做範圍查詢、不能幫 ORDER BY 排序、也只能拿整把鍵去查<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>；B-tree 隨時保持排序，等號與範圍（大於、小於、BETWEEN）都能用<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_b_tree" target="_blank" rel="noopener">出處</a>。</p>
-    <p class="q">面試官：InnoDB 的聚簇索引與二級索引差在哪？回表是什麼？</p>
-    <p><strong>一句話定義：</strong>每張 InnoDB 資料表都有一個叫聚簇索引（clustered index）的特殊索引，資料列本身就存在它的葉節點裡；有主鍵就拿主鍵當聚簇索引，沒有主鍵就拿第一個所有欄位皆 NOT NULL 的唯一索引，兩者都沒有時 InnoDB 自己生一個隱藏的 <code>GEN_CLUST_INDEX</code><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。</p>
-    <p><strong>差別：</strong>聚簇索引之外的索引都叫二級索引（secondary index），它的每一筆記錄除了被索引的欄位，還帶著那一列的主鍵值；InnoDB 拿這個主鍵值再到聚簇索引裡找出整列<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>——這第二趟就是「回表」。所以走二級索引查一列要找兩棵樹，走主鍵只要一棵。</p>
+    <p class="q">面試官：InnoDB 的叢集索引與二級索引差在哪？回表是什麼？</p>
+    <p><strong>一句話定義：</strong>每張 InnoDB 資料表都有一個叫叢集索引（clustered index；這裡的「叢集」是資料列聚在索引裡的意思，跟 Redis 叢集那種多台機器無關）的特殊索引，資料列本身就存在它的葉節點裡；有主鍵就拿主鍵當叢集索引，沒有主鍵就拿第一個所有欄位皆 NOT NULL 的唯一索引，兩者都沒有時 InnoDB 自己生一個隱藏的 <code>GEN_CLUST_INDEX</code><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>差別：</strong>叢集索引之外的索引都叫二級索引（secondary index），它的每一筆記錄除了被索引的欄位，還帶著那一列的主鍵值；InnoDB 拿這個主鍵值再到叢集索引裡找出整列<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>——這第二趟就是「回表」。所以走二級索引查一列要找兩棵樹，走主鍵只要一棵。</p>
     <p class="formula">主鍵越長，每一個二級索引都要跟著變胖——手冊的建議是主鍵要短</p>
-    <p class="q">面試官：主鍵為什麼建議用自增整數，不用 UUID？</p>
-    <p>三個理由都能在手冊找到：第一，沒有天然的唯一非空欄位時，手冊直接建議加一個自增欄位當主鍵<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。第二，主鍵值會被複製進每一個二級索引，主鍵長就整體變大<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html" target="_blank" rel="noopener">出處</a>。第三，依序插入時索引頁大約填到 15/16，隨機插入則只有 1/2 到 15/16<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>——UUID 的值是亂跳的，會到處插頁、造成頁分裂（一頁塞滿要拆成兩頁）與空洞。真的要用 UUID，MySQL 提供 <code>UUID_TO_BIN(uuid, 1)</code> 把變動快的時間部分換到後面，手冊說這樣存進索引欄位可以改善索引效率<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html#function_uuid-to-bin" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="q">面試官：主鍵為什麼建議用自動遞增整數，不用 UUID？</p>
+    <p>三個理由都能在手冊找到：第一，沒有天然的唯一非空欄位時，手冊直接建議加一個自動遞增欄位當主鍵<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。第二，主鍵值會被複製進每一個二級索引，主鍵長就整體變大<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html" target="_blank" rel="noopener">出處</a>。第三，依序插入時索引頁大約填到 15/16，隨機插入則只有 1/2 到 15/16<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>——UUID 的值是亂跳的，會到處插頁、造成頁分裂（一頁塞滿要拆成兩頁）與空洞。真的要用 UUID，MySQL 提供 <code>UUID_TO_BIN(uuid, 1)</code> 把變動快的時間部分換到後面，手冊說這樣存進索引欄位可以改善索引效率<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html#function_uuid-to-bin" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 <section>
     <p class="era">怎麼用索引</p>
     <h3 class="head">最左前綴、覆蓋索引與五種失效寫法</h3>
     <p class="q">面試官：複合索引的最左前綴原則是什麼？<code>(a, b, c)</code> 哪些查詢用得到？</p>
-    <p><strong>一句話定義：</strong>複合索引可以想成把多個欄位的值串起來排序的一份清單，查詢條件必須從最左邊那欄開始、連續往右，優化器（資料庫裡決定一條查詢要怎麼執行的元件）才能用它定位<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/multiple-column-indexes.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>一句話定義：</strong>複合索引可以想成把多個欄位的值串起來排序的一份清單，查詢條件必須從最左邊那欄開始、連續往右，最佳化器（資料庫裡決定一條查詢要怎麼執行的元件）才能用它定位<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/multiple-column-indexes.html" target="_blank" rel="noopener">出處</a>。</p>
     <div class="tablewrap"><table>
       <thead><tr><th>WHERE 條件</th><th>用得到 <code>(a, b, c)</code> 嗎</th><th>原因</th></tr></thead>
       <tbody>
         <tr><td><code>a = 1</code></td><td>用得到</td><td>只用第一欄，是最左前綴</td></tr>
         <tr><td><code>a = 1 AND b = 2</code>、<code>a = 1 AND b = 2 AND c = 3</code></td><td>用得到</td><td>連續的前綴</td></tr>
-        <tr><td><code>a = 1 AND c = 3</code></td><td>只用到 a 那一欄</td><td>中間跳過 b，c 不能拿來定位——手冊說這種寫法會被當成只有 <code>a = 1</code> 來優化<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>；EXPLAIN 的 key_len 只會算到 a</td></tr>
+        <tr><td><code>a = 1 AND c = 3</code></td><td>只用到 a 那一欄</td><td>中間跳過 b，c 不能拿來定位——手冊說這種寫法會被當成只有 <code>a = 1</code> 來最佳化<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>；EXPLAIN 的 key_len 只會算到 a</td></tr>
         <tr><td><code>b = 2</code>、<code>b = 2 AND c = 3</code></td><td>用不到</td><td>不是最左前綴，手冊明講不會用索引查找</td></tr>
         <tr><td><code>a = 1 OR b = 2</code></td><td>用不到</td><td>OR 的兩邊沒有共同的索引前綴</td></tr>
       </tbody>
@@ -39,15 +39,15 @@
       <div class="term"><b>對欄位套函式</b><span><code>WHERE YEAR(created_at) = 2026</code>——索引存的是 created_at 原值，不是算過的結果。改寫成範圍條件 <code>created_at &gt;= '2026-01-01' AND created_at &lt; '2027-01-01'</code>，或建函式索引（functional key part，直接對表達式建索引）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-index.html#create-index-functional-key-parts" target="_blank" rel="noopener">出處</a>。</span></div>
       <div class="term"><b>隱含型別轉換</b><span>字串欄位拿來跟數字比，例如 <code>WHERE phone = 900000123</code>，MySQL 沒辦法用該欄位的索引快速查找——因為 <code>'1'</code>、<code>' 1'</code>、<code>'1a'</code> 很多不同字串都會轉成同一個數字<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/type-conversion.html" target="_blank" rel="noopener">出處</a>。寫成 <code>'0900000123'</code> 就好了。</span></div>
       <div class="term"><b>前置萬用字元</b><span><code>LIKE '%0123'</code> 用不到索引；<code>LIKE '0900%'</code> 這種常數字串開頭、不以萬用字元起頭的才能用<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>。</span></div>
-      <div class="term"><b>OR 混到沒索引的欄位</b><span><code>WHERE customer_id = 42 OR amount &gt; 29000</code>——手冊的說法是「WHERE 的兩邊沒有都用到索引」就不會用<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>。兩邊各自有索引時，優化器可能改走 Index Merge（把兩個索引各掃一次再合併結果）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-merge-optimization.html" target="_blank" rel="noopener">出處</a>。</span></div>
-      <div class="term"><b>條件挑不掉多少列</b><span>否定條件（<code>!=</code>、<code>NOT IN</code>）常落在這裡：優化器估計走索引仍要碰到資料表的一大部分時，會放棄索引改掃全表，因為順序讀比反覆跳頁快<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>。這不算失效，是優化器的成本判斷。</span></div>
+      <div class="term"><b>OR 混到沒索引的欄位</b><span><code>WHERE customer_id = 42 OR amount &gt; 29000</code>——手冊的說法是「WHERE 的兩邊沒有都用到索引」就不會用<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>。兩邊各自有索引時，最佳化器可能改走 Index Merge（把兩個索引各掃一次再合併結果）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-merge-optimization.html" target="_blank" rel="noopener">出處</a>。</span></div>
+      <div class="term"><b>條件挑不掉多少列</b><span>否定條件（<code>!=</code>、<code>NOT IN</code>）常落在這裡：最佳化器估計走索引仍要碰到資料表的一大部分時，會放棄索引改掃全表，因為順序讀比反覆跳頁快<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a>。這不算失效，是最佳化器的成本判斷。</span></div>
     </div>
 </section>
 <section>
     <p class="era">看懂執行計畫</p>
     <h3 class="head">EXPLAIN 與慢查詢日誌</h3>
     <p class="q">面試官：EXPLAIN 要看哪幾欄？</p>
-    <p><strong>一句話定義：</strong>EXPLAIN 印出優化器打算怎麼執行這條查詢；四欄最重要——<code>type</code>（存取方式）、<code>key</code>（實際選用的索引）、<code>rows</code>（估計要檢查的列數）、<code>Extra</code>（額外資訊）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>一句話定義：</strong>EXPLAIN 印出最佳化器打算怎麼執行這條查詢；四欄最重要——<code>type</code>（存取方式）、<code>key</code>（實際選用的索引）、<code>rows</code>（估計要檢查的列數）、<code>Extra</code>（額外資訊）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a>。</p>
     <div class="tablewrap"><table>
       <thead><tr><th><code>type</code> 由好到差</th><th>意思</th></tr></thead>
       <tbody>
@@ -76,7 +76,7 @@ EXPLAIN FORMAT=TREE SELECT id, status FROM orders WHERE customer_id = 42 AND sta
     <p class="q">面試官：四個隔離等級各允許哪些讀異常？MySQL 預設哪個？PostgreSQL 預設哪個？</p>
     <p><strong>一句話定義：</strong>隔離等級（isolation level）是「多筆交易同時跑時，彼此看得到對方多少中間狀態」的設定，換的是效能與一致性之間的平衡。SQL 標準的三種讀異常，PostgreSQL 文件的定義最清楚<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>：</p>
     <div class="terms">
-      <div class="term"><b>髒讀（dirty read）</b><span>讀到另一筆交易還沒提交的資料——對方一旦回復，你讀到的就是從沒存在過的值。</span></div>
+      <div class="term"><b>髒讀（dirty read）</b><span>讀到另一筆交易還沒提交的資料——對方一旦回復（rollback，取消整筆交易），你讀到的就是從沒存在過的值。</span></div>
       <div class="term"><b>不可重複讀（nonrepeatable read）</b><span>同一筆交易裡重讀同一列，發現被別的交易改掉並提交了。</span></div>
       <div class="term"><b>幻讀（phantom read）</b><span>同一筆交易裡重跑同一個條件查詢，符合條件的「列的集合」變了——別人插了或刪了列。</span></div>
     </div>
@@ -85,11 +85,11 @@ EXPLAIN FORMAT=TREE SELECT id, status FROM orders WHERE customer_id = 42 AND sta
       <tbody>
         <tr><th>READ UNCOMMITTED</th><td>可能</td><td>可能</td><td>可能</td></tr>
         <tr><th>READ COMMITTED</th><td>不會</td><td>可能</td><td>可能</td></tr>
-        <tr><th>REPEATABLE READ</th><td>不會</td><td>不會</td><td>標準允許；InnoDB 與 PostgreSQL 實作上都擋掉（見下）</td></tr>
+        <tr><th>REPEATABLE READ</th><td>不會</td><td>不會</td><td>標準允許；PostgreSQL 實作上擋掉；InnoDB 靠快照與 Next-Key 鎖擋住一般情況，但交易內自己 UPDATE 到別人剛提交的列後，那些列會變成看得到<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a>（見下）</td></tr>
         <tr><th>SERIALIZABLE</th><td>不會</td><td>不會</td><td>不會</td></tr>
       </tbody>
     </table></div>
-    <p>InnoDB 提供 SQL:1992 標準的全部四級，<strong>預設 REPEATABLE READ</strong><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>；<strong>PostgreSQL 預設 READ COMMITTED</strong>，而且內部只實作三級——它的 READ UNCOMMITTED 行為等同 READ COMMITTED；PostgreSQL 的 REPEATABLE READ 實作也不允許幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>。InnoDB 在 REPEATABLE READ 下，一般 SELECT 讀的是交易第一次讀取時建立的快照；READ COMMITTED 則每次讀都拿新快照，並且關掉間隙鎖，所以會出現幻讀<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。SERIALIZABLE 是在 REPEATABLE READ 之上，把所有一般 SELECT 隱含改成 <code>SELECT ... FOR SHARE</code>（autocommit 關閉時）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>InnoDB 提供 SQL:1992 標準的全部四級，<strong>預設 REPEATABLE READ</strong><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>；<strong>PostgreSQL 預設 READ COMMITTED</strong>，而且內部只實作三級——它的 READ UNCOMMITTED 行為等同 READ COMMITTED；PostgreSQL 的 REPEATABLE READ 實作也不允許幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>。InnoDB 在 REPEATABLE READ 下，一般 SELECT 讀的是交易第一次讀取時建立的快照；READ COMMITTED 則每次讀都拿新快照，而且一般搜尋與索引掃描不加間隙鎖（只剩外鍵檢查與重複鍵檢查會用），所以會出現幻讀<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。SERIALIZABLE 是在 REPEATABLE READ 之上，把所有一般 SELECT 隱含改成 <code>SELECT ... FOR SHARE</code>（autocommit 關閉時）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。</p>
     <pre><code>SELECT @@transaction_isolation;                          -- REPEATABLE-READ
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;  -- 只改這條連線</code></pre>
     <p class="q">面試官：MVCC 是什麼？InnoDB 怎麼用 undo log（記錄「修改前長什麼樣」的日誌）讀到舊版本？</p>
@@ -111,11 +111,11 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;  -- 只改這條連線</
     </div>
     <p class="q">面試官：記錄鎖、間隙鎖、Next-Key 鎖是什麼？為什麼可以擋幻讀？</p>
     <div class="terms">
-      <div class="term"><b>記錄鎖（record lock）</b><span>鎖一筆索引記錄。<code>SELECT c1 FROM t WHERE c1 = 10 FOR UPDATE</code> 讓其他交易不能插入、更新或刪除 c1 = 10 的列。沒有索引的資料表也是鎖隱藏聚簇索引的記錄<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-record-locks" target="_blank" rel="noopener">出處</a>。</span></div>
+      <div class="term"><b>記錄鎖（record lock）</b><span>鎖一筆索引記錄。<code>SELECT c1 FROM t WHERE c1 = 10 FOR UPDATE</code> 讓其他交易不能插入、更新或刪除 c1 = 10 的列。沒有索引的資料表也是鎖隱藏叢集索引的記錄<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-record-locks" target="_blank" rel="noopener">出處</a>。</span></div>
       <div class="term"><b>間隙鎖（gap lock）</b><span>鎖兩筆索引記錄之間的「空隙」，或第一筆之前、最後一筆之後的空隙。<code>WHERE c1 BETWEEN 10 AND 20 FOR UPDATE</code> 讓別人插不進 15——不管原本有沒有 15 這個值<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-gap-locks" target="_blank" rel="noopener">出處</a>。間隙鎖純粹是「禁止插入」，不同交易可以同時持有同一段間隙的間隙鎖，它們彼此不衝突<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-gap-locks" target="_blank" rel="noopener">出處</a>。</span></div>
       <div class="term"><b>Next-Key 鎖</b><span>記錄鎖加上「該記錄前面那段間隙」的間隙鎖。索引裡有 10、11、13、20 時，可能的 Next-Key 鎖區間是 (負無限, 10]、(10, 11]、(11, 13]、(13, 20]、(20, 正無限)<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-next-key-locks" target="_blank" rel="noopener">出處</a>。</span></div>
     </div>
-    <p><strong>為什麼擋得住幻讀：</strong>幻讀是重跑同一個查詢多出一列；InnoDB 預設的 REPEATABLE READ 對搜尋與索引掃描用 Next-Key 鎖，把「已有的記錄」和「記錄之間可以插入的位置」一起鎖住，別人就插不進你掃過的範圍<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-next-key-locks" target="_blank" rel="noopener">出處</a>。用唯一索引做等號查找只鎖那一筆記錄、不鎖前面的間隙；非唯一索引或範圍條件才會鎖間隙<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-gap-locks" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>為什麼擋得住幻讀：</strong>幻讀是重跑同一個查詢多出一列；InnoDB 預設的 REPEATABLE READ 對搜尋與索引掃描用 Next-Key 鎖，把「已有的記錄」和「記錄之間可以插入的位置」一起鎖住，別人就插不進你掃過的範圍<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-next-key-locks" target="_blank" rel="noopener">出處</a>。用唯一索引做等號查找、且條件涵蓋索引全部欄位時，只鎖那一筆記錄、不鎖前面的間隙；非唯一索引或範圍條件才會鎖間隙<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-gap-locks" target="_blank" rel="noopener">出處</a>。</p>
     <pre><code>-- 連線 A（REPEATABLE READ，customer_id 有非唯一索引）
 START TRANSACTION;
 SELECT id FROM orders WHERE customer_id = 42 FOR UPDATE;
@@ -123,7 +123,7 @@ SELECT id FROM orders WHERE customer_id = 42 FOR UPDATE;
 INSERT INTO orders (customer_id, status, created_at, amount, phone)
 VALUES (42, 'NEW', NOW(), 1, '0999999999');
 -- 同一組操作改成 READ COMMITTED：B 立刻成功——因為這個等級不加間隙鎖</code></pre>
-    <p class="muted">分散式環境下這些鎖只管得到同一台資料庫；多台機器搶同一把鎖的問題見資料庫模組第 5 課〈一把鑰匙，很多台機器在搶〉。</p>
+    <p class="muted">分散式環境下這些鎖只管得到同一台資料庫；多台機器搶同一把鎖的問題見資料庫模組第 5 課〈分散式鎖與 Redis〉。</p>
 </section>
 <section>
     <p class="era">死結與結構變更</p>
@@ -134,14 +134,14 @@ VALUES (42, 'NEW', NOW(), 1, '0999999999');
 UPDATE accounts SET ... WHERE id = 1;      UPDATE accounts SET ... WHERE id = 2;
 UPDATE accounts SET ... WHERE id = 2;  ←等  UPDATE accounts SET ... WHERE id = 1;  ←等
 -- 其中一方收到：ERROR 1213 (40001) Deadlock found when trying to get lock; try restarting transaction</code></pre>
-    <p><strong>InnoDB 怎麼處理：</strong>死結偵測預設開啟，偵測到就回復其中一筆交易（受害者）來解開，挑的是「較小」的那筆——大小以插入、更新、刪除的列數計<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a>。若用 <code>innodb_deadlock_detect</code> 關掉偵測，就靠 <code>innodb_lock_wait_timeout</code>（預設 50 秒）逾時回復<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a>。所以就算應用程式邏輯正確，也要處理「交易必須重試」的情況<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>InnoDB 怎麼處理：</strong>死結偵測預設開啟，偵測到就回復其中一筆交易（受害者）來解開，挑的是「較小」的那筆——大小以插入、更新、刪除的列數計<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a>。若用 <code>innodb_deadlock_detect</code> 關掉偵測，就靠 <code>innodb_lock_wait_timeout</code>（預設 50 秒）逾時，錯誤碼 1205。要注意逾時預設<strong>只回復當下那一條語句、不是整筆交易</strong>（要整筆回復得開 <code>innodb_rollback_on_timeout</code>）；應用程式若以為交易已整筆回復就直接開新交易，前面的語句其實還在原交易裡、鎖也還握著<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a>。所以就算應用程式邏輯正確，也要處理「交易必須重試」的情況<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>怎麼排查：</strong><code>SHOW ENGINE INNODB STATUS</code> 的 <code>LATEST DETECTED DEADLOCK</code> 區段列出最近一次死結牽涉的交易、各自正在執行的語句、持有與等待的鎖，以及 InnoDB 決定回復哪一筆<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-standard-monitor.html" target="_blank" rel="noopener">出處</a>。它只留最近一次；死結頻繁時開 <code>innodb_print_all_deadlocks</code>，把每一次都寫進錯誤日誌<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
-    <p><strong>怎麼減少：</strong>手冊的清單——交易小而短、做完一組相關變更就提交；不同交易對多張表或大範圍列用同樣的順序操作；替 <code>FOR UPDATE</code> 與 <code>UPDATE ... WHERE</code> 用到的欄位建好索引，掃得少就鎖得少；能接受舊快照的 SELECT 就別加 <code>FOR UPDATE</code><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>怎麼減少：</strong>手冊的清單——交易小而短、做完一組相關變更就提交；不同交易對多張表或大範圍列用同樣的順序操作；替 <code>FOR UPDATE</code> 與 <code>UPDATE ... WHERE</code> 用到的欄位建好索引，掃得少就鎖得少；能接受舊快照的 SELECT 就別加 <code>FOR UPDATE</code>；鎖定讀若能接受，改用 READ COMMITTED 這類較低的隔離等級<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
     <p class="formula">「Deadlocks are not dangerous. Just try again.」——手冊原句；面試答到重試機制才算完整</p>
     <p class="q">面試官：大表加欄位或加索引會鎖表嗎？</p>
     <p><strong>一句話定義：</strong>Online DDL 讓 <code>ALTER TABLE</code> 用即時（instant）或就地（in-place）方式改結構，改的同時允許其他連線讀寫（手冊叫並行 DML，DML 就是 INSERT／UPDATE／DELETE）；預設不用特別設定，MySQL 會在允許的範圍內選最少鎖的做法<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a>。</p>
     <ul class="plainlist">
-      <li><strong>加欄位</strong>：可以 INSTANT，只改中繼資料（描述資料表結構的那份資料）、不重建表；INSTANT 是 MySQL 8.4 的預設演算法<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html#online-ddl-column-operations" target="_blank" rel="noopener">出處</a>。</li>
+      <li><strong>加欄位</strong>：通常可以 INSTANT（COMPRESSED 列格式、帶全文索引的表等例外除外），只改中繼資料（描述資料表結構的那份資料）、不重建表；INSTANT 是 MySQL 8.4 的預設演算法<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html#online-ddl-column-operations" target="_blank" rel="noopener">出處</a>。</li>
       <li><strong>加二級索引</strong>：不能 INSTANT，但可以 in-place、不重建表、允許並行 DML；建索引期間資料表照常可讀可寫，語句會等到所有正在存取這張表的交易結束才完成<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html#online-ddl-index-operations" target="_blank" rel="noopener">出處</a>。</li>
       <li><strong>改欄位型別</strong>：既不能 INSTANT 也不能 in-place，要重建表，且不允許並行 DML<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html#online-ddl-column-operations" target="_blank" rel="noopener">出處</a>——這才是正式環境會鎖住的那種。</li>
     </ul>
@@ -155,10 +155,10 @@ ALTER TABLE orders ADD INDEX idx_created (created_at), ALGORITHM=INPLACE, LOCK=N
       <tbody>
         <tr><th>預設隔離等級</th><td>REPEATABLE READ<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a></td><td>READ COMMITTED；只實作三級，REPEATABLE READ 不會幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></td></tr>
         <tr><th>MVCC 舊版本放哪</th><td>undo log（回復區段），另外保存<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener">出處</a></td><td>留在資料表裡；UPDATE／DELETE 不會馬上移除舊版本，要靠 VACUUM 回收空間<a class="fixsrc" href="https://www.postgresql.org/docs/current/routine-vacuuming.html" target="_blank" rel="noopener">出處</a></td></tr>
-        <tr><th>資料表組織</th><td>資料列存在聚簇索引（主鍵）的葉節點<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a></td><td>索引類型多：B-tree、Hash、GiST、SP-GiST、GIN、BRIN，預設 B-tree<a class="fixsrc" href="https://www.postgresql.org/docs/current/indexes-types.html" target="_blank" rel="noopener">出處</a></td></tr>
-        <tr><th>讀寫互擋</th><td>一致性讀不加鎖<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></td><td>「讀永不擋寫、寫永不擋讀」，連 SERIALIZABLE 也靠可序列化快照隔離（SSI）維持<a class="fixsrc" href="https://www.postgresql.org/docs/current/mvcc-intro.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>索引類型</th><td>InnoDB 的索引都是 B-tree（空間索引用 R-tree、全文索引用倒排表）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a></td><td>索引類型多：B-tree、Hash、GiST、SP-GiST、GIN、BRIN 與擴充套件 bloom，預設 B-tree<a class="fixsrc" href="https://www.postgresql.org/docs/current/indexes-types.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>讀寫互擋</th><td>一致性讀不加鎖<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></td><td>「讀永不擋寫、寫永不擋讀」，連 SERIALIZABLE 也靠可序列化快照隔離（SSI，靠偵測交易之間的相依關係、必要時中止其中一筆，而不是靠鎖）維持<a class="fixsrc" href="https://www.postgresql.org/docs/current/mvcc-intro.html" target="_blank" rel="noopener">出處</a></td></tr>
       </tbody>
     </table></div>
-    <p>面試時抓兩個對比最有效：預設隔離等級不同（所以同一段程式搬家後幻讀行為會變），以及舊版本的存放位置不同（所以 PostgreSQL 有 VACUUM、MySQL 有 undo 表空間膨脹）。Spring 端 <code>@Transactional</code> 怎麼對應隔離等級與傳播行為，見面試集的〈Spring 面試快答〉那一課。</p>
+    <p>面試時抓兩個對比最有效：預設隔離等級不同（所以同一段程式搬家後幻讀行為會變），以及舊版本的存放位置不同（所以 PostgreSQL 有 VACUUM、MySQL 有 undo 表空間膨脹）。Spring 端 <code>@Transactional</code> 的傳播行為見面試集〈Spring 面試快答：IoC、Bean、AOP 與交易〉；隔離等級怎麼對應見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>InnoDB 索引是 B-tree：節點多路、一頁 16KB、樹很矮，等號與範圍都能用；雜湊只能等號。資料列住在聚簇索引的葉節點，二級索引帶主鍵值、要回表。</li><li>複合索引照最左前綴用；對欄位套函式、字串欄位比數字、<code>LIKE '%x'</code>、OR 混到沒索引的欄位，索引都用不上。查詢欄位全在索引裡就是覆蓋索引，EXPLAIN 顯示 <code>Using index</code>。</li><li>EXPLAIN 盯 <code>type</code>、<code>key</code>、<code>rows</code>、<code>Extra</code>；<code>ALL</code>、<code>Using filesort</code>、<code>Using temporary</code> 是警訊。慢查詢靠 slow query log 抓，預設關、門檻 10 秒。</li><li>InnoDB 預設 REPEATABLE READ、PostgreSQL 預設 READ COMMITTED。MVCC 用 undo log 重建舊版本，一致性讀不加鎖；長交易會讓 undo 無法清除。</li><li>Next-Key 鎖＝記錄鎖＋前一段間隙鎖，InnoDB 靠它在 REPEATABLE READ 擋幻讀；READ COMMITTED 不加間隙鎖。悲觀鎖用 <code>FOR UPDATE</code>，樂觀鎖用版本欄位加重試。</li><li>死結由 InnoDB 自動偵測並回復較小的交易，應用程式要重試；<code>SHOW ENGINE INNODB STATUS</code> 看 LATEST DETECTED DEADLOCK。加欄位 INSTANT、加索引 in-place 不鎖表，改型別才重建。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>InnoDB 索引是 B-tree：節點多路、一頁 16KB、樹很矮，等號與範圍都能用；雜湊只能等號。資料列住在叢集索引的葉節點，二級索引帶主鍵值、要回表。</li><li>複合索引照最左前綴用；對欄位套函式、字串欄位比數字、<code>LIKE '%x'</code>、OR 混到沒索引的欄位，索引都用不上。查詢欄位全在索引裡就是覆蓋索引，EXPLAIN 顯示 <code>Using index</code>。</li><li>EXPLAIN 盯 <code>type</code>、<code>key</code>、<code>rows</code>、<code>Extra</code>；<code>ALL</code>、<code>Using filesort</code>、<code>Using temporary</code> 是警訊。慢查詢靠 slow query log 抓，預設關、門檻 10 秒。</li><li>InnoDB 預設 REPEATABLE READ、PostgreSQL 預設 READ COMMITTED。MVCC 用 undo log 重建舊版本，一致性讀不加鎖；長交易會讓 undo 無法清除。</li><li>Next-Key 鎖＝記錄鎖＋前一段間隙鎖，InnoDB 靠它在 REPEATABLE READ 擋幻讀；READ COMMITTED 一般搜尋不加間隙鎖。悲觀鎖用 <code>FOR UPDATE</code>，樂觀鎖用版本欄位加重試。</li><li>死結由 InnoDB 自動偵測並回復較小的交易，應用程式要重試；<code>SHOW ENGINE INNODB STATUS</code> 看 LATEST DETECTED DEADLOCK。加欄位 INSTANT、加索引 in-place 不鎖表，改型別才重建。</li></ul></div>
