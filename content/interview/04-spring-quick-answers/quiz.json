@@ -1,0 +1,54 @@
+{
+ "questions": [
+  {
+   "q": "面試官問「IoC 跟 DI 是同一件事嗎？」最準確的回答是？",
+   "opts": ["IoC 是「物件不自己建立相依、交給容器」的原則，DI 是實現它的一種做法（容器把相依注入進來）", "IoC 是 Spring 的容器名稱，DI 是 Spring Boot 的容器名稱", "DI 是原則，IoC 是 Spring 對 DI 的實作", "兩者完全同義，只是不同年代的叫法"],
+   "exp": "官方文件把 DI 描述成 IoC 的做法：物件宣告需要什麼、容器建立時注入，這正好是物件自己控制相依的反面。"
+  },
+  {
+   "q": "一個沒有任何可變欄位、只持有注入相依的 singleton Service，被多個請求同時呼叫時會怎樣？",
+   "opts": ["沒有共用狀態可以壞，所以沒有執行緒安全問題——問題只在 Bean 放了可變欄位時才出現", "Spring 會替每個請求複製一份，所以永遠安全", "singleton 天生不安全，必須全部改成 prototype", "容器會自動對方法加鎖，所以安全"],
+   "exp": "singleton 是同一個實例被所有請求共用；容器不加鎖也不複製，安不安全取決於 Bean 有沒有可變狀態。"
+  },
+  {
+   "q": "同一個 Bean 同時實作 InitializingBean、標了 @PostConstruct、又設了自訂 init 方法，三者的執行順序是？",
+   "opts": ["@PostConstruct → afterPropertiesSet() → 自訂 init 方法", "afterPropertiesSet() → @PostConstruct → 自訂 init 方法", "自訂 init 方法 → afterPropertiesSet() → @PostConstruct", "三者順序不固定，看宣告先後"],
+   "exp": "官方「結合多種生命週期機制」那節明列：註解最先、介面回呼其次、自訂方法最後；銷毀也是同樣順序。"
+  },
+  {
+   "q": "A 用建構子注入 B、B 用建構子注入 A，在 Spring Boot 3 上啟動會發生什麼？",
+   "opts": ["啟動失敗，丟 BeanCurrentlyInCreationException；官方建議重新設計打破循環", "容器先交出 A 的半成品給 B，兩個都能建好", "容器自動把其中一方改成延遲載入，正常啟動", "只會印警告，兩個 Bean 都是 null"],
+   "exp": "建構子注入要求建立當下就拿到完整相依，循環無解；而且 Boot 2.6 起循環參考預設禁止，setter 注入那條「半成品」路也被關掉了。"
+  },
+  {
+   "q": "容器裡有兩個 Printer 實作，某個注入點就是要 hpPrinter，其他地方都用預設那一個。最合適的組合是？",
+   "opts": ["預設那一個的定義標 @Primary，那個注入點加 @Qualifier(\"hpPrinter\")", "兩個都標 @Primary，讓容器自己挑", "兩個注入點都改用 @Resource，不寫名稱", "把其中一個實作從元件掃描拿掉"],
+   "exp": "@Primary 表達「沒指定時預設給這個」，@Qualifier 表達「這裡就要那一個」；官方說需要對選擇過程有更多控制時才用 @Qualifier。"
+  },
+  {
+   "q": "Spring Boot 專案裡一個 Service 實作了介面，Spring AOP 替它建的代理預設是哪一種？",
+   "opts": ["CGLIB 子類別代理——Spring Boot 2.0 起預設 proxy-target-class 為 true，不看有沒有介面", "JDK 動態代理——因為它有實作介面", "兩種都建，由呼叫端決定用哪一個", "不建代理，直接用原物件"],
+   "exp": "純 Spring Framework 才是「有介面就 JDK 動態代理」；Spring Boot 的官方文件寫預設把 Spring AOP 設成 CGLib 代理，要 JDK 代理得自己把屬性設成 false。"
+  },
+  {
+   "q": "同一個類別裡，沒有 @Transactional 的 a() 呼叫了有 @Transactional 的 b()，外部只呼叫 a()。b() 的交易會生效嗎？",
+   "opts": ["不會——a() 對 b() 的呼叫走 this、沒經過代理，交易攔截器根本沒介入", "會——只要 b() 有標註解，容器就會在它進入時開交易", "會——因為 CGLIB 代理是子類別，內部呼叫也會被覆寫的方法攔到", "不會，但把 a() 也標上 @Transactional 就能讓 b() 另開一筆交易"],
+   "exp": "官方原話：代理模式下只有從外部經由代理進來的呼叫會被攔截，自我呼叫不會產生實際的交易。CGLIB 是子類別也沒用，因為 this 指的仍是目標物件。"
+  },
+  {
+   "q": "外層方法用 REQUIRED，內層方法也是 REQUIRED 並在裡面丟出 RuntimeException 但被外層 catch 住、外層繼續正常結束。送交時會怎樣？",
+   "opts": ["外層送交時拿到 UnexpectedRollbackException——內層已把同一筆實體交易標成只能回復", "外層照常送交，因為例外已經被接住了", "只有內層的變更被回復，外層的變更成功送交", "內層自動改成 REQUIRES_NEW，各自獨立"],
+   "exp": "REQUIRED 之下內外是同一筆實體交易；內層標了 rollback-only 而外層不知情照常送交，官方設計就是丟這個例外來明確告知實際做的是回復。"
+  },
+  {
+   "q": "@Transactional 方法丟出一個自訂的受檢例外（extends Exception），沒有額外設定。交易會回復嗎？",
+   "opts": ["不會——預設只對 RuntimeException 與 Error 回復，要回復得設 rollbackFor", "會——任何例外離開交易方法都會回復", "會——受檢例外比執行期例外更嚴重，所以優先回復", "不會回復也不會送交，交易會卡在待決狀態"],
+   "exp": "官方明寫「交易方法丟出的受檢例外在預設組態下不會導致回復」，這是最常見的失效情境之一。"
+  },
+  {
+   "q": "Spring Boot 3 以後，一個 starter 要讓自己的自動組態類別被找到，正確做法是？",
+   "opts": ["列在 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports 檔裡，一行一個類別名", "寫進 META-INF/spring.factories 的 EnableAutoConfiguration 鍵", "把類別放進應用程式的元件掃描範圍", "在 @SpringBootApplication 的 scanBasePackages 加上 starter 的套件"],
+   "exp": "3.0 遷移指南寫 spring.factories 那條路已移除；官方也強調自動組態類別只能靠 imports 檔載入、絕不能成為元件掃描的目標。"
+  }
+ ]
+}

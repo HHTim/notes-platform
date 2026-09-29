@@ -1,0 +1,150 @@
+<!-- 來源：依 Spring Framework、Spring Boot、Spring Security 官方文件新寫 · 收錄日期：2026-09-29 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用一句話答出 IoC 與 DI 的差別、BeanFactory 與 ApplicationContext 的差別，再依官方文件說出 Bean 從建立到銷毀的完整順序</li><li>講清楚三種注入方式怎麼選、循環相依為什麼在建構式注入下直接失敗，以及 @Autowired、@Resource、@Qualifier、@Primary 各管什麼</li><li>解釋 Spring AOP 的兩種代理、Spring Boot 預設哪一種，以及同一個類別內部呼叫為什麼讓 @Transactional 與 @Cacheable 失效</li><li>答出交易傳播行為的差別、@Transactional 的五種失效情境，還有 Spring Boot 自動組態與 Spring MVC 一次請求的路徑</li></ul></div>
+<section>
+    <p class="era">IoC 容器</p>
+    <h3 class="head">容器、Bean 與生命週期</h3>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。課文依撰寫時的現行穩定版官方文件寫（Spring Framework 7.0、Spring Boot 4.1）；Spring 6 與 Spring Boot 3 同樣適用的地方直接寫，兩代有差的地方會標出來。</p>
+    <p class="q">面試官：IoC 與 DI 差在哪？Spring 容器做了什麼？</p>
+    <p><strong>一句話定義：</strong>控制反轉（Inversion of Control，IoC）是一種原則——物件不再自己建立或尋找它需要的相依物件，改由容器負責；依賴注入（Dependency Injection，DI）是實現這個原則的一種做法——容器在建立物件時把相依物件送進去。</p>
+    <p><strong>差別與取捨：</strong>官方文件把兩者放在同一段講：IoC「也稱為依賴注入」，物件「只透過建構子參數、工廠方法參數，或建立之後設定的屬性」宣告自己需要什麼，「容器在建立 Bean 時注入這些相依」，這個過程「正好是 Bean 自己控制相依物件的建立或查找的反面（所以叫控制反轉）」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/introduction.html" target="_blank" rel="noopener">出處</a> 追問時要能區分：IoC 是「誰負責」的原則，DI 是「怎麼送進去」的手段。</p>
+    <p><strong>容器做了什麼：</strong>由容器管理的物件叫 Bean，官方定義是「由 Spring IoC 容器實例化、組裝與管理的物件」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/introduction.html" target="_blank" rel="noopener">出處</a>——容器的工作就是這三件。範例程式與「為什麼不該到處 new」見 Spring 模組第 5 課〈Spring 入門與 IoC、DI〉。</p>
+    <p class="q">面試官：BeanFactory 與 ApplicationContext 差在哪？</p>
+    <p><strong>一句話定義：</strong>BeanFactory 是容器的最底層介面，只管 Bean 的建立與組裝；ApplicationContext 是它的子介面，多了企業應用要的整合功能。</p>
+    <p><strong>差別與取捨：</strong>官方文件寫 ApplicationContext「是 BeanFactory 的子介面」，加上了「與 Spring AOP 功能更容易整合、訊息資源處理（用於國際化）、事件發布、應用層專用的內容（例如 WebApplicationContext）」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/introduction.html" target="_blank" rel="noopener">出處</a> 對照表裡最常被追問的兩列是：BeanPostProcessor 與 BeanFactoryPostProcessor 的自動註冊，BeanFactory 沒有、ApplicationContext 有——用陽春的 BeanFactory 得自己一個個 <code>addBeanPostProcessor</code>，官方也說「這些明確的註冊步驟很不方便，這正是各種 ApplicationContext 變體比陽春的 DefaultListableBeanFactory 更受偏好的原因」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/beanfactory.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>實務註記：</strong>官方的結論是「除非有好理由，否則你應該用 ApplicationContext」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/beanfactory.html" target="_blank" rel="noopener">出處</a> 另一個常考差別是建立時機：「ApplicationContext 的實作預設會在初始化過程中積極地建立並設定所有 singleton Bean」，好處是「組態或環境的錯誤會立刻被發現」；不想這樣可以標 @Lazy。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-lazy-init.html" target="_blank" rel="noopener">出處</a></p>
+    <p class="q">面試官：Bean 的作用域有哪幾種？singleton 的 Bean 是執行緒安全的嗎？</p>
+    <p><strong>一句話定義：</strong>作用域（scope）決定一個 Bean 定義會產生幾個實例、活多久。官方列了六種：singleton（預設）、prototype，加上只在 Web 環境有效的 request、session、application、websocket。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-scopes.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>作用域</th><th>官方描述（節譯）</th><th>面試要補的一句</th></tr></thead>
+      <tbody>
+        <tr><th>singleton</th><td>「每個 Spring IoC 容器對一個 Bean 定義只有一個物件實例」</td><td>跟設計模式的 Singleton 不同：後者是「每個 ClassLoader 一個」，Spring 的是「每個容器、每個 Bean 定義一個」</td></tr>
+        <tr><th>prototype</th><td>「每次對那個 Bean 提出請求都建立一個新的實例」</td><td>容器不管它的完整生命週期：初始化回呼會執行，「設定的銷毀回呼不會被呼叫」</td></tr>
+        <tr><th>request／session／application／websocket</th><td>分別綁在一次 HTTP 請求、一個 HTTP Session、一個 ServletContext、一條 WebSocket 連線的生命週期</td><td>「只在 Web 感知的 ApplicationContext 中有效」，一般的 ApplicationContext 用了會失敗</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>執行緒安全怎麼答：</strong>容器不替你保證。singleton 的意思是「只管理一個共用實例，所有對這個 Bean 的請求都回傳同一個實例」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-scopes.html" target="_blank" rel="noopener">出處</a>——多個請求同時進來，就是多條執行緒共用同一個物件。Bean 沒有可變狀態（只持有注入的相依、方法裡只用區域變數）就沒有東西可以壞；一放可變欄位當計數器或暫存，那個欄位就是多執行緒共用的。答案是「取決於 Bean 有沒有可變狀態」，不是「安全」或「不安全」。</p>
+    <p class="q">面試官：Bean 的完整生命週期是什麼順序？</p>
+    <p><strong>一句話定義：</strong>實例化、屬性填入、各個 Aware 介面回呼、BeanPostProcessor 前置處理、初始化、BeanPostProcessor 後置處理、使用、銷毀。細到每一步的順序，官方寫在 BeanFactory 介面的說明裡。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/beans/factory/BeanFactory.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>階段</th><th>發生什麼</th><th>依據</th></tr></thead>
+      <tbody>
+        <tr><th>實例化、屬性填入</th><td>建立物件，填好建構子參數與屬性（含注入的相依）</td><td>Aware 回呼「在一般 Bean 屬性填入之後、初始化回呼之前」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-nature.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>Aware 介面</th><td>依序 BeanNameAware、BeanClassLoaderAware、BeanFactoryAware……到 ApplicationContextAware</td><td>BeanFactory 說明的初始化順序第 1〜10 項<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/beans/factory/BeanFactory.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>BeanPostProcessor 前置</th><td><code>postProcessBeforeInitialization</code></td><td>後置處理器「在容器的初始化方法……被呼叫之前，以及任何 Bean 初始化回呼之後」都會收到回呼<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-extension.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>初始化</th><td>依序 @PostConstruct、<code>afterPropertiesSet()</code>、自訂 init 方法</td><td>「結合多種生命週期機制」那節<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-nature.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>BeanPostProcessor 後置</th><td><code>postProcessAfterInitialization</code>——AOP 代理在這裡包上去</td><td>「有些 Spring AOP 基礎建設類別是以 Bean 後置處理器實作，用來提供代理包裝邏輯」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-extension.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>銷毀</th><td>容器關閉時依序 @PreDestroy、<code>destroy()</code>、自訂 destroy 方法</td><td>銷毀「以同樣的順序呼叫」；prototype 不走這步<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-nature.html" target="_blank" rel="noopener">出處</a></td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>實務註記：</strong>被問「該用哪一種初始化回呼」，答 @PostConstruct 與 @PreDestroy：官方說這兩個註解「一般被視為現代 Spring 應用程式接收生命週期回呼的最佳實踐」，因為 Bean「不會綁死在 Spring 專屬介面上」；Aware 介面則相反，官方直言它「把你的程式碼綁在 Spring API 上、不符合控制反轉的風格」，只建議給需要直接操作容器的基礎建設 Bean 用。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/factory-nature.html" target="_blank" rel="noopener">出處</a></p>
+</section>
+<section>
+    <p class="era">依賴注入</p>
+    <h3 class="head">怎麼注、注哪一個、繞成圈怎麼辦</h3>
+    <p class="q">面試官：建構子注入、setter 注入、欄位注入怎麼選？為什麼官方建議建構子？</p>
+    <p><strong>一句話定義：</strong>必要的相依用建構子注入，可有可無的相依用 setter 注入，欄位注入能動但官方不推。</p>
+    <p><strong>差別與取捨：</strong>官方原句是「Spring 團隊一般提倡建構子注入，因為它讓你能把應用程式元件實作成不可變物件，並確保必要的相依不會是 null」；setter 注入「只該用在可以在類別內給合理預設值的可選相依」，否則「每個用到那個相依的地方都要做非 null 檢查」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a> 欄位注入（@Autowired 直接放在欄位上）官方文件有示範、可以用<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired.html" target="_blank" rel="noopener">出處</a>，但欄位不能宣告成 final，單元測試也沒辦法不靠容器就把替身傳進去。</p>
+    <p><strong>實務註記：</strong>「目標 Bean 只定義一個建構子時，那個建構子上的 @Autowired 不是必要的」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired.html" target="_blank" rel="noopener">出處</a>；建構子參數太多不是注入方式的問題，官方說「大量的建構子參數是壞味道，暗示這個類別可能責任太多，應該重構」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a></p>
+    <p class="q">面試官：循環相依 Spring 怎麼處理？為什麼建構子注入會直接失敗？</p>
+    <p><strong>一句話定義：</strong>A 需要 B、B 又需要 A 叫循環相依；建構子注入下容器無解，啟動時直接丟例外。</p>
+    <p><strong>為什麼會失敗：</strong>建構子注入要求物件建立那一刻就拿到完整相依，A 建到一半等 B、B 建到一半等 A，誰都建不完。官方原句：「主要使用建構子注入時，有可能造出無法解決的循環相依情境」，容器「在執行期偵測到這個循環參考，並丟出 BeanCurrentlyInCreationException」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>setter 注入為什麼能過：</strong>官方給的解法是「把某些類別改成用 setter 而非建構子設定」，但同一段提醒這是「雞生蛋、蛋生雞的情境」，其中一個 Bean 會「在還沒完全初始化之前就被注入到另一個裡面」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-collaborators.html" target="_blank" rel="noopener">出處</a>——面試常說的「先給一個半成品」就是這個。</p>
+    <p><strong>版本註記：</strong>Spring Boot 2.6 起「Bean 之間的循環參考預設被禁止」，發行說明「強烈建議你更新組態來打破相依循環」，真要放行得把 <code>spring.main.allow-circular-references</code> 設成 true。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.6-Release-Notes" target="_blank" rel="noopener">出處</a> 所以在 Spring Boot 3 與 4 上，標準答案是「循環相依代表責任切錯了，優先重新設計」，不是背容器怎麼繞過去。</p>
+    <p class="q">面試官：@Autowired、@Resource、@Qualifier、@Primary 差在哪？</p>
+    <div class="terms">
+      <div class="term"><b>@Autowired</b><span>Spring 自己的註解，先照型別找候選者；預設 required 為 true，找不到就失敗。型別有多個候選又沒有其他指示時，「Spring 拿注入點的名稱（也就是欄位名或參數名）跟目標 Bean 的名稱比對，選同名的那一個」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired-qualifiers.html" target="_blank" rel="noopener">出處</a></span></div>
+      <div class="term"><b>@Resource</b><span>Jakarta 標準註解（<code>jakarta.annotation.Resource</code>），照名稱找：「預設 Spring 把 name 的值解讀成要注入的 Bean 名稱，也就是採用依名稱的語意」；沒寫 name 就「從欄位名或 setter 方法推導」，那個名字找不到才退回照型別找。只能放在欄位與 setter 方法上。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/resource.html" target="_blank" rel="noopener">出處</a></span></div>
+      <div class="term"><b>@Qualifier</b><span>加在注入點，「把限定值跟特定參數綁在一起，縮小型別比對的集合，讓每個參數選到特定的 Bean」；「對備援比對而言，Bean 名稱被視為預設的限定值」，所以直接寫 Bean 名稱也行。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired-qualifiers.html" target="_blank" rel="noopener">出處</a></span></div>
+      <div class="term"><b>@Primary</b><span>加在 Bean 定義上，「表示當多個 Bean 都是某個單值相依的自動綁定候選者時，這個 Bean 應被優先選用」。官方的分工：@Primary 適合「能決定出一個主要候選者」的情況，「需要對選擇過程有更多控制時」才用 @Qualifier。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired-qualifiers.html" target="_blank" rel="noopener">出處</a></span></div>
+    </div>
+    <p class="formula">@Autowired 先看型別、@Resource 先看名稱；@Primary 是「沒指定時預設給這個」、@Qualifier 是「這裡就要那一個」</p>
+    <p class="muted">@Qualifier 與 @Primary 的程式碼範例、Bean 名稱怎麼從類別名推出來，見 Spring 模組第 5 課〈Spring 入門與 IoC、DI〉。</p>
+</section>
+<section>
+    <p class="era">AOP 與代理</p>
+    <h3 class="head">代理怎麼建，以及它攔不到什麼</h3>
+    <p class="q">面試官：Spring AOP 的代理是 JDK 動態代理還是 CGLIB？Spring Boot 預設哪個？</p>
+    <p><strong>一句話定義：</strong>兩種都會用。官方定義「在 Spring Framework 裡，AOP 代理是 JDK 動態代理或 CGLIB 代理」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/introduction-defn.html" target="_blank" rel="noopener">出處</a>；純 Spring Framework 看目標有沒有實作介面來選，Spring Boot 則預設一律 CGLIB。</p>
+    <p><strong>差別與取捨：</strong>JDK 動態代理是 Java 標準函式庫內建的機制，只能替介面產生代理；CGLIB（一個在執行期直接產生子類別的函式庫，Spring 已把它打包進 spring-core）走的是「替目標型別在執行期產生一個子類別」。選擇規則：目標「至少實作一個介面就用 JDK 動態代理」，「沒有實作任何介面就建立 CGLIB 代理」。CGLIB 的代價來自「子類別」這件事：final 類別不能被代理、final 方法不能被通知，因為子類別覆寫不了它們。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>版本註記：</strong>Spring Boot 的官方文件寫「預設情況下，Spring Boot 的自動組態把 Spring AOP 設成使用 CGLib 代理。要改用 JDK 代理，把 <code>spring.aop.proxy-target-class</code> 設成 false」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/aop.html" target="_blank" rel="noopener">出處</a> 這個預設從 Spring Boot 2.0 開始，遷移指南寫「Spring Boot 現在預設用 CGLIB 代理，AOP 支援也包含在內」。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 面試被問「為什麼 Boot 要改成 CGLIB」，答「這樣不必為了讓代理成立而替每個 Service 多開一個介面，注入具體類別也不會因為拿到 JDK 代理而轉型失敗」。切面、切入點、通知這些名詞與計時切面的範例見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
+    <p class="q">面試官：為什麼同一個類別內部呼叫，@Transactional 或 @Cacheable 不會生效？</p>
+    <p><strong>一句話定義：</strong>因為註解的行為長在代理物件上，內部呼叫用的是 <code>this</code>，沒經過代理。</p>
+    <p><strong>機制怎麼講：</strong>容器交給別人的是代理；外部呼叫先到代理、跑完通知才轉給目標。官方接著說：「一旦呼叫終於到達目標物件，它對自己發出的任何方法呼叫……都是對 this 這個參考、而不是對代理發出的……自我呼叫不會讓跟該方法綁在一起的通知有機會執行。」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a> 交易與快取都靠這套代理，所以兩份文件各寫了一句一樣的話：「在代理模式（預設）下，只有從外部經由代理進來的方法呼叫會被攔截」，自我呼叫「不會在執行期產生實際的交易，即使被呼叫的方法標了 @Transactional」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a>；換成 @Cacheable，「不會在執行期產生實際的快取」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>解法怎麼答：</strong>官方給三條路，順序也講了：最推薦「重構程式碼，讓自我呼叫不會發生」——把要被攔的方法搬到另一個 Bean；其次把自己注入自己（注入進來的是代理）改對它呼叫；最不建議 <code>AopContext.currentProxy()</code>，因為它「把你的程式碼完全綁死在 Spring AOP」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a> 真要讓自我呼叫也生效，交易文件給的路是 AspectJ 模式（<code>@EnableTransactionManagement(mode = AdviceMode.ASPECTJ)</code>），它直接改位元組碼、不靠代理。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></p>
+</section>
+<section>
+    <p class="era">交易</p>
+    <h3 class="head">傳播行為與失效情境</h3>
+    <p class="q">面試官：@Transactional 的傳播行為有哪些？REQUIRED 與 REQUIRES_NEW 差在哪？</p>
+    <p><strong>一句話定義：</strong>傳播行為（propagation）決定「一個有交易的方法呼叫另一個有交易的方法時，裡面那層要加入外面的交易、另開一筆，還是不要交易」。Spring 定了七種，預設是 REQUIRED。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>傳播行為</th><th>外層有交易時</th><th>外層沒有交易時</th></tr></thead>
+      <tbody>
+        <tr><th>REQUIRED（預設）</th><td>加入現有交易</td><td>開一筆新的</td></tr>
+        <tr><th>REQUIRES_NEW</th><td>暫停外層，另開一筆獨立交易</td><td>開一筆新的</td></tr>
+        <tr><th>NESTED</th><td>在現有交易裡設一個儲存點（savepoint，交易中途的還原點），只回復到那裡</td><td>行為同 REQUIRED</td></tr>
+        <tr><th>SUPPORTS</th><td>加入現有交易</td><td>不開交易、直接執行</td></tr>
+        <tr><th>MANDATORY</th><td>加入現有交易</td><td>丟例外</td></tr>
+        <tr><th>NOT_SUPPORTED</th><td>暫停外層，不在交易中執行</td><td>不開交易、直接執行</td></tr>
+        <tr><th>NEVER</th><td>丟例外</td><td>不開交易、直接執行</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">七種的定義依 Propagation 列舉型別的官方說明整理。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>REQUIRED 與 REQUIRES_NEW 的差別：</strong>差在「幾筆實體交易」。REQUIRED 之下，內外兩層「都對應到同一筆實體交易」，各自只是一個邏輯範圍；內層把交易標成只能回復（rollback-only）時，外層並不知情、照常送交，結果會拿到 UnexpectedRollbackException——官方說這是為了「清楚指出實際上做的是回復而不是送交」。REQUIRES_NEW 則「對每個受影響的交易範圍都用一筆獨立的實體交易，絕不參與外層既有的交易」，所以「底層的資源交易不同，可以各自獨立送交或回復」，內層回復不影響外層、內層的鎖也在它完成時就釋放。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>實務註記：</strong>REQUIRES_NEW 多吃一條資料庫連線——外層的還綁著，內層「取得自己的資源，例如一條新的資料庫連線」；官方警告這「可能耗盡連線池，甚至造成死結」，「除非連線池至少比同時執行的執行緒數多 1，否則不要用」。NESTED 靠 JDBC 的儲存點，「只對 JDBC 資源交易有效」，走 JPA 時別拿它當答案。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> ACID、隔離層級與 rollbackFor 見 Spring 模組第 6 課〈Spring AOP 與交易控制〉，交易邊界為什麼放服務層見第 8 課〈Spring 資料存取〉。</p>
+    <p class="q">面試官：@Transactional 什麼情況會失效？</p>
+    <p><strong>一句話定義：</strong>宣告式交易是「AOP 代理加上 TransactionInterceptor」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-decl-explained.html" target="_blank" rel="noopener">出處</a>，所以失效情境分兩類：代理攔不到，或攔到了但回復條件沒成立。</p>
+    <ul class="plainlist">
+      <li><strong>方法不是 public。</strong>官方：「在代理模式（預設）下，public 方法上的 @Transactional 永遠受支援。從 6.0 起，類別式代理預設也可以讓 protected 或套件可見的方法有交易」；但介面式代理（JDK 動態代理）「方法永遠必須是 public 而且定義在被代理的介面裡」。private 方法哪一種代理都攔不到。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a> 這一條是 Spring 5 到 6 的差異：Spring 5 只認 public。</li>
+      <li><strong>自我呼叫。</strong>同一個類別裡沒交易的方法呼叫有交易的方法，走的是 <code>this</code>，「不會在執行期產生實際的交易」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a> 同理，自己 <code>new</code> 出來的物件不是容器交出的代理，上面的註解不會生效。</li>
+      <li><strong>丟的是受檢例外。</strong>預設「只在執行期的非受檢例外，也就是 RuntimeException 的實例或子類別時，才把交易標成回復（Error 預設也會回復）」，而「交易方法丟出的受檢例外在預設組態下不會導致回復」。要讓受檢例外也回復，用 <code>rollbackFor</code>。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
+      <li><strong>例外被吃掉。</strong>回復的判斷是在例外「往上冒出呼叫堆疊時」由交易基礎建設「接住任何未處理的例外」做的<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a>；方法內部 try／catch 把例外吞掉、只寫個日誌，例外到不了攔截器，交易照常送交。</li>
+      <li><strong>另開執行緒。</strong>Spring 的交易資源是綁在執行緒上的——負責管理的 TransactionSynchronizationManager 官方描述就是「以每條執行緒為單位管理資源與交易同步的中央委派」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronizationManager.html" target="_blank" rel="noopener">出處</a> 交易方法裡開新執行緒或丟進執行緒池的工作，跑在另一條執行緒上，拿不到這筆交易綁的連線，等於在交易外執行。</li>
+    </ul>
+    <p class="formula">代理攔不到（非 public、自我呼叫、自己 new）→ 根本沒開交易；攔到了但受檢例外、例外被吃、換執行緒 → 開了卻不回復</p>
+</section>
+<section>
+    <p class="era">Spring Boot 與 Spring MVC</p>
+    <h3 class="head">自動組態、啟動註解與一次請求的路徑</h3>
+    <p class="q">面試官：Spring Boot 自動組態怎麼運作？</p>
+    <p><strong>一句話定義：</strong>自動組態（auto-configuration）是「根據你加了哪些 jar 相依，自動設定 Spring 應用程式」：官方的例子是「classpath 上有 HSQLDB、而你沒有手動設定任何資料庫連線 Bean，Spring Boot 就自動組態一個記憶體內資料庫」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>機制分三層講：</strong></p>
+    <ul class="plainlist">
+      <li><strong>候選者從哪來：</strong>每個自動組態類別標 <code>@AutoConfiguration</code>，Spring Boot「檢查你發布的 jar 裡有沒有 <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code> 檔」，一行一個類別名。官方強調它們「只能透過被列在 imports 檔裡載入」，「絕不能成為元件掃描的目標」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" target="_blank" rel="noopener">出處</a></li>
+      <li><strong>要不要生效由條件決定：</strong>@Conditional 家族——@ConditionalOnClass／OnMissingClass 看類別在不在、@ConditionalOnBean／OnMissingBean 看容器裡有沒有某個 Bean、@ConditionalOnProperty 看設定值、@ConditionalOnWebApplication 看是不是 Web 應用程式。官方要求自動組態類別「應該標 @ConditionalOnClass，因為那個類別執行期可能不存在」，並說「用 @ConditionalOnMissingBean 是好習慣，讓開發者能覆寫你的預設」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" target="_blank" rel="noopener">出處</a></li>
+      <li><strong>你的設定永遠優先：</strong>「自動組態是非侵入式的。任何時候你都可以開始定義自己的組態來取代自動組態的特定部分。例如加了自己的 DataSource Bean，預設的內嵌資料庫支援就會退開。」想知道哪些自動組態生效、為什麼，用 <code>--debug</code> 啟動會印出條件報告；要關掉某一個，用 <code>@SpringBootApplication(exclude = …)</code> 或 <code>spring.autoconfigure.exclude</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p><strong>版本註記：</strong>Spring Boot 2 的答案是「<code>META-INF/spring.factories</code> 裡的 EnableAutoConfiguration 鍵」。3.0 遷移指南寫這條路「已被移除」，改用上面的 imports 檔；同一份指南也記了 Boot 3 的三個地基變動：Java 17 起跳、javax 套件全面改 jakarta、底層升到 Spring Framework 6。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide" target="_blank" rel="noopener">出處</a></p>
+    <p class="q">面試官：@SpringBootApplication 包了哪三個註解？</p>
+    <p><strong>一句話定義：</strong>@EnableAutoConfiguration、@ComponentScan、@SpringBootConfiguration。官方原句：「單一個 @SpringBootApplication 註解可以用來啟用這三項功能」——@EnableAutoConfiguration「啟用 Spring Boot 的自動組態機制」、@ComponentScan「在應用程式所在的套件上啟用 @Component 掃描」、@SpringBootConfiguration「啟用在內容裡註冊額外 Bean 或匯入額外組態類別；是 Spring 標準 @Configuration 的替代品，有助於整合測試中的組態偵測」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/using-the-springbootapplication-annotation.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>追問時要補的：</strong>第三個常被答成 @Configuration，要答對是 @SpringBootConfiguration——它本身標了 @Configuration，多出來的價值是測試能自動找到它。@ComponentScan 掃的是啟動類別所在套件及其子套件，這是把啟動類別放最外層套件的理由。官方也說「這些功能沒有一項是必要的」<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/using-the-springbootapplication-annotation.html" target="_blank" rel="noopener">出處</a>，而且「只該加一個 @SpringBootApplication 或 @EnableAutoConfiguration」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
+    <p class="q">面試官：Spring MVC 一次請求走過哪些元件？</p>
+    <p><strong>一句話定義：</strong>Spring MVC「圍繞前端控制器模式設計：一個中央 Servlet——DispatcherServlet——提供共用的請求處理演算法，實際工作則由可設定的委派元件完成」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>順序</th><th>元件</th><th>官方對它的定義（節譯）</th></tr></thead>
+      <tbody>
+        <tr><th>1</th><td>DispatcherServlet</td><td>接下請求，把 WebApplicationContext、地區解析器綁上請求，檢查是不是多部分（檔案上傳）請求</td></tr>
+        <tr><th>2</th><td>HandlerMapping</td><td>「把請求對應到一個處理器，連同一串做前後處理的攔截器」；支援 @RequestMapping 的實作是 RequestMappingHandlerMapping</td></tr>
+        <tr><th>3</th><td>HandlerAdapter</td><td>「協助 DispatcherServlet 呼叫對應到請求的處理器，不論處理器實際上怎麼被呼叫」——目的是「讓 DispatcherServlet 不必知道這些細節」</td></tr>
+        <tr><th>4</th><td>Controller</td><td>你的處理器方法，回傳視圖名稱、模型，或直接回傳要序列化的物件</td></tr>
+        <tr><th>5a</th><td>ViewResolver</td><td>「把處理器回傳的字串式邏輯視圖名稱解析成實際的 View，用來算繪回應」</td></tr>
+        <tr><th>5b</th><td>HttpMessageConverter</td><td>方法有 @ResponseBody（@RestController 就是 @Controller 加 @ResponseBody）時，「回傳值透過 HttpMessageConverter 序列化到回應本體」，不走視圖</td></tr>
+        <tr><th>例外</th><td>HandlerExceptionResolver</td><td>「解析例外的策略，可能把它們對應到處理器、HTML 錯誤視圖或其他目標」；@ExceptionHandler 走的就是這條</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">元件定義依「特殊 Bean 型別」與「處理順序」兩頁整理<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet/special-bean-types.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet/sequence.html" target="_blank" rel="noopener">處理順序</a>；@ResponseBody 那句出自訊息轉換那頁。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/responsebody.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>追問時要補的：</strong>REST API 沒有視圖那一步。官方的處理順序寫「對註解式控制器，回應可以在 HandlerAdapter 內直接算繪，而不是回傳視圖」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet/sequence.html" target="_blank" rel="noopener">出處</a>，所以答 @RestController 的路徑時第 5 步講 HttpMessageConverter，不講 ViewResolver。取參數的註解見 Spring 模組第 7 課〈Spring MVC 與 RESTful API〉；DispatcherServlet 之外的例外為什麼 @ControllerAdvice 抓不到，見第 12 課〈Maven、微服務與全域例外〉。</p>
+    <p class="q">面試官：Filter、Interceptor、AOP 三者的位置與分工？</p>
+    <p><strong>一句話定義：</strong>三個都是「在正事前後插一段共同邏輯」，差在插在哪一層：Filter 在 Servlet 容器、DispatcherServlet 之前；Interceptor 在 DispatcherServlet 之內、Controller 前後；AOP 在任何 Bean 的方法上，跟 Web 無關。</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th>Filter</th><th>Interceptor（HandlerInterceptor）</th><th>Spring AOP</th></tr></thead>
+      <tbody>
+        <tr><th>誰定義的</th><td>Jakarta Servlet 規格：「對資源的請求、資源的回應或兩者執行過濾工作的物件」<a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/filter" target="_blank" rel="noopener">出處</a></td><td>Spring MVC；由 HandlerMapping 連同處理器一起交出<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet/special-bean-types.html" target="_blank" rel="noopener">出處</a></td><td>Spring Framework；「在 Spring AOP 裡，連接點永遠代表一次方法執行」<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/introduction-defn.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>看得到什麼</th><td>原始的 HttpServletRequest／Response，還不知道會交給哪個 Controller</td><td>請求加上「處理器」——知道要進哪個 Controller 方法</td><td>方法的參數、回傳值與例外；不知道 HTTP</td></tr>
+        <tr><th>幾個切入時機</th><td>doFilter 一個，前後自己包</td><td>preHandle（回 false 就「略過其餘的執行鏈、不呼叫處理器」）、postHandle、afterCompletion<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet/handlermapping-interceptor.html" target="_blank" rel="noopener">出處</a></td><td>Before、After、AfterReturning、AfterThrowing、Around</td></tr>
+        <tr><th>典型用途</th><td>編碼、CORS、Spring Security 的整條安全鏈</td><td>請求追蹤、地區判斷這類 MVC 流程的事</td><td>交易、快取、計時、稽核日誌</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>追問時要補的：</strong>兩個坑。第一，安全不要放 Interceptor：官方明說「攔截器不理想作為安全層，因為可能跟註解式控制器的路徑比對不一致。一般建議用 Spring Security，或整合進 Servlet Filter 鏈、盡早套用的類似做法」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-config/interceptors.html" target="_blank" rel="noopener">出處</a> Spring Security 就在 Filter 這一層：整組安全 Filter 裝在 FilterChainProxy——「Spring Security 提供的一個特殊 Filter，允許透過 SecurityFilterChain 委派給許多 Filter 實例」——再由 DelegatingFilterProxy 註冊進容器。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/architecture.html" target="_blank" rel="noopener">出處</a> 第二，postHandle 對 REST API 幾乎沒用：「對 @ResponseBody 與 ResponseEntity 的控制器方法，回應在 HandlerAdapter 內就已寫出並送交，postHandle 才被呼叫」，要改回應本體得用 ResponseBodyAdvice。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-servlet/handlermapping-interceptor.html" target="_blank" rel="noopener">出處</a> Spring Security 的 Filter 鏈見 Spring 模組第 9 課〈Spring Security 認證與授權〉，Filter 與 DispatcherServlet 的先後見第 12 課〈Maven、微服務與全域例外〉。</p>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>IoC 是「誰負責建立相依」的原則，DI 是「容器把相依送進去」的手段；ApplicationContext 是 BeanFactory 的子介面，多了自動註冊後置處理器、事件、國際化，官方說沒有好理由就用它。</li><li>singleton 是「每個容器一份共用實例」，執行緒安不安全取決於 Bean 有沒有可變狀態；生命週期順序照 BeanFactory 官方說明：屬性填入 → Aware → 後置處理器前置 → @PostConstruct → afterPropertiesSet → init → 後置處理器後置。</li><li>必要相依用建構子注入（官方提倡：不可變、不為 null）；建構子注入下的循環相依直接丟 BeanCurrentlyInCreationException，Spring Boot 2.6 起循環參考預設禁止，正解是重新設計。</li><li>Spring AOP 代理有 JDK 動態代理與 CGLIB 兩種，Spring Boot 2.0 起預設 CGLIB；同類別內部呼叫走 this 不經代理，所以 @Transactional 與 @Cacheable 都不生效，官方首選解法是重構、不是 AopContext。</li><li>REQUIRED 是同一筆實體交易、內層標回復外層會拿到 UnexpectedRollbackException；REQUIRES_NEW 另開一筆、多吃一條連線。</li><li>@Transactional 失效五情境：非 public（Spring 6 起類別式代理放寬到 protected）、自我呼叫、受檢例外預設不回復、例外被吃掉、另開執行緒。</li><li>Spring Boot 3 起自動組態靠 AutoConfiguration.imports 檔加 @Conditional 條件，spring.factories 是 Boot 2 的答案；@SpringBootApplication ＝ @EnableAutoConfiguration ＋ @ComponentScan ＋ @SpringBootConfiguration。</li></ul></div>
