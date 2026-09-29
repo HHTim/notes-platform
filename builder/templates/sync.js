@@ -86,8 +86,10 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
   function loadAndMerge(user) {
     /* 白名單＝Firestore 裡一份 email 清單；文件存在才算在名單上 */
     db.collection('whitelist').doc(user.email).get().then(function (snap) {
+      if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;   // 重試中途登出或換帳號，遲到的回應不算
       if (!snap.exists) { showUnauthorized(); return; }
       db.collection('progress').doc(user.uid).get().then(function (p) {
+        if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;   // 重試中途登出或換帳號，遲到的回應不算
         uid = user.uid;
         var cloud = (p.exists && p.data()[course.module]) || {};
         var merged = NotesSync.merge(course.loadDone(), cloud);
