@@ -3,13 +3,13 @@
 <section>
     <p class="era">第 1 層・最小的</p>
     <h3 class="head">容器</h3>
-    <p>就是第二部分講的那個，你已經懂了。<strong>K8s 沒有改變容器是什麼</strong>——它只是決定「什麼時候、在哪一台、起幾個」。</p>
+    <p>就是第 3、4 課講的那個，你已經懂了。<strong>K8s 沒有改變容器是什麼</strong>——它只是決定「什麼時候、在哪一台、起幾個」。</p>
   </section>
 <section>
     <p class="era">第 2 層・往外一層</p>
     <h3 class="head">Pod：一組綁在一起的容器</h3>
     <p>Pod 是<strong>一組永遠綁在一起的容器</strong>：同一個網路位址、同一批磁碟、一定在同一台機器上、一起生一起死。</p>
-    <p>九成情況下，一個 Pod 裡面就是<strong>一個</strong>容器。那為什麼還要多包這一層？因為那一成的情況：主程式旁邊要擺一個貼身小幫手（正式叫 <strong>sidecar</strong>，邊車容器——收日誌的、處理加密連線的），這兩個要能用 <code>localhost</code> 互打，所以不能分開放。Pod 就是那個「綁在一起」的盒子。</p>
+    <p>多數情況下，一個 Pod 裡面就是<strong>一個</strong>容器。那為什麼還要多包這一層？因為還有另一種情況：主程式旁邊要擺一個貼身小幫手（正式叫 <strong>sidecar</strong>，邊車容器——收日誌的、處理加密連線的），這兩個要能用 <code>localhost</code> 互打，所以不能分開放。Pod 就是那個「綁在一起」的盒子。</p>
     <p class="formula">你說「我要 3 份」，指的是 3 個 Pod，不是 3 個容器</p>
   </section>
 <section>
@@ -17,7 +17,7 @@
     <h3 class="head">Node：Pod 住的那台機器</h3>
 
     <p class="q">「我可以用 Hypervisor 開一台虛擬機，在那個作業系統裡裝 Docker，然後跑好幾個容器嗎？」</p>
-    <p><strong class="win">可以，而且這就是最常見的做法。</strong>你講的那台虛擬機，只要再多裝一個小東西，它就變成一個 Node。</p>
+    <p><strong class="win">可以。</strong>這正是第 2 課的虛擬機和第 3 課的容器疊起來的樣子。你講的那台虛擬機，只要再多裝一個小東西，它就變成一個 Node。</p>
     <p>那個小東西叫 <strong>kubelet</strong>——一個<strong>一直開著、不會關掉的小程式</strong>，當這台機器的聯絡窗口：聽大腦（<strong>Control Plane</strong>，控制平面）的指令、在自己這台把容器叫起來或關掉、然後回報「我這邊還活著、還剩多少資源」。</p>
     <p class="formula">一台機器 ＋ 容器執行環境（containerd）＋ kubelet ＝ 一個 Node</p>
 
@@ -118,8 +118,8 @@
     <p class="formula">要不要裝 kubelet ＝ 這台機器要不要交給大腦管</p>
 
     <p class="q">「一台虛擬機開起來，通常只會跑一個容器嗎？」</p>
-    <p><strong class="hot">不是，通常是幾十個。</strong>這點要特別更正——如果一台機器只跑一個容器，那容器就白用了，跟第一代「一台機器一個服務」沒兩樣。</p>
-    <p>容器的整個價值就在<strong>密度</strong>：它輕，所以一台塞得下很多個。K8s 預設<strong>一台 Node 最多 110 個 Pod</strong>（可以調），實際上跑二三十個很常見。</p>
+    <p><strong class="hot">不是。一台機器只跑一個容器的話，容器就白用了</strong>——那跟第一代「一台機器一個服務」沒兩樣。</p>
+    <p>容器的整個價值就在<strong>密度</strong>：它輕，所以一台塞得下很多個。K8s 預設<strong>一台 Node 最多 110 個 Pod</strong>，這個數字可以調。</p>
 
     <figure>
       <svg viewBox="0 0 780 210" role="img" aria-label="舊做法一台機器跑一個服務，容器做法一台同樣的機器上跑二十幾個 Pod">
@@ -150,6 +150,6 @@
       </svg>
       <figcaption>例外確實有：有些高度隔離的場景真的一台只放一個，但那是為了安全刻意放棄密度，不是常態。</figcaption>
     </figure>
-    <p class="muted">順帶一提：kubelet 自己也不會起容器，它是叫底下的容器執行環境去起。而 K8s 現在預設用的執行環境已經不是完整的 Docker Engine，是 containerd（Docker 本來就拿它當底層）。你在文件上看到「K8s 移除 dockershim」（v1.24，2022 年）講的就是這件事——不影響你，因為 Docker build 出來的映像檔照樣能跑。</p>
+    <p class="muted">順帶一提：kubelet 自己也不會起容器，它是叫底下的容器執行環境去起。你在文件上看到「K8s 移除 dockershim」（v1.24，2022 年）講的就是這一層的事：被拿掉的是 <strong>dockershim</strong>（kubelet 裡那段專門用來接 Docker Engine 的轉接程式），之後 kubelet 一律透過 CRI 這個共同介面接容器執行環境，<strong>containerd、CRI-O 都行</strong>，不是「只能用 containerd」；想繼續用 Docker Engine 的話，官方也說明可以裝 cri-dockerd 這個替代轉接程式接上去。不影響你，因為 <code>docker build</code> 出來的映像檔照樣能跑——官方的原話是「the images produced from docker build will work with all CRI implementations」。<a class="fixsrc" href="https://kubernetes.io/blog/2022/02/17/dockershim-faq/" target="_blank" rel="noopener">出處</a></p>
   </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>Pod 是派工單位：通常裡面就一個容器，偶爾多一個貼身小幫手（sidecar）。</li><li>一台機器＋容器執行環境（containerd）＋kubelet ＝ 一個 Node；kubelet 是聽大腦指令的聯絡窗口。</li><li>一台 Node 跑幾十個 Pod 是常態（預設上限 110 個）；一台只跑一個就白用容器了。</li><li>Pod 落在哪台不用你管，重開一次就可能換位子。</li></ul></div>

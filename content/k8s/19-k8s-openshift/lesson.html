@@ -5,7 +5,7 @@
 <p class="era">先看全景</p>
 <h3 class="head">OpenShift 是 Kubernetes 加上一層平台</h3>
 <p>Red Hat OpenShift Container Platform（常縮寫成 OCP）核心就是 Kubernetes，上面再補開發、路由、安全和維運的整合。所以第 6〜12 課學的物件幾乎全部通用，指令從 <code>kubectl</code> 換成 <code>oc</code>（<code>oc</code> 也吃大部分 <code>kubectl</code> 的用法）。</p>
-<p>最明顯的多出來的東西是 <strong>Route</strong>：OpenShift 自己的對外 HTTP／HTTPS 入口。第 10 課講的 Ingress 在 OpenShift 上一樣能用，但實務上 OpenShift 的教材和範例多半直接用 Route。</p>
+<p>最明顯的多出來的東西是 <strong>Route</strong>：OpenShift 自己的對外 HTTP／HTTPS 入口。第 10 課講的 Ingress 在 OpenShift 上一樣能用，而 Red Hat 自己的文件與範例用的是 Route。</p>
 <p>這一課用一個具體的例子把東西串起來：一個部落格網站（WordPress）＋一個資料庫（MySQL）＋一個快取（Redis）。</p>
 <pre><code>外部使用者
     ↓ HTTPS
@@ -87,6 +87,7 @@ spec:
 <section>
 <p class="era">工作負載</p>
 <h3 class="head">把資料庫的位置注入網站</h3>
+<p class="muted">先講一個抄之前要知道的前提：<strong>下面這份 YAML 的環境變數名稱（<code>WORDPRESS_DATABASE_*</code>）和 8080 這個埠，是照 Bitnami 版 WordPress 映像的規格寫的。</strong>換成 Docker Hub 上的官方 <code>wordpress</code> 映像就不通——它吃的是 <code>WORDPRESS_DB_HOST</code>、<code>WORDPRESS_DB_USER</code>、<code>WORDPRESS_DB_PASSWORD</code>、<code>WORDPRESS_DB_NAME</code>，而且它聽的是 <strong>80</strong>（官方範例寫 <code>-p 8080:80</code>）。<a class="fixsrc" href="https://hub.docker.com/_/wordpress" target="_blank" rel="noopener">出處</a> 80 落在 1024 以下的特權埠，正好踩到下一段講的那一條，在 OpenShift 上起不來。<strong>換映像檔就要去讀那個映像檔自己的文件，把變數名和埠號對過一遍。</strong></p>
 <pre><code>apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -138,7 +139,7 @@ spec:
 
 <h4>映像檔的三個坑</h4>
 <p class="muted">第一個坑是映像檔搬家了。<mark class="fixnote" tabindex="0" data-note="原筆記用 bitnami/wordpress:latest、bitnami/mysql:5.7、bitnami/redis:7.0 這幾個映像檔，查證後更正：Bitnami 官方公告自 2025 年 8 月 28 日起，把 docker.io/bitnami 底下既有的容器映像（含各版本標籤）搬到 docker.io/bitnamilegacy，該處不再更新也不再支援，只供暫時遷移使用">Bitnami 已經公告從 2025 年 8 月 28 日起，把 <code>docker.io/bitnami</code> 底下的既有映像（含各版本標籤）搬到 <code>docker.io/bitnamilegacy</code>，那邊不再更新也不再支援，只給你暫時遷移用</mark><a class="fixsrc" href="https://github.com/bitnami/containers/issues/83267" target="_blank" rel="noopener">出處</a>。所以 <code>bitnami/wordpress</code>、<code>bitnami/mysql</code>、<code>bitnami/redis</code> 這類舊名稱照抄下去，現在可能拉不下來。要沿用的話請先確認目前還提供哪些映像與標籤。</p>
-<p class="muted">第二個坑是身分：<strong>OpenShift 會用一個隨機指定的、非 root 的使用者編號來跑你的容器</strong>。Red Hat 的映像製作指南寫得很清楚——容器裡會被寫入的目錄和檔案，要屬於 root 群組且該群組可讀寫，映像檔的 <code>USER</code> 也該寫數字而不是名字。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/3.11/html/creating_images/creating-images-guidelines" target="_blank" rel="noopener">出處</a> 這也解釋了一個常見疑問：<strong>為什麼這類映像檔聽的是 8080 而不是 80</strong>。同一份指南直接寫了這句：「容器裡跑的程序不可以聽特權埠（1024 以下的埠），因為它們並不是以特權使用者的身分在跑」。假設自己一定是 root、或假設某個目錄一定寫得進去的映像檔，在 OpenShift 上就會起不來。</p>
+<p class="muted">第二個坑是身分：<strong>OpenShift 會用一個隨機指定的、非 root 的使用者編號來跑你的容器</strong>。Red Hat 的映像製作指南寫得很清楚——容器裡會被寫入的目錄和檔案，要屬於 root 群組且該群組可讀寫，映像檔的 <code>USER</code> 也該寫數字而不是名字。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/images/creating-images" target="_blank" rel="noopener">出處</a> 這也解釋了一個常見疑問：<strong>為什麼這類映像檔聽的是 8080 而不是 80</strong>。同一份指南直接寫了這句：「容器裡跑的程序不可以聽特權埠（1024 以下的埠），因為它們並不是以特權使用者的身分在跑」。假設自己一定是 root、或假設某個目錄一定寫得進去的映像檔，在 OpenShift 上就會起不來。</p>
 <p class="muted">第三個坑是標籤會變：正式環境不要用 <code>latest</code>。標籤是可以被發佈者改掉的，同一個名字下次拉到的可能是不同內容，稽核和重現都會出問題。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
@@ -202,7 +203,7 @@ spec:
     </tbody>
   </table>
 </div>
-<p class="muted">Red Hat 的文件把這三種和各自的憑證需求寫得很清楚。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/ingress_and_load_balancing/routes" target="_blank" rel="noopener">出處</a> 有一點要講明白：<strong>寫了 <code>tls</code> 區塊就一定要填 <code>termination</code></strong>，而且只吃 edge、reencrypt、passthrough 三個值（API 欄位的說明把 edge 註記為預設）；但 <strong>整個 <code>tls</code> 區塊不寫的 Route，走的是純 HTTP，不是 edge</strong>。這一條的證據只在 API 的原始定義裡看得到，所以下面這個「出處」連到的是一份 Go 程式碼、不是一般的說明文件——在那頁搜尋 <code>TLSConfig</code>，就會看到 <code>termination</code> 這個欄位上面那行列舉只寫了 edge、reencrypt、passthrough 三個值，沒有空的——填不出第四種，也不能留空。<a class="fixsrc" href="https://github.com/openshift/api/blob/master/route/v1/types.go" target="_blank" rel="noopener">出處</a> 組織要求「一路加密到 Pod」時，<code>edge</code> 就不夠。</p>
+<p class="muted">Red Hat 的文件把這三種和各自的憑證需求寫得很清楚。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/ingress_and_load_balancing/routes" target="_blank" rel="noopener">出處</a> 有一點要講明白：<strong>寫了 <code>tls</code> 區塊就一定要填 <code>termination</code></strong>，而且只吃 edge、reencrypt、passthrough 三個值（API 欄位的說明把 edge 註記為預設）；但 <strong>整個 <code>tls</code> 區塊不寫的 Route，走的是純 HTTP，不是 edge</strong>。<span class="muted">（出處是 API 的原始定義，在那頁搜 <code>TLSConfig</code>。<a class="fixsrc" href="https://github.com/openshift/api/blob/master/route/v1/types.go" target="_blank" rel="noopener">出處</a>）</span> 組織要求「一路加密到 Pod」時，<code>edge</code> 就不夠。</p>
 <pre><code>oc apply -f manifests/
 oc rollout status deployment/database
 oc rollout status deployment/blog

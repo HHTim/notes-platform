@@ -36,7 +36,7 @@
           </tr>
           <tr>
             <th scope="row">一台 worker node</th>
-            <td>它的 kubelet 不回報了（約 40 秒沒消息就標記不健康）</td>
+            <td>它的 kubelet 不回報了（預設約 50 秒沒消息就標記不健康）</td>
             <td>再等幾分鐘確認真的死了，把上面的 Pod 排到其他還活著的機器</td>
             <td class="win">補位</td>
           </tr>
@@ -55,9 +55,10 @@
         </tbody>
       </table>
     </div>
+    <p class="muted">那個 50 秒是<strong>可以調的預設值</strong>，不是硬規定：巡邏的（kube-controller-manager）有一個 <code>--node-monitor-grace-period</code> 參數，官方參考頁列的預設值是 <code>50s</code>——「Amount of time which we allow running Node to be unresponsive before marking it unhealthy」。<a class="fixsrc" href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/" target="_blank" rel="noopener">出處</a> 這個數字從 Kubernetes v1.32 起才是 50 秒，v1.31 以前是 40 秒，所以舊資料上寫 40 秒不是寫錯，是版本不同。<span class="muted">（v1.32 的更動紀錄裡那一句是「The default value for node-monitor-grace-period has been increased to 50s (earlier 40s)」，在那份很長的紀錄裡搜 <code>node-monitor-grace-period</code> 就找得到。<a class="fixsrc" href="https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.32.md" target="_blank" rel="noopener">出處</a>）</span></p>
   </section>
 <section>
-    <p class="era">你問的那題</p>
+    <p class="era">補位補不回來的那一種</p>
     <h3 class="head">「死了一個補上一個，所以只剩兩個？」</h3>
     <p class="q">「原本三個，死了一個，補上一個，所以現在只剩兩個？那下次掛掉呢？」</p>
     <p><strong class="hot">master node 不會自動補位。3 台死 1 台，就是剩 2 台，不會有第 4 台自己長出來。</strong></p>
@@ -142,11 +143,11 @@
       </div>
     </div>
     <p class="formula">「同一時間只能有一個在做事」＝ 這就是分散式鎖</p>
-    <p>而 K8s 這把鎖是用<strong>檔案室（etcd）</strong>做的，不是 Redis。理由是 etcd 換主機不會弄丟已經答應的東西，Redis 會。</p>
+    <p>而 K8s 這把鎖是用<strong>檔案室（etcd）</strong>做的，不是 Redis。理由是換主機時的保證不一樣：Redis 官方文件自己寫得很清楚，Redis 的複寫是非同步的，「acknowledged writes can still be lost during a failover」——<strong>已經回覆「收到了」的寫入，在換主機時仍可能掉</strong>。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/" target="_blank" rel="noopener">出處</a> 一把會掉紀錄的鎖，可能讓兩台同時以為自己搶到。</p>
 
     <h4>那 master 全掛了會怎樣？</h4>
     <p><strong class="win">已經在跑的 Pod 會繼續跑。</strong>因為每台 worker 上的 kubelet 是自主的，它照著最後一次收到的指令繼續維持，使用者不會馬上感覺到。</p>
-    <p><strong class="hot">但整個叢集會凍結</strong>：不能改任何東西、掛掉的 Pod 不會被補、換版本做不了、自動增減份數停擺。不是立刻全停，是「還在動但沒人管」——這反而更危險，因為不會有人立刻發現。</p>
+    <p><strong class="hot">但整個叢集會凍結</strong>：不能改任何東西、換版本做不了、自動增減份數停擺。<strong>掛掉的 Pod 也只剩一半的救援</strong>——同一台上的容器崩潰，那台的 kubelet 照 <code>restartPolicy</code> 還是會就地重開；但「換一台機器重排」「份數少了補一份新的」這兩件事要巡邏的下令，大腦全掛就沒人做。整體是「還在動但沒人管」——這反而更危險，因為不會有人立刻發現。</p>
     <p class="muted">雲端託管的 K8s（GKE、EKS）是雲端商幫你顧 master，你看不到也不用管。這是託管版最大的價值。</p>
   </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>Pod 掛、worker 掛 → 補位（大腦生一個新的）；master 掛 → 選舉（台數不會自己變回來）。</li><li>master 要奇數台：3 台可死 1 台，2 台死 1 台就過不了半數。</li><li>補回 master 是人的工作——這就是「顧 K8s 是一份全職工作」的原因。</li><li>master 全掛：已在跑的 Pod 照跑，但叢集凍結——還在動但沒人管，反而更危險。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Pod 掛、worker 掛 → 補位（大腦生一個新的）；master 掛 → 選舉（台數不會自己變回來）。</li><li>master 要奇數台：3 台可死 1 台，2 台死 1 台就過不了半數。</li><li>補回 master 是人的工作——這就是「顧 K8s 是一份全職工作」的原因。</li><li>master 全掛：已在跑的 Pod 照跑，同一台上崩潰的容器 kubelet 還會就地重開，但換台重排和補份數停擺——還在動但沒人管，反而更危險。</li></ul></div>

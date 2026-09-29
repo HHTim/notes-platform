@@ -1,12 +1,12 @@
 <!-- 來源：rescue/vm-container-k8s.html（舊對話救回的教材原稿）· 收錄日期：2026-09-04 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 Ingress（單子）和 Ingress Controller（執行者）</li><li>解釋託管環境為什麼常常沒有 nginx</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 Ingress（單子）和 Ingress Controller（執行者）</li><li>知道 Ingress 這個 API 現在的狀態，以及官方建議新專案改用什麼</li><li>解釋託管環境為什麼常常不需要自己養一個執行者</li></ul></div>
 <section>
     <p class="era">操作三・讓外面進得來</p>
     <h3 class="head">對外入口：router？nginx？Ingress？</h3>
     <p>Service 的名字<strong>預設只在叢集裡面有效</strong>，外面的人叫不到。所以前面要擺一個對外入口。而這裡有三個常被混在一起講的東西，拆開就清楚了：</p>
 
     <figure>
-      <svg viewBox="0 0 780 344" role="img" aria-label="對外入口拆成三層：雲端負載平衡器給一個對外 IP、Ingress 是一張存在檔案室的規則表、真正在轉發的是一個 nginx Pod">
+      <svg viewBox="0 0 780 344" role="img" aria-label="對外入口拆成三層：雲端負載平衡器給一個對外 IP、Ingress 是一張存在檔案室的規則表、真正在轉發的是一個 Ingress Controller Pod">
         <rect x="16" y="118" width="94" height="54" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
         <text x="63" y="150" font-size="13" text-anchor="middle">使用者</text>
         <line x1="118" y1="145" x2="140" y2="145" stroke="currentColor" stroke-width="2" marker-end="url(#s1)"/>
@@ -18,9 +18,9 @@
         <line x1="306" y1="145" x2="328" y2="145" stroke="currentColor" stroke-width="2" marker-end="url(#s1)"/>
 
         <rect x="336" y="112" width="158" height="66" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
-        <text x="415" y="136" font-size="13.5" text-anchor="middle" fill="var(--gold)">nginx（一個 Pod）</text>
-        <text x="415" y="156" font-size="10.5" text-anchor="middle" fill="var(--gold)">真正在轉發的就是它</text>
-        <text x="415" y="172" font-size="10" text-anchor="middle" fill="var(--gold)">跟你的服務一樣是個容器</text>
+        <text x="415" y="134" font-size="12.5" text-anchor="middle" fill="var(--gold)">Ingress Controller</text>
+        <text x="415" y="153" font-size="10.5" text-anchor="middle" fill="var(--gold)">一個 Pod，真正在轉發的就是它</text>
+        <text x="415" y="169" font-size="10" text-anchor="middle" fill="var(--gold)">跟你的服務一樣是個容器</text>
 
         <rect x="330" y="228" width="170" height="86" rx="5" fill="none" stroke="var(--slate)" stroke-width="2" stroke-dasharray="6 4"/>
         <text x="415" y="252" font-size="12.5" text-anchor="middle" fill="var(--slate)">Ingress 規則表</text>
@@ -53,27 +53,32 @@
           <marker id="s2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--slate)"/></marker>
         </defs>
       </svg>
-      <figcaption>Ingress 是<strong>單子</strong>，nginx 是<strong>執行者</strong>——就跟 Deployment 是單子、Pod 是執行者一樣。</figcaption>
+      <figcaption>Ingress 是<strong>單子</strong>，Ingress Controller 是<strong>執行者</strong>——就跟 Deployment 是單子、Pod 是執行者一樣。</figcaption>
     </figure>
 
     <div class="terms">
       <div class="term"><b>負載平衡器</b><span>雲端給你的一個對外 IP，把流量丟進叢集。這是基礎設施，GCP／AWS 提供。</span></div>
       <div class="term"><b>Ingress</b><span>一張規則表，跟 Service 一樣只是存在檔案室的一筆設定。<strong>它本身不轉發任何東西。</strong></span></div>
-      <div class="term"><b>Ingress Controller</b><span>真正在跑、真正在轉發的那個程式，跑在一個 Pod 裡。<strong>它通常就是一個 nginx。</strong></span></div>
+      <div class="term"><b>Ingress Controller</b><span>真正在跑、真正在轉發的那個程式，跑在一個 Pod 裡。<strong>Ingress 這張表要有一個 Controller 在叢集裡跑，才會生效。</strong></span></div>
     </div>
 
-    <h4>回答你的三個問題</h4>
+    <h4>三個最容易混在一起的問題</h4>
     <ul class="plainlist">
-      <li><strong>「是 nginx 嗎？」</strong>——<strong class="win">常常是，但不一定。</strong>最多人用的那一套裡面就是 nginx，但也可以換成 Envoy、Traefik，或雲端自己的負載平衡器。</li>
+      <li><strong>「Controller 是哪一個程式？」</strong>——<strong class="win">沒有唯一答案，要自己挑一個裝。</strong>Kubernetes 本身不附執行者，官方文件列了一整排可選的 Ingress Controller，各家雲端商、各家廠商都有自己的版本。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/" target="_blank" rel="noopener">出處</a></li>
       <li><strong>「是 router 嗎？」</strong>——概念上是，但 router 在網路領域專指看 IP 的那種路由器。這裡的東西<strong>看得懂網址路徑</strong>（<code>/api</code> 跟 <code>/login</code> 可以送去不同地方），業界比較常說<strong>反向代理</strong>——意思是它代替後面那些服務出面接客，外面的人只看得到它。</li>
       <li><strong>「為什麼不直接讓 Service 對外？」</strong>——可以，Service 有一種型別會跟雲端要一個對外 IP。但<strong>一個 Service 一個 IP，十個服務就十個 IP</strong>，又貴又難管。對外入口的價值就是：<strong>一個 IP，依網址分給很多 Service。</strong></li>
     </ul>
 
-    <p class="muted">順帶一提：Ingress 的下一代規格叫 <strong>Gateway API</strong>，概念一樣（一張單子＋一個執行者），只是表格式更細。新專案的文件上會越來越常看到。</p>
+    <h4>挑 Controller 之前，先知道 Ingress 這個 API 的現況</h4>
+    <p>「單子＋執行者」這個結構不會變，但<strong>單子這一格的規格已經封版了</strong>。Kubernetes 官方在 Ingress 說明頁最上面掛了一段話：「The Kubernetes project recommends using Gateway instead of Ingress. The Ingress API has been frozen.」——<strong>官方建議改用 Gateway API</strong>，Ingress 這個 API 已經凍結。同一頁也把「凍結」講清楚：Ingress 不會被移除、既有的照常能用，但<strong>不再新增或修改任何功能</strong>。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/ingress/" target="_blank" rel="noopener">出處</a></p>
+    <p>執行者那一格也有一件必須知道的事：<strong>歷史上用得最廣的那一個社群 Ingress Controller「Ingress NGINX」已經退役了。</strong>Kubernetes 的網路小組（SIG Network）與資安應變委員會在公告裡寫：「Best-effort maintenance will continue until March 2026. Afterward, there will be no further releases, no bugfixes, and no updates to resolve any security vulnerabilities that may be discovered.」——2026 年 3 月之後<strong>不再發版、不再修臭蟲、發現資安漏洞也不會補</strong>；已經裝好的不會壞掉，但從此沒有人維護。<a class="fixsrc" href="https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/" target="_blank" rel="noopener">出處</a></p>
+    <p>官方後續那篇說明講得更直白：「choosing to remain with Ingress NGINX after its retirement leaves you and your users vulnerable to attack. None of the available alternatives are direct drop-in replacements.」——<strong class="hot">留著不換等於把自己和使用者曝露在攻擊下</strong>，而且<strong>沒有任何一個替代品是直接換上去就好的</strong>，要排時間做。<a class="fixsrc" href="https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/" target="_blank" rel="noopener">出處</a></p>
+    <p class="muted">名字很像、要分清楚的兩個東西：退役的是 Kubernetes 社群維護的 <strong>Ingress NGINX</strong>。另外還有一個 <strong>F5 NGINX Ingress Controller</strong>，是 F5（NGINX 這個網頁伺服器的東家）自己的產品、另一個專案，仍在維護——它的產品頁把自己定位成「a stable and enterprise-backed alternative to community-maintained NGINX ingress controllers」。<a class="fixsrc" href="https://www.f5.com/products/nginx/nginx-ingress-controller" target="_blank" rel="noopener">出處</a></p>
+    <p class="formula">觀念不變：Ingress 是單子，要有一個 Controller 去執行<br>變的是：官方建議新專案寫 Gateway API，而且社群的 Ingress NGINX 不能再用了</p>
 
-    <h4>換成雲端託管的服務，nginx 就不見了</h4>
-    <p class="q">「常常看到架構圖上只有一個負載平衡器，沒有 nginx，那是怎麼回事？」</p>
-    <p>因為那種架構<strong>沒有用 K8s</strong>。上面那個 nginx 存在的理由，是「<strong>K8s 的 Ingress 只是一張規則表，K8s 自己不提供執行者</strong>」——所以你得自己養一個。</p>
+    <h4>換成雲端託管的服務，那個執行者就不見了</h4>
+    <p class="q">「常常看到架構圖上只有一個負載平衡器，中間沒有多一個轉發用的 Pod，那是怎麼回事？」</p>
+    <p>因為那種架構<strong>沒有用 K8s</strong>。上面那個 Controller Pod 存在的理由，是「<strong>K8s 的 Ingress 只是一張規則表，K8s 自己不提供執行者</strong>」——所以你得自己養一個。</p>
     <p>雲端託管的負載平衡器<strong>本身就是執行者</strong>。它的設定裡有一份路徑對照表，雲端商託管的轉發層負責照它執行。單子和執行者被包在同一個產品裡了。</p>
 
     <div class="tablewrap">
@@ -83,26 +88,26 @@
         </thead>
         <tbody>
           <tr><th scope="row">規則表（單子）</th><td>Ingress</td><td>負載平衡器的路徑對照表</td></tr>
-          <tr><th scope="row">執行者</th><td class="hot">你自己養的 nginx Pod</td><td class="win">雲端商託管，你看不到</td></tr>
+          <tr><th scope="row">執行者</th><td class="hot">你自己挑、自己養的 Controller Pod</td><td class="win">雲端商託管，你看不到</td></tr>
           <tr><th scope="row">找到後端</th><td>Service</td><td>負載平衡器的後端設定</td></tr>
-          <tr><th scope="row">送網頁、圖片這類固定檔案</th><td>nginx，或一個 Pod</td><td class="win">負載平衡器直接從雲端硬碟讀檔送出</td></tr>
-          <tr><th scope="row">要顧幾個容器</th><td class="num">你的服務 + 1 個 nginx</td><td class="num">只有你的服務</td></tr>
+          <tr><th scope="row">送網頁、圖片這類固定檔案</th><td>Controller，或另外一個 Pod</td><td class="win">負載平衡器直接從雲端硬碟讀檔送出</td></tr>
+          <tr><th scope="row">要顧幾個容器</th><td class="num">你的服務 + 1 個 Controller</td><td class="num">只有你的服務</td></tr>
         </tbody>
       </table>
     </div>
 
-    <p><strong>上面那張圖有一處不精準：</strong>圖裡把負載平衡器畫成「只給一個對外 IP」、把「看得懂網址路徑」全歸給 nginx。<strong>那只對「只認 IP 的那種」負載平衡器成立。</strong></p>
-    <p>負載平衡器分兩種：<strong>只認得機器位址、看不懂網址的</strong>（業界說第四層），和<strong>看得懂網址的</strong>（第七層，也叫應用層）。雲端的第七層負載平衡器自己就會依路徑分流——這種情況下根本不需要再擺一個 nginx。</p>
-    <p class="muted">這也是為什麼 GKE 上有兩種選擇：用 nginx 那一套（起一個 nginx Pod），或用 GKE 自己的（不起 Pod，直接叫雲端開一個第七層負載平衡器）。在 GCP 上通常選後者。</p>
+    <p><strong>上面那張圖有一處不精準：</strong>圖裡把負載平衡器畫成「只給一個對外 IP」、把「看得懂網址路徑」全歸給那個 Controller Pod。<strong>那只對「只認 IP 的那種」負載平衡器成立。</strong></p>
+    <p>負載平衡器分兩種：<strong>只認得機器位址、看不懂網址的</strong>（業界說第四層），和<strong>看得懂網址的</strong>（第七層，也叫應用層）。雲端的第七層負載平衡器自己就會依路徑分流——這種情況下根本不需要再擺一個轉發用的 Pod。</p>
+    <p class="muted">這也是為什麼 GKE 上有兩條路：裝一套自己挑的 Ingress Controller（起一個 Pod），或用 GKE 自己那一套（不起 Pod，直接叫雲端開一個第七層負載平衡器）。</p>
 
-    <h4>把 nginx 拿掉的實際好處</h4>
-    <p>nginx 在這種架構裡傳統上做兩件事：<strong>依路徑分流</strong>，和<strong>送靜態檔案</strong>——「靜態檔案」就是做好之後不會再變的那些檔：網頁、樣式、圖片。這兩件事分別交給負載平衡器的路徑規則、和「負載平衡器直接讀雲端硬碟」之後，nginx 就沒事可做了。</p>
-    <p>好處很實際：<strong>少一個容器要顧、少一份映像檔要建、少一個東西會掛、少一份資安掃描要跑。</strong></p>
+    <h4>把那個 Controller Pod 拿掉的實際好處</h4>
+    <p>這種架構裡的 Controller Pod 傳統上做兩件事：<strong>依路徑分流</strong>，和<strong>送靜態檔案</strong>——「靜態檔案」就是做好之後不會再變的那些檔：網頁、樣式、圖片。這兩件事分別交給負載平衡器的路徑規則、和「負載平衡器直接讀雲端硬碟」之後，它就沒事可做了。</p>
+    <p>好處很實際：<strong>少一個容器要顧、少一份映像檔要建、少一個東西會掛、少一份資安掃描要跑。</strong>以 Ingress NGINX 退役這件事為例，少一個自己養的元件，就少一次「上游不維護了，得整套換掉」的遷移。</p>
 
-    <h4>什麼情況需要把 nginx 留著</h4>
+    <h4>什麼情況需要自己留一個</h4>
     <ul class="plainlist">
       <li><strong>要做負載平衡器做不到的事</strong>——改寫請求內容、複雜的網址改寫規則、或是在最前面那一關就先把常看的內容存起來、下次直接回。</li>
-      <li><strong>不想被綁在單一雲</strong>——設定寫在自己的 nginx 裡，換雲時搬得動。</li>
+      <li><strong>不想被綁在單一雲</strong>——設定寫在自己的 Controller 裡，換雲時搬得動。</li>
       <li><strong>前端不只是那些固定檔案</strong>——需要在伺服器端先算好畫面再送出，那就得有一個真的在跑的前端程式。</li>
     </ul>
     <p class="muted">三個都不成立的話，就不需要。</p>
@@ -176,4 +181,4 @@
       <figcaption>還有一種常見變形：前端那包乾脆放到雲端硬碟上直接送給瀏覽器，連前端 Pod 都不用——那就只剩下半部後面那一段。</figcaption>
     </figure>
   </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>Service 的名字只在叢集內有效；對外要靠入口依網址分流。</li><li>Ingress 是規則表（不會跑）；Ingress Controller 是真的在轉發的 Pod，通常就是 nginx。</li><li>負載平衡器分兩種：只認位址的（L4）和看得懂網址的（L7）；雲端 L7 負載平衡器自己就是執行者，所以託管環境常常不需要 nginx。</li><li>判斷請求路徑：看「打 API 的那行程式在誰的機器上執行」。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Service 的名字只在叢集內有效；對外要靠入口依網址分流。</li><li>Ingress 是規則表（不會跑）；要有一個 Ingress Controller 在叢集裡跑，那張表才會生效——Kubernetes 不附執行者，要自己挑一個裝。</li><li>Ingress 這個 API 已凍結（只修不增），官方建議新專案改用 Gateway API；社群的 Ingress NGINX 已於 2026 年 3 月退役，之後連資安漏洞都不會補。F5 NGINX Ingress Controller 是另一個仍在維護的專案。</li><li>負載平衡器分兩種：只認位址的（L4）和看得懂網址的（L7）；雲端 L7 負載平衡器自己就是執行者，所以託管環境常常不必自己養一個 Controller Pod。</li><li>判斷請求路徑：看「打 API 的那行程式在誰的機器上執行」。</li></ul></div>

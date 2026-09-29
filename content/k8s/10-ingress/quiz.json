@@ -1,24 +1,24 @@
 {
  "questions": [
   {
-   "q": "Ingress 和 Ingress Controller 的關係是？",
+   "q": "只套用了一份 Ingress，叢集裡卻沒有裝任何 Ingress Controller，結果會怎樣？",
    "opts": [
-    "Ingress 是規則表（不會跑）；Ingress Controller 是真的在轉發的程式，通常是一個 nginx Pod",
-    "兩個都是硬體設備",
-    "Ingress 自己就會轉發流量",
-    "Ingress Controller 只是一份說明文件"
+    "那份 Ingress 不會生效——它只是一張存起來的規則表，要有 Controller 在跑才有人照著轉發",
+    "Kubernetes 會自動幫你裝一個 Controller 上去",
+    "Ingress 自己就會開始轉發流量，Controller 只是選配的加速器",
+    "kube-proxy 會接手，把 Ingress 的路徑規則寫進每台機器"
    ],
-   "exp": "跟 Deployment（單子）配 Pod（執行者）同一個模式：Ingress 是單子，Controller 是執行者。"
+   "exp": "跟 Deployment（單子）配 Pod（執行者）同一個模式：Ingress 是單子，Controller 是執行者，Kubernetes 本身不附執行者。也因為要自己挑，挑之前得知道：Ingress API 已凍結、官方建議新專案用 Gateway API，社群的 Ingress NGINX 也已在 2026 年 3 月退役。"
   },
   {
-   "q": "用雲端託管服務時，為什麼常常看不到 nginx？",
+   "q": "用雲端託管服務時，為什麼架構圖上常常沒有那個轉發用的 Pod？",
    "opts": [
     "雲端的第七層（L7）負載平衡器自己就是執行者，看得懂網址、會依路徑分流——單子和執行者包在同一個產品裡",
-    "雲端環境禁止安裝 nginx",
-    "nginx 不支援雲端",
+    "雲端環境禁止安裝反向代理",
+    "反向代理不支援雲端",
     "因為託管環境沒有流量"
    ],
-   "exp": "自己架 K8s 才需要自己養執行者。負載平衡器分 L4（只認位址）和 L7（看得懂網址），雲端的 L7 把 nginx 的活包掉了。"
+   "exp": "自己架 K8s 才需要自己養執行者。負載平衡器分 L4（只認位址）和 L7（看得懂網址），雲端的 L7 把那個 Pod 的活包掉了。"
   },
   {
    "q": "為什麼不讓每個 Service 都直接對外？",
@@ -48,7 +48,7 @@
     "L4 是硬體、L7 一定是軟體",
     "數字越大速度越慢"
    ],
-   "exp": "雲端的 L7 負載平衡器自己就是「看得懂網址的執行者」，nginx 的活被它包掉了——這就是託管環境常常沒有 nginx 的原因。"
+   "exp": "雲端的 L7 負載平衡器自己就是「看得懂網址的執行者」，Ingress Controller 的活被它包掉了——這就是託管環境常常不必自己養一個的原因。"
   }
  ]
 }
