@@ -5,7 +5,7 @@
 <p class="era">從藍圖、工廠到員工</p>
 <h3 class="head">程式、行程與執行緒</h3>
 <p>這三個詞用工廠來記最快：<strong>程式</strong>（program）是工廠藍圖，還沒執行的程式碼；<strong>行程</strong>（process）是照藍圖開起來、已經拿到資源的工廠；<strong>執行緒</strong>（thread）是工廠裡真正在做事的員工。</p>
-<p class="muted">對照一下用詞：有些教材寫的是「進程」「線程」，這課一律用台灣講法的「行程」「執行緒」，指的是同一件事。</p>
+<p class="muted">對照一下用詞：有些教材寫的是「進程」「線程」，這課一律用台灣講法的「行程」「執行緒」，指的是同一件事。容器裡的程式在主機上看就是一個程序，見容器與 Kubernetes 模組第 14 課〈Docker 上手〉。</p>
 <pre><code>程式（Program）
 └── 啟動後成為行程（Process）
     ├── 主執行緒（Main Thread）
@@ -45,7 +45,7 @@ worker.join();   // 等 worker 跑完再往下</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「join(long milliseconds) -> 等到時間倒數完，其他執行緒就會強制加入」，查證後更正：join(毫秒) 是最多等這麼久，時間到就不等了，不是強制介入對方"><code>join(毫秒)</code> 的意思是「<strong>最多</strong>等這麼久」——對方提早結束就提早往下走，時間到了對方還沒完就不等了。它不會去強制中斷或介入對方執行緒</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#join(long)" target="_blank" rel="noopener">出處</a>。</p>
 <p><code>yield()</code> 官方文件的原話是「給排程器的一個提示，表示目前這條執行緒願意讓出處理器」，而且明講<strong>排程器可以忽略這個提示</strong>，還補了一句「很少有適合使用這個方法的場合」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">優先權（1 到 10，預設 5）的通說是「優先權較高者先執行，優先權相等時 CPU 任選其一」。但實際排到誰跑，取決於作業系統的排程器，不同平台差很多——<strong>不要拿優先權來保證程式的正確性</strong>。一句話總結：<strong>多執行緒難以預測、順序無法完全保證、切換可能發生在任何時刻</strong>。</p>
-<p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條（設定鍵是 <code>server.tomcat.threads.max</code>），每個進來的請求分一條<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.tomcat.threads.max" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條（設定鍵是 <code>server.tomcat.threads.max</code>），每個進來的請求分一條<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.tomcat.threads.max" target="_blank" rel="noopener">出處</a>。Servlet 容器怎麼把請求分配到執行緒、為什麼同步問題仍是應用程式自己的事，見 Spring 模組第 1 課〈Servlet 與 JavaWeb 基礎〉。</p>
 </section>
 
 <section>

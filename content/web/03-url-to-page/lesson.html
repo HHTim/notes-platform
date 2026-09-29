@@ -38,7 +38,7 @@
 <pre><code>用戶端 → 伺服器：SYN
 伺服器 → 用戶端：SYN + ACK
 用戶端 → 伺服器：ACK</code></pre>
-<p>若是 HTTPS，接著進行 TLS 交握，協商加密參數、驗證憑證並建立工作階段金鑰。<mark class="fixnote" tabindex="0" data-note="原筆記寫「（HTTPS）TCP 三次握手完成後，會進行 TLS 握手」，查證後補充：這是 HTTP/1.1 與 HTTP/2 的流程；HTTP/3 走 QUIC，連線建立與 TLS 1.3 整合在一起，沒有獨立的 TCP 交握。QUIC 與 TLS 1.3 的關係見 RFC 9001：「This document describes how QUIC [QUIC-TRANSPORT] is secured using TLS [TLS13].」「QUIC carries TLS handshake data in CRYPTO frames」">「先 TCP 三向交握、再 TLS 交握」是 HTTP/1.1 與 HTTP/2 的劇本；HTTP/3 透過 QUIC 建立連線，傳輸與 TLS 1.3 的安全性合在同一套交握裡，不會先做獨立的 TCP 三向交握</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9001.html" target="_blank" rel="noopener">RFC 9001</a>。</p>
+<p>若是 HTTPS，接著進行 TLS 交握，協商加密參數、驗證憑證並建立工作階段金鑰。<mark class="fixnote" tabindex="0" data-note="原筆記寫「（HTTPS）TCP 三次握手完成後，會進行 TLS 握手」，查證後補充：這是 HTTP/1.1 與 HTTP/2 的流程；HTTP/3 走 QUIC，連線建立與 TLS 1.3 整合在一起，沒有獨立的 TCP 交握。QUIC 與 TLS 1.3 的關係見 RFC 9001：「This document describes how QUIC [QUIC-TRANSPORT] is secured using TLS [TLS13].」「QUIC carries TLS handshake data in CRYPTO frames」">「先 TCP 三向交握、再 TLS 交握」是 HTTP/1.1 與 HTTP/2 的劇本；HTTP/3 透過 QUIC 建立連線，傳輸與 TLS 1.3 的安全性合在同一套交握裡，不會先做獨立的 TCP 三向交握</mark><a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9001.html" target="_blank" rel="noopener">RFC 9001</a>。TLS 與 HTTP/3 的細節以第 2 課〈HTTP 與 HTTPS〉為主，這裡只講它在整條流程裡的位置。</p>
 </section>
 
 <section>
@@ -81,6 +81,7 @@ Cache-Control: max-age=300
 <h3 class="head">瀏覽器渲染不是「收到整頁才開始」</h3>
 <ol><li>逐步解析 HTML，建立文件物件模型（DOM）。</li><li>發現 CSS、JavaScript、字型與圖片後，排程額外請求。</li><li>解析 CSS，建立 CSS 物件模型（CSSOM）。</li><li>結合可見內容與樣式，形成渲染所需結構。</li><li>進行版面配置（Layout），計算尺寸與位置。</li><li>繪製（Paint）並合成（Composite）畫面圖層。</li></ol>
 <p>JavaScript 可能修改 DOM 或樣式，也可能延後解析；CSS、字型與圖片的載入狀態也會影響首次顯示與版面穩定。瀏覽器通常能邊接收、邊解析、邊載入，而非等待所有資料到齊。</p>
+<p class="muted">單頁應用程式（SPA）只在第一次載入走完這整條流程；之後切換頁面由前端路由只換內容、不重新載入整頁，見 Angular 模組第 5 課〈Ajax、SPA 與路由〉。</p>
 </section>
 
 <section>
