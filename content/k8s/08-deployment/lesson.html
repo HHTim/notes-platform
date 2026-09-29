@@ -131,6 +131,6 @@
       </svg>
       <figcaption>這叫<strong>滾動更新（rolling update）</strong>：分批換，每一批換好、確認活著，才換下一批。退回舊版叫 <strong>rollback</strong>。</figcaption>
     </figure>
-    <p class="muted">「一次換幾份」不是固定的 1，是<strong>照比例算的預設值</strong>：滾動更新有兩個旋鈕，<code>maxUnavailable</code>（過程中最多可以有幾份不能服務）和 <code>maxSurge</code>（過程中最多可以多開幾份），<strong>兩個的預設值都是 25%</strong>，算出來不是整數就取整。所以 3 份的時候 25% 剛好約等於 1 份，看起來像「一次只換一份」；12 份的時候一次就會換 3 份。兩個都可以自己指定。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a></p>
+    <p class="muted">「一次換幾份」不是固定的 1，是<strong>照比例算的預設值</strong>：滾動更新有兩個旋鈕，<code>maxUnavailable</code>（過程中最多可以有幾份不能服務）和 <code>maxSurge</code>（過程中最多可以多開幾份），<strong>兩個的預設值都是 25%</strong>，算出來不是整數時，maxUnavailable 無條件捨去、maxSurge 無條件進位。所以 3 份的時候 25% 剛好約等於 1 份，看起來像「一次只換一份」；12 份的時候一次就會換 3 份。兩個都可以自己指定。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a></p>
   </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>Dockerfile 管打包（這包裡有什麼）；Deployment 管上線（跑幾份、怎麼換版本）。兩者互不相識。</li><li>requests（保留量）＝至少留這麼多、可以超；limits（上限）＝絕不准超，記憶體超了容器可能被殺掉重開（核心偵測到記憶體吃緊時才動手）。</li><li>滾動更新（rolling update）：分批換，全程都有人服務；一批幾份由 maxUnavailable／maxSurge 決定，預設都是 25%（3 份時剛好約 1 份）。舊映像檔還在倉庫，隨時退回（rollback）。</li></ul></div>

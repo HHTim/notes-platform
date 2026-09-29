@@ -2,7 +2,7 @@
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 Ingress（單子）和 Ingress Controller（執行者）</li><li>知道 Ingress 這個 API 現在的狀態，以及官方建議新專案改用什麼</li><li>解釋託管環境為什麼常常不需要自己養一個執行者</li></ul></div>
 <section>
     <p class="era">操作三・讓外面進得來</p>
-    <h3 class="head">對外入口：router？nginx？Ingress？</h3>
+    <h3 class="head">對外入口：router？Controller？Ingress？</h3>
     <p>Service 的名字<strong>預設只在叢集裡面有效</strong>，外面的人叫不到。所以前面要擺一個對外入口。而這裡有三個常被混在一起講的東西，拆開就清楚了：</p>
 
     <figure>
@@ -74,7 +74,7 @@
     <p>執行者那一格也有一件必須知道的事：<strong>歷史上用得最廣的那一個社群 Ingress Controller「Ingress NGINX」已經退役了。</strong>Kubernetes 的網路小組（SIG Network）與資安應變委員會在公告裡寫：「Best-effort maintenance will continue until March 2026. Afterward, there will be no further releases, no bugfixes, and no updates to resolve any security vulnerabilities that may be discovered.」——2026 年 3 月之後<strong>不再發版、不再修臭蟲、發現資安漏洞也不會補</strong>；已經裝好的不會壞掉，但從此沒有人維護。<a class="fixsrc" href="https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/" target="_blank" rel="noopener">出處</a></p>
     <p>官方後續那篇說明講得更直白：「choosing to remain with Ingress NGINX after its retirement leaves you and your users vulnerable to attack. None of the available alternatives are direct drop-in replacements.」——<strong class="hot">留著不換等於把自己和使用者曝露在攻擊下</strong>，而且<strong>沒有任何一個替代品是直接換上去就好的</strong>，要排時間做。<a class="fixsrc" href="https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/" target="_blank" rel="noopener">出處</a></p>
     <p class="muted">名字很像、要分清楚的兩個東西：退役的是 Kubernetes 社群維護的 <strong>Ingress NGINX</strong>。另外還有一個 <strong>F5 NGINX Ingress Controller</strong>，是 F5（NGINX 這個網頁伺服器的東家）自己的產品、另一個專案，仍在維護——它的產品頁把自己定位成「a stable and enterprise-backed alternative to community-maintained NGINX ingress controllers」。<a class="fixsrc" href="https://www.f5.com/products/nginx/nginx-ingress-controller" target="_blank" rel="noopener">出處</a></p>
-    <p class="formula">觀念不變：Ingress 是單子，要有一個 Controller 去執行<br>變的是：官方建議新專案寫 Gateway API，而且社群的 Ingress NGINX 不能再用了</p>
+    <p class="formula">觀念不變：Ingress 是單子，要有一個 Controller 去執行<br>變的是：官方建議新專案寫 Gateway API，而且社群的 Ingress NGINX 已退役、不再修補漏洞，繼續用等於把自己曝露在攻擊下</p>
 
     <h4>換成雲端託管的服務，那個執行者就不見了</h4>
     <p class="q">「常常看到架構圖上只有一個負載平衡器，中間沒有多一個轉發用的 Pod，那是怎麼回事？」</p>
@@ -181,4 +181,4 @@
       <figcaption>還有一種常見變形：前端那包乾脆放到雲端硬碟上直接送給瀏覽器，連前端 Pod 都不用——那就只剩下半部後面那一段。</figcaption>
     </figure>
   </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>Service 的名字只在叢集內有效；對外要靠入口依網址分流。</li><li>Ingress 是規則表（不會跑）；要有一個 Ingress Controller 在叢集裡跑，那張表才會生效——Kubernetes 不附執行者，要自己挑一個裝。</li><li>Ingress 這個 API 已凍結（只修不增），官方建議新專案改用 Gateway API；社群的 Ingress NGINX 已於 2026 年 3 月退役，之後連資安漏洞都不會補。F5 NGINX Ingress Controller 是另一個仍在維護的專案。</li><li>負載平衡器分兩種：只認位址的（L4）和看得懂網址的（L7）；雲端 L7 負載平衡器自己就是執行者，所以託管環境常常不必自己養一個 Controller Pod。</li><li>判斷請求路徑：看「打 API 的那行程式在誰的機器上執行」。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Service 的名字只在叢集內有效；對外要靠入口依網址分流。</li><li>Ingress 是規則表（不會跑）；要有一個 Ingress Controller 在叢集裡跑，那張表才會生效——Kubernetes 不附執行者，要自己挑一個裝。</li><li>Ingress 這個 API 已凍結（不再新增或修改任何功能），官方建議新專案改用 Gateway API；社群的 Ingress NGINX 已於 2026 年 3 月退役，之後連資安漏洞都不會補。F5 NGINX Ingress Controller 是另一個仍在維護的專案。</li><li>負載平衡器分兩種：只認位址的（L4）和看得懂網址的（L7）；雲端 L7 負載平衡器自己就是執行者，所以託管環境常常不必自己養一個 Controller Pod。</li><li>判斷請求路徑：看「打 API 的那行程式在誰的機器上執行」。</li></ul></div>
