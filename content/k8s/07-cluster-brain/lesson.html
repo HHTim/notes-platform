@@ -71,7 +71,7 @@
           <marker id="q1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".5"/></marker>
         </defs>
       </svg>
-      <figcaption>本機測試的叢集，master 和 worker 可以是同一台；正式環境一定分開，而且 master 至少 3 台。</figcaption>
+      <figcaption>本機測試的叢集，master 和 worker 可以是同一台；正式環境通常分開，而要做到「死一台還撐得住」，master 就得 3 台以上、而且是奇數。</figcaption>
     </figure>
   </section>
 <section>
@@ -79,7 +79,8 @@
     <h3 class="head">大腦（Control Plane）：四個角色，各自是一個 Pod</h3>
 
     <p class="q">「一個 master node 裡面有幾個 pod？」</p>
-    <p><strong>大約四個。</strong>因為那四個角色<strong>各自就是一個容器、包在一個 Pod 裡</strong>，跑在 master node 上。「大腦」——正式名稱<strong>控制平面（Control Plane）</strong>，舊稱 master——不是一支程式，是這四個 Pod 湊起來的。</p>
+    <p><strong>大約四個。</strong>「大腦」——正式名稱<strong>控制平面（Control Plane）</strong>，舊稱 master——不是一支程式，是好幾個角色湊起來的。<strong>用 <code>kubeadm</code> 裝出來的叢集</strong>（最常見的自架方式，也是下面這張圖畫的情況），那四個角色<strong>各自就是一個容器、包在一個 Pod 裡</strong>，跑在 master node 上。</p>
+    <p class="muted">兩個前提要先講清楚。第一，<strong>「角色跑成 Pod」是安裝方式決定的</strong>，不是 Kubernetes 的規定——<code>kubeadm</code> 把它們裝成靜態 Pod（static Pod：不經過排班的，由那台自己的 kubelet 直接照顧的 Pod），但也有別的裝法是直接當成機器上的服務跑，還有託管的叢集根本不給你看。第二，<strong>官方列的控制平面元件其實是五個</strong>，第五個是 <code>cloud-controller-manager</code>（負責跟雲端商串接），官方在它後面標了 <strong>optional</strong>（選配）——自己架在機房裡就用不到。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/overview/components/" target="_blank" rel="noopener">出處</a></p>
 
     <figure>
       <svg viewBox="0 0 780 300" role="img" aria-label="一台 master node 剖開來看，裡面是四個 Pod：櫃檯、檔案室、排班的、巡邏的，由這台自己的 kubelet 直接照顧">
@@ -130,7 +131,7 @@
 
     <h4>四個角色各做什麼</h4>
     <div class="terms">
-      <div class="term"><b>櫃檯（kube-apiserver）</b><span>所有指令的唯一入口。你打 <code>kubectl</code> 就是打它，其他三個角色也只能透過它講話。它自己不做決定。</span></div>
+      <div class="term"><b>櫃檯（kube-apiserver）</b><span>所有指令的唯一入口。你打 <code>kubectl</code> 就是打它，排班的和巡邏的也只透過它拿資料、下更動。它自己不做決定。<strong>檔案室（etcd）是反過來的：不是它去找櫃檯，是櫃檯去讀寫它</strong>——etcd 只跟櫃檯講話，其他角色碰不到。</span></div>
       <div class="term"><b>檔案室（etcd）</b><span>把所有單子和所有現況存起來。K8s 的一切狀態都在這裡。</span></div>
       <div class="term"><b>排班的（kube-scheduler）</b><span>有新 Pod 要跑，看哪台 worker 還有空的 CPU 和記憶體，決定放哪台。決定完就沒它的事，實際起容器是 kubelet。</span></div>
       <div class="term"><b>巡邏的（kube-controller-manager）</b><span>一直在跑「單子說 3 份，現在幾份？不夠就補」的迴圈。K8s 會自我修復，靠的就是它。</span></div>
@@ -142,7 +143,7 @@
 
     <p class="q">「你說 master 上只有那四個角色，那 master 上也有 kubelet 嗎？」</p>
     <p><strong class="win">有。每一台機器都有 kubelet，不分 master 還是 worker。</strong>這正是為什麼 master 上那四個角色能用 Pod 的形式跑——是那台自己的 kubelet 在顧它們。</p>
-    <p>更精確地說，<strong>每台機器都有三樣共通的東西</strong>，master 只是在這三樣之上，額外多跑那四個角色：</p>
+    <p>更精確地說，<strong>每台機器上通常有三樣共通的東西</strong>，master 只是在這三樣之上，額外多跑那幾個大腦角色：</p>
 
     <figure>
       <svg viewBox="0 0 780 306" role="img" aria-label="master node 和 worker node 底層都有容器執行環境、kubelet、kube-proxy 三樣共通的東西，master 額外多跑四個大腦角色，worker 上面跑你的程式">
@@ -192,6 +193,7 @@
       </svg>
       <figcaption>那個「轉發表」（<code>kube-proxy</code>）是一支真的在跑的程式，負責把大腦發下來的名單寫進這台機器的網路規則——它就是第 9 課要講的 Service 背後的執行者。</figcaption>
     </figure>
+    <p class="muted">三樣裡面<strong>只有容器執行環境和 kubelet 是每台都非有不可</strong>；第三樣 <code>kube-proxy</code>，官方在節點元件清單裡標的是 <strong>optional</strong>（選配）——它負責把 Service 的規則寫進機器的網路設定，但有些網路外掛（例如 Cilium）自己就把這件事做掉了，那種叢集上不會有 kube-proxy。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/overview/components/" target="_blank" rel="noopener">出處</a></p>
     <p class="muted">用託管的 K8s（GKE、EKS）時，左邊那整個框你看不到也連不進去，雲端商幫你顧。你只看得到右邊。</p>
   </section>
 <section>
@@ -206,6 +208,6 @@
     </ul>
     <p class="formula">K8s 的一切狀態都在 etcd 裡 ⟹ 備份 etcd ＝ 備份整個叢集</p>
     <p>反過來說，<strong class="hot">etcd 沒了，叢集就沒了</strong>。機器都還在、容器可能還在跑，但大腦完全失憶，不知道誰是誰、也不知道該有幾份。</p>
-    <p class="muted">上一份講分散式鎖的資料裡提過 etcd，就是這個東西。它被選中的理由是「換主機時不會弄丟已經答應的事」，這點 Redis 做不到。</p>
+    <p class="muted">分散式鎖（同一時間只讓一個人做事的那把鎖，第 12 課會用到）常拿 etcd 來做，就是這個東西。它被選中的理由是「換主機時不會弄丟已經答應的事」——Redis 官方自己寫的是複寫非同步、「acknowledged writes can still be lost during a failover」，已經回覆收到的寫入在換主機時仍可能掉。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/" target="_blank" rel="noopener">出處</a></p>
   </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>worker node 跑你的 Pod；master node 跑大腦（Control Plane），不跑你的程式。</li><li>四個角色：櫃檯（kube-apiserver）、檔案室（etcd）、排班的（kube-scheduler）、巡邏的（kube-controller-manager）——各自是一個 Pod。</li><li>每台機器（不分 master/worker）都有三樣：containerd、kubelet、kube-proxy。</li><li>etcd 存所有單子和現況：備份 etcd ＝ 備份整個叢集。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>worker node 跑你的 Pod；master node 跑大腦（Control Plane），不跑你的程式。</li><li>四個角色：櫃檯（kube-apiserver）、檔案室（etcd）、排班的（kube-scheduler）、巡邏的（kube-controller-manager）；用 kubeadm 裝的叢集裡各自是一個 Pod。官方清單還有第五個 cloud-controller-manager，標為選配。</li><li>每台機器（不分 master/worker）通常有三樣：containerd、kubelet、kube-proxy——前兩樣必備，kube-proxy 官方標為選配（網路外掛可以取代它）。</li><li>etcd 只跟 kube-apiserver 講話，方向是櫃檯去讀寫它。</li><li>etcd 存所有單子和現況：備份 etcd ＝ 備份整個叢集。</li></ul></div>

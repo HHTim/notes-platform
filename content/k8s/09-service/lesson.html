@@ -39,8 +39,10 @@
           <marker id="o1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--gold)"/></marker>
         </defs>
       </svg>
-      <figcaption>「東西住在哪」和「請求怎麼走」是兩個垂直的軸。Service 只出現在第二個軸上，而且它接的永遠是 Pod、<strong>不是 Node</strong>。</figcaption>
+      <figcaption>「東西住在哪」和「請求怎麼走」是兩個垂直的軸。Service 只出現在第二個軸上，而且一般的 Service 接的是 Pod、<strong>不是 Node</strong>。</figcaption>
     </figure>
+
+    <p class="muted">「接的是 Pod」講的是<strong>一般的 Service</strong>——也就是寫了 <code>selector</code>、靠標籤挑 Pod 的那種，你平常寫的都是這種。有兩種例外不接 Pod：<code>type: ExternalName</code> 的 Service 只是把名字轉成叢集外的另一個網域名稱，以及不寫 <code>selector</code> 的 Service（後端要自己手動指定，常用來指向叢集外的資料庫）。遇到時知道有這回事就好。</p>
 
     <h4>那它本質是什麼？一條發到每台機器的規則</h4>
     <p>Service 不是機器、也不是跑著的東西，它是<strong>一筆存在檔案室（etcd）裡的規則</strong>。大腦把這筆規則發到每一台 worker node，由那台的 <strong>kube-proxy</strong> 寫進機器的網路轉發表。所以請求<strong>根本沒經過任何「Service 伺服器」</strong>。</p>

@@ -16,7 +16,7 @@
     </tbody>
   </table>
 </div>
-<p>第 14 課提過：Linux 容器要的是 Linux 核心。上面這四棒裡，真正需要 Linux 的是後面兩棒。<strong>所以 Mac 和 Windows 的問題不是「Docker 裝不起來」，是「要先生出一個 Linux 給後面兩棒站」。</strong>這一課就是在講那個 Linux 是誰生的。</p>
+<p>第 14 課提過：Linux 容器要的是 Linux 核心。在 Mac 和 Windows 上，<strong>只有第一棒（你打的 <code>docker</code> 指令）留在自己的作業系統上，後面三棒都在那台 Linux 裡面</strong>——包括 <code>dockerd</code>。所以問題不是「Docker 裝不起來」，是「要先生出一個 Linux 給後面三棒站」。這一課就是在講那個 Linux 是誰生的。</p>
 </section>
 
 <section>
@@ -30,7 +30,7 @@ Docker Desktop
 WSL 2 的 Linux 環境
   ↓ dockerd → containerd → runc
 Linux 容器</code></pre>
-<p class="muted">這一層很容易被誤會成你自己在 Windows 上裝的那個 Linux 發行版。<mark class="fixnote" tabindex="0" data-note="原筆記寫「WSL2 建立輕量級 Linux VM(Ubuntu-based)」，容易誤會成 Docker 跑在你自己裝的那個 Ubuntu 裡；查證後更正：Docker 官方文件寫 Docker Desktop 跑在它自己的 docker-desktop WSL 發行版裡，和其他發行版互相隔離">Docker 官方文件的說法是：Docker Desktop 跑在<strong>它自己的 <code>docker-desktop</code> 發行版</strong>裡，和你裝的其他 WSL 發行版互相隔離</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/wsl/" target="_blank" rel="noopener">出處</a>。所以就算你在 Windows 上裝了 Ubuntu，Docker 也不是跑在那個裡面。</p>
+<p class="muted">這一層很容易被誤會成你自己在 Windows 上裝的那個 Linux 發行版。Docker 官方文件的說法是：Docker Desktop 跑在<strong>它自己的 <code>docker-desktop</code> 發行版</strong>裡，和你裝的其他 WSL 發行版互相隔離。<a class="fixsrc" href="https://docs.docker.com/desktop/features/wsl/" target="_blank" rel="noopener">出處</a> 所以就算你在 Windows 上裝了 Ubuntu，Docker 也不是跑在那個裡面。</p>
 <p>你打 <code>-p 8080:8080</code> 的時候，Docker Desktop 幫你把 Windows 的 8080 轉到 WSL 2、再轉到容器。使用者連 <code>localhost:8080</code>，流量是這樣一路過去的。</p>
 </section>
 
@@ -70,11 +70,10 @@ Linux 容器</code></pre>
 
 <h4>三個容易記錯的細節</h4>
 <ul class="plainlist">
-  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Desktop 使用 macOS Hypervisor Framework」，查證後更正：Docker 官方文件現在列的 Mac 虛擬機管理器是 Docker VMM 與 Apple Virtualization framework 兩個選項，舊的 HyperKit（建在 Hypervisor.framework 上）只剩 Intel Mac 可用且已標為淘汰">Docker Desktop for Mac 現在的虛擬機管理器有兩個選項：Docker 自己做的 Docker VMM，和 Apple 的 Virtualization framework；舊的 HyperKit 只剩 Intel Mac 能用，而且已經標為淘汰</mark><a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a>。</li>
-  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Colima 建立 Alpine Linux VM (更輕量)」以及「Lima 下載 Alpine 或 Ubuntu Linux 映像檔」，查證後更正：Colima 官方常見問答寫「From v0.6.0 onward, Colima uses Ubuntu as the underlying image」">Colima 從 v0.6.0 起，底下用的是 Ubuntu 映像，不是 Alpine</mark><a class="fixsrc" href="https://colima.run/docs/faq/" target="_blank" rel="noopener">出處</a>。</li>
+  <li>Docker Desktop for Mac 的虛擬機管理器現在有兩個選項：Docker 自己做的 <strong>Docker VMM</strong>，和 Apple 的 <strong>Virtualization framework</strong>。<span class="muted">Docker VMM 官方只在 <strong>Apple Silicon</strong> 的 Mac 上提供切換步驟（Intel Mac 沒有這一項），而舊的 HyperKit 只剩 Intel Mac 能用、官方已標為淘汰並建議改用 Apple 的 Virtualization framework。<a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a></span></li>
+  <li><mark class="fixnote" tabindex="0" data-note="原筆記寫「Colima 建立 Alpine Linux VM (更輕量)」以及「Lima 下載 Alpine 或 Ubuntu Linux 映像檔」，查證後更正：Colima 官方常見問答寫「From v0.6.0 onward, Colima uses Ubuntu as the underlying image」，且 v0.5.6 以前 Ubuntu 只是可選的一層">Colima 從 v0.6.0 起，底下用的是 Ubuntu 映像</mark><a class="fixsrc" href="https://colima.run/docs/faq/" target="_blank" rel="noopener">出處</a>。同一份常見問答也寫了 v0.5.6 以前的情況：那時 Ubuntu 只是<strong>可以另外開啟的一層</strong>（「For v0.5.6 and earlier, an optional Ubuntu layer can be enabled」）。</li>
   <li>Lima 不是只會用 QEMU。<span class="muted">Lima 支援多種虛擬化方式，而且預設變過——Lima v1.0 之前預設是 QEMU（一套開源的虛擬機軟體），v1.0 起在 macOS 13.5 以上的新機器預設改用 Apple 的 VZ（Virtualization framework）。<a class="fixsrc" href="https://lima-vm.io/docs/config/vmtype/" target="_blank" rel="noopener">出處</a> 所以「Colima 一定用 QEMU」這句現在不成立。</span></li>
 </ul>
-<p class="muted">macOS 上 Docker Desktop 那台虛擬機裡面是哪一個 Linux 發行版，<strong>Docker 官方的 Mac 虛擬機管理器說明頁沒有明講</strong>。<a class="fixsrc" href="https://docs.docker.com/desktop/features/vmm/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
