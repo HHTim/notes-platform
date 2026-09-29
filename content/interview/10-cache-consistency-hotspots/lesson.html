@@ -3,7 +3,7 @@
 <section>
     <p class="era">開場</p>
     <h3 class="head">三種讀寫模式：誰負責把資料放進快取</h3>
-    <p class="muted">〈系統設計：短網址的高併發〉與〈系統設計：秒殺與限流〉把快取當擋流量的一層，這課專講快取本身的難處：資料庫改了、快取還是舊的怎麼辦。版本主軸：Redis 8.x（實跑 8.10.2）、Spring Framework 6.x、Caffeine 3.x。</p>
+    <p class="muted">〈系統設計：短網址的高併發〉與〈系統設計：秒殺與限流〉把快取當擋流量的一層，這課專講快取本身的難處：資料庫改了、快取還是舊的怎麼辦。版本主軸：Redis 8.x（實測 8.10.2）、Spring Framework 7.0（Spring 6 同樣適用）、Caffeine 3.x。</p>
     <p class="q">面試官：Cache-Aside、Read-Through、Write-Through、Write-Behind 差在哪？</p>
     <p><strong>一句話定義：</strong>差在「誰負責把資料放進快取、寫入時快取跟資料庫誰先誰後」。AWS 白皮書把最常見的兩種放在一起講：「Cache-Aside 是在資料被請求之後才更新快取；Write-Through 是主資料庫更新時立刻更新快取」（A cache-aside cache is updated after the data is requested. A write-through cache is updated immediately when the primary database is updated）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>
@@ -68,14 +68,14 @@ void update(String pair, Rate r) {
     <div class="tablewrap"><table>
       <thead><tr><th>故障</th><th>怎麼發生</th><th>怎麼防</th></tr></thead>
       <tbody>
-        <tr><th>雪崩</th><td>整批匯率同一秒過期，或 Redis 整台掛掉</td><td>TTL 加隨機秒數；Redis 做主從與哨兵；資料庫端限流、斷路器</td></tr>
+        <tr><th>雪崩</th><td>整批匯率同一秒過期，或 Redis 整台掛掉</td><td>TTL 加隨機秒數；Redis 做主從與哨兵（Sentinel）；資料庫端限流、斷路器</td></tr>
         <tr><th>穿透</th><td>拿不存在的帳號狂查，每次未命中、每次打資料庫</td><td>Bloom Filter 先擋「確定不存在」；查無此人也用短 TTL 快取</td></tr>
         <tr><th>擊穿</th><td>熱門商品頁那把 key 到期的瞬間，幾千個請求同時去重建</td><td>互斥重建：只讓一個請求查資料庫；或邏輯過期：先回舊值、背景更新</td></tr>
       </tbody>
     </table></div>
-    <p><strong>隨機 TTL 有官方依據：</strong>AWS 白皮書列為最佳實務：「替 TTL 加一點時間抖動（jitter）……如果所有商品資料同時過期，後端資料庫就得吞下所有商品請求」，做法是「TTL ＝ 原本的秒數 ＋ 隨機產生的值」。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/cache-validity.html" target="_blank" rel="noopener">出處</a> Redis 自己也怕同秒到期：「很多 key 在同一刻到期可能成為延遲的來源」（many keys expiring at the same moment can be a source of latency）。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> Redis 8.10.2 實跑：<code>SET rate:usd 31.5 EX 348</code>（300 加隨機 48），<code>TTL</code> 回 348。</p>
-    <p><strong>Bloom Filter 怎麼答：</strong>原理與名單怎麼建，〈系統設計：短網址的高併發〉講完了；這裡補 Redis 的說法：查詢結果「1 表示可能存在，0 表示確定不存在」（1 if item may exist, 0 if item definitely does not exist），建立時要給預期元素數與誤判率。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>互斥重建：</strong>Spring Cache 文件直接描述這個問題：「預設快取抽象不鎖任何東西，同一個值可能被算好幾次」，解法是 <code>sync</code> 屬性：「鎖住那筆快取項目，只有一條執行緒在算，其他的等到項目更新」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 跨機器的版本是用 <code>SET 鍵 值 NX EX 秒數</code> 搶一把短鎖，搶到的查資料庫回填、沒搶到的等一下重讀快取；Redis 8.10.2 實跑，第二個搶的回空值。鎖的三個不能省的地方見資料庫模組第 5 課〈分散式鎖與 Redis〉。</p>
+    <p><strong>隨機 TTL 有官方依據：</strong>AWS 白皮書列為最佳實務：「替 TTL 加一點時間抖動（jitter）……如果所有商品資料同時過期，後端資料庫就得吞下所有商品請求」，做法是「TTL ＝ 原本的秒數 ＋ 隨機產生的值」。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/cache-validity.html" target="_blank" rel="noopener">出處</a> Redis 自己也怕同秒到期：「很多 key 在同一刻到期可能成為延遲的來源」（many keys expiring at the same moment can be a source of latency）。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> Redis 8.10.2 實測：<code>SET rate:usd 31.5 EX 348</code>（300 加隨機 48），<code>TTL</code> 回 348。</p>
+    <p><strong>Bloom Filter 怎麼答：</strong>原理與名單怎麼建，〈系統設計：短網址的高併發〉講完了；這裡補 Redis 的說法：Bloom Filter「能保證某個元素不在集合裡，但對『在』只能給出估計」（A Bloom filter can guarantee the absence of an item from a set, but it can only give an estimation about its presence），建立時要給預期元素數與誤判率。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>互斥重建：</strong>Spring Cache 文件直接描述這個問題：「預設快取抽象不鎖任何東西，同一個值可能被算好幾次」，解法是 <code>sync</code> 屬性：「鎖住那筆快取項目，只有一條執行緒在算，其他的等到項目更新」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 跨機器的版本是用 <code>SET 鍵 值 NX EX 秒數</code> 搶一把短鎖，搶到的查資料庫回填、沒搶到的等一下重讀快取；Redis 8.10.2 實測，第二個搶的回空值。鎖的三個不能省的地方見資料庫模組第 5 課〈分散式鎖與 Redis〉。</p>
     <pre><code>@Cacheable(cacheNames = "rates", key = "#pair", sync = true)   // 同一把 key 只讓一條執行緒去查
 public Rate findRate(String pair) { return db.findRate(pair); }
 
@@ -87,17 +87,17 @@ public void updateRate(String pair, Rate r) { db.saveRate(pair, r); }</code></pr
     <p class="era">熱點</p>
     <h3 class="head">熱 key 與大 key：一個是太多人讀同一把，一個是一把太重</h3>
     <p class="q">面試官：熱 key 怎麼發現、怎麼拆？</p>
-    <p><strong>一句話定義：</strong>熱 key（hot key，短時間被集中存取的少數 key）的麻煩在 Redis Cluster 裡「一把 key 只住一個節點」：規格寫「key 空間切成 16384 個槽」、「叢集穩定時一個槽只由一個節點服務」<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a>，加節點沒用。</p>
+    <p><strong>一句話定義：</strong>熱 key（hot key，短時間被集中存取的少數 key）的麻煩在 Redis Cluster 裡一把 key 只住一個槽、一個槽只由一個節點服務<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a>，所以加節點不會分攤它的壓力——理由〈系統設計：秒殺與限流〉講過。</p>
     <ul class="plainlist">
       <li><strong>怎麼發現：</strong><code>redis-cli --hotkeys</code>，文件註明「只在 maxmemory-policy 是 *lfu 時有效」<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a>，因為它靠 LFU 的存取頻率計數；單把 key 用 <code>OBJECT FREQ</code>。工具以外，應用程式端抽樣統計也是常見答法。</li>
       <li><strong>拆法一，本地快取擋讀：</strong>熱門商品頁先放進應用程式記憶體（Caffeine），大多數讀取連 Redis 都不用去；〈系統設計：秒殺與限流〉用同一招擋售罄後的讀取。代價是各節點短暫不一致。</li>
-      <li><strong>拆法二，複製多份：</strong>把 <code>product:1001</code> 寫成 <code>product:1001:0</code> 到 <code>:9</code> 十份，讀時隨機挑一份；十份會雜湊到不同的槽、落到不同節點，代價是更新要刪十份。</li>
+      <li><strong>拆法二，複製多份：</strong>把 <code>product:1001</code> 寫成 <code>product:1001:0</code> 到 <code>:9</code> 十份，讀時隨機挑一份；十份多半落在不同的槽、分散到不同節點，壓力就拆開了；代價是更新要刪十份。</li>
     </ul>
     <p class="q">面試官：大 key 為什麼危險？</p>
-    <p><strong>一句話定義：</strong>大 key（big key，一把 key 的值很大，例如幾十萬個成員的 Set）危險在 Redis 是單執行緒處理指令：「當一個請求很慢，所有其他用戶端都得等它」（when a request is slow to serve all the other clients will wait for this request to be served），<code>SUNION</code> 這類多元素指令跑在大集合上「可能花掉可觀的時間」。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>大 key（big key，一把 key 的值很大，例如幾十萬個成員的 Set）危險在 Redis 是單執行緒處理指令：「當一個請求很慢，所有其他用戶端都得等它」（when a request is slow to serve all the other clients will wait for this request to be served），<code>SORT</code>、<code>LREM</code>、<code>SUNION</code> 這類多元素指令，文件舉例「取兩個大集合的交集可能花掉可觀的時間」。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></p>
     <ul class="plainlist">
       <li><strong>怎麼發現：</strong><code>redis-cli --bigkeys</code>「抽樣找元素很多的 key」，<code>--memkeys</code>「抽樣找佔記憶體多的 key」，<code>--keystats</code> 兩者合一。<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a> 它們走 <code>SCAN</code>；<code>KEYS</code> 被文件列為「生產環境很常見的延遲來源」，只准除錯用。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></li>
-      <li><strong>怎麼刪：</strong>用 <code>UNLINK</code> 不用 <code>DEL</code>：「每把 key O(1) 移除，然後在另一條執行緒做 O(N) 的記憶體回收」。<a class="fixsrc" href="https://redis.io/docs/latest/commands/unlink/" target="_blank" rel="noopener">出處</a> 在 Redis 8.10.2 實跑：20 萬個成員、約 7 MB 的 Set，<code>UNLINK</code> 立刻回 1。要讓 <code>DEL</code> 也走背景，設定檔開 <code>lazyfree-lazy-user-del yes</code>（預設 no）。<a class="fixsrc" href="https://github.com/redis/redis/blob/8.0/redis.conf" target="_blank" rel="noopener">出處</a></li>
+      <li><strong>怎麼刪：</strong>用 <code>UNLINK</code> 不用 <code>DEL</code>：「每把 key O(1) 移除，然後在另一條執行緒做 O(N) 的記憶體回收」。<a class="fixsrc" href="https://redis.io/docs/latest/commands/unlink/" target="_blank" rel="noopener">出處</a> 在 Redis 8.10.2 實測：20 萬個成員、約 7 MB 的 Set，<code>UNLINK</code> 立刻回 1。要讓 <code>DEL</code> 也走背景，設定檔開 <code>lazyfree-lazy-user-del yes</code>（預設 no）。<a class="fixsrc" href="https://github.com/redis/redis/blob/8.0/redis.conf" target="_blank" rel="noopener">出處</a></li>
       <li><strong>怎麼拆：</strong>大 Hash 按欄位名雜湊拆成 100 個小 Hash；大 List 按時間切段；大 String 多半是整份 JSON 塞進一把 key，改存欄位。</li>
     </ul>
 </section>
@@ -119,7 +119,7 @@ public void updateRate(String pair, Rate r) { db.saveRate(pair, r); }</code></pr
       </tbody>
     </table></div>
     <p class="q">面試官：Redis 為什麼快？它是單執行緒嗎？</p>
-    <p><strong>一句話定義：</strong>快的原因有三：資料在記憶體、指令處理是單執行緒沒有鎖的開銷、用 I/O 多工（multiplexing，一條執行緒同時看管很多條連線，誰有資料就處理誰；面試常叫「多路複用」）不會卡在等網路。官方延遲文件：「Redis 採用大體上單執行緒的設計，單一行程用一種叫多工的技術服務所有用戶端請求」，「被設計成不會卡在系統呼叫上，例如讀寫 socket」。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> FAQ 補一句：「CPU 很少成為 Redis 的瓶頸，通常瓶頸在記憶體或網路」。<a class="fixsrc" href="https://redis.io/docs/latest/develop/get-started/faq/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>快的原因有三：資料在記憶體、指令處理是單執行緒沒有鎖的開銷、用 I/O 多工（multiplexing，一條執行緒同時看管很多條連線，誰有資料就處理誰）不會卡在等網路。官方延遲文件：「Redis 採用大體上單執行緒的設計，單一行程用一種叫多工的技術服務所有用戶端請求」，「被設計成不會卡在系統呼叫上，例如讀寫 socket」。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> FAQ 補一句：「CPU 很少成為 Redis 的瓶頸，通常瓶頸在記憶體或網路」。<a class="fixsrc" href="https://redis.io/docs/latest/develop/get-started/faq/" target="_blank" rel="noopener">出處</a></p>
     <p><strong>版本界線要答對：</strong>「單執行緒」指執行指令那條線。Redis 6.0 起「可以選擇用多條執行緒處理 I/O」（Redis can now optionally use threads to handle I/O）<a class="fixsrc" href="https://github.com/redis/redis/blob/6.0/00-RELEASENOTES" target="_blank" rel="noopener">出處</a>；設定檔寫「現在也能把用戶端 socket 的讀寫放到不同的 I/O 執行緒」，預設 <code>io-threads 1</code>「就是照舊只用主執行緒」。<a class="fixsrc" href="https://github.com/redis/redis/blob/8.0/redis.conf" target="_blank" rel="noopener">出處</a> 答法：「指令執行單執行緒，每個指令都是原子的；6.0 起網路讀寫可多執行緒，預設關著」。</p>
     <p class="q">面試官：RDB 對 AOF，快取要不要開持久化？</p>
     <p><strong>一句話定義：</strong>RDB 是「在指定間隔對資料集做某一時刻的快照」，AOF 是「記錄每一個寫入操作，啟動時重播重建資料集」；還有第三個選項「不持久化，做快取時有時會這樣用」（This is sometimes used when caching）。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">出處</a></p>
@@ -133,12 +133,12 @@ public void updateRate(String pair, Rate r) { db.saveRate(pair, r); }</code></pr
     </table></div>
     <p><strong>怎麼選：</strong>官方建議「想要接近 PostgreSQL 的資料安全就兩種都開」、「能接受丟幾分鐘就 RDB 就好」、「不建議只開 AOF」。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">出處</a> 銀行情境：純快取（匯率、商品頁）可以不開，掛了從資料庫回填、但要防雪崩；當鎖、當預扣庫存這種「丟了會出帳務問題」的用途至少 AOF everysec。</p>
     <p class="q">面試官：記憶體滿了怎麼辦？maxmemory-policy 怎麼設？</p>
-    <p><strong>一句話定義：</strong><code>maxmemory</code> 設上限，<code>maxmemory-policy</code> 決定滿了淘汰誰。八種策略照官方頁：<code>noeviction</code>「不淘汰，寫入回錯誤」；<code>allkeys-</code> 開頭的三種對全部 key 用 LRU（最近最少用）、LFU（最不常用）、隨機；<code>volatile-</code> 開頭的四種只淘汰設了 TTL 的 key，多一個 <code>volatile-ttl</code> 挑「剩餘 TTL 最短的」；「volatile 系列在沒有 key 設 TTL 時行為等同 noeviction」。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong><code>maxmemory</code> 設上限，<code>maxmemory-policy</code> 決定滿了淘汰誰。官方頁現在列十種：<code>noeviction</code>「不淘汰，寫入回錯誤」；<code>allkeys-</code> 開頭的四種對全部 key 用 LRU（最近最少用）、LFU（最不常用）、LRM（最近最少被改——只看寫入不看讀取，Redis 8.6 起新增）、隨機；<code>volatile-</code> 開頭的五種只淘汰設了 TTL 的 key，多一個 <code>volatile-ttl</code> 挑「剩餘 TTL 最短的」；「volatile 系列在沒有 key 設 TTL 時行為等同 noeviction」。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a></p>
     <pre><code># redis.conf
 maxmemory 2mb                    # 上限；0 表示不限制
 maxmemory-policy allkeys-lru     # 官方：「沒特別理由時 allkeys-lru 是好的預設選項」
 maxmemory-samples 5              # 抽樣近似，預設抽 5 把，10 更準但多吃 CPU</code></pre>
-    <p><strong>兩個常考細節：</strong>第一，Redis 開源版的預設是 <code>noeviction</code>，快取用途一定要改。<a class="fixsrc" href="https://github.com/redis/redis/blob/8.0/redis.conf" target="_blank" rel="noopener">出處</a> 第二，LRU 是「抽樣少量 key，淘汰其中最久沒用的，而不是精確計算」。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a> Redis 8.10.2 實跑：<code>maxmemory 2mb</code>、<code>allkeys-lru</code>，寫進 3,000 把各 1 KB 的 key 後剩 505 把、<code>evicted_keys</code> 2,518；切成 <code>noeviction</code> 再寫，回「OOM command not allowed when used memory &gt; 'maxmemory'」。</p>
+    <p><strong>兩個常考細節：</strong>第一，Redis 開源版的預設是 <code>noeviction</code>，快取用途一定要改。<a class="fixsrc" href="https://github.com/redis/redis/blob/8.0/redis.conf" target="_blank" rel="noopener">出處</a> 第二，LRU 是「抽樣少量 key，淘汰其中最久沒用的，而不是精確計算」。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a> Redis 8.10.2 實測：<code>maxmemory 2mb</code>、<code>allkeys-lru</code>，寫進 3,000 把各 1 KB 的 key 後剩 505 把、<code>evicted_keys</code> 2,518；切成 <code>noeviction</code> 再寫，回「OOM command not allowed when used memory &gt; 'maxmemory'」。</p>
 </section>
 <section>
     <p class="era">兩層與分工</p>
@@ -170,4 +170,4 @@ maxmemory-samples 5              # 抽樣近似，預設抽 5 把，10 更準但
     <p class="muted">新鮮度、<code>no-cache</code> 對 <code>no-store</code>、ETag 與 304，〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉講完了。個人資料被 CDN 存起來給別人看，多半是漏了 <code>private</code>。</p>
     <p class="formula">快取的每一題都在問：舊值能被看到多久、被誰看到；先講這份資料能容忍多舊，再選模式與 TTL</p>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>Cache-Aside 應用程式自己回填、寫完刪快取；Write-Through 兩邊同步寫、寫不會變快；Write-Behind 先寫快取延後落盤，餘額不能用。</li><li>先更新資料庫、再刪快取；延遲雙刪補舊值但延遲是猜的、仍是最終一致；TTL 是最後一道保險，要強一致改 Write-Through。</li><li>雪崩用隨機 TTL；穿透用 Bloom Filter 加快取空結果；擊穿用互斥重建（Spring sync=true、SET NX）或邏輯過期（Caffeine refreshAfterWrite）。</li><li>熱 key 一把只住一個槽、加節點沒用：--hotkeys（要 LFU）找，本地快取或複製多份拆。大 key 卡住單執行緒：--bigkeys 找，UNLINK 背景回收，拆小。</li><li>Redis 快在記憶體、單執行緒執行指令加 I/O 多工；6.0 起 io-threads 可多執行緒讀寫網路，預設關。RDB 快照可能丟幾分鐘；AOF 預設每秒 fsync、最多丟一秒；純快取可不開，當鎖或庫存至少 AOF。淘汰策略預設 noeviction、快取要改 allkeys-lru。</li><li>兩層失效三招：本地短 TTL、Pub/Sub 廣播、Redis 6 起的 client tracking。HTTP 快取存整個回應：靜態檔與匿名頁交給 CDN 用 max-age 與 s-maxage，個人資料加 private。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Cache-Aside 應用程式自己回填、寫完刪快取；Write-Through 兩邊同步寫、寫不會變快；Write-Behind 先寫快取、延後寫回資料庫，餘額不能用。</li><li>先更新資料庫、再刪快取；延遲雙刪補舊值但延遲是猜的、仍是最終一致；TTL 是最後一道保險，要強一致改 Write-Through。</li><li>雪崩用隨機 TTL；穿透用 Bloom Filter 加快取空結果；擊穿用互斥重建（Spring sync=true、SET NX）或邏輯過期（Caffeine refreshAfterWrite）。</li><li>熱 key 一把只住一個槽、加節點沒用：--hotkeys（要 LFU）找，本地快取或複製多份拆。大 key 卡住單執行緒：--bigkeys 找，UNLINK 背景回收，拆小。</li><li>Redis 快在記憶體、單執行緒執行指令加 I/O 多工；6.0 起 io-threads 可多執行緒讀寫網路，預設關。RDB 快照可能丟幾分鐘；AOF 預設每秒 fsync、最多丟一秒；純快取可不開，當鎖或庫存至少 AOF。淘汰策略預設 noeviction、快取要改 allkeys-lru。</li><li>兩層失效三招：本地短 TTL、Pub/Sub 廣播、Redis 6 起的 client tracking。HTTP 快取存整個回應：靜態檔與匿名頁交給 CDN 用 max-age 與 s-maxage，個人資料加 private。</li></ul></div>

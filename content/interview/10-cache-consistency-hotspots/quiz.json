@@ -37,13 +37,13 @@
   },
   {
    "q": "Redis 拿來當秒殺的預扣庫存，只開 RDB 每五分鐘快照一次，機器斷電會怎樣？該怎麼改？",
-   "opts": ["最多丟掉五分鐘的扣庫存紀錄，可能多發；至少改開 AOF 的 appendfsync everysec，最多丟一秒", "RDB 是即時寫入，斷電不會丟任何資料", "只要改成每一分鐘快照一次就完全不會丟", "把 maxmemory-policy 改成 noeviction 就不會丟資料"],
+   "opts": ["最多丟掉五分鐘的扣庫存紀錄，可能超賣；至少改開 AOF 的 appendfsync everysec，最多丟一秒", "RDB 是即時寫入，斷電不會丟任何資料", "只要改成每一分鐘快照一次就完全不會丟", "把 maxmemory-policy 改成 noeviction 就不會丟資料"],
    "exp": "官方明說要把停機時的資料遺失降到最低，RDB 不好；AOF 預設每秒 fsync 一次，最多丟一秒。"
   },
   {
    "q": "Redis 開源版剛裝好、設了 maxmemory 但沒動 maxmemory-policy，記憶體滿了寫入會發生什麼事？快取用途該改成什麼？",
    "opts": ["預設是 noeviction，寫入直接回 OOM 錯誤；快取用途改成 allkeys-lru，官方說沒特別理由時它是好的預設選項", "預設是 allkeys-lru，會自動淘汰最久沒用的 key，不用改", "預設是 volatile-ttl，會刪掉最快到期的 key", "記憶體滿了 Redis 會自動重啟並清空所有資料"],
-   "exp": "redis.conf 寫預設 maxmemory-policy noeviction；實跑時切成 noeviction 再寫入，回的就是 OOM command not allowed。"
+   "exp": "redis.conf 寫預設 maxmemory-policy noeviction；實測時切成 noeviction 再寫入，回的就是 OOM command not allowed。"
   }
  ]
 }
