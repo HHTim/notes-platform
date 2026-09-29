@@ -19,6 +19,7 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 - **第三期（`/add-note`）已完成並驗收**（2026-09-18 用真 HackMD 筆記全流程跑通，新增「面試集」模組）。收筆記的流程整套在 `.claude/skills/add-note/SKILL.md`——七步、三個停問點、更正標記寫法、內容慣例都在裡面，直接用 `/add-note` 觸發。
 - **三期全數完成，進入日常使用**：把 HackMD 舊筆記逐篇餵給 `/add-note`。手機要用的前置：在 claude.ai 連結 GitHub（規格第 9 節的一次性設定）。
 - **2026-09-21 起的批次收錄**：Tim 把整包 HackMD 筆記下載下來一次消化，分十波進行，慣例與進度表在 `docs/superpowers/plans/2026-09-21-batch-intake.md`。一課的測驗題數在那一輪改成預設 8 題（內容密的 10 題、薄的最少 6 題）。批次收錄踩過最多次的坑是**更正標記把對的筆記標成錯的**，判準寫在 `~/.claude/projects/-Users-twinb00597734-Workspace-notes-platform/memory/fixnote-burden-of-proof.md`。
+- **2026-09-24 全站審查**（架構＋十個模組內容＋跨模組一致性，計畫與結果在 `docs/superpowers/plans/2026-09-24-full-audit.md`）與 **2026-09-29 面試集擴充**（對照 roadmap.sh/backend 的缺口分析在 `2026-09-29-roadmap-coverage.md`，計畫與進度在 `2026-09-29-roadmap-expansion.md`；面試集從 3 課擴到 12 課，每課「依官方文件新寫」：零更正標記、每個主張附出處、獨立審查加範圍複審後才上線）。新寫課的慣例寫在 `.claude/skills/add-note/SKILL.md` 第 5 步。
 
 ## 工程慣例
 
