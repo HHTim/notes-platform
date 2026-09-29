@@ -48,6 +48,7 @@ DROP TABLE old_employees;</code></pre>
 <p class="era">把錯誤擋在入口</p>
 <h3 class="head">約束是資料表的守門員</h3>
 <div class="tablewrap"><table><thead><tr><th>約束</th><th>作用</th><th>例子</th></tr></thead><tbody><tr><td>PRIMARY KEY</td><td>唯一識別每筆紀錄，且不可為 NULL</td><td>employee_id</td></tr><tr><td>UNIQUE</td><td>限制一欄或一組欄位不可出現重複值</td><td>email</td></tr><tr><td>FOREIGN KEY</td><td>要求值能對應到另一張表的識別值</td><td>department_id</td></tr><tr><td>NOT NULL</td><td>禁止缺值</td><td>employee_name</td></tr><tr><td>CHECK</td><td>要求資料符合條件</td><td>salary &gt;= 0</td></tr><tr><td>DEFAULT</td><td>未提供值時給予預設值</td><td>status 預設 active</td></tr></tbody></table></div>
+<p class="muted">嚴格說 <code>DEFAULT</code> 是欄位屬性（MySQL 手冊寫的是「Specifies a default value for a column」），不是約束；因為它常和約束一起設定，這裡一併列出<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-table.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>主鍵可以由一個欄位或多個欄位組成；多欄組合稱為複合主鍵（Composite Primary Key）。</p>
 <pre><code>CREATE TABLE enrollments (
     student_id BIGINT,
@@ -56,7 +57,7 @@ DROP TABLE old_employees;</code></pre>
     PRIMARY KEY (student_id, course_id)
 );</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫唯一鍵（UK）「值不可為NULL」，查證後更正：MySQL 官方文件明訂 UNIQUE 索引允許可為 NULL 的欄位存放多個 NULL 值">MySQL 的 <code>UNIQUE</code> 欄位可以是 NULL，而且允許多筆資料同時是 NULL——不可為 NULL 的是主鍵</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-index.html" target="_blank" rel="noopener">出處</a>。若業務要求該欄一定有值，要另外加上 <code>NOT NULL</code>。</p>
-<p>外鍵要用資料表層級的 <code>FOREIGN KEY ... REFERENCES ...</code> 子句宣告才會生效：把 <code>REFERENCES</code> 直接寫在欄位定義那一行，MySQL 會解析但直接忽略，不會建立外鍵，也不會報錯——這是很容易踩到的無聲陷阱。</p>
+<p>外鍵要用資料表層級的 <code>FOREIGN KEY ... REFERENCES ...</code> 子句宣告才會生效：把 <code>REFERENCES</code> 直接寫在欄位定義那一行，MySQL 會解析但直接忽略，不會建立外鍵，也不會報錯——這是很容易踩到的無聲陷阱<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-table.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
@@ -194,7 +195,7 @@ COMMIT;</code></pre>
 <p><code>COMMIT</code> 確認提交交易；<code>ROLLBACK</code> 取消尚未提交的變更；<code>ROLLBACK TO SAVEPOINT</code> 則退回某個保存點。</p>
 <div class="tablewrap"><table><thead><tr><th>特性</th><th>意思</th></tr></thead><tbody><tr><td>原子性（Atomicity）</td><td>整組操作全成或全敗</td></tr><tr><td>一致性（Consistency）</td><td>交易前後都遵守資料規則</td></tr><tr><td>隔離性（Isolation）</td><td>並行交易之間看不看得到彼此的中間狀態，由隔離等級控制</td></tr><tr><td>持久性（Durability）</td><td>已提交的結果在斷電、當機後仍保留</td></tr></tbody></table></div>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫持久性是「操作一旦提交或是還原，對資料庫中的改變就是永久的」，查證後更正：持久性只保證「已提交」的交易；還原（ROLLBACK）是取消尚未提交的變更，不會形成永久改變">持久性保證的是「已提交」的交易：一旦 <code>COMMIT</code> 成功，結果就不怕斷電或當機。<code>ROLLBACK</code> 則相反——它把尚未提交的變更整個取消，不會對資料庫留下永久改變</mark><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_acid" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">交易能力也和儲存引擎有關：MySQL 預設的 InnoDB 引擎才有完整交易支援；另外 DDL（例如 TRUNCATE）會隱含提交，會把當下未提交的交易一併提交掉。</p>
+<p class="muted">交易能力也和儲存引擎有關：一般 MySQL Server 裡，預設的 InnoDB 引擎支援交易，MyISAM、MEMORY 這類引擎不支援<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/storage-engines.html" target="_blank" rel="noopener">出處</a>；另外 DDL（例如 TRUNCATE）會隱含提交，會把當下未提交的交易一併提交掉。</p>
 </section>
 
 <div class="keys"><p class="lbl">重點整理</p><ul><li>DDL 管結構、DML 管資料異動、DQL 管查詢。</li><li>主鍵負責識別且不可為 NULL；UNIQUE 擋重複但允許多個 NULL；外鍵要用資料表層級語法宣告才生效。</li><li>執行 UPDATE 或 DELETE 前，先以相同 WHERE 條件 SELECT 確認影響範圍。</li><li>WHERE 篩資料列，HAVING 篩分組後的結果；聚合條件寫在 HAVING。</li><li>交易以 COMMIT、ROLLBACK 與 SAVEPOINT 控制；持久性保證的是已提交的結果。</li></ul></div>
