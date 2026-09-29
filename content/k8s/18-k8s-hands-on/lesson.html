@@ -99,7 +99,7 @@ kubectl port-forward service/demo-app 8080:80    # 從你的電腦直接打進�
       <tr><th scope="row"><code>Mi</code>（mebibyte）</th><td>2 的 20 次方 ＝ 1,048,576——<code>16Mi</code> 約 16.8 MB</td></tr>
       <tr><th scope="row"><code>M</code>（megabyte）</th><td>10 的 6 次方 ＝ 1,000,000</td></tr>
       <tr><th scope="row">台灣講的「兆」</th><td>10 的 12 次方，也就是 tera（T、Ti 那個量級）</td></tr>
-      <tr><th scope="row">簡體資料裡的「兆字节」</th><td>指的是 MB，不是 10 的 12 次方</td></tr>
+      <tr><th scope="row">簡體資料裡的「兆字节」</th><td>多半指 MB，不是 10 的 12 次方</td></tr>
     </tbody>
   </table>
 </div>
@@ -177,4 +177,4 @@ kubectl rollout status deployment/demo-app</code></pre>
 <p class="muted">看「這個 Service 到底有沒有後端」時，舊教材常寫 <code>kubectl get endpoints</code>。Kubernetes 從 v1.33 起把 Endpoints 這個 API 標為過時，改用 EndpointSlice，讀寫舊的會收到警告。<a class="fixsrc" href="https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/" target="_blank" rel="noopener">出處</a> 現在請改打 <code>kubectl get endpointslices</code>——EndpointSlice 就是「這個 Service 目前實際指到哪幾個 Pod」的那份清單。</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>部署計畫回答三件事：部署什麼、怎麼部署給多少資源、部署到哪裡。</li><li>Minikube 開的是單節點叢集（大腦和工人同一台），適合練，不代表正式架構。</li><li>Deployment 的 selector、Pod 範本的 labels、Service 的 selector，三處標籤要一致。</li><li><code>1000m</code> ＝ 一顆 CPU（實體機上是一個實體核心，虛擬機上是一個虛擬核心）；<code>Mi</code> 是 2 的 20 次方位元組、<code>M</code> 是 10 的 6 次方——台灣講的「兆」是 10 的 12 次方，簡體資料裡的「兆字节」卻是 MB，看到「兆」要先確認是哪一種。</li><li>requests 等於 limits 時 QoS 是 Guaranteed——節點資源不夠要趕人時最後才輪到它；而且因資源壓力驅逐時，只有用量超過自己 requests 的 Pod 才是候選。這跟排班順序是兩回事。</li><li>HPA 的 <code>minReplicas</code> 會蓋過 Deployment 的 <code>replicas</code>；自訂指標要另外有管線送數字。</li><li>Secret 預設沒有加密，只是 base64；要安全得另外開靜態加密、用 RBAC（權限控管機制）把權限縮到最小，或改用外部金鑰服務。</li><li>YAML 搬得走，但網路、儲存、權限、成本上雲之後都要重看一遍。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>部署計畫回答三件事：部署什麼、怎麼部署給多少資源、部署到哪裡。</li><li>Minikube 開的是單節點叢集（大腦和工人同一台），適合練，不代表正式架構。</li><li>Deployment 的 selector、Pod 範本的 labels、Service 的 selector，三處標籤要一致。</li><li><code>1000m</code> ＝ 一顆 CPU（實體機上是一個實體核心，虛擬機上是一個虛擬核心）；<code>Mi</code> 是 2 的 20 次方位元組、<code>M</code> 是 10 的 6 次方——台灣講的「兆」是 10 的 12 次方，簡體資料裡的「兆字节」多半是 MB，看到「兆」要先確認是哪一種。</li><li>requests 等於 limits 時 QoS 是 Guaranteed——節點資源不夠要趕人時最後才輪到它；而且因資源壓力驅逐時，只有用量超過自己 requests 的 Pod 才是候選。這跟排班順序是兩回事。</li><li>HPA 的 <code>minReplicas</code> 會蓋過 Deployment 的 <code>replicas</code>；自訂指標要另外有管線送數字。</li><li>Secret 預設沒有加密，只是 base64；要安全得另外開靜態加密、用 RBAC（權限控管機制）把權限縮到最小，或改用外部金鑰服務。</li><li>YAML 搬得走，但網路、儲存、權限、成本上雲之後都要重看一遍。</li></ul></div>
