@@ -29,7 +29,7 @@
       <tbody>
         <tr><th>至多一次</th><td>不等確認、失敗不重試</td><td>先提交位移（offset，記錄讀到哪裡的數字）再處理</td><td>會丟；只給丟了沒關係的資料</td></tr>
         <tr><th>至少一次</th><td>等 broker 確認，沒收到就重送</td><td>先處理再提交位移；當機在兩步之間就重做</td><td>會重複，消費端必須冪等。Kafka「預設保證至少一次送達」（guarantees at-least-once delivery by default）<a class="fixsrc" href="https://kafka.apache.org/43/design/design/#message-delivery-semantics" target="_blank" rel="noopener">出處</a>；RabbitMQ「使用確認機制可保證至少一次」<a class="fixsrc" href="https://www.rabbitmq.com/docs/reliability" target="_blank" rel="noopener">出處</a></td></tr>
-        <tr><th>剛好一次</th><td colspan="2">只在「Kafka 讀、Kafka 寫」內成立：交易式生產者把輸出與位移寫進同一筆交易，消費者用 read_committed 只讀已送交的訊息</td><td>「對其他目的地系統的剛好一次，通常需要那些系統的配合」（generally requires cooperation with such systems）<a class="fixsrc" href="https://kafka.apache.org/43/design/design/#message-delivery-semantics" target="_blank" rel="noopener">出處</a>，寫進資料庫那步還是靠冪等</td></tr>
+        <tr><th>剛好一次</th><td colspan="2">只在「Kafka 讀、Kafka 寫」內成立：交易式生產者把輸出與位移寫進同一筆交易，消費者用 read_committed 只讀已提交的訊息</td><td>「對其他目的地系統的剛好一次，通常需要那些系統的配合」（generally requires cooperation with such systems）<a class="fixsrc" href="https://kafka.apache.org/43/design/design/#message-delivery-semantics" target="_blank" rel="noopener">出處</a>，寫進資料庫那步還是靠冪等</td></tr>
       </tbody>
     </table></div>
     <p><strong>生產端細節：</strong><code>acks</code> 決定等幾個複本：<code>acks=0</code>「完全不等伺服器確認」；<code>acks=1</code> 領導者寫進本地日誌就回應，它在追隨者複製完之前掛掉「那筆紀錄就會丟失」；<code>acks=all</code>「只要至少一個同步複本存活，紀錄就不會丟失」。重送造成的重複由 <code>enable.idempotence</code> 處理：「生產者確保每則訊息在串流裡只寫入一份」，「沒有衝突設定時預設開啟」。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/producer-configs/" target="_blank" rel="noopener">出處</a></p>
@@ -61,7 +61,7 @@ COMMIT;</code></pre>
     <p><strong>一句話定義：</strong>三個地方會丟——生產者送出但 broker 沒收到、broker 沒寫進足夠複本、消費者收到但處理前當機。</p>
     <ul class="plainlist">
       <li><strong>生產者確認：</strong>Kafka 用 <code>acks=all</code> 加 <code>min.insync.replicas</code>（最少同步複本數）：分區「只在同步複本數高於最小值時才接受寫入」。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/#replication" target="_blank" rel="noopener">出處</a> RabbitMQ 是發布者確認（publisher confirm）：持久化訊息的「basic.ack 會在寫進磁碟之後才送出」。<a class="fixsrc" href="https://www.rabbitmq.com/docs/confirms" target="_blank" rel="noopener">出處</a></li>
-      <li><strong>複本：</strong>Kafka「已送交的訊息不會丟失，只要任一時刻至少有一個同步複本存活」<a class="fixsrc" href="https://kafka.apache.org/43/design/design/#replication" target="_blank" rel="noopener">出處</a>。RabbitMQ「重要資料務必使用耐久佇列，並以持久化方式發布訊息」<a class="fixsrc" href="https://www.rabbitmq.com/docs/reliability" target="_blank" rel="noopener">出處</a>——耐久（durable）是佇列撐得過重啟，持久（persistent）是訊息寫進磁碟，兩個都要。</li>
+      <li><strong>複本：</strong>Kafka「已提交的訊息不會丟失，只要任一時刻至少有一個同步複本存活」<a class="fixsrc" href="https://kafka.apache.org/43/design/design/#replication" target="_blank" rel="noopener">出處</a>。RabbitMQ「重要資料務必使用耐久佇列，並以持久化方式發布訊息」<a class="fixsrc" href="https://www.rabbitmq.com/docs/reliability" target="_blank" rel="noopener">出處</a>——耐久（durable）是佇列撐得過重啟，持久（persistent）是訊息寫進磁碟，兩個都要。</li>
       <li><strong>手動確認：</strong>RabbitMQ 的自動確認「訊息一送出就視為成功送達」，官方說「應視為不安全」（should be considered unsafe）<a class="fixsrc" href="https://www.rabbitmq.com/docs/confirms" target="_blank" rel="noopener">出處</a>；手動模式「在做完該做的事之前不該確認」。<a class="fixsrc" href="https://www.rabbitmq.com/docs/reliability" target="_blank" rel="noopener">出處</a> Kafka 對應的是關掉 <code>enable.auto.commit</code>（預設 true，每 5 秒「在背景定期提交」），處理完再提交。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener">出處</a> Amazon SQS 沒有 ack，用可見性逾時（visibility timeout，取走後一段時間別人看不到，沒刪除就重新可見）代替。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">出處</a></li>
     </ul>
     <p class="q">面試官：訊息堆積怎麼處理？</p>
@@ -74,9 +74,9 @@ COMMIT;</code></pre>
     <h3 class="head">先寫資料庫再發訊息，為什麼會不一致</h3>
     <p class="q">面試官：為什麼「先寫資料庫再發訊息」會不一致？Outbox 怎麼解？</p>
     <p><strong>一句話定義：</strong>資料庫交易與發訊息是對兩個系統各寫一次（AWS 叫雙重寫入問題）：「資料庫更新成功但事件通知失敗，下游不會知道這個變更」；反過來「更新失敗但事件送出了，資料可能被弄壞」。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 不用兩階段提交（2PC，大家都說能做才一起做）是因為「資料庫或 broker 可能不支援，而且把服務同時耦合到兩者通常不是好事」。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 面試集〈系統設計：短網址的高併發〉「丟進佇列就回成功」的錯誤，正解在這裡。</p>
-    <p><strong>解法：</strong>交易式 Outbox（transactional outbox）「先把訊息當作更新業務實體那筆交易的一部分存進資料庫，再由另一個程序送到 broker」（first store the message in the database as part of the transaction that updates the business entities. A separate process then sends the messages to the message broker）；存訊息的表叫寄件匣（outbox），另一個程序叫訊息轉送器（message relay）。好處是「訊息保證在交易送交時、且只在送交時被送出」。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>解法：</strong>交易式 Outbox（transactional outbox）「先把訊息當作更新業務實體那筆交易的一部分存進資料庫，再由另一個程序送到 broker」（first store the message in the database as part of the transaction that updates the business entities. A separate process then sends the messages to the message broker）；存訊息的表叫寄件匣（outbox），另一個程序叫訊息轉送器（message relay）。好處是「訊息保證在交易提交時、且只在提交時被送出」。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>CREATE TABLE outbox (
-  id             BIGINT      PRIMARY KEY,  -- 遞增序號，輪詢照它排序；序號小的交易可能較晚送交，所以難保序
+  id             BIGINT      PRIMARY KEY,  -- 遞增序號，輪詢照它排序；序號小的交易可能較晚提交，所以難保序
   aggregate_type VARCHAR(64) NOT NULL,     -- 'transfer'
   aggregate_id   VARCHAR(64) NOT NULL,     -- 轉帳序號，當 Kafka 的 key 保順序
   event_type     VARCHAR(64) NOT NULL,     -- 'TransferDebited'
@@ -142,6 +142,6 @@ public class MyService {
     }
 }</code></pre>
     <p>預設的 acknowledgeMode 是 AUTO：「容器自動確認，除非監聽器丟出例外」。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/amqp/containerAttributes.html" target="_blank" rel="noopener">出處</a> 丟例外的預設行為是「訊息被拒絕並由 broker 重新排入佇列」，所以下游暫時故障這類例外會一再重送；解法是 <code>defaultRequeueRejected</code> 設 false「讓訊息被丟棄（或路由到死信交換器）」，或丟 AmqpRejectAndDontRequeueException 針對單一訊息不重新排入。但轉換失敗這類不可能成功的錯誤，預設的錯誤處理器 ConditionalRejectingErrorHandler 會直接拒絕、不重新排入（rejects (and does not requeue) messages that fail with an irrecoverable error）。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/amqp/exception-handling.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>追問時要補的：</strong>@Transactional 包在監聽器方法上，預設情況下只管資料庫那筆交易，管不到位移提交或訊息確認，「資料庫送交了、位移沒提交」的空窗還在——消費端要冪等的另一個理由。@Transactional 本身見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
+    <p><strong>追問時要補的：</strong>@Transactional 包在監聽器方法上，預設情況下只管資料庫那筆交易，管不到位移提交或訊息確認，「資料庫提交了、位移沒提交」的空窗還在——消費端要冪等的另一個理由。@Transactional 本身見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>引進佇列為了解耦、削峰、非同步；代價是一致性變「稍後」、消費者要冪等、多一套要監控。</li><li>Kafka 是可重讀的分區日誌、消費者拉、群組分工；RabbitMQ 是讀完即刪的佇列、broker 推、交換器路由。</li><li>佇列最多給至少一次；剛好一次只在 Kafka 內成立，寫進資料庫靠去重表、業務唯一鍵或版本號。</li><li>順序只在同一分區內；不丟靠 acks=all、耐久佇列加持久訊息、處理完再確認（Spring Kafka 預設 BATCH、Spring AMQP 預設 AUTO 且例外會重新排入）；堆積先加消費者再批次；壞訊息進死信佇列。</li><li>先寫資料庫再發訊息是雙重寫入；交易式 Outbox 把訊息寫進同一筆交易的寄件匣表再送出，代價是至少一次。</li><li>Saga 是一連串本地交易加補償；補償是反向動作、每步冪等、缺隔離性用凍結狀態補。</li><li>銀行轉帳同一系統用 ACID 交易；跨系統用 Saga，分錄借貸相等、每步冪等、日終對帳——「暫時看不到」可以，「錢不見了」不行。</li></ul></div>
