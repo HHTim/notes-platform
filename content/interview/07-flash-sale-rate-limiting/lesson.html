@@ -36,20 +36,26 @@ Gateway 限流    按使用者、活動、IP 限速，超額回 429
 Redis 預扣庫存  一支 Lua 腳本扣庫存，扣不到就結束
    ↓ 擋掉「沒庫存」的請求
 訊息佇列 → 資料庫   只剩搶到的一萬筆慢慢寫</code></pre>
-    <p class="muted">多層快取與 Bloom Filter 見〈系統設計：短網址的高併發〉，這課不重講。</p>
+    <p class="muted">多層快取與 Bloom Filter 見〈系統設計：短網址的高併發〉，這課不重講；令牌桶、漏桶、滑動視窗三種演算法的白話定義那課也有，下面的對照補的是固定視窗與各家官方實作。</p>
     <p class="q">面試官：固定視窗、滑動視窗、漏桶、令牌桶各適合什麼？</p>
-    <p><strong>一句話定義：</strong>四種都是「一段時間內最多放行幾個」，差在怎麼算時間、爆量放不放。對照依 Azure 的節流模式與各官方實作整理。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/throttling" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>四種都是「一段時間內最多放行幾個」，差在怎麼算時間、爆量放不放。對照依 Azure 的限流（該頁叫 throttling，節流）模式與各官方實作整理。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/throttling" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>
       <thead><tr><th>演算法</th><th>怎麼算</th><th>秒殺裡用在哪</th><th>官方實作例</th></tr></thead>
       <tbody>
         <tr><th>固定視窗</th><td>每分鐘一個計數器，滿了拒絕；12:00:59 與 12:01:00 各放滿一次，邊界瞬間放進兩倍</td><td>粗略的每人每分鐘上限</td><td>Redis INCR 頁的限流範例<a class="fixsrc" href="https://redis.io/docs/latest/commands/incr/" target="_blank" rel="noopener">出處</a></td></tr>
-        <tr><th>滑動視窗</th><td>算「最近 60 秒」不是「這一分鐘」，沒有邊界問題，但要記每筆時間</td><td>敏感操作的精確限制</td><td>Redis 限流詞條<a class="fixsrc" href="https://redis.io/glossary/rate-limiting/" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>滑動視窗</th><td>算「最近 60 秒」不是「這一分鐘」，沒有邊界問題，但要記每筆時間</td><td>敏感操作的精確限制</td><td>Redis 限流詞條的說明（該頁的範例程式其實是固定視窗）<a class="fixsrc" href="https://redis.io/glossary/rate-limiting/" target="_blank" rel="noopener">出處</a></td></tr>
         <tr><th>漏桶</th><td>請求先進桶，出口固定速率滴出，桶滿才拒絕；輸出最平滑</td><td>保護處理能力固定的下游，例如核心帳務</td><td>Nginx limit_req，官方寫明「用『漏桶』方法做限制」（The limitation is done using the "leaky bucket" method）<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_limit_req_module.html" target="_blank" rel="noopener">出處</a></td></tr>
-        <tr><th>令牌桶</th><td>桶裡定速補代幣，有代幣才放行；閒置時攢起來，允許短暫爆量到桶的容量</td><td>Gateway 這種要吸收開搶尖峰的入口</td><td>Spring Cloud Gateway 的 Redis 限流器，「使用的演算法是令牌桶」（The algorithm used is the Token Bucket Algorithm）<a class="fixsrc" href="https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestratelimiter-factory.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>令牌桶</th><td>桶裡定速補代幣，有代幣才放行；閒置時代幣會累積，允許短暫爆量到桶的容量</td><td>Gateway 這種要吸收開搶尖峰的入口</td><td>Spring Cloud Gateway 的 Redis 限流器，「使用的演算法是令牌桶」（The algorithm used is the Token Bucket Algorithm）<a class="fixsrc" href="https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestratelimiter-factory.html" target="_blank" rel="noopener">出處</a></td></tr>
       </tbody>
     </table></div>
     <p><strong>參數要會講：</strong>Spring Cloud Gateway 的 replenishRate 是「令牌桶被填滿的速率」，burstCapacity 是「桶能裝的代幣數」；超額「預設回 HTTP 429」；限誰由 KeyResolver 決定，預設取登入身分。<a class="fixsrc" href="https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestratelimiter-factory.html" target="_blank" rel="noopener">出處</a> Nginx 的 burst 是允許排隊的超額數；拒絕預設回 503，可改 429。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_limit_req_module.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>http {
+    # 後端應用伺服器群，proxy_pass 會用到
+    upstream app_backend {
+        server 10.0.0.11:8080;
+        server 10.0.0.12:8080;
+    }
+
     # 以來源 IP 當 key；狀態放 10MB 共用記憶體區 "sale"；平均每秒放 10 個請求
     limit_req_zone $binary_remote_addr zone=sale:10m rate=10r/s;
 
@@ -82,7 +88,7 @@ return 1               -- 放行</code></pre>
     <h3 class="head">一萬份紅包，怎麼保證一份都不多發</h3>
     <p class="q">面試官：庫存放哪裡？Redis 預扣怎麼保證不超賣？</p>
     <p><strong>一句話定義：</strong>活動前把庫存數預熱進 Redis，開搶時用一支 Lua 腳本做「查、判斷、扣一、記名單」；腳本原子執行，兩個人不可能同時看到「還剩 1」然後各扣一次。</p>
-    <p><strong>為什麼不能拆成 GET 再 DECR：</strong>GET 回來剩 1，兩個請求都看到 1、都去 DECR，庫存變 -1。DECR 本身是原子的<a class="fixsrc" href="https://redis.io/docs/latest/commands/decr/" target="_blank" rel="noopener">出處</a>，但「先判斷再扣」是兩個指令，中間可以被插隊。</p>
+    <p><strong>為什麼不能拆成 GET 再 DECR：</strong>GET 回來剩 1，兩個請求都看到 1、都去 DECR，庫存變 -1。DECR 本身是原子的（INCR 指令頁把它們叫「Redis 的原子遞增操作」）<a class="fixsrc" href="https://redis.io/docs/latest/commands/incr/" target="_blank" rel="noopener">出處</a>，但「先判斷再扣」是兩個指令，中間可以被插隊。</p>
     <pre><code>-- KEYS[1] 庫存鍵，KEYS[2] 已搶到名單，ARGV[1] 使用者 ID
 if redis.call('SISMEMBER', KEYS[2], ARGV[1]) == 1 then
   return -2            -- 這個人已經搶過
@@ -99,7 +105,7 @@ redis.call('SADD', KEYS[2], ARGV[1])
 return 1               -- 搶到
 
 -- 呼叫：EVAL "&lt;腳本&gt;" 2 {sale:1001}:stock {sale:1001}:buyers u1</code></pre>
-    <p class="muted">在 Redis 8.10 實跑：庫存 2，u1 回 1、u1 再搶回 -2、u2 回 1、u3 回 0；庫存 100、一千個不同使用者一口氣送進去，最後庫存剛好 0、名單剛好 100 人。key 名裡的大括號是雜湊標籤（hash tag），官方規格寫它「確保多個 key 被分配到同一個雜湊槽，用來在 Redis Cluster 實作多 key 操作」<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a>；腳本動兩把 key，不加標籤在叢集上跑不了。</p>
+    <p class="muted">在 Redis 8.10 實跑：庫存 2，u1 回 1、u1 再搶回 -2、u2 回 1、u3 回 0；庫存 100、一千個不同使用者一口氣送進去，最後庫存剛好 0、名單剛好 100 人。key 名裡的大括號是雜湊標籤（hash tag），官方規格寫它「確保多個 key 被分配到同一個雜湊槽（hash slot，Redis Cluster 把 key 空間切成 16384 格，每格就是一個槽），用來在 Redis Cluster 實作多 key 操作」<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a>；腳本動兩把 key，不加標籤在叢集上跑不了。</p>
     <p><strong>上線要補三件事：</strong>第一，官方說「使用腳本的應用程式應該一律呼叫 EVALSHA」：先 SCRIPT LOAD 拿 SHA1，之後用 SHA1 呼叫。<a class="fixsrc" href="https://redis.io/docs/latest/develop/programmability/eval-intro/" target="_blank" rel="noopener">出處</a> 第二，腳本必須短，腳本一慢、整台 Redis 都在等。第三，Redis 主從是非同步複製，切換主機的瞬間剛扣掉的庫存可能「還沒扣」，會多發幾份；原因見資料庫模組第 5 課〈分散式鎖與 Redis〉，補法是資料庫端再擋一道。</p>
     <p class="q">面試官：直接在資料庫 UPDATE stock = stock - 1 WHERE stock &gt; 0 不行嗎？</p>
     <p><strong>一句話定義：</strong>正確性沒問題、不會超賣；問題是慢，因為同一列的更新在 InnoDB 裡排隊執行。</p>
@@ -110,7 +116,7 @@ return 1               -- 搶到
     <p class="q">面試官：一萬個人扣同一把 key，Redis 那個節點會不會被打爆？</p>
     <p><strong>一句話定義：</strong>熱點（hot key，短時間被集中存取的少數 key）在叢集裡逃不掉「一把 key 只住一個節點」：官方規格是「key 空間切成 16384 個槽」、「叢集穩定時一個槽只由一個節點服務」。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a> 加節點沒用，要拆 key。</p>
     <ul class="plainlist">
-      <li><strong>分桶庫存：</strong>一萬份拆成 10 把 key 各 1,000 份，用不同雜湊標籤落到不同節點，請求按使用者 ID 取餘數選桶。代價是「某桶先賣完、別桶還有」，要不要換桶重試先定好。</li>
+      <li><strong>分桶庫存：</strong>一萬份拆成 10 把 key 各 1,000 份，用不同雜湊標籤落到不同的槽（槽再由叢集分配到節點，10 個桶配 3 台主節點一定有桶同住一台，但壓力已經拆開），請求按使用者 ID 取餘數選桶。代價是「某桶先賣完、別桶還有」，要不要換桶重試先定好。</li>
       <li><strong>本地快取擋讀：</strong>售罄後在應用程式記憶體記一個旗標，之後的請求連 Redis 都不用去。</li>
       <li><strong>靜態化擋更多：</strong>活動頁、倒數全進 CDN，Redis 只接「按下搶購」那一下。</li>
     </ul>
@@ -120,7 +126,7 @@ return 1               -- 搶到
     <h3 class="head">搶到之後：排隊寫入、只扣一次、沒付就還</h3>
     <p class="q">面試官：Redis 說搶到了，訂單怎麼寫？使用者怎麼知道結果？</p>
     <p><strong>一句話定義：</strong>用「以佇列平衡負載」（queue-based load leveling）：請求先進訊息佇列，消費者按資料庫扛得住的速度寫訂單；使用者先拿到「排隊中」，結果用輪詢或推播通知。Azure 的定義是「在工作與它呼叫的服務之間放一個佇列當緩衝」，「服務能按自己的步調處理訊息」。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/queue-based-load-leveling" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>三個必答的後果：</strong>「訊息佇列是單向通訊機制」，所以前端要輪詢或推播；「多數佇列以至少一次語意遞送，消費者可能收到同一則訊息不只一次」，所以寫訂單必須冪等；「生產者速率超過消費者，佇列持續成長」，所以佇列長度要監控，好在能進佇列的人數已被 Redis 限制在庫存數以內。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/queue-based-load-leveling" target="_blank" rel="noopener">出處</a> 前一課講過「丟進佇列就回成功」的風險，這裡回的是「排隊中」，Redis 的預扣紀錄才是真相。</p>
+    <p><strong>三個必答的後果：</strong>「訊息佇列是單向通訊機制」，所以前端要輪詢或推播；「多數佇列以至少一次語意遞送，消費者可能收到同一則訊息不只一次」，所以寫訂單必須冪等；「生產者速率超過消費者，佇列持續成長」，所以佇列長度要監控，好在能進佇列的人數已被 Redis 限制在庫存數以內。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/queue-based-load-leveling" target="_blank" rel="noopener">出處</a> 〈系統設計：短網址的高併發〉講過「丟進佇列就回成功」的風險，這裡回的是「排隊中」，Redis 的預扣紀錄才是真相。</p>
     <p class="q">面試官：使用者手抖點兩次、App 逾時自動重送，怎麼只扣一次？</p>
     <p><strong>一句話定義：</strong>冪等（idempotent，同一個操作做一次和做很多次結果一樣）靠兩道：客戶端帶冪等鍵，伺服器端用唯一約束擋重複。</p>
     <p><strong>冪等鍵：</strong>IETF 草案的定義是「由客戶端產生的唯一值，資源用它辨識同一個請求的後續重試」（a unique value generated by the client which the resource uses to recognize subsequent retries of the same request），建議用 UUID；同一把鍵配不同內容應回 422，原請求還在處理又收到重試應回 409。<a class="fixsrc" href="https://www.ietf.org/archive/id/draft-ietf-httpapi-idempotency-key-header-07.html" target="_blank" rel="noopener">出處</a> 草案目前是過期狀態，業界範本是 Stripe：「儲存第一次請求的狀態碼與回應本體，之後帶同一把鍵的請求回同樣結果」，鍵至少保留 24 小時。<a class="fixsrc" href="https://docs.stripe.com/api/idempotent_requests" target="_blank" rel="noopener">出處</a></p>
@@ -130,14 +136,14 @@ return 1               -- 搶到
     <p><strong>資料庫那道：</strong>訂單表對（使用者 ID, 活動 ID）建唯一索引，第二筆插入被擋下；在 MySQL 8.4.11 實跑，同一組 (42, 1001) 插第二次回重複鍵錯誤。文件提醒「發生重複鍵錯誤時，會在重複的索引紀錄上設一個共用鎖」，同時插同一列可能死結<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locks-set.html" target="_blank" rel="noopener">出處</a>，所以唯一索引是保險，Redis 名單先擋掉絕大多數重複。</p>
     <p class="q">面試官：搶到但十五分鐘沒付款，庫存怎麼還？</p>
     <p><strong>一句話定義：</strong>把「十五分鐘後檢查」變成一則延遲訊息或一個定時掃描；到期沒付就取消訂單、Redis 庫存加回、名單移掉這個人。</p>
-    <p><strong>延遲訊息：</strong>RabbitMQ 沒有原生延遲佇列，標準做法是「訊息存活時間加死信交換器」：「發布訊息時設定 expiration 屬性，為單一訊息指定 TTL」<a class="fixsrc" href="https://www.rabbitmq.com/docs/ttl" target="_blank" rel="noopener">出處</a>；到期的訊息送去死信交換器（dead letter exchange，接收被拒絕、過期或被擠出佇列訊息的地方），觸發條件之一就是「訊息因每則訊息的 TTL 過期」<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a>，消費者接死信佇列檢查訂單狀態。一個坑：「只有過期訊息到達佇列頭時才會真的被丟棄」（Only when expired messages reach the head of a queue will they actually be discarded），先放 30 分鐘、後放 5 分鐘的訊息會卡住後者，每種延遲時間各開一條佇列可避開。<a class="fixsrc" href="https://www.rabbitmq.com/docs/ttl" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>延遲訊息：</strong>RabbitMQ 核心沒有延遲佇列（要靠 rabbitmq_delayed_message_exchange 外掛），不裝外掛的標準做法是「訊息存活時間加死信交換器」：「發布訊息時設定 expiration 屬性，為單一訊息指定 TTL」<a class="fixsrc" href="https://www.rabbitmq.com/docs/ttl" target="_blank" rel="noopener">出處</a>；到期的訊息送去死信交換器（dead letter exchange，接收被拒絕、過期或被擠出佇列訊息的地方），觸發條件之一就是「訊息因每則訊息的 TTL 過期」<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a>，消費者接死信佇列檢查訂單狀態。一個坑：「只有過期訊息到達佇列頭時才會真的被丟棄」（Only when expired messages reach the head of a queue will they actually be discarded），先放 30 分鐘、後放 5 分鐘的訊息會卡住後者，每種延遲時間各開一條佇列可避開。<a class="fixsrc" href="https://www.rabbitmq.com/docs/ttl" target="_blank" rel="noopener">出處</a></p>
     <p><strong>定時任務：</strong>每分鐘掃「待付款且建立超過 15 分鐘」的訂單。簡單，代價是精度一分鐘；多台機器同時掃、付款回呼與取消同時到，都用條件式更新「狀態從待付款改成已取消」決勝負，影響列數 0 就是別人先做了。</p>
 </section>
 <section>
     <p class="era">保命</p>
     <h3 class="head">下游掛了、黃牛來了，主流程怎麼活</h3>
     <p class="q">面試官：發紅包要呼叫核心帳務入帳，帳務系統慢了或掛了，搶購要跟著掛嗎？</p>
-    <p><strong>一句話定義：</strong>不要。用斷路器（circuit breaker，像家裡的電路保險開關，失敗太多就跳開、不再送請求）隔開下游，再用降級（degradation，關掉不重要的功能保重要的）讓主流程活著。</p>
+    <p><strong>一句話定義：</strong>不要。用斷路器（circuit breaker，像家裡的電路保險開關，失敗太多就跳開、不再送請求，面試常叫「熔斷」）隔開下游，再用降級（degradation，關掉不重要的功能保重要的）讓主流程活著。</p>
     <p><strong>三態怎麼講：</strong>Azure 的定義：關閉（Closed）時請求照送並數失敗，「超過門檻就進入開啟並啟動計時器」；開啟（Open）時「請求立即失敗，回傳例外」；半開（Half-Open）時「允許有限數量的請求通過，成功就切回關閉，任一失敗就退回開啟」，用意是「防止正在恢復的服務突然被請求淹沒」。跟重試的分工：重試是「預期最終會成功」才重試，斷路器是「阻止很可能失敗的操作」。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a></p>
     <p><strong>降級怎麼講：</strong>Google SRE 書分兩層：「卸載負載（load shedding）在伺服器接近過載時丟掉一部分流量」，「優雅降級（graceful degradation）更進一步，減少需要完成的工作量」。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a> 套到紅包：帳務斷路器跳開時搶購照常，訂單寫成「待入帳」、入帳改佇列慢慢補，使用者看到「已領取，稍後入帳」；「好友排行」這類非必要功能先關，Azure 稱為「關閉或降級非必要功能，讓必要功能有足夠資源」。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/throttling" target="_blank" rel="noopener">出處</a></p>
     <p><strong>追問時要補的：</strong>重試是連鎖故障的加速器。SRE 書：「排程重試時永遠使用隨機化的指數退避」（Always use randomized exponential backoff when scheduling retries），並「考慮設伺服器層級的重試預算」。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a> Google 內部是「每個請求最多重試三次」加「重試佔請求的比例低於 10% 才重試」。<a class="fixsrc" href="https://sre.google/sre-book/handling-overload/" target="_blank" rel="noopener">出處</a> 熔斷元件的現行方案見〈後端與雲端面試題庫〉，那邊答工具、這邊答原理。</p>
