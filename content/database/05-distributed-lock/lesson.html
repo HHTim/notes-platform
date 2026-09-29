@@ -93,7 +93,7 @@
     <p class="era">解法</p>
     <h3 class="head">分散式鎖＝大家去同一個櫃檯拿鑰匙</h3>
     <p>把鎖搬出去，放到一個所有機器都看得到的地方。誰先拿到那把唯一的鑰匙，誰才能動手。這個「櫃檯」在文獻裡叫分散式鎖管理器（Distributed Lock Manager，簡稱 DLM）。Redis 官方鎖頁面的開場就是這個定位：分散式鎖是「不同行程必須互斥地操作共用資源」時很有用的基本工具（a very useful primitive in many environments where different processes must operate with shared resources in a mutually exclusive way）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
-    <p class="muted">Redis 常被拿來當這個櫃檯，因為它夠快（毫秒等級）、指令簡單，而且很多系統本來就有裝。</p>
+    <p class="muted">Redis 常被拿來當這個櫃檯，因為它夠快（一趟來回通常不到一毫秒）、指令簡單，而且很多系統本來就有裝。</p>
 
     <figure>
       <svg viewBox="0 0 760 290" role="img" aria-label="三台伺服器都向同一個 Redis 要鎖，只有一台拿到，才能去改餘額">
@@ -141,7 +141,7 @@
     <p class="era">單一 Redis 的正確寫法</p>
     <h3 class="head">一行指令就是一把鎖，但有三個地方不能省</h3>
     <p>Redis 官方給的上鎖寫法是一條指令：</p>
-    <p><code>SET 訂單123 a8f3c2…（這次上鎖專用的隨機值） NX PX 30000</code></p>
+    <p><code>SET 訂單123 a8f3c2… NX PX 30000</code>（<code>a8f3c2…</code> 是這次上鎖專用的隨機值）</p>
     <p><code>NX</code> 的意思是「這個鍵目前不存在，才寫得進去」，所以第一個寫進去的請求贏，其他人會收到失敗；<code>PX 30000</code> 是「30000 毫秒（30 秒）後這個鍵自動消失」（<code>EX</code> 是同一件事但以秒計）。<code>SET</code> 指令頁寫明 <code>NX</code> 是「Only set the key if it does not already exist」、<code>PX</code> 是「Set the specified expire time, in milliseconds」<a class="fixsrc" href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">出處</a>。</p>
     <p>第二個參數是<strong>這次上鎖專用的隨機值</strong>，像領號碼牌，等一下還鎖要憑它。官方原文：這個值「必須在所有客戶端、所有上鎖請求之間都是唯一的」（This value must be unique across all clients and all lock requests）；官方建議的產生法是從 <code>/dev/urandom</code> 取 20 個位元組，或者「用微秒精度的 UNIX 時間戳接上客戶端 ID」（a UNIX timestamp with microsecond precision, concatenating the timestamp with a client ID）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
 
@@ -309,7 +309,7 @@
           <text x="190" y="200" font-size="13" text-anchor="middle" fill="var(--ok)">資料量和流量可以一直往上加機器</text>
           <text x="190" y="219" font-size="12" text-anchor="middle" opacity=".65">每組自己也會自動換主機</text>
         </svg>
-        <figcaption><strong>叢集（Cluster）</strong>：資料被分成 16384 個號碼段（官方叫 hash slot，雜湊槽），分給好幾組主從各管一段；鍵名經 CRC16 運算後對 16384 取餘數決定去哪一槽<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank" rel="noopener">出處</a>。</figcaption>
+        <figcaption><strong>叢集（Cluster）</strong>：資料被分成 16384 個號碼段（官方叫 hash slot，雜湊槽），分給好幾組主從各管一段；鍵名經 CRC16（一種把任意字串算成固定長度數字的檢查碼演算法）運算後對 16384 取餘數決定去哪一槽<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank" rel="noopener">出處</a>。</figcaption>
       </figure>
 
     </div>
@@ -363,7 +363,7 @@
     </div>
 
     <p class="muted">哨兵多久判定主機掛了，由 <code>down-after-milliseconds</code> 決定——官方定義是「一個實例在多少毫秒內沒有回應（不回 PING 或回錯誤），哨兵就開始認為它掛了」；官方範例檔用 5000 到 60000 毫秒<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/" target="_blank" rel="noopener">出處</a>。</p>
-    <p class="muted">雲端的代管服務把自動換主機那一段包起來了。Google Cloud 的 Memorystore for Redis 分成 Basic Tier（官方：「Provides a cache with no replication」，沒有複本、不會自動換主機，適合「能承受冷啟動與整個快取清空」的用途）與 Standard Tier（「Provides redundancy and availability using replication」，有複本、主機故障時自動切到複本）<a class="fixsrc" href="https://docs.cloud.google.com/memorystore/docs/redis/redis-tiers" target="_blank" rel="noopener">出處</a>。AWS 的 ElastiCache 則分成兩種操作方式：Serverless（無伺服器，不用自己選節點）與自建節點叢集（node-based cluster）；自建時可以選單一可用區或多可用區（Multi-AZ），以及開不開 cluster mode（開了才能水平擴充）<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p class="muted">雲端的代管服務把自動換主機那一段包起來了。Google Cloud 的 Memorystore for Redis 分成 Basic Tier（官方：「Provides a cache with no replication」，沒有複本、不會自動換主機，適合「能承受冷重啟（cold restart，機器重開後快取從空的開始）與整個快取清空」的用途）與 Standard Tier（「Provides redundancy and availability using replication」，有複本、主機故障時自動切到複本）<a class="fixsrc" href="https://docs.cloud.google.com/memorystore/docs/redis/redis-tiers" target="_blank" rel="noopener">出處</a>。AWS 的 ElastiCache 則分成兩種操作方式：Serverless（無伺服器，不用自己選節點）與自建節點叢集（node-based cluster）；自建時可以選單一可用區或多可用區（Multi-AZ），以及開不開 cluster mode（開了才能水平擴充）<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html" target="_blank" rel="noopener">出處</a>。</p>
   </section>
 <section>
     <p class="era">最重要的一段</p>
@@ -466,7 +466,7 @@
       <div class="card">
         <span class="badge">antirez（回應方）</span>
         <h3>只要時鐘「走得差不多快」就夠了</h3>
-        <p>他反駁說 Redlock 不需要各機器時間一致，只需要各自的時鐘以接近的速率前進：「它們要做到的只是，例如，能夠以最多 10% 的誤差數出 5 秒」（What they need to do is just, for example, to be able to count 5 seconds with a maximum of 10% error）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。至於時鐘被大幅跳改，他認為那是不該做的操作，等級跟手動改壞 Raft 日誌檔一樣，並建議用平滑校時的 ntpd<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。</p>
+        <p>他反駁說 Redlock 不需要各機器時間一致，只需要各自的時鐘以接近的速率前進：「它們要做到的只是，例如，能夠以最多 10% 的誤差數出 5 秒」（What they need to do is just, for example, to be able to count 5 seconds with a maximum of 10% error）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。至於時鐘被大幅跳改，他認為那是不該做的操作，等級跟手動改壞 Raft（一種讓多台機器對「誰說了算、寫入順序是什麼」達成一致的共識演算法）的日誌檔一樣，並建議用平滑校時的 ntpd<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="card">
         <span class="badge">antirez（回應方）</span>
@@ -523,7 +523,7 @@
       <figcaption>就算鎖破了、兩個人同時拿著，最後一關是資料庫只認號碼大的那個。擋人的動作發生在資料庫端，不在鎖服務端。</figcaption>
     </figure>
 
-    <p>兩件事要分清楚。<strong>第一，Redis 不會替鎖發這種號碼。</strong>Kleppmann 直接點出：「這帶出 Redlock 的第一個大問題：它沒有任何產生 fencing token 的機制」（this leads us to the first big problem with Redlock: it does not have any facility for generating fencing tokens）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。就算自己用 <code>INCR</code> 在 Redis 做一個計數器，它跟鎖一樣是非同步複製，換主機時號碼可能倒退，倒退後資料庫端會連正當持有者一起擋掉——安全性保住了，但服務會卡住。要一個永不倒退的號碼，得靠後面講的 etcd、ZooKeeper 這類系統——ZooKeeper 官方說它「在每次更新上蓋一個反映全部交易順序的編號」（ZooKeeper stamps each update with a number that reflects the order of all ZooKeeper transactions），這種編號就能當 fencing token<a class="fixsrc" href="https://zookeeper.apache.org/doc/current/zookeeperOver.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>兩件事要分清楚。<strong>第一，Redis 不會替鎖發這種號碼。</strong>Kleppmann 直接點出：「這帶出 Redlock 的第一個大問題：它沒有任何產生 fencing token 的機制」（this leads us to the first big problem with Redlock: it does not have any facility for generating fencing tokens）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。就算自己用 <code>INCR</code> 在 Redis 做一個計數器，它跟鎖一樣是非同步複製，換主機時號碼可能倒退，倒退後資料庫端會連正當持有者一起擋掉——安全性保住了，但服務會卡住。要一個永不倒退的號碼，得靠後面講的 etcd、ZooKeeper 這類系統（兩套專門存設定與做協調的小型資料庫，寫入要多數節點同意才算成功）——ZooKeeper 官方說它「在每次更新上蓋一個反映全部交易順序的編號」（ZooKeeper stamps each update with a number that reflects the order of all ZooKeeper transactions），這種編號就能當 fencing token<a class="fixsrc" href="https://zookeeper.apache.org/doc/current/zookeeperOver.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>第二，保障在資料那一端，不在鎖那一端。</strong>鎖服務再可靠，只要持有者可能在鎖過期後還在動資料，就必須由被保護的資料庫、檔案系統或服務自己檢查號碼。這也是 Redis 官方免責聲明第一條要求的：「你應該實作 fencing token。這對可能耗時很久的行程特別重要，而且適用於任何分散式鎖系統」（You should implement fencing tokens. This is especially important for processes that can take significant time and applies to any distributed locking system）<a class="fixsrc" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/" target="_blank" rel="noopener">出處</a>。</p>
     <p class="muted">antirez 的看法是號碼不一定要遞增：Redlock 每把鎖本來就帶一個大隨機值，可以拿它做「比對再寫」（Check and Set）——「開始操作共用資源時，把它的狀態設成這個 token，之後只有在寫入時 token 仍然相同，才執行讀取—修改—寫入」（we set its state to "&lt;token&gt;", then we operate the read-modify-write only if the token is still the same when we write）<a class="fixsrc" href="http://antirez.com/news/101" target="_blank" rel="noopener">出處</a>。這需要資料端支援這種條件寫入，而且它擋的是「兩個持有者交錯寫」，做法不同、但檢查一樣發生在資料那一端。</p>
   </section>
@@ -546,7 +546,7 @@
       <div class="card">
         <span class="badge">為了正確性：絕對不能重複</span>
         <h3>換有共識演算法的系統</h3>
-        <p>改用 etcd 或 ZooKeeper（兩套專門存設定與做協調的小型資料庫，寫入要多數節點同意才算成功，所以換主機不會把已答應的東西弄丟）。etcd 官方說它「以一致且容錯的方式保存中繼資料」（stores metadata in a consistent and fault-tolerant way），寫入走 Raft 共識協定，並直接列出「領導者選舉、分散式鎖」是常見用法（Common distributed patterns using etcd include leader election, distributed locks）<a class="fixsrc" href="https://etcd.io/docs/v3.5/learning/why/" target="_blank" rel="noopener">出處</a>；ZooKeeper 官方自述是「為分散式應用程式提供的分散式開源協調服務」（a distributed, open-source coordination service for distributed applications），只要多數伺服器活著就能服務，保證更新按送出順序套用<a class="fixsrc" href="https://zookeeper.apache.org/doc/current/zookeeperOver.html" target="_blank" rel="noopener">出處</a>。代價是寫入比 Redis 慢、要多維護一套。</p>
+        <p>改用 etcd 或 ZooKeeper（寫入要多數節點同意才算成功，所以換主機不會把已答應的東西弄丟）。etcd 官方說它「以一致且容錯的方式保存中繼資料」（stores metadata in a consistent and fault-tolerant way），寫入走 Raft 共識協定，並直接列出「領導者選舉、分散式鎖」是常見用法（Common distributed patterns using etcd include leader election, distributed locks）<a class="fixsrc" href="https://etcd.io/docs/v3.5/learning/why/" target="_blank" rel="noopener">出處</a>；ZooKeeper 官方自述是「為分散式應用程式提供的分散式開源協調服務」（a distributed, open-source coordination service for distributed applications），只要多數伺服器活著就能服務，保證更新按送出順序套用<a class="fixsrc" href="https://zookeeper.apache.org/doc/current/zookeeperOver.html" target="_blank" rel="noopener">出處</a>。代價是寫入比 Redis 慢、要多維護一套。</p>
       </div>
       <div class="card">
         <span class="badge">常被忽略</span>
