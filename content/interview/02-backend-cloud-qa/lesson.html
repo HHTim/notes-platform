@@ -55,10 +55,10 @@
     <p><mark class="fixnote" tabindex="0" data-note="原筆記把 Hystrix 列為熔斷機制的選項之一，查證後更正">Netflix 已宣告 Hystrix 停止開發、進入維護模式，官方自己也說新專案會改用 Resilience4j 這類仍在維護的方案——面試再答 Hystrix 就是舊答案了</mark><a class="fixsrc" href="https://github.com/Netflix/Hystrix" target="_blank" rel="noopener">出處</a>。</p>
     <p class="q">面試官：訂單、庫存、支付跨三個服務，分散式交易怎麼處理？</p>
     <p><strong>一句話定義：</strong>Saga 是把一筆跨服務的交易拆成多筆本地交易，哪一步失敗就用「補償動作」把前面做過的倒回去。</p>
-    <p>兩種做法：<strong>中央協調式</strong>（orchestration）由一個協調者按劇本叫每個服務做事，流程清楚但協調者較集中；<strong>事件協作式</strong>（choreography）沒有指揮，各服務聽到上一步的事件就接著做，耦合鬆但流程散在各處、難追蹤。</p>
+    <p>兩種做法：<strong>中央協調式</strong>（orchestration，〈系統設計：訊息佇列與最終一致性〉稱編排式）由一個協調者按劇本叫每個服務做事，流程清楚但協調者較集中；<strong>事件協作式</strong>（choreography，同課稱協同式）沒有指揮，各服務聽到上一步的事件就接著做，耦合鬆但流程散在各處、難追蹤。</p>
     <p>實作重點：冪等性（同一件事重做幾次結果都一樣——重試才不會重複扣款）、狀態機、逾時與重試上限、補償也失敗時的死信佇列與人工介入。如果業務真的要求一筆強一致的交易，先考慮把資料留在同一個交易邊界，不要硬拆成多個服務。</p>
     <p class="q">面試官：微服務能保證傳統 ACID 嗎？</p>
-    <p>ACID（交易的原子性、一致性、隔離性、持久性）通常只有單一資料庫的交易能直接保證。跨服務要嘛用 2PC（兩階段提交：先問大家能不能做、都說能才一起做）換原子性、賠上可用性與延遲；要嘛接受最終一致——Saga、交易式 Outbox（要發的訊息先跟業務資料寫進同一筆交易，再另行送出；下一課會講）這些模式。金融帳務這種不能掉的資料，靠的是不可變的分錄、唯一鍵、對帳與可重播的事件，不是宣稱採用了某個模式就算數。ACID 四個特性的定義見資料庫模組第 2 課〈SQL 三種子語言：DDL、DML、DQL〉。</p>
+    <p>ACID（交易的原子性、一致性、隔離性、持久性）通常只有單一資料庫的交易能直接保證。跨服務要嘛用 2PC（兩階段提交：先問大家能不能做、都說能才一起做）換原子性、賠上可用性與延遲；要嘛接受最終一致——Saga、交易式 Outbox（要發的訊息先跟業務資料寫進同一筆交易，再另行送出；面試集〈系統設計：訊息佇列與最終一致性〉會講）這些模式。金融帳務這種不能掉的資料，靠的是不可變的分錄、唯一鍵、對帳與可重播的事件，不是宣稱採用了某個模式就算數。ACID 四個特性的定義見資料庫模組第 2 課〈SQL 三種子語言：DDL、DML、DQL〉。</p>
     <p class="q">面試官：怎麼做端到端的監控？</p>
     <p><strong>一句話定義：</strong>可觀測性是用指標、日誌、分散式追蹤三種訊號，從外部輸出推斷系統內部發生什麼事。</p>
     <p>每個請求帶著同一個 trace ID（追蹤編號）穿過所有服務，事後才拼得回完整路徑；延遲、錯誤率、流量、飽和度要能對回服務與業務指標。<mark class="fixnote" tabindex="0" data-note="原筆記的答案是「Sleuth + Zipkin：分散式追蹤，跟蹤請求在微服務間的流轉」，查證後更正">Spring Cloud Sleuth 只支援到 Spring Boot 2.x，專案已停止維護、核心移交給 Micrometer Tracing——Spring Boot 3 之後的追蹤整合要答 Micrometer Tracing，Zipkin 仍可當接收追蹤資料的後端</mark><a class="fixsrc" href="https://github.com/spring-cloud/spring-cloud-sleuth" target="_blank" rel="noopener">出處</a>。日誌要結構化，而且不能把敏感內容寫進去。</p>
