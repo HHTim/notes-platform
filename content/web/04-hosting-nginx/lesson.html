@@ -40,7 +40,7 @@ server {
     }
 }</code></pre>
 <p><code>try_files</code> 常用於單頁應用程式：若實體檔案不存在，就回傳 <code>index.html</code>，再由前端路由處理網址。這也表示真正不存在的靜態資源可能被回成 HTML，設定時要配合資源路徑與錯誤處理。</p>
-<p><code>proxy_pass http://application_backend</code> 裡的名稱要先用 <code>upstream</code> 區塊定義——它替一組後端伺服器取名字，裡面可以列多台、設權重<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_upstream_module.html#upstream" target="_blank" rel="noopener">出處</a>。若沒有這個區塊，Nginx 會把 <code>application_backend</code> 當成一般主機名稱、在載入設定時就去查 DNS；查不到就整份設定載入失敗，錯誤訊息是 <code>host not found in upstream</code><a class="fixsrc" href="https://www.f5.com/company/blog/nginx/dns-service-discovery-nginx-plus" target="_blank" rel="noopener">出處</a>。下面兩節的坑，就是從這個「載入時解析」的行為長出來的。</p>
+<p><code>proxy_pass http://application_backend</code> 裡的名稱要先用 <code>upstream</code> 區塊定義——它替一組後端伺服器取名字，裡面可以列多台、設權重<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_upstream_module.html#upstream" target="_blank" rel="noopener">出處</a>。若沒有這個區塊，Nginx 會把 <code>application_backend</code> 當成一般主機名稱、在載入設定時就去查 DNS；查不到就整份設定載入失敗，錯誤訊息是 <code>host not found in upstream</code><a class="fixsrc" href="https://www.f5.com/company/blog/nginx/dns-service-discovery-nginx-plus" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/core/ngx_inet.c" target="_blank" rel="noopener">原始碼（搜 host not found）</a>。下面兩節的坑，就是從這個「載入時解析」的行為長出來的。</p>
 </section>
 
 <section>
@@ -90,7 +90,7 @@ server {
 <p class="era">從錯誤訊息回推</p>
 <h3 class="head">「no host in upstream」不應只怪雙斜線</h3>
 <p><code>no host in upstream</code> 的意思是：Nginx 把變數展開、組出上游網址之後，發現 <code>://</code> 後面的主機名稱那一段是空的。「雙斜線」要分兩種看。路徑中間多一個斜線（<code>https://host//a/b</code>）只影響路徑語意，主機還在，不會產生這個錯誤；但 <code>://</code> 後面直接接 <code>/</code>（<code>https:///agent.js</code>，例如放主機名稱的變數展開後只剩協定字首）就等於主機名稱是空的，正是這個錯誤的成因之一。變數整個是空的則會走到另一個訊息 <code>invalid URL prefix</code>，因為連 <code>http://</code> 都沒有。</p>
-<p class="muted">這個判斷來自 Nginx 原始碼：<code>ngx_http_proxy_eval()</code> 先確認網址以 <code>http://</code> 或 <code>https://</code> 開頭（不是就記 invalid URL prefix），再交給 <code>ngx_parse_url()</code>，主機那段長度為 0 時記下 <code>no host</code>，印出來就是「no host in upstream」<a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/http/modules/ngx_http_proxy_module.c" target="_blank" rel="noopener">proxy 模組</a><a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/core/ngx_inet.c" target="_blank" rel="noopener">ngx_inet.c</a>（分別搜「in upstream」與「no host」）。主機為空只是成因之一——網址組合順序錯、展開結果不合法也會走到同一個訊息，所以照下面的順序一項一項排除。</p>
+<p class="muted">這個判斷來自 Nginx 原始碼：<code>ngx_http_proxy_eval()</code> 先確認網址以 <code>http://</code> 或 <code>https://</code> 開頭（不是就記 invalid URL prefix），再交給 <code>ngx_parse_url()</code>，主機那段長度為 0 時記下 <code>no host</code>，印出來就是「no host in upstream」<a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/http/modules/ngx_http_proxy_module.c" target="_blank" rel="noopener">proxy 模組</a><a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/core/ngx_inet.c" target="_blank" rel="noopener">ngx_inet.c</a>（分別搜「in upstream」與「no host」）。主機為空只是成因之一——只要組出來的結果主機那段是空的——不論是順序錯還是變數沒值——都是這個訊息，所以照下面的順序一項一項排除。</p>
 <p>較可靠的除錯順序是：</p>
 <ol><li>以設定測試確認語法有效。</li><li>記錄或檢查變數展開後的上游主機與 URI。</li><li>在相同執行環境驗證 DNS 能否解析。</li><li>確認 TLS 名稱、Host 標頭與上游憑證是否相符。</li><li>測試原始路徑、改寫路徑、查詢字串與尾端斜線。</li></ol>
 </section>
