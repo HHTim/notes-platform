@@ -25,8 +25,8 @@ String result = sb.toString();</code></pre>
 <section>
     <p class="era">集合框架</p>
     <h3 class="head">List、Set、Queue，和它們的迭代器</h3>
-    <p>Collection 介面底下最常考的三個家族：<strong>List</strong>（有順序、允許重複）、<strong>Set</strong>（無順序、不允許重複——重複的直接不加入）、<strong>Queue</strong>（排隊，先進先出為主）。Map 是另一家人，存的是「鍵對值」，不繼承 Collection。</p>
-    <p><mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Iterator 是 Java 1.5 Iterable 介面的一個方法」，版本與名詞混在一起，查證後更正">迭代器介面 <code>java.util.Iterator</code> 從 JDK 1.2 就有；Java 5 才加入 <code>java.lang.Iterable</code> 介面，它定義的 <code>iterator()</code> 方法會回傳一個迭代器</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Iterable.html" target="_blank" rel="noopener">出處</a>。Collection 繼承 Iterable，所以 List、Set、Queue 都能給出迭代器——for-each 語法也是靠它。為什麼做成介面？ArrayList 有迭代器、HashSet 也有迭代器，統一都叫 Iterator，用法就一致。</p>
+    <p>Collection 介面底下最常考的三個家族：<strong>List</strong>（有順序、允許重複）、<strong>Set</strong>（<mark class="fixnote" tabindex="0" data-note="原筆記寫 Set「無順序、不允許重複(重複時不加入)」，查證後更正：Set 介面只規定不重複，順序看實作類別——LinkedHashSet 的文件寫明照放入順序（insertion-order）走訪、TreeSet 會排序，「無順序」只對 HashSet 成立">不允許重複——重複的直接不加入；順序看實作：HashSet 不保證、LinkedHashSet 照放入順序、TreeSet 排序</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/LinkedHashSet.html" target="_blank" rel="noopener">出處</a>）、<strong>Queue</strong>（排隊，先進先出為主）。Map 是另一家人，存的是「鍵對值」，不繼承 Collection。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Iterator 是 Java 1.5 Iterable 介面的一個方法」，版本與名詞混在一起，查證後更正">迭代器介面 <code>java.util.Iterator</code> 從 JDK 1.2 就有；Java 5 才加入 <code>java.lang.Iterable</code> 介面，它定義的 <code>iterator()</code> 方法會回傳一個迭代器</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Iterable.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Iterator.html" target="_blank" rel="noopener">Iterator</a>。Collection 繼承 Iterable，所以 List、Set、Queue 都能給出迭代器——for-each 語法也是靠它。為什麼做成介面？ArrayList 有迭代器、HashSet 也有迭代器，統一都叫 Iterator，用法就一致。</p>
     <pre><code>List&lt;String&gt; list = new ArrayList&lt;&gt;();
 Iterator&lt;String&gt; it = list.iterator();
 while (it.hasNext()) {        // 還有下一個嗎？
@@ -40,7 +40,7 @@ while (it.hasNext()) {        // 還有下一個嗎？
     <h4>ArrayList 和 LinkedList 怎麼選</h4>
     <ul class="plainlist">
       <li><strong>ArrayList</strong>：底層是連續的陣列空間，可以用索引值直接取值（隨機存取），讀取快；但要在中間插入或刪除，得搬動後面整段資料。</li>
-      <li><strong>LinkedList</strong>：底層是一個接一個的節點（node），沒有索引值、要遍歷才找得到元素；但插入刪除只要改動前後節點的接法，頻繁增刪時划算。</li>
+      <li><strong>LinkedList</strong>：底層是一個接一個的節點（node）；<mark class="fixnote" tabindex="0" data-note="原筆記寫 LinkedList「需要遍歷才能抓取元素，無法使用索引值(index)」，查證後更正：LinkedList 實作 List 介面，有 get(int index)（文件：Returns the element at the specified position in this list），只是每次都要從頭或從尾走到那個位置，慢而不是沒有">有索引值、也能 <code>get(i)</code>，但每次都要從頭一個一個走到那個位置，用索引取值很慢</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/LinkedList.html#get(int)" target="_blank" rel="noopener">出處</a>；插入刪除只要改動前後節點的接法，頻繁增刪時划算，走訪要用迭代器或 for-each。</li>
     </ul>
     <p class="muted">Vector 是 List 家族的老成員（JDK 1.0），跟 ArrayList 大同小異但「每個操作都同步」——每個動作都要拿一次鎖，浪費效能，實務上已被 ArrayList 與各種並行集合取代，面試知道它為什麼被淘汰就好。</p>
     <h4>泛型與 int／Integer</h4>
@@ -52,14 +52,14 @@ while (it.hasNext()) {        // 還有下一個嗎？
     <div class="terms">
       <div class="term"><b>封裝</b><span>欄位設 private、對外只開 public 的 get／set——資料不攤在陽光下，保護資料、也讓改動不外洩。</span></div>
       <div class="term"><b>繼承</b><span>父類別有的（欄位、方法），子類別繼承後也有；用來收掉重複的程式碼。宣告 final 的類別不能被繼承。</span></div>
-      <div class="term"><b>多型</b><span>宣告父型別、執行時放子類別的實體（里氏替換原則）。多載＝同名方法、參數不同；複寫＝子類別改寫父類別的方法。</span></div>
+      <div class="term"><b>多型</b><span>宣告父型別、執行時放子類別的實體；「子類別放進父型別的位置，程式要照常運作」則是里氏替換原則對設計的要求。多載＝同名方法、參數不同；複寫＝子類別改寫父類別的方法。</span></div>
     </div>
     <p><code>this</code> 指當前物件、拿自己類別的成員；<code>super</code> 拿父類別的成員。存取修飾子由開到關：</p>
     <div class="tablewrap"><table>
       <thead><tr><th>修飾子</th><th>誰能存取</th></tr></thead>
       <tbody>
         <tr><th>public</th><td>所有類別</td></tr>
-        <tr><th>protected</th><td>同套件的類別＋所有子類別</td></tr>
+        <tr><th>protected</th><td><mark class="fixnote" tabindex="0" data-note="原筆記寫 protected「同套件下的類別或所有其子類別皆可存取(Visible to the package and all subclasses)」，查證後補上規格的限制：不同套件的子類別只能透過自己（或自己子型別）的參考去存取 protected 實體成員，不能拿父類別型別的參考存取">同套件的類別＋子類別（不同套件的子類別只能透過自己型別的參考存取）</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.6.2" target="_blank" rel="noopener">出處</a></td></tr>
         <tr><th>（不寫，預設）</th><td>同套件的類別</td></tr>
         <tr><th>private</th><td>只有自己類別內部</td></tr>
       </tbody>
@@ -67,12 +67,12 @@ while (it.hasNext()) {        // 還有下一個嗎？
     <p class="q">面試官：Java 可以多重繼承嗎？</p>
     <p>類別不行，只能單一繼承——所以才有介面：一個類別可以同時實作很多個介面，補上多重繼承的需求。跟抽象類別的比較：</p>
     <ul class="plainlist">
-      <li><strong>抽象類別</strong>：不能實體化、只能被繼承；不一定要有抽象方法，但有抽象方法的類別一定要宣告 abstract；子類別必須實作所有抽象方法；一個類別只能繼承一個。</li>
-      <li><strong>介面</strong>：欄位預設是常數（public static final）、沒有建構子、介面之間可以再繼承；目的在降低程式之間的耦合。<mark class="fixnote" tabindex="0" data-note="原筆記此處寫「介面裡面宣告的方法，預設由編譯器加上 public abstract」，那是 Java 8 以前的事，查證後更正">Java 8 起介面可以有帶實作的 default 方法與 static 方法（Java 9 起還有 private 方法），「介面方法一律抽象」已經是舊版本的答案</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/java/IandI/defaultmethods.html" target="_blank" rel="noopener">出處</a>。</li>
+      <li><strong>抽象類別</strong>：不能實體化、只能被繼承；不一定要有抽象方法，但有抽象方法的類別一定要宣告 abstract；子類別必須實作所有抽象方法（除非子類別自己也宣告成 abstract）；一個類別只能繼承一個。</li>
+      <li><strong>介面</strong>：欄位預設是常數（public static final）、沒有建構子、介面之間可以再繼承；目的在降低程式之間的耦合。<mark class="fixnote" tabindex="0" data-note="原筆記寫「介面裡面宣告的方法，預設由編譯器加上 public abstract」。就沒寫修飾子、沒有主體的方法而言今天仍對（JLS 9.4：沒寫存取修飾子就隱含 public，沒有 private、default、static 修飾子就隱含 abstract）；錯的是把它當成介面方法的全部——Java 8 起有 default 與 static 方法、Java 9 起有 private 方法，面試照原筆記答會被追問">沒寫修飾子的介面方法隱含 public，沒有主體的隱含 abstract——但這不是全部：Java 8 起介面可以有帶實作的 default 方法與 static 方法，Java 9 起還有 private 方法，「介面方法一律抽象」已經是舊版本的答案</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/java/IandI/defaultmethods.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-9.html#jls-9.4" target="_blank" rel="noopener">JLS 9.4</a>。</li>
     </ul>
-    <p><code>instanceof</code> 是二元運算子，測左邊的物件是不是右邊類別（或其子類別、介面實作）的實體；兩邊要有繼承關係，否則直接編譯錯誤。</p>
+    <p><code>instanceof</code> 是二元運算子，測左邊的物件是不是右邊類別（或其子類別、介面實作）的實體。編譯器只擋「左邊的型別根本不可能轉型成右邊」的寫法——規格的說法是左邊必須能對右邊做檢查式轉型（checked cast），否則編譯錯誤；例如 <code>Long</code> 和 <code>String</code> 兩個都是 final 又互無關係，拿來比就會被擋；但 <code>ArrayList</code> 對 <code>Runnable</code> 這種沒有繼承關係、卻可能有子類別實作該介面的組合，是可以編譯的。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.20.2" target="_blank" rel="noopener">出處</a></p>
     <p><code>static</code> 的成員在類別第一次載入時就先就位，那時任何物件都還沒出生——所以 static 方法裡不能用 <code>this</code>。</p>
-    <p class="muted">加分題：一個類別裡可以再放類別嗎？可以，Java 1.1 起有四種內部類別（靜態、成員、區域、匿名），好處是能直接存取外部類別的 private 成員。</p>
+    <p class="muted">加分題：一個類別裡可以再放類別嗎？可以，Java 1.1 起有巢狀類別（nested class），常分四種：靜態巢狀、成員內部、區域內部、匿名內部——規格上只把後三種（非 static 的）叫內部類別（inner class）。好處是能直接存取外部類別的 private 成員。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-8.html#jls-8.1.3" target="_blank" rel="noopener">出處</a></p>
 </section>
 <section>
     <p class="era">例外處理</p>
@@ -86,8 +86,8 @@ while (it.hasNext()) {        // 還有下一個嗎？
     <p class="q">面試官：final、finally、finalize 差在哪？</p>
     <ul class="plainlist">
       <li><strong>final</strong>：修飾類別＝不能被繼承；修飾方法＝不能被複寫；修飾變數＝值不能再改（常數）；修飾物件參考＝不能再指向別的物件。</li>
-      <li><strong>finally</strong>：例外處理的收尾區塊，寫在 catch 後面——<strong>無論例外有沒有被解決都會執行</strong>，所以拿來釋放資源（關資料庫連線、關檔案）。</li>
-      <li><strong>finalize</strong>：宣告在 Object 的方法，垃圾回收器回收物件前會呼叫。<mark class="fixnote" tabindex="0" data-note="原筆記把 finalize 當一般知識介紹；它已於 Java 9 標記廢棄、Java 18 進一步標記為準備移除，查證後補上">這個機制已經走向淘汰：Java 9 起標記廢棄（deprecated），Java 18 起進一步標記為準備移除——現在面試答這題，要補上這句才是最新答案</mark><a class="fixsrc" href="https://openjdk.org/jeps/421" target="_blank" rel="noopener">出處</a>。</li>
+      <li><strong>finally</strong>：例外處理的收尾區塊，寫在 catch 後面——<mark class="fixnote" tabindex="0" data-note="原筆記寫「寫在finally裡面的程式碼，無論如何都會被執行」，查證後補上但書：Oracle 教學寫 The finally block may not execute if the JVM exits while the try or catch code is being executed——try 裡呼叫 System.exit() 或 JVM 被強制結束時，finally 不會執行"><strong>例外有沒有被處理都會執行</strong>；只有 try 裡呼叫了 <code>System.exit()</code> 或 JVM 被強制結束時才不會跑</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/exceptions/finally.html" target="_blank" rel="noopener">出處</a>，所以拿來釋放資源（關資料庫連線、關檔案）。</li>
+      <li><strong>finalize</strong>：宣告在 Object 的方法，垃圾回收器回收物件前會呼叫。這個描述今天仍成立，但機制已經走向淘汰：Java 9 起標記廢棄（deprecated）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Object.html#finalize()" target="_blank" rel="noopener">出處</a>，Java 18 起進一步標記為準備移除、目前預設還開著<a class="fixsrc" href="https://openjdk.org/jeps/421" target="_blank" rel="noopener">JEP 421</a>——面試答這題要補上這段版本界線，並說釋放資源改用 try-with-resources。</li>
     </ul>
 </section>
 <section>
@@ -124,16 +124,16 @@ while (it.hasNext()) {        // 還有下一個嗎？
     </svg>
     <figcaption>MVC 的方向記法：操作進 Controller、Controller 動 Model、Model 的變化流向 View、View 給使用者看。</figcaption>
     </figure>
-    <p><strong>Spring</strong>：實作「控制反轉」（IoC，Inversion of Control——物件不自己生依賴，交給框架注入）的輕量框架。常考關鍵字：DI（依賴注入）、AOP（面向切面，把記錄、交易這類橫切關注點抽出來）、模組化（功能拆成一個個 jar，用多少裝多少）。</p>
+    <p><strong>Spring</strong>：實作「控制反轉」（IoC，Inversion of Control——物件不自己生依賴，交給框架注入）的輕量框架。常考關鍵字：DI（依賴注入）、AOP（切面導向，把記錄、交易這類橫切關注點抽出來）、模組化（功能拆成一個個 jar，用多少裝多少）。</p>
 </section>
 <section>
     <p class="era">專題怎麼答</p>
     <h3 class="head">被問到自己的專題時</h3>
     <p class="muted">以下是一份範例答法，答的是一個訂房網站的畢業專題；重點是答題的骨架，內容換成自己的專題即可。</p>
     <ul class="plainlist">
-      <li><strong>Coding rules</strong>：HTML 用 BEM 命名（Block__Element--Modifier）；類別名大駝峰（PascalCase）；變數小駝峰（camelCase）；常數全大寫並加上 <mark class="fixnote" tabindex="0" data-note="原筆記此處寫「加上Final」，Java 關鍵字一律小寫，查證後更正">小寫的 <code>final</code> 關鍵字</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-3.html#jls-3.9" target="_blank" rel="noopener">出處</a>。</li>
+      <li><strong>Coding rules</strong>：HTML 用 BEM 命名（Block__Element--Modifier）；類別名大駝峰（PascalCase）；變數小駝峰（camelCase）；常數全大寫、宣告成 <code>static</code> 加 <mark class="fixnote" tabindex="0" data-note="原筆記此處寫「加上Final」，Java 關鍵字一律小寫，查證後更正">小寫的 <code>final</code> 關鍵字</mark><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-3.html#jls-3.9" target="_blank" rel="noopener">出處</a>。</li>
       <li><strong>版本控制</strong>：Git 是版本控制系統（追蹤、管理程式碼的修改歷史，分散式、每人本機都能獨立工作）；GitHub 是架在 Git 上的程式碼代管平台（集中存放、pull request、問題追蹤）。一句話：Git 是工具，GitHub 是放工具產出的地方。</li>
       <li><strong>負責的功能與分工</strong>：擔任組長——題目構想、分工、時程、每週對進度，版本控制上統一管理 main 分支；功能面負責廠商端的房型、行程、私房景點管理與上下架。分工做法：Figma 與前端靜態頁完成後先切大功能，再交由各自負責的組員實作。</li>
     </ul>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>字串要改值就用 StringBuilder；真的有多執行緒同時改，才用 StringBuffer。</li><li>List 有序可重複、Set 無序不重複；讀多用 ArrayList、插刪多用 LinkedList。</li><li>類別只能單一繼承，介面補位——而且 Java 8 之後介面也能帶 default 方法。</li><li>final 鎖定、finally 必執行、finalize 已走向淘汰（Java 18 起標記準備移除）。</li><li>答題公式：先一句話定義，再講差別與取捨，最後補一個版本或實務註記。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>字串要改值就用 StringBuilder；真的有多執行緒同時改，才用 StringBuffer。</li><li>List 有序可重複、Set 不重複而順序看實作；讀多用 ArrayList、插刪多用 LinkedList（它有索引但用索引取值慢）。</li><li>類別只能單一繼承，介面補位——而且 Java 8 之後介面也能帶 default 方法。</li><li>final 鎖定、finally 例外有沒有處理都執行（JVM 直接結束除外）、finalize 已走向淘汰（Java 18 起標記準備移除）。</li><li>答題公式：先一句話定義，再講差別與取捨，最後補一個版本或實務註記。</li></ul></div>

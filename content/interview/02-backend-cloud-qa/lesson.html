@@ -3,7 +3,7 @@
 <section>
     <p class="era">雲端架構</p>
     <h3 class="head">部署、高可用、安全與成本</h3>
-    <p class="muted">這課整理自一份面試問題集與它的標準解答；答題公式沿用上一課：先一句話定義，再講差別與取捨。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨。</p>
     <p class="q">面試官：要把系統搬上 AWS，ECS、EKS、Lambda 怎麼選？</p>
     <p><strong>一句話定義：</strong>三者分別是 AWS 代管的容器服務（ECS）、AWS 代管的 Kubernetes 服務（EKS），和無伺服器運算（Lambda——程式由事件觸發才執行，主機完全不用自己管）。</p>
     <div class="tablewrap"><table>
@@ -20,7 +20,7 @@
     <ul class="plainlist">
       <li>入口用負載平衡器跨至少兩個可用區分流，健康檢查要能真的反映服務可不可用。</li>
       <li>應用服務保持無狀態（任何一台都能接手任何請求），搭配 Auto Scaling 自動增減台數；擴縮的依據可以是 CPU、記憶體、請求量、延遲或佇列長度。</li>
-      <li>關聯式資料庫用 RDS Multi-AZ 做自動容錯移轉；注意它是高可用方案，備援那台平常不服務讀取（這裡講的是單台備援的「Multi-AZ 執行個體部署」；另一種「Multi-AZ 叢集部署」有兩台備援、可以接讀取），讀取擴充要另外用讀取副本，備份與還原演練也不能省。</li>
+      <li>關聯式資料庫用 RDS Multi-AZ 做自動容錯移轉；注意它是高可用方案，備援那台平常不服務讀取（這裡講的是單台備援的「Multi-AZ 執行個體部署」；另一種「Multi-AZ 叢集部署」有兩台備援、可以接讀取），讀取擴充要另外用讀取副本，備份與還原演練也不能省。<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank" rel="noopener">出處</a></li>
       <li>快取、訊息系統、NAT 這些依賴元件同樣要消除單點，並驗證連線池撐不撐得過切換瞬間。</li>
     </ul>
     <p class="formula">Auto Scaling 解決容量問題，跨可用區解決故障域問題——目的不同，通常要同時做</p>
@@ -33,11 +33,11 @@
       <li><strong>網路</strong>：公有、私有子網分區，只開必要路徑，內部服務之間的流量也要控管。</li>
       <li><strong>身分</strong>：最小權限、職責分離，高權限帳號強制多因素驗證。</li>
       <li><strong>資料</strong>：傳輸用現行安全版本的 TLS；靜態資料用 KMS（AWS 的金鑰管理服務）或硬體安全模組管金鑰，並規劃金鑰輪替。</li>
-      <li><strong>稽核</strong>：CloudTrail 這類不可竄改的操作紀錄要集中保存，配上告警、調查與演練流程。</li>
+      <li><strong>稽核</strong>：CloudTrail 這類操作紀錄要集中保存並開啟完整性驗證——它保證的是紀錄檔被修改、刪除或偽造時「會被發現」，不是檔案本身動不了<a class="fixsrc" href="https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html" target="_blank" rel="noopener">出處</a>；再配上告警、調查與演練流程。</li>
     </ul>
     <p class="muted">加密不等於合規：資料分類、遮罩、保存期限、資料放在哪個國家、權限定期複核與證據留存，一樣會被追問。</p>
     <p class="q">面試官：如何控制雲端成本？</p>
-    <p>穩定的基礎負載用承諾型折扣：<mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Reserved Instances：1-3年預留實例，節省成本60-75%」，查證後更正">Reserved Instances（預先承諾用 1 或 3 年換折扣），AWS 官方的說法是相對隨需價格「最多可省 72%」——折扣隨服務、區域、年限與付款方式而變，不是固定的 60〜75%</mark><a class="fixsrc" href="https://aws.amazon.com/ec2/pricing/reserved-instances/" target="_blank" rel="noopener">出處</a>。可中斷、可重試的批次工作適合 Spot Instances（競價的閒置容量，便宜但隨時可能被收回）。這兩招都不能取代基本功：照實際用量調整機器規格、自動擴縮、清閒置資源、儲存分層、成本標籤。</p>
+    <p>穩定的基礎負載用承諾型折扣：<mark class="fixnote" tabindex="0" data-note="原筆記此處寫「Reserved Instances：1-3年預留實例，節省成本60-75%」，查證後更正">Reserved Instances（預先承諾用 1 或 3 年換折扣），AWS 官方的說法是相對隨需價格「最多可省 72%」——折扣隨服務、區域、年限與付款方式而變，不是固定的 60〜75%</mark><a class="fixsrc" href="https://aws.amazon.com/ec2/pricing/reserved-instances/" target="_blank" rel="noopener">出處</a>。可中斷、可重試的批次工作適合 Spot Instances（AWS 拿閒置容量出售，不用出價競標、價格由 AWS 決定，最多比隨需價便宜九成<a class="fixsrc" href="https://aws.amazon.com/ec2/spot/" target="_blank" rel="noopener">出處</a>；代價是 AWS 要收回時只提前兩分鐘通知<a class="fixsrc" href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-instance-termination-notices.html" target="_blank" rel="noopener">中斷通知</a>）。這兩招都不能取代基本功：照實際用量調整機器規格、自動擴縮、清閒置資源、儲存分層、成本標籤。</p>
 </section>
 <section>
     <p class="era">微服務</p>
@@ -70,7 +70,7 @@
     <p><strong>一句話定義：</strong>API Gateway 是外部流量進後端的統一大門，共通的政策在門口一次做完。</p>
     <p>適合集中做的：路由、TLS 終結（加密連線在大門解開，後面走內部網路）、身分驗證、粗粒度授權、限流（限制一段時間內接受的請求量，細節見下方）、CORS（瀏覽器的跨網域存取規則）、觀測與版本轉送。業務規則與資料所有權留在各領域服務——把邏輯都塞進 Gateway，它就變成一個難以部署的新單體。</p>
     <p class="q">面試官：JWT、OAuth 2.0 與服務之間的 mTLS 怎麼分工？</p>
-    <p><strong>一句話定義：</strong>OAuth 2.0 定義「怎麼授權」的流程；JWT 是一種把身分與權限聲明簽章後裝進字串的 Token 格式；mTLS 是雙向 TLS——連線雙方都出示憑證互相驗明正身。</p>
+    <p><strong>一句話定義：</strong>OAuth 2.0 定義「怎麼授權」的流程；JWT 是把身分與權限聲明裝進一段字串的 Token 格式，實務上幾乎都會簽章（規格也允許加密、或不簽章的變形）；mTLS 是雙向 TLS——連線雙方都出示憑證互相驗明正身。</p>
     <p>Gateway 驗外部 Token 的簽章、簽發者、受眾與期限；內部服務收到請求仍要照資源重新授權——不能因為進了大門就信任內網的一切。JWT 簽出去就難以即時作廢，所以要用短效存取 Token、受控的更新流程、金鑰輪替與異常使用偵測；Token 放在瀏覽器哪裡，則要同時評估 XSS（把惡意程式碼塞進網頁執行）與 CSRF（誘使瀏覽器帶著使用者身分發出偽造請求）兩種攻擊。</p>
     <p class="q">面試官：Gateway 的限流與高可用怎麼設計？</p>
     <p><strong>一句話定義：</strong>限流是在系統被打爆之前，按身分、租戶或 API 配額限制一段時間內接受的請求量。</p>
