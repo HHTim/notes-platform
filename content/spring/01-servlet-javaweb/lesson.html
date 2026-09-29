@@ -29,7 +29,7 @@
 <p>Tomcat 同時提供 HTTP 連線處理與 Servlet 容器功能。它把收到的 HTTP 文字解析成 <code>HttpServletRequest</code>，再建立 <code>HttpServletResponse</code> 讓程式設定；處理完成後，容器再把回應物件轉回 HTTP 送給瀏覽器。</p>
 <ul class="plainlist"><li><b>通訊支援：</b>處理連線與 HTTP 訊息解析。</li><li><b>生命週期管理：</b>載入、建立、初始化、銷毀 Servlet。</li><li><b>並行處理：</b>讓多個請求可能同時進入同一個 Servlet 實例。</li><li><b>設定與安全管理：</b>依部署設定套用路徑、權限與其他規則。</li><li><b>JSP 支援：</b>把 JSP 轉換並編譯成 Servlet。</li></ul>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫容器的「多執行緒支援: 每一個Servlet都會執行Java的執行緒(Thread)，而Container也負責建立及管理多的執行緒問題，已解決Synchronization(同步)的問題」，查證後更正：容器只負責分配執行緒，執行緒安全仍是應用程式自己的責任，Servlet 規格要求開發者自行處理共享資源的同步">容器只負責分配與管理執行緒，不會替你把同步問題解決掉。規格第 2.3.3.1 節的原話是：容器可能把並行的請求送進同一個 <code>service</code> 方法，「開發者必須為多執行緒的並行處理做好足夠的準備」</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.1/jakarta-servlet-spec-6.1.html" target="_blank" rel="noopener">出處</a>。同一個 Servlet 通常只有一個實例服務所有請求，所以不要把每位使用者的請求資料存進可變的實例欄位，否則兩個請求會互相覆寫。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Web服務器 = Servlet Container = Sevlet Context = Servlet環境」，查證後更正：ServletContext 是規格裡的一個 API 物件，代表一個 Web 應用程式在容器中的執行環境，和「Web 伺服器」「Servlet 容器」不是同義詞">ServletContext 是規格裡的一個具體 API 物件。它的 javadoc 說它「定義了一組方法，讓 Servlet 用來跟它的 Servlet 容器溝通」，而且「每個 Web 應用程式在每個 Java 虛擬機器裡各有一個 context」——它是應用程式用來對容器說話的那個物件，不是容器本身，更不是 Web 伺服器的同義詞</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletcontext" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Web服務器 = Servlet Container = Sevlet Context = Servlet環境」，查證後更正：ServletContext 是規格裡的一個 API 物件，代表一個 Web 應用程式在容器中的執行環境，和「Web 伺服器」「Servlet 容器」不是同義詞">ServletContext 是規格裡的一個具體 API 物件。它的 javadoc 說它「定義了一組方法，讓 Servlet 用來跟它的 Servlet 容器溝通」，而且「每個 Web 應用程式在每個 Java 虛擬機裡各有一個 context」——它是應用程式用來對容器說話的那個物件，不是容器本身，更不是 Web 伺服器的同義詞</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletcontext" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
@@ -77,7 +77,7 @@ public class HelloServlet extends HttpServlet {
 <h3 class="head">JSP、EL 與 JSTL</h3>
 <p>JSP（JavaServer Pages）讓你在以 HTML 為主的頁面裡產生動態內容。它第一次被使用時，容器會把 JSP 轉成 Servlet 原始碼再編譯，所以 JSP 骨子裡還是靠 Servlet 機制執行。</p>
 <p>早期 JSP 可以用腳本元素直接塞 Java 程式碼進去，但那會讓畫面與邏輯糾纏在一起。比較清楚的做法是：Servlet 把資料準備好，JSP 再用 EL（Expression Language，運算式語言）與 JSTL（JSP Standard Tag Library，JSP 標準標籤函式庫）把資料顯示與迭代出來。</p>
-<div class="terms"><div class="term"><b>${brands}</b><span>從範圍物件裡找名稱叫 brands 的資料。</span></div><div class="term"><b>page 範圍</b><span>只在目前這一頁有效。</span></div><div class="term"><b>request 範圍</b><span>只在目前這次請求中有效，適合 Servlet 轉送給 JSP 的資料。</span></div><div class="term"><b>session 範圍</b><span>在同一次會話的多次請求之間有效。</span></div><div class="term"><b>application 範圍</b><span>整個 Web 應用程式共用。</span></div></div>
+<div class="terms"><div class="term"><b>${brands}</b><span>從範圍物件裡找名稱叫 brands 的資料。</span></div><div class="term"><b>page 範圍</b><span>只在目前這一頁有效。</span></div><div class="term"><b>request 範圍</b><span>只在目前這次請求中有效，適合 Servlet 轉送給 JSP 的資料。</span></div><div class="term"><b>session 範圍</b><span>在同一次工作階段的多次請求之間有效。</span></div><div class="term"><b>application 範圍</b><span>整個 Web 應用程式共用。</span></div></div>
 <p class="muted">同名屬性可能同時存在不同範圍。沒有明確指定範圍時，EL 會依序往上找，所以大型專案要避免意義不清的同名資料。</p>
 </section>
 

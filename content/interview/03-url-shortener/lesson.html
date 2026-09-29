@@ -4,7 +4,7 @@
     <p class="era">需求與流量模型</p>
     <h3 class="head">先釐清語意，再估容量</h3>
     <p class="q">面試官：很多使用者同時在轉短網址、點短網址，高併發怎麼處理？</p>
-    <p>短網址是典型的「讀多寫少」：建立短碼（寫）少而要快，導向（讀）量大得多。先別急著畫架構，三個問題每一個都會改變設計，要先問：</p>
+    <p>「高併發」是業界慣用的講法，意思是同一時間湧進大量請求，也就是並行（concurrency，Java 模組第 10 課〈執行緒與並行〉講的那個詞）的壓力很高。短網址是典型的「讀多寫少」：建立短碼（寫）少而要快，導向（讀）量大得多。先別急著畫架構，三個問題每一個都會改變設計，要先問：</p>
     <div class="tablewrap"><table>
       <thead><tr><th>先問</th><th>若「要」</th><th>若「不要」</th></tr></thead>
       <tbody>
@@ -90,7 +90,7 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
     <p class="q">面試官：名單怎麼建、怎麼更新？</p>
     <ul class="plainlist">
       <li><strong>初始建置</strong>：從權威資料掃一輪建好，再原子切換上線。</li>
-      <li><strong>新增資料</strong>：主資料寫成功後，同步或用可靠事件把新短碼加進名單。新短碼還沒進名單前會被誤擋，這個時間差要治理——建碼時同步加入，或在窗口內放行繞過。</li>
+      <li><strong>新增資料</strong>：主資料寫成功後，同步或用可靠事件把新短碼加進名單。新短碼還沒進名單前會被誤擋，這個時間差要治理——建碼時同步加入，或在這段空窗期內先放行。</li>
       <li><strong>刪除與重建</strong>：標準 Bloom Filter 不會刪——直接清位元會誤傷別的元素；短碼大量過期時靠定期重建、按時間分區，或改用支援刪除的變形（Counting Bloom Filter）。</li>
     </ul>
     <p class="muted">查一次要付的成本是幾次雜湊加幾次記憶體讀取。放在自己程序的記憶體裡，是奈秒等級的事；但一放進 Redis 就不同了——Redis 官方文件說伺服器本身的處理時間多在次微秒等級，1 Gbit/s 網路的一趟來回卻約 200 微秒，網路才是大頭。面試講「幾奈秒」時，要先講清楚名單放在哪裡。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></p>
@@ -104,7 +104,7 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
       <tbody>
         <tr><th>令牌桶</th><td>桶裡定速補代幣，有代幣才放行——平均速率有上限，短暫爆量可以吃庫存</td><td>一般 API 與使用者配額</td></tr>
         <tr><th>漏桶</th><td>進來先排隊，出口固定速率往外滴——輸出最平滑</td><td>保護處理能力固定的下游</td></tr>
-        <tr><th>滑動窗口</th><td>精確數「最近這段時間」的請求數——邊界最準，但要記的狀態較多</td><td>需要精確限制的敏感操作</td></tr>
+        <tr><th>滑動視窗</th><td>精確數「最近這段時間」的請求數——邊界最準，但要記的狀態較多</td><td>需要精確限制的敏感操作</td></tr>
       </tbody>
     </table></div>
     <pre><code>海量流量
@@ -113,7 +113,7 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
       通過 → Bloom Filter
                確定不存在 → 404
                可能存在 → 本地快取 → Redis → 資料庫</code></pre>
-    <p>限流維度不要只看 IP——同一個公司或社區共用出口 IP，會誤傷正常使用者；可組合帳號、租戶、API 與風險訊號。回 429 時附上重試提示，客戶端則用「間隔越等越久＋隨機抖動」的重試。</p>
+    <p>限流維度不要只看 IP——同一個公司或社區共用出口 IP，會誤傷正常使用者；可組合帳號、租戶、API 與風險訊號。回 429 時附上重試提示，用戶端則用「間隔越等越久＋隨機抖動」的重試。</p>
     <p class="muted">限流能擋的是應用層的惡意爬蟲與暴增流量——AWS 的防護建議也把「負載平衡器加 WAF（網路應用程式防火牆，在流量進門前過濾攻擊樣式）」列為應用層攻擊的緩解手段之一。但阻斷服務（DDoS）攻擊還有容量型的那一種，流量可達每秒兆位元，那不是後端的限流能吸收的，要靠邊緣網路的容量與流量清洗。面試答「限流防 DDoS」時，要把這兩層分開講。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-best-practices-ddos-resiliency/mitigation-techniques.html" target="_blank" rel="noopener">出處</a></p>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>系統設計題先問語意：自訂短碼、點擊統計、過期到底指什麼，答案會改變架構。</li><li>發號：號段模式把資料庫壓力除以 step，雙 Buffer 把分配延遲藏進背景——但資料庫掛掉只是多撐一陣，不是永遠無感。</li><li>寫入底線：回應成功前映射要耐久存好；要非同步就走交易式 Outbox，不是丟進佇列就回頭。</li><li>讀取：本地快取 → Redis → 資料庫層層擋；快取 TTL 是快取的事，業務到期要在資料庫驗。</li><li>防護兩件套：限流擋超量流量，Bloom Filter 擋「確定不存在」的查詢——它說沒有就沒有，說有要再查。</li></ul></div>

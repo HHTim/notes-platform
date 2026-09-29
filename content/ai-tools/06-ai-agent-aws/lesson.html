@@ -30,9 +30,9 @@ EC2 上的 Dify
 <section>
 <p class="era">身分與授權</p>
 <h3 class="head">使用者身分給人，角色給服務</h3>
-<p>用信箱註冊出來的根帳號（Root user）像公司保險箱的總鑰匙，權限太大，不適合日常操作。日常操作要另外開一個權限受限的使用者身分、開啟多因素驗證，並遵守最小權限原則（只給完成工作所需的權限）。</p>
+<p>用信箱註冊出來的根使用者（Root user）像公司保險箱的總鑰匙，權限太大，不適合日常操作。日常操作要另外開一個權限受限的使用者身分、開啟多重要素驗證（MFA，登入時除了密碼再多驗一樣東西），並遵守最小權限原則（只給完成工作所需的權限）。</p>
 <div class="tablewrap"><table><thead><tr><th>身分</th><th>主要用途</th><th>風險控制</th></tr></thead><tbody>
-<tr><td>根帳號</td><td>少數只有它能做的帳號層級工作</td><td>避免日常使用，登入資訊要保護好</td></tr>
+<tr><td>根使用者</td><td>少數只有它能做的帳號層級工作</td><td>避免日常使用，登入資訊要保護好</td></tr>
 <tr><td>使用者身分（IAM User）</td><td>人員登入與操作</td><td>只給工作需要的權限</td></tr>
 <tr><td>角色（IAM Role）</td><td>讓 EC2 這類服務取得暫時憑證</td><td>不必把長期金鑰寫進程式裡</td></tr>
 </tbody></table></div>
@@ -43,14 +43,14 @@ EC2 上的 Dify
 <section>
 <p class="era">文件倉庫</p>
 <h3 class="head">用 S3 存客服資料</h3>
-<p>Amazon S3 是物件儲存服務（Object Storage，以整個檔案為單位存取，不像硬碟那樣切成區塊）。儲存桶（Bucket）像倉庫，放進去的每個檔案連同它的描述資訊就是一個物件。適合放客服手冊、常見問答、表格資料或流程的暫存檔。</p>
+<p>Amazon S3 是物件儲存服務（Object Storage，以整個檔案為單位存取，不像硬碟那樣切成區塊）。Bucket（儲存貯體）像倉庫，放進去的每個檔案連同它的描述資訊就是一個物件。適合放客服手冊、常見問答、表格資料或流程的暫存檔。</p>
 <ol>
-<li>建一個不會跟別人撞名的儲存桶。</li>
+<li>建一個不會跟別人撞名的 Bucket。</li>
 <li>選一個跟主要工作負載相容的區域。</li>
 <li>維持「封鎖公開存取」，除非需求與風險都評估過了。</li>
-<li>上傳測試文件，記下儲存桶名稱與物件路徑。</li>
+<li>上傳測試文件，記下 Bucket 名稱與物件路徑。</li>
 </ol>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Bucket 名稱：必須全球唯一」，查證後更正">儲存桶名稱要在同一個分區（partition）內唯一，而不是真的全球唯一</mark><a class="fixsrc" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html" target="_blank" rel="noopener">出處</a>——AWS 分成四個分區（一般區域、中國區域、美國政府雲、歐洲主權雲），名稱只在自己那一區共用命名空間。實務上你還是得挑個夠特別的名字。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Bucket 名稱：必須全球唯一」，查證後更正">Bucket 名稱要在同一個分區（partition）內唯一，而不是真的全球唯一</mark><a class="fixsrc" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html" target="_blank" rel="noopener">出處</a>——AWS 分成四個分區（一般區域、中國區域、美國政府雲、歐洲主權雲），名稱只在自己那一區共用命名空間。實務上你還是得挑個夠特別的名字。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「區域：選擇 us-east-2（美國西部，Bedrock 支援較好）」，查證後更正"><code>us-east-2</code> 是美國東部（俄亥俄），不是美國西部</mark><a class="fixsrc" href="https://docs.aws.amazon.com/general/latest/gr/rande.html" target="_blank" rel="noopener">出處</a>。挑區域時以主控台顯示的名稱，以及你要用的模型在哪些區域可用為準。</p>
 <p class="muted">區域代號還有另一個容易出錯的地方，跟上面記錯地理位置是兩回事：同一套系統裡，不同服務各自要填一次區域，很容易填成不同的。例如文件上傳到 <code>us-east-2</code>，後面設定 Dify 連 Bedrock 時卻填了 <code>us-east-1</code>，資料跟模型就不在同一區了。實作時先決定要用哪一區，再逐項確認每個服務填的都是它。</p>
 </section>
@@ -91,9 +91,9 @@ EC2 上的 Dify
 <section>
 <p class="era">權限實驗</p>
 <h3 class="head">用一次失敗跟一次成功證明角色有效</h3>
-<p>這個對照很值得自己跑一次：先在還沒掛角色的 EC2 上執行列出儲存桶的指令，看它授權失敗；再把允許存取 S3 的角色掛上去，重跑同一條指令。</p>
+<p>這個對照很值得自己跑一次：先在還沒掛角色的 EC2 上執行列出 Bucket 的指令，看它授權失敗；再把允許存取 S3 的角色掛上去，重跑同一條指令。</p>
 <pre><code>aws s3 ls</code></pre>
-<p>同一台機器、同一條指令，只因為角色變了就有不同結果——這就證明權限來自角色，不是偷偷寫在主機裡的金鑰。如果還是失敗，依序檢查角色有沒有掛到正確的執行個體、信任關係、權限政策、儲存桶本身的政策、區域，以及組織層級的限制。另外，看得到所有儲存桶不是理想終點；正式環境通常只該看得到指定的那一個。</p>
+<p>同一台機器、同一條指令，只因為角色變了就有不同結果——這就證明權限來自角色，不是偷偷寫在主機裡的金鑰。如果還是失敗，依序檢查角色有沒有掛到正確的執行個體、信任關係、權限政策、Bucket 本身的政策、區域，以及組織層級的限制。另外，看得到所有 Bucket 不是理想終點；正式環境通常只該看得到指定的那一個。</p>
 </section>
 
 <section>
@@ -113,7 +113,7 @@ EC2 上的 Dify
 任務：根據提供的知識內容回答問題。
 限制：找不到依據時明說不確定，不要自己補。
 輸出：先給結論，再列出使用者可以採取的下一步。</code></pre>
-<p>提示寫法還有幾種：不給範例直接下任務、給幾個範例示範格式、引導模型一步一步推理、把任務拆成固定欄位的樣板、以及指定角色再交辦。都是常見做法，可以照任務性質混用。</p>
+<p>提示寫法還有幾種：不給範例直接下任務、給幾個範例示範格式、引導模型一步一步推理、把任務拆成固定欄位的範本、以及指定角色再交辦。都是常見做法，可以照任務性質混用。</p>
 </section>
 
 <section>

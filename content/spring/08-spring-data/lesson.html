@@ -17,7 +17,7 @@ MapSqlParameterSource params = new MapSqlParameterSource()
     .addValue("id", student.id());
 
 int affected = jdbcTemplate.update(sql, params);</code></pre>
-<p>命名參數不是把字串接進 SQL，而是交給模板做參數綁定，所以不會有自己串接輸入值造成的注入風險與格式問題。</p>
+<p>命名參數不是把字串接進 SQL，而是交給範本物件做參數綁定，所以不會有自己串接輸入值造成的注入風險與格式問題。</p>
 </section>
 
 <section>
@@ -85,10 +85,10 @@ List&lt;Student&gt; findActiveAdults(@Param("minAge") int minAge);</code></pre>
 <section>
 <p class="era">同一個容器管理資料基礎設施</p>
 <h3 class="head">DataSource、EntityManagerFactory 與交易</h3>
-<p>走 JDBC 這條路時，Spring 管的是 <code>DataSource</code> 與 JDBC 模板；走 JPA 這條路時，管的是 <code>EntityManagerFactory</code>、Repository 與交易管理器。直接整合 Hibernate 時，也可以由 Spring 建立並注入 <code>SessionFactory</code>，這樣就不必再自己寫一個 <code>HibernateUtil</code>。</p>
+<p>走 JDBC 這條路時，Spring 管的是 <code>DataSource</code> 與 JDBC 範本；走 JPA 這條路時，管的是 <code>EntityManagerFactory</code>、Repository 與交易管理器。直接整合 Hibernate 時，也可以由 Spring 建立並注入 <code>SessionFactory</code>，這樣就不必再自己寫一個 <code>HibernateUtil</code>。</p>
 <p>Web 容器提供的 JNDI DataSource 也可以交給 Spring 查找並註冊成 Bean，服務就不必自己到全域目錄找連線來源，改用注入取得。</p>
-<p class="muted">把 Spring 裝進傳統 JavaWeb 專案時，控制器是 Tomcat 建立的 Servlet，Tomcat 不認得 Spring 的 Bean，控制器只能自己用 DL（Dependency Lookup，依賴查找）的方式去取得 Service 物件。改用 Spring MVC 之後就不必了：<code>@Controller</code> 是 <code>@Component</code> 的特化，會被掃描並註冊成 Spring 管理的 Bean，直接用建構式注入拿 Service 就好。</p>
-<p>資料存取技術與交易管理必須配套。多步驟的寫入流程要由服務層建立清楚的交易邊界，而不是讓每個 Repository 各自送交。</p>
+<p class="muted">把 Spring 裝進傳統 JavaWeb 專案時，控制器是 Tomcat 建立的 Servlet，Tomcat 不認得 Spring 的 Bean，控制器只能自己用 DL（Dependency Lookup，依賴查找）的方式去取得 Service 物件。改用 Spring MVC 之後就不必了：<code>@Controller</code> 是 <code>@Component</code> 的特化，會被掃描並註冊成 Spring 管理的 Bean，直接用建構子注入拿 Service 就好。</p>
+<p>資料存取技術與交易管理必須配套。多步驟的寫入流程要由服務層建立清楚的交易邊界，而不是讓每個 Repository 各自提交。</p>
 <p class="muted">早期的做法是用 <code>web.xml</code> 加 <code>ContextLoaderListener</code> 載入 Spring 組態，那是 Spring Boot 普及之前的常態。現在的專案多半靠自動組態與註解掃描，不會再寫這份部署描述檔。</p>
 </section>
 

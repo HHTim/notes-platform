@@ -56,17 +56,17 @@ public class TimingAspect {
 
 <section>
 <p class="era">交易是一組不能拆散的操作</p>
-<h3 class="head">送交、回復與 ACID</h3>
-<p>交易（transaction）把多個資料庫操作當成一個工作單位。轉帳要先扣款再入帳：兩步都成功才送交（commit），中途失敗就回復（rollback），避免只做一半。</p>
-<div class="tablewrap"><table><thead><tr><th>ACID 特性</th><th>意義</th></tr></thead><tbody><tr><td>原子性（Atomicity）</td><td>整組操作全部完成，否則全部不算。</td></tr><tr><td>一致性（Consistency）</td><td>交易前後都符合資料規則。</td></tr><tr><td>隔離性（Isolation）</td><td>並行交易之間互相影響的程度受控制。</td></tr><tr><td>持久性（Durability）</td><td>送交之後的結果能持續保存。</td></tr></tbody></table></div>
-<p>隔離層級用來在一致性與並行效能之間取捨。層級放得越寬，下面這三種「讀到怪東西」的情況就越可能發生：</p>
-<div class="terms"><div class="term"><b>髒讀（dirty read）</b><span>讀到另一筆交易改了、但還沒送交的資料。那筆交易如果後來回復，你讀到的就是一個從來沒存在過的值。</span></div><div class="term"><b>不可重複讀（non-repeatable read）</b><span>同一筆交易裡對同一列讀兩次，結果不一樣——中間被另一筆交易改掉並送交了。</span></div><div class="term"><b>幻讀（phantom read）</b><span>同一個查詢條件跑兩次，第二次多出或少掉幾列——中間有人新增或刪除了符合條件的資料。</span></div></div>
+<h3 class="head">提交、還原與 ACID</h3>
+<p>交易（transaction）把多個資料庫操作當成一個工作單位。轉帳要先扣款再入帳：兩步都成功才提交（commit），中途失敗就還原（rollback），避免只做一半。</p>
+<div class="tablewrap"><table><thead><tr><th>ACID 特性</th><th>意義</th></tr></thead><tbody><tr><td>原子性（Atomicity）</td><td>整組操作全部完成，否則全部不算。</td></tr><tr><td>一致性（Consistency）</td><td>交易前後都符合資料規則。</td></tr><tr><td>隔離性（Isolation）</td><td>並行交易之間互相影響的程度受控制。</td></tr><tr><td>持久性（Durability）</td><td>提交之後的結果能持續保存。</td></tr></tbody></table></div>
+<p>隔離等級用來在一致性與並行效能之間取捨。層級放得越寬，下面這三種「讀到怪東西」的情況就越可能發生：</p>
+<div class="terms"><div class="term"><b>髒讀（dirty read）</b><span>讀到另一筆交易改了、但還沒提交的資料。那筆交易如果後來還原，你讀到的就是一個從來沒存在過的值。</span></div><div class="term"><b>不可重複讀（non-repeatable read）</b><span>同一筆交易裡對同一列讀兩次，結果不一樣——中間被另一筆交易改掉並提交了。</span></div><div class="term"><b>幻讀（phantom read）</b><span>同一個查詢條件跑兩次，第二次多出或少掉幾列——中間有人新增或刪除了符合條件的資料。</span></div></div>
 </section>
 
 <section>
 <p class="era">交給 Spring 管理交易邊界</p>
 <h3 class="head">用 @Transactional 宣告交易</h3>
-<p>程式化交易是在程式碼裡手動開始、送交與回復；宣告式交易則是描述哪些方法需要交易，再由 Spring 透過 AOP 與交易管理器處理。</p>
+<p>程式化交易是在程式碼裡手動開始、提交與還原；宣告式交易則是描述哪些方法需要交易，再由 Spring 透過 AOP 與交易管理器處理。</p>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫程式化交易是「較舊的使用方式,現今Spring已不使用」，查證後更正：程式化交易到現在仍是 Spring 官方正式支援的做法，官方文件為它保留專章，並提供 TransactionTemplate 與反應式的 TransactionalOperator；只是一般服務在多數情境下會先選宣告式交易">程式化交易到現在仍是官方正式支援的做法。文件的原話是「Spring Framework 提供兩種程式化交易管理的方式」，並且「團隊一般建議命令式流程用 <code>TransactionTemplate</code>、反應式程式碼用 <code>TransactionalOperator</code>」。它不是被淘汰，只是一般服務在多數情境下會先選宣告式交易</mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/programmatic.html" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>@Service
 public class TransferService {
@@ -77,7 +77,7 @@ public class TransferService {
     }
 }</code></pre>
 <p><code>@Transactional</code> 可以放在類別或方法上。交易邊界通常放在服務層，因為一件商業操作往往要協調好幾個 DAO。如果只在各個 DAO 方法上各開一個交易，整件商業操作就被切成好幾段，失去「一起成功或一起失敗」的意義。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「發生例外、邏輯不合理 => Rollback」，等於說任何例外都回復；查證後更正：Spring 的宣告式交易預設只對 RuntimeException 與 Error 回復，受檢例外（checked exception）預設不回復，照原筆記的假設去寫會漏回復，要回復得自己設定 rollbackFor">官方文件列 <code>@Transactional</code> 的預設值時寫得很直接：「任何 <code>RuntimeException</code> 或 <code>Error</code> 會觸發回復，任何受檢的 <code>Exception</code> 則不會。」要讓受檢例外也回復，得自己設 <code>rollbackFor</code></mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a>。所以不要只憑「有丟例外」就假設一定回復。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「發生例外、邏輯不合理 => Rollback」，等於說任何例外都還原；查證後更正：Spring 的宣告式交易預設只對 RuntimeException 與 Error 還原，受檢例外（checked exception）預設不還原，照原筆記的假設去寫會漏還原，要還原得自己設定 rollbackFor">官方文件列 <code>@Transactional</code> 的預設值時寫得很直接：「任何 <code>RuntimeException</code> 或 <code>Error</code> 會觸發還原，任何受檢的 <code>Exception</code> 則不會。」要讓受檢例外也還原，得自己設 <code>rollbackFor</code></mark><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a>。所以不要只憑「有丟例外」就假設一定還原。</p>
 </section>
 
 <section>
@@ -88,4 +88,4 @@ public class TransferService {
 <p>答案通常是協調「建單加扣庫存」的那個服務方法，因為只有它掌握完整的商業工作單位。</p>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>AOP 把日誌、計時、交易這類橫切關注點集中管理。</li><li>切入點決定套用位置，通知決定執行時機，代理負責攔截呼叫。</li><li>Spring AOP 有 JDK 動態代理與 CGLIB 兩種，Spring Boot 預設走 CGLIB。</li><li><code>@Around</code> 必須呼叫 <code>proceed()</code>，並處理好回傳值與例外。</li><li>宣告式交易預設只對執行期例外回復，受檢例外要自己設 <code>rollbackFor</code>。</li><li>交易邊界放在能涵蓋完整商業操作的服務層，並要留意自我呼叫會繞過代理。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>AOP 把日誌、計時、交易這類橫切關注點集中管理。</li><li>切入點決定套用位置，通知決定執行時機，代理負責攔截呼叫。</li><li>Spring AOP 有 JDK 動態代理與 CGLIB 兩種，Spring Boot 預設走 CGLIB。</li><li><code>@Around</code> 必須呼叫 <code>proceed()</code>，並處理好回傳值與例外。</li><li>宣告式交易預設只對執行期例外還原，受檢例外要自己設 <code>rollbackFor</code>。</li><li>交易邊界放在能涵蓋完整商業操作的服務層，並要留意自我呼叫會繞過代理。</li></ul></div>

@@ -34,14 +34,14 @@ try (Session session = sessionFactory.openSession()) {
         throw ex;
     }
 }</code></pre>
-<p class="muted"><code>openSession()</code> 每次都建立新的 Session；<code>getCurrentSession()</code> 則看目前的綁定設定，例如綁在執行緒上，或交給框架管理的交易。用 Hibernate 內建的連線供應者時，它預設會把 JDBC 連線的自動送交關掉；連線改由 DataSource（連線池或 JNDI）提供時 Hibernate 不動這個設定。不論哪一種，新增、刪除、修改都要在交易裡完成<a class="fixsrc" href="https://docs.hibernate.org/orm/6.6/javadocs/org/hibernate/cfg/JdbcSettings.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted"><code>openSession()</code> 每次都建立新的 Session；<code>getCurrentSession()</code> 則看目前的綁定設定，例如綁在執行緒上，或交給框架管理的交易。用 Hibernate 內建的連線供應者時，它預設會把 JDBC 連線的自動提交關掉；連線改由 DataSource（連線池或 JNDI）提供時 Hibernate 不動這個設定。不論哪一種，新增、刪除、修改都要在交易裡完成<a class="fixsrc" href="https://docs.hibernate.org/orm/6.6/javadocs/org/hibernate/cfg/JdbcSettings.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
 <p class="era">物件的四種狀態</p>
 <h3 class="head">實體生命週期</h3>
-<p>Hibernate 不只是幫你送 SQL，它還會追蹤一個物件現在是不是由 Session 管理中。可以把 Session 想成代管櫃台：物件交給櫃台之後，屬性一改動，送交交易時才可能同步回資料庫。</p>
-<div class="tablewrap"><table><thead><tr><th>狀態</th><th>意思</th><th>常見的轉換方式</th></tr></thead><tbody><tr><td>臨時（Transient）</td><td>剛用 <code>new</code> 建出來，還沒被 Session 管理。</td><td><code>new Member()</code></td></tr><tr><td>永續（Persistent）</td><td>正被 Session 追蹤，送交交易時會做髒資料檢查。</td><td><code>persist()</code>、依識別值載入</td></tr><tr><td>分離（Detached）</td><td>曾經被管理，但已離開原本的 Session。</td><td><code>detach()</code>、<code>clear()</code>、關閉 Session</td></tr><tr><td>移除（Removed）</td><td>已標記要刪除，通常在送交或 flush 時反映到資料庫。</td><td><code>remove()</code></td></tr></tbody></table></div>
+<p>Hibernate 不只是幫你送 SQL，它還會追蹤一個物件現在是不是由 Session 管理中。可以把 Session 想成代管櫃台：物件交給櫃台之後，屬性一改動，提交交易時才可能同步回資料庫。</p>
+<div class="tablewrap"><table><thead><tr><th>狀態</th><th>意思</th><th>常見的轉換方式</th></tr></thead><tbody><tr><td>臨時（Transient）</td><td>剛用 <code>new</code> 建出來，還沒被 Session 管理。</td><td><code>new Member()</code></td></tr><tr><td>永續（Persistent）</td><td>正被 Session 追蹤，提交交易時會做髒資料檢查。</td><td><code>persist()</code>、依識別值載入</td></tr><tr><td>分離（Detached）</td><td>曾經被管理，但已離開原本的 Session。</td><td><code>detach()</code>、<code>clear()</code>、關閉 Session</td></tr><tr><td>移除（Removed）</td><td>已標記要刪除，通常在提交或 flush 時反映到資料庫。</td><td><code>remove()</code></td></tr></tbody></table></div>
 <p>物件有識別值，不代表它現在一定是永續狀態。Session 關掉之後，物件仍然留著主鍵值，但已經變成分離物件。</p>
 <p><code>flush()</code> 是把記憶體裡排好的變更同步成 SQL；<code>commit()</code> 是把交易完成掉。兩件事相關，但不是同一件。</p>
 </section>
@@ -109,8 +109,8 @@ found.setUsername("mei.lin");
 
 // 刪除
 session.remove(found);</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記把 save()、delete()、saveOrUpdate() 標成「已廢棄」，那是 Hibernate 6 的狀態；Hibernate 7.0 已經把 Session#save、Session#update、Session#saveOrUpdate、Session#delete 整批移除，改用 persist()、merge()、remove()，舊呼叫在 Hibernate 7 連編譯都過不了">把 <code>save()</code>、<code>delete()</code>、<code>saveOrUpdate()</code> 當成「已廢棄但還能用」，是 Hibernate 6 的狀態。Hibernate 7 的遷移指南寫的是「<code>Session#save</code>、<code>Session#update</code>、<code>Session#saveOrUpdate</code> 的所有形式都已移除」，以及「<code>Session#delete</code> 已移除，改用 <code>Session#remove</code>」。新增、併回、刪除現在用 <code>persist()</code>、<code>merge()</code>、<code>remove()</code>，舊寫法在 Hibernate 7 連編譯都不會過</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
-<p>依主鍵查詢用 JPA 標準的 <code>find()</code>。Hibernate 自己的 <code>get()</code> 在 7.0 標成淘汰，同一份遷移指南寫「<code>Session#get</code> 方法已標成淘汰，改用 JPA 標準的 <code>Session#find</code>」<a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="這是版本差異不是原筆記寫錯：原筆記把 save()、delete()、saveOrUpdate() 標成「已廢棄」，那是 Hibernate 6 的狀態；Hibernate 7.0 已經把 Session#save、Session#update、Session#saveOrUpdate、Session#delete 整批移除，改用 persist()、merge()、remove()，舊呼叫在 Hibernate 7 連編譯都過不了">把 <code>save()</code>、<code>delete()</code>、<code>saveOrUpdate()</code> 當成「已棄用但還能用」，是 Hibernate 6 的狀態。Hibernate 7 的遷移指南寫的是「<code>Session#save</code>、<code>Session#update</code>、<code>Session#saveOrUpdate</code> 的所有形式都已移除」，以及「<code>Session#delete</code> 已移除，改用 <code>Session#remove</code>」。新增、併回、刪除現在用 <code>persist()</code>、<code>merge()</code>、<code>remove()</code>，舊寫法在 Hibernate 7 連編譯都不會過</mark><a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
+<p>依主鍵查詢用 JPA 標準的 <code>find()</code>。Hibernate 自己的 <code>get()</code> 在 7.0 標成棄用（deprecated），同一份遷移指南寫「<code>Session#get</code> 方法已標成棄用，改用 JPA 標準的 <code>Session#find</code>」<a class="fixsrc" href="https://docs.hibernate.org/orm/7.0/migration-guide/" target="_blank" rel="noopener">出處</a>。</p>
 <p>物件已經是分離狀態時，用 <code>merge()</code> 把資料併回目前 Session 管理的實體。要注意：之後要繼續操作的是 <code>merge()</code> 回傳的那個物件，不是你傳進去的舊物件。</p>
 <pre><code>Member managed = session.merge(detachedMember);
 managed.setUsername("new-name");</code></pre>
