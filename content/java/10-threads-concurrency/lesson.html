@@ -31,7 +31,7 @@
 <section>
 <p class="era">start() 才會真的開新執行緒</p>
 <h3 class="head">在 Java 建立與管理工作</h3>
-<p>兩種做法：繼承 <code>Thread</code>，或把工作寫成 <code>Runnable</code>。因為 Java 類別只能單一繼承，繼承 <code>Thread</code> 會把繼承的名額用掉，所以建議把「工作」跟「執行機制」分開，用 <code>Runnable</code>。</p>
+<p>兩種做法：繼承 <code>Thread</code>，或把工作寫成 <code>Runnable</code>。官方教學的說法是 <code>Runnable</code> 這個寫法比較通用，因為寫工作的那個類別還能去繼承別的類別；繼承 <code>Thread</code> 的寫法在簡單的程式裡比較好寫，代價是它必須是 <code>Thread</code> 的子類別——Java 類別只能單一繼承，繼承的名額就這麼一個<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/runthread.html" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>Runnable task = () -&gt; {
     System.out.println(Thread.currentThread().getName());
 };
@@ -43,7 +43,7 @@ worker.start();</code></pre>
 <pre><code>worker.start();
 worker.join();   // 等 worker 跑完再往下</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「join(long milliseconds) -> 等到時間倒數完，其他執行緒就會強制加入」，查證後更正：join(毫秒) 是最多等這麼久，時間到就不等了，不是強制介入對方"><code>join(毫秒)</code> 的意思是「<strong>最多</strong>等這麼久」——對方提早結束就提早往下走，時間到了對方還沒完就不等了。它不會去強制中斷或介入對方執行緒</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#join(long)" target="_blank" rel="noopener">出處</a>。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把 yield() 列在「禮讓的執行緒(Polite Thread)」底下，寫「用`yield()`方法改進自願移出執行(Running)狀態至預備(Ready)狀態」，講得像一定會生效，查證後更正：官方文件明寫 yield() 只是給排程器的提示，排程器可以直接忽略"><code>yield()</code> 官方文件的原話是「給排程器的一個提示，表示目前這條執行緒願意讓出處理器」，而且明講<strong>排程器可以忽略這個提示</strong>，還補了一句「很少有適合使用這個方法的場合」</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a>。</p>
+<p><code>yield()</code> 官方文件的原話是「給排程器的一個提示，表示目前這條執行緒願意讓出處理器」，而且明講<strong>排程器可以忽略這個提示</strong>，還補了一句「很少有適合使用這個方法的場合」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a>。</p>
 <p class="muted">優先權（1 到 10，預設 5）的通說是「優先權較高者先執行，優先權相等時 CPU 任選其一」。但實際排到誰跑，取決於作業系統的排程器，不同平台差很多——<strong>不要拿優先權來保證程式的正確性</strong>。一句話總結：<strong>多執行緒難以預測、順序無法完全保證、切換可能發生在任何時刻</strong>。</p>
 <p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條（設定鍵是 <code>server.tomcat.threads.max</code>），每個進來的請求分一條<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.tomcat.threads.max" target="_blank" rel="noopener">出處</a>。</p>
 </section>
@@ -121,7 +121,7 @@ int result = count.incrementAndGet();</code></pre>
 執行緒 A：compareAndSet(5, 6) → 成功
 執行緒 B：compareAndSet(5, 6) → 失敗（已經是 6 了）
 執行緒 B：重新讀到 6，再試 compareAndSet(6, 7) → 成功</code></pre>
-<p>跟鎖比起來，CAS 不阻塞——失敗的人立刻重試，不會被掛起來等。這是它在很多執行緒並行存取時可能比鎖快的原因。但它有兩個代價：</p>
+<p>跟鎖比起來，CAS 不阻塞——失敗的人立刻重試，不會被掛起來等。競爭不激烈的時候，這通常比鎖便宜；競爭一激烈，反覆失敗重試反而在燒 CPU。它有兩個代價：</p>
 <ul class="plainlist">
 <li><strong>ABA 問題</strong>：值從 A 變成 B 又變回 A，單看值看不出中間發生過事，CAS 會誤以為沒人動過。</li>
 <li><strong>CPU 開銷</strong>：競爭很激烈時，大量的失敗重試也是在燒 CPU。</li>
