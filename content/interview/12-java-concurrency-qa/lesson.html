@@ -1,0 +1,188 @@
+<!-- 來源：依 Java SE 25 API 文件（java.lang.Thread、java.util.concurrent 及其子套件）、Java 語言規格第 8 與 17 章、JEP 444 與 JEP 491、Oracle 並行教學與疑難排解指南、OpenJDK 原始碼新寫 · 收錄日期：2026-09-30 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>答出平台執行緒與虛擬執行緒的差別、<code>Thread.State</code> 六種狀態各怎麼進去</li><li>背出 <code>ThreadPoolExecutor</code> 七個參數與「核心、佇列、最大、拒絕」的順序，講清楚 <code>Executors</code> 工廠方法的預設值會出什麼事</li><li>用官方原句比較 <code>synchronized</code> 與 <code>ReentrantLock</code>，說出 <code>volatile</code> 靠 happens-before 保證什麼</li><li>說明 <code>ConcurrentHashMap</code> 為什麼讀不加鎖、三個同步輔助類別各解決什麼、<code>CompletableFuture</code> 怎麼組合、死結怎麼用 <code>jcmd</code> 抓</li></ul></div>
+<section>
+    <p class="era">執行緒本身</p>
+    <h3 class="head">從作業系統執行緒到虛擬執行緒，以及六種狀態</h3>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。課文以 Java 25（撰寫時的長期支援版）為準，Java 21 答案不同的地方會標出來。基礎都在 Java 模組第 10 課〈執行緒與並行〉，本課只寫面試追問的那一層：參數、原理、選型、排查。</p>
+    <p class="q">面試官：行程與執行緒差在哪？Java 執行緒跟作業系統執行緒是什麼關係？虛擬執行緒改變了什麼？</p>
+    <p><strong>一句話定義：</strong>基礎見第 10 課。官方教學：行程「每個都有自己的記憶體空間」，執行緒「存在於行程之內……共用行程的資源，包括記憶體與開啟的檔案」（Threads share the process's resources, including memory and open files）。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/procthread.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>跟作業系統執行緒的關係：</strong><code>Thread</code> 文件分兩種。平台執行緒（platform thread）「通常與作業系統排程的核心執行緒一對一對應」（typically mapped 1:1 to kernel threads），「可能是有限的資源」。虛擬執行緒（virtual thread）「由 Java 執行時、而非作業系統排程」，「一個 JVM 可以支撐數百萬條」，「適合大部分時間在等 I/O 的工作，不適合 CPU 密集運算」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Thread.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>虛擬執行緒改變了什麼：</strong>JEP 444（Java 21 正式）叫它 M:N 排程：「大量（M）虛擬執行緒被排到少量（N）作業系統執行緒上」，被排上去的平台執行緒叫載體（carrier）。三句一定要答的原文：「虛擬執行緒不是更快的執行緒……提供的是規模（更高吞吐量），不是速度（更低延遲）」（Virtual threads are not faster threads... They exist to provide scale, not speed）；「不要池化虛擬執行緒」（Do not pool virtual threads）；要限制並行數「改用專門為此設計的結構，例如 semaphore」。<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>版本註記（21 與 25 答案不同）：</strong>釘住（pinning）指虛擬執行緒阻塞時卸不下載體。JEP 444 寫 Java 21 在「<code>synchronized</code> 區塊或方法內」阻塞會釘住。<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a> JEP 491（Java 24 交付）改了 JVM：「阻塞等待監視器會卸載虛擬執行緒並把載體還給排程器」，之後「可以純粹依哪個最能解決問題來選 <code>synchronized</code> 或 <code>java.util.concurrent.locks</code>」。<a class="fixsrc" href="https://openjdk.org/jeps/491" target="_blank" rel="noopener">出處</a> Java 25 的指南只剩「執行原生方法或外部函式時會被釘住」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/core/virtual-threads.html" target="_blank" rel="noopener">出處</a></p>
+    <p class="formula">虛擬執行緒換的是吞吐不是速度；不池化、用 Semaphore 限量；Java 24 起 synchronized 不再釘住載體</p>
+    <p class="q">面試官：執行緒有哪幾種狀態？</p>
+    <p><strong>一句話定義：</strong><code>Thread.State</code> 列舉六個，「一條執行緒在任一時間點只在一個狀態」，且「這些是虛擬機的狀態，不反映任何作業系統執行緒的狀態」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Thread.State.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>狀態</th><th>官方定義（節譯）</th><th>怎麼進去</th></tr></thead>
+      <tbody>
+        <tr><th><code>NEW</code></th><td>「尚未啟動」</td><td><code>start()</code> 之前</td></tr>
+        <tr><th><code>RUNNABLE</code></th><td>「正在 JVM 中執行，但可能在等作業系統的資源，例如處理器」</td><td>沒有 RUNNING 狀態，排到 CPU 與否不區分</td></tr>
+        <tr><th><code>BLOCKED</code></th><td>「等監視器鎖，以進入 <code>synchronized</code> 區塊／方法，或在 <code>Object.wait</code> 後重新進入」</td><td>只有 <code>synchronized</code></td></tr>
+        <tr><th><code>WAITING</code></th><td>「無逾時的 <code>Object.wait</code>、無逾時的 <code>Thread.join</code>、<code>LockSupport.park</code>」</td><td>等 <code>ReentrantLock</code>、<code>take()</code> 這類工具，底層都是 <code>park</code></td></tr>
+        <tr><th><code>TIMED_WAITING</code></th><td>「帶正數等待時間的 <code>Thread.sleep</code>、有逾時的 <code>wait</code>／<code>join</code>、<code>parkNanos</code>、<code>parkUntil</code>」</td><td><code>sleep</code>、<code>tryLock(1, SECONDS)</code></td></tr>
+        <tr><th><code>TERMINATED</code></th><td>「已完成執行」</td><td><code>run()</code> 返回或丟例外</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>差別與取捨：</strong>追問「等 <code>ReentrantLock</code> 是哪個狀態」答 <code>WAITING</code>，不是 <code>BLOCKED</code>：它靠 <code>LockSupport.park</code>，<code>BLOCKED</code> 只留給監視器鎖。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Thread.State.html" target="_blank" rel="noopener">出處</a></p>
+</section>
+<section>
+    <p class="era">執行緒池</p>
+    <h3 class="head">七個參數、一條處理順序、四種拒絕、多大才夠</h3>
+    <p class="q">面試官：ThreadPoolExecutor 的參數有哪些？任務進來怎麼處理？</p>
+    <p><strong>一句話定義：</strong>建構子七個參數：<code>corePoolSize</code>「保留在池中的執行緒數，即使閒置」；<code>maximumPoolSize</code>「允許的最大執行緒數」；<code>keepAliveTime</code>「超過核心數的閒置執行緒最多等這麼久就結束」；<code>unit</code> 是它的單位；<code>workQueue</code>「任務執行前存放的佇列」；<code>threadFactory</code> 建執行緒；<code>handler</code> 是「執行緒與佇列都到頂時」的拒絕處理器。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>處理順序（文件原句三條）：</strong>「少於 <code>corePoolSize</code> 時，永遠偏好新開執行緒而非排隊」，「即使其他執行緒閒置」也照開；「已達 <code>corePoolSize</code> 時，永遠偏好排隊而非新開執行緒」；「排不進佇列才新開執行緒，除非會超過 <code>maximumPoolSize</code>，這時任務被拒絕」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 答成「先加到最大再排隊」是反的。</p>
+    <p class="formula">核心沒滿就開執行緒，核心滿了先排隊，佇列滿了才加到最大，最大也滿了才拒絕</p>
+    <p>批次對帳的池可以這樣建：</p>
+    <pre><code>int cores = Runtime.getRuntime().availableProcessors();
+ThreadFactory factory = Thread.ofPlatform().name("reconcile-", 0).factory();
+ExecutorService pool = new ThreadPoolExecutor(
+        cores,                                  // corePoolSize：常駐執行緒數
+        cores * 2,                              // maximumPoolSize：佇列滿了最多加到這麼多
+        60, TimeUnit.SECONDS,                   // keepAliveTime 與 unit：多出來的閒置執行緒活多久
+        new ArrayBlockingQueue&lt;&gt;(1_000),        // workQueue：有界佇列，滿了才會加執行緒
+        factory,                                // threadFactory：執行緒命名，thread dump 才認得出來
+        new ThreadPoolExecutor.CallerRunsPolicy()); // handler：塞不進去就由提交端自己跑</code></pre>
+    <p><strong>實務註記（佇列決定一切）：</strong>文件列三種佇列策略：直接交遞（<code>SynchronousQueue</code>）「通常需要無上限的 <code>maximumPoolSize</code>」，執行緒可能無上限成長；無界佇列（沒給容量的 <code>LinkedBlockingQueue</code>）「永遠不會建立超過 <code>corePoolSize</code> 的執行緒，<code>maximumPoolSize</code> 因此沒有作用」，佇列可能無上限成長；有界佇列（<code>ArrayBlockingQueue</code>）「有助於避免資源耗盡，但較難調校」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
+    <p class="q">面試官：四種拒絕策略？為什麼常聽到「不要用 Executors 的工廠方法」？</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>策略</th><th>官方描述（節譯）</th><th>什麼時候選</th></tr></thead>
+      <tbody>
+        <tr><th><code>AbortPolicy</code>（預設）</th><td>「丟出 <code>RejectedExecutionException</code>」</td><td>寧可失敗也不能默默丟，例如轉帳</td></tr>
+        <tr><th><code>CallerRunsPolicy</code></th><td>「呼叫 <code>execute</code> 的執行緒自己執行該任務」，「簡單的回饋控制機制，會減慢新任務提交的速度」</td><td>批次工作：提交端被拖慢就是自動減速</td></tr>
+        <tr><th><code>DiscardPolicy</code></th><td>「直接丟掉」，「只給極少數從不依賴任務完成的情況」</td><td>可丟的統計、心跳</td></tr>
+        <tr><th><code>DiscardOldestPolicy</code></th><td>「丟掉佇列最前面的任務再重試」，文件自評「很少能接受」</td><td>幾乎不選</td></tr>
+      </tbody>
+    </table></div>
+    <p>引文出自同一份文件。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>工廠方法怎麼答才準：</strong><code>ThreadPoolExecutor</code> 文件自己寫「鼓勵程式設計師使用更方便的 <code>Executors</code> 工廠方法」（programmers are urged to use the more convenient Executors factory methods）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a>，所以答「知道預設值再用」。文件寫的預設值：<code>newFixedThreadPool</code> 與 <code>newSingleThreadExecutor</code>「操作一個無界佇列」；<code>newCachedThreadPool</code>「視需要建立新執行緒」，「六十秒沒用到的會被終止」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html" target="_blank" rel="noopener">出處</a> OpenJDK 原始碼更具體：fixed 是 <code>new LinkedBlockingQueue&lt;&gt;()</code>（容量 <code>Integer.MAX_VALUE</code>）；cached 是 <code>maximumPoolSize = Integer.MAX_VALUE</code> 配 <code>SynchronousQueue</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/Executors.java" target="_blank" rel="noopener">出處</a> 結論：fixed 與 single 在任務湧入時佇列吃光堆（<code>Java heap space</code>）；cached 是執行緒無上限（<code>unable to create native thread</code>），兩種錯見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。對帳池用有界佇列加 <code>CallerRunsPolicy</code>，兩個洞一起堵。</p>
+    <p class="q">面試官：執行緒池要開多大？</p>
+    <p><strong>一句話定義：</strong>沒有官方公式，只有通則：CPU 密集約等於核心數，I/O 密集可以多很多。核心數用 <code>Runtime.availableProcessors()</code>「回傳 JVM 可用的處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Runtime.html" target="_blank" rel="noopener">出處</a>；容器裡它看到的是容器配額。</p>
+    <p><strong>差別與取捨：</strong>文件講白了：「若任務常阻塞（例如 I/O 密集），系統可能有辦法排程比你允許的更多執行緒」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 面試常聽到的估算式「執行緒數約等於核心數乘上（1 加 等待時間除以計算時間）」出自並行程式設計教材，不是官方文件，只是起點，要靠壓測與監控修正。</p>
+    <p><strong>版本註記：</strong>Java 21 起 I/O 密集的另一個答案是不估：<code>Executors.newVirtualThreadPerTaskExecutor()</code>「為每個任務啟動一條新的虛擬執行緒，建立的執行緒數無上限」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html" target="_blank" rel="noopener">出處</a>，要限的是下游承受量，用 <code>Semaphore</code>。</p>
+</section>
+<section>
+    <p class="era">鎖與記憶體模型</p>
+    <h3 class="head">synchronized、ReentrantLock、volatile 與 CAS</h3>
+    <p class="q">面試官：synchronized 與 ReentrantLock 差在哪？什麼是公平鎖、可中斷、條件變數？</p>
+    <p><strong>一句話定義：</strong>基礎見第 10 課。<code>ReentrantLock</code> 文件第一句：「與 <code>synchronized</code> 所用的隱含監視器鎖有相同的基本行為與語意，但有擴充能力」（same basic behavior and semantics as the implicit monitor lock... but with extended capabilities）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/locks/ReentrantLock.html" target="_blank" rel="noopener">出處</a> <code>Lock</code> 介面說擴充能力是「更靈活的結構」與「多個關聯的 <code>Condition</code> 物件」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/locks/Lock.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th><code>synchronized</code></th><th><code>ReentrantLock</code></th></tr></thead>
+      <tbody>
+        <tr><th>取鎖與解鎖</th><td>進出區塊自動</td><td>手動；文件建議「<code>lock</code> 後立刻接 <code>try</code>，<code>unlock</code> 當 <code>finally</code> 第一句」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/locks/ReentrantLock.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>限時、可中斷</th><td>沒有，拿不到就一直等</td><td><code>tryLock(時間)</code>、<code>lockInterruptibly()</code>（等鎖時可被 <code>interrupt()</code> 叫醒）</td></tr>
+        <tr><th>公平鎖</th><td>沒有</td><td><code>new ReentrantLock(true)</code>「競爭時偏好等最久的執行緒」；代價「吞吐量較低（常常慢很多）」，換到「保證不會飢餓」；「<code>tryLock()</code> 不遵守公平設定」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/locks/ReentrantLock.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>條件變數</th><td>一個物件一組 <code>wait</code>／<code>notify</code></td><td><code>Condition</code>「把 <code>wait</code>、<code>notify</code> 拆成獨立物件，達到一個物件多個等待集合的效果」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/locks/Condition.html" target="_blank" rel="noopener">出處</a>，例如「非滿」與「非空」分開等</td></tr>
+        <tr><th>dump 狀態</th><td><code>BLOCKED</code></td><td><code>WAITING</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>兩者都可重入。轉帳要同時鎖兩個帳戶：<code>tryLock</code> 帶逾時加固定取鎖順序，一次破壞死結兩個條件：</p>
+    <pre><code>static boolean transfer(Account from, Account to, long amount) throws InterruptedException {
+    Account first = from.id &lt; to.id ? from : to;   // 一律照帳號大小拿鎖：破壞循環等待
+    Account second = (first == from) ? to : from;
+    if (!first.lock.tryLock(1, TimeUnit.SECONDS)) return false;   // 等不到就放棄，不是死等
+    try {
+        if (!second.lock.tryLock(1, TimeUnit.SECONDS)) return false;
+        try {
+            if (from.balance &lt; amount) return false;
+            from.balance -= amount;
+            to.balance += amount;
+            return true;
+        } finally {
+            second.lock.unlock();   // 解鎖一定放 finally
+        }
+    } finally {
+        first.lock.unlock();
+    }
+}</code></pre>
+    <p><strong>選型：</strong>先用 <code>synchronized</code>：寫法短、忘不了解鎖；要限時、可中斷、公平或多個條件才換 <code>ReentrantLock</code>。</p>
+    <p class="q">面試官：volatile 保證什麼、不保證什麼？happens-before 是什麼？</p>
+    <p><strong>一句話定義：</strong>JLS 8.3.1.4：「欄位可宣告為 <code>volatile</code>，此時 Java 記憶體模型確保所有執行緒看到該變數一致的值」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-8.html#jls-8.3.1.4" target="_blank" rel="noopener">出處</a> 「一致」怎麼定義就是 happens-before（先行發生）：JLS 17.4.5「若一個動作 happens-before 另一個，則第一個對第二個可見、且排在它之前」（the first is visible to and ordered before the second）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.4.5" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>規則（JLS 17.4.5 列出的推論）：</strong>「對 <code>volatile</code> 欄位的寫入 happens-before 之後每一次對該欄位的讀取」；「監視器的解鎖 happens-before 之後每一次對同一監視器的上鎖」；<code>start()</code> 與 <code>join()</code> 也各建立一條。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.4.5" target="_blank" rel="noopener">出處</a> 因為可傳遞，寫 <code>volatile</code> 旗標之前寫的普通變數，讀到旗標的執行緒也都看得到，這是 <code>volatile</code> 真正的用處。<strong>不保證</strong>原子性：<code>count++</code> 仍是三步，「先檢查再動作」要鎖或原子類別。</p>
+    <p><strong>加分句：</strong><code>java.util.concurrent</code> 套件文件把 happens-before 延伸到高階工具：「<code>Lock.unlock</code>、<code>Semaphore.release</code>、<code>CountDownLatch.countDown</code> 之前的動作 happens-before 成功 <code>acquire</code> 之後的動作」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/package-summary.html#MemoryVisibility" target="_blank" rel="noopener">出處</a> 透過這些工具交手的資料不必再加 <code>volatile</code>。</p>
+    <p class="q">面試官：CAS 的 ABA 問題是什麼？AtomicInteger 與 LongAdder 怎麼選？</p>
+    <p><strong>一句話定義：</strong>CAS 基礎見第 10 課。ABA 是通則名詞，不是 Java 官方文件用語：值從 A 變 B 又變回 A，CAS 只比「現在是不是 A」，誤判成沒人動過。數字計數器無害，「參考加狀態」有害。解法是 <code>AtomicStampedReference</code>：「同時維護一個物件參考與一個整數『戳記』，可原子地一起更新」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/atomic/AtomicStampedReference.html" target="_blank" rel="noopener">出處</a>，戳記當版本號。</p>
+    <p><strong>差別與取捨：</strong><code>AtomicInteger</code>「可原子更新的 <code>int</code> 值」，用途是「原子遞增的計數器」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/atomic/AtomicInteger.html" target="_blank" rel="noopener">出處</a>，競爭激烈時大家在同一個位址反覆 CAS 失敗重試。<code>LongAdder</code> 文件直接給準則：「多條執行緒更新一個用於統計、而非精細同步控制的共用總和時，通常比 <code>AtomicLong</code> 更好」；「高競爭時本類別的預期吞吐量顯著較高，代價是較高的空間消耗」（under high contention, expected throughput of this class is significantly higher, at the expense of higher space consumption）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/atomic/LongAdder.html" target="_blank" rel="noopener">出處</a> 原理是把總和拆成多個格子分散競爭，<code>sum()</code> 時再加總。</p>
+    <p class="formula">要拿「更新後的值」立刻做決定（發序號、判斷扣到沒）用 Atomic；只要累計統計（處理筆數、失敗數）用 LongAdder</p>
+</section>
+<section>
+    <p class="era">並行集合與協調工具</p>
+    <h3 class="head">ConcurrentHashMap、三個同步輔助類別、CompletableFuture、BlockingQueue</h3>
+    <p class="q">面試官：ConcurrentHashMap 怎麼做到高並行？Java 8 之後結構變成什麼？</p>
+    <p><strong>一句話定義：</strong>文件原句：「所有操作都是執行緒安全的，但讀取操作不涉及鎖定，也不支援鎖住整張表」（retrieval operations do not entail locking）；「讀取（含 <code>get</code>）一般不阻塞，可與更新重疊」；「讀取反映的是它開始時最近已完成的更新結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>Java 8 之後的結構（OpenJDK 原始碼註解）：</strong>「在空桶插入第一個節點只靠 CAS」（performed by just CASing it to the bin）；「其他更新需要鎖，不想替每個桶配一個鎖物件，所以用桶裡的第一個節點本身當鎖，靠內建的 <code>synchronized</code> 監視器」；桶太長轉紅黑樹（<code>TreeBin</code>）。Java 7 的 <code>Segment</code> 只剩「沒用到、只在序列化時實例化」的相容用途。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java" target="_blank" rel="noopener">出處</a> 所以「16 個 Segment」是 Java 7 的答案，現在是「CAS 加桶級 <code>synchronized</code>」。</p>
+    <p><strong>實務註記：</strong>「不允許 <code>null</code> 當鍵或值」；「先 <code>get</code> 再 <code>put</code>」兩次呼叫之間會被插隊，用 <code>computeIfAbsent</code>、<code>merge</code>、<code>compute</code> 一次做完。文件的範例是拿它「當可擴展的頻率表」：<code>freqs.computeIfAbsent(key, k -&gt; new LongAdder()).increment()</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a> 〈系統設計：秒殺與限流〉的單機本地計數就用這一行。</p>
+    <p class="q">面試官：CountDownLatch、CyclicBarrier、Semaphore 各解決什麼？</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>類別</th><th>官方定義（節譯）</th><th>關鍵性質</th><th>銀行情境</th></tr></thead>
+      <tbody>
+        <tr><th><code>CountDownLatch</code></th><td>「讓一或多條執行緒等待其他執行緒中的一組操作完成」</td><td>「一次性——計數不能重設；需要重設請用 <code>CyclicBarrier</code>」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CountDownLatch.html" target="_blank" rel="noopener">出處</a></td><td>主執行緒 <code>await</code>，等 8 個對帳分片各 <code>countDown</code> 才出總表</td></tr>
+        <tr><th><code>CyclicBarrier</code></th><td>「讓一組執行緒全部互相等待，直到到達共同的屏障點」</td><td>「叫 cyclic 是因為釋放後可重用」；可帶一個動作「在最後一條到達後、釋放前執行一次」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CyclicBarrier.html" target="_blank" rel="noopener">出處</a></td><td>多輪計算，每輪全部算完才進下一輪</td></tr>
+        <tr><th><code>Semaphore</code></th><td>「維護一組許可（permits）；<code>acquire</code> 在有許可前阻塞然後取走一個，<code>release</code> 加回一個」，「常用來限制能存取某資源的執行緒數」</td><td>沒有擁有者：「釋放許可的執行緒不必是取得那個許可的執行緒」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Semaphore.html" target="_blank" rel="noopener">出處</a></td><td>核心帳務一次只接 20 個查詢就開 20 個許可；JEP 444 用它取代「拿池限流」</td></tr>
+      </tbody>
+    </table></div>
+    <p class="formula">Latch 是「等別人做完」，Barrier 是「大家互等」，Semaphore 是「限量放行」</p>
+    <p class="q">面試官：CompletableFuture 跟 Future 差在哪？怎麼組合非同步任務？</p>
+    <p><strong>一句話定義：</strong><code>Future</code>「代表非同步計算的結果……只能在計算完成後用 <code>get</code> 取得，必要時阻塞直到就緒」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Future.html" target="_blank" rel="noopener">出處</a>：只能等，不能「完成時通知我」、不能串接合併。<code>CompletableFuture</code>「是可被明確完成的 <code>Future</code>，並可作為 <code>CompletionStage</code> 使用，支援在完成時觸發的相依函式與動作」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>怎麼組合：</strong>串接用 <code>thenApply</code>、<code>thenCompose</code>（下一步也是非同步）；兩個合一用 <code>thenCombine</code>；多個用 <code>allOf</code>；錯誤用 <code>exceptionally</code>；逾時用 <code>orTimeout</code>（「逾時未完成就以 <code>TimeoutException</code> 例外完成」）；取結果用 <code>join</code>，不丟受檢例外。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> 授信查核同時問餘額與額度：</p>
+    <pre><code>CompletableFuture&lt;Balance&gt; balance =
+        CompletableFuture.supplyAsync(() -&gt; coreBanking.balance(account), pool); // 指定自己的池，不用 common pool
+CompletableFuture&lt;Limit&gt; limit =
+        CompletableFuture.supplyAsync(() -&gt; risk.limit(account), pool);
+return balance.thenCombine(limit, CreditCheck::decide)       // 兩個結果都到了才合併
+        .orTimeout(2, TimeUnit.SECONDS)                         // 超過兩秒以 TimeoutException 結束
+        .exceptionally(ex -&gt; Decision.reject("查詢失敗：" + ex.getClass().getSimpleName()))
+        .join();                                                // 等結果；失敗已在上一行轉成 Decision</code></pre>
+    <p><strong>實務註記（最常被問倒的坑）：</strong>「所有沒有明確 <code>Executor</code> 參數的 async 方法，都在 <code>ForkJoinPool.commonPool()</code> 執行」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a>，而 common pool 的平行度「預設等於可用處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ForkJoinPool.html" target="_blank" rel="noopener">出處</a>。它是整個 JVM 共用的，拿它跑阻塞 I/O，幾個慢請求就卡住全 JVM 的非同步工作，所以範例都傳自己的池。</p>
+    <p class="q">面試官：生產者消費者用 BlockingQueue 怎麼寫？</p>
+    <p><strong>一句話定義：</strong><code>BlockingQueue</code>「取元素時等待佇列變成非空、放元素時等待有空間」；「主要用於生產者消費者佇列」；「不接受 <code>null</code>」；「本身不支援 close 或 shutdown」，文件建議「生產者放入特殊的結束物件（poison object）」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/BlockingQueue.html" target="_blank" rel="noopener">出處</a></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>做不到時</th><th>放入</th><th>取出</th></tr></thead>
+      <tbody>
+        <tr><th>丟例外</th><td><code>add(e)</code></td><td><code>remove()</code></td></tr>
+        <tr><th>回傳特殊值（<code>false</code>／<code>null</code>）</th><td><code>offer(e)</code></td><td><code>poll()</code></td></tr>
+        <tr><th>阻塞</th><td><code>put(e)</code></td><td><code>take()</code></td></tr>
+        <tr><th>阻塞到逾時</th><td><code>offer(e, time, unit)</code></td><td><code>poll(time, unit)</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>四種形式出自介面文件。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/BlockingQueue.html" target="_blank" rel="noopener">出處</a> 生產者消費者要的是「阻塞」那一列，不必自己 <code>wait</code>／<code>notify</code>。對帳檔多執行緒入帳的骨架：</p>
+    <pre><code>private static final String END = "__END__";   // 結束物件：告訴消費者沒有更多資料了
+BlockingQueue&lt;String&gt; queue = new ArrayBlockingQueue&lt;&gt;(100);   // 有界：生產者太快就會被 put 擋住
+
+Thread producer = Thread.ofPlatform().start(() -&gt; {
+    try {
+        for (String line : lines) queue.put(line);              // 滿了就等，不丟資料
+        for (int i = 0; i &lt; consumers; i++) queue.put(END);     // 每個消費者發一個結束物件
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+    }
+});
+
+for (int i = 0; i &lt; consumers; i++) {
+    Thread.ofPlatform().start(() -&gt; {
+        try {
+            while (true) {
+                String line = queue.take();                     // 空了就等，不忙迴圈
+                if (END.equals(line)) break;
+                process(line);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    });
+}</code></pre>
+    <p><strong>選哪個實作：</strong><code>ArrayBlockingQueue</code>「以陣列實作的有界阻塞佇列，經典的有界緩衝」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ArrayBlockingQueue.html" target="_blank" rel="noopener">出處</a>；<code>LinkedBlockingQueue</code>「可選有界，未指定容量就是 <code>Integer.MAX_VALUE</code>」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/LinkedBlockingQueue.html" target="_blank" rel="noopener">出處</a>；<code>SynchronousQueue</code>「沒有任何內部容量，連一個都沒有」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/SynchronousQueue.html" target="_blank" rel="noopener">出處</a>，正好對應執行緒池那題的三種佇列策略。放進去之前的動作 happens-before 另一執行緒取出之後的動作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/BlockingQueue.html" target="_blank" rel="noopener">出處</a></p>
+</section>
+<section>
+    <p class="era">出事了怎麼查</p>
+    <h3 class="head">ThreadLocal 洩漏、死結排查、活鎖與飢餓</h3>
+    <p class="q">面試官：ThreadLocal 用在哪？為什麼會洩漏？</p>
+    <p><strong>一句話定義：</strong>「每條存取它的執行緒都有自己獨立初始化的副本」，「通常是 <code>private static</code> 欄位，用來把狀態綁在執行緒上（例如使用者 ID 或交易 ID）」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a> 另一個用途是快取非執行緒安全的物件，指南舉 <code>SimpleDateFormat</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/core/virtual-threads.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>洩漏：</strong>「每條執行緒對它那份副本持有隱含參考，只要執行緒活著且 <code>ThreadLocal</code> 實體可存取」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a>；池裡的執行緒不會死，值一直掛著，還會被下一個請求讀到，用完一定 <code>remove()</code>。排查見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+    <p><strong>版本註記：</strong>虛擬執行緒指南提醒這種快取「只在執行緒被多個任務共用重用時有幫助」，而「虛擬執行緒從不池化、從不被不相關的任務重用」，快取失去意義。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/core/virtual-threads.html" target="_blank" rel="noopener">出處</a></p>
+    <p class="q">面試官：死結的四個條件？線上服務卡住怎麼確認是死結？活鎖、飢餓是什麼？</p>
+    <p><strong>一句話定義：</strong>Oracle 教學：「死結是兩條以上執行緒永遠阻塞、互相等待的情況」（two or more threads are blocked forever, waiting for each other）。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/deadlock.html" target="_blank" rel="noopener">出處</a> 四個條件（互斥、持有並等待、不可搶占、循環等待）是作業系統教科書的通則（Coffman 條件），不是 Java 官方文件用語<a class="fixsrc" href="https://en.wikipedia.org/wiki/Deadlock_(computer_science)" target="_blank" rel="noopener">出處</a>，解釋見第 10 課。預防就是破壞其中一條：固定取鎖順序破壞循環等待，<code>tryLock</code> 帶逾時破壞持有並等待，轉帳範例兩招都用了。</p>
+    <p><strong>怎麼確認：</strong>疑難排解指南：「印出 thread dump 之後，HotSpot VM 會執行死結偵測演算法」，偵測到就印 <code>Found one Java-level deadlock:</code>，下面列出誰「waiting to lock」哪個監視器、「which is held by」誰。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/troubleshoot/troubleshoot-process-hangs-loops.html" target="_blank" rel="noopener">出處</a> 拿 dump 三條路：主控台按 <code>Control+\</code> 或 <code>kill -QUIT pid</code><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/troubleshoot/troubleshoot-process-hangs-loops.html" target="_blank" rel="noopener">出處</a>；<code>jcmd &lt;pid&gt; Thread.print</code>（「印出所有執行緒與堆疊」，<code>-l</code>「印出 <code>java.util.concurrent</code> 的鎖」）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/specs/man/jcmd.html" target="_blank" rel="noopener">出處</a>；<code>jstack -l &lt;pid&gt;</code><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/specs/man/jstack.html" target="_blank" rel="noopener">出處</a>，但診斷工具章寫 <code>jstack</code>「是實驗性的」，「建議改用最新的 <code>jcmd</code>」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/troubleshoot/diagnostic-tools.html" target="_blank" rel="noopener">出處</a> 先看 CPU：「吃光 CPU 比較可能是迴圈而不是死結」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/troubleshoot/troubleshoot-process-hangs-loops.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>活鎖與飢餓：</strong>教學定義飢餓（starvation）是「執行緒無法定期取得共用資源而無法推進」，成因是「貪心的執行緒長期佔住資源」；活鎖（livelock）的執行緒「沒有被阻塞，只是忙著回應彼此而無法繼續工作」。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/starvelive.html" target="_blank" rel="noopener">出處</a> 飢餓的解法是公平鎖（保證「不會飢餓」）；活鎖的常見解法是重試時加隨機等待（通則）。</p>
+    <p class="formula">卡住先看 CPU：滿載是迴圈、閒著才是死結；再 jcmd Thread.print 找 Found one Java-level deadlock</p>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>虛擬執行緒由 JVM 排程、M:N 掛在載體上，換吞吐不換速度，不池化、用 <code>Semaphore</code> 限量；Java 24 起（JEP 491）<code>synchronized</code> 不再釘住載體。</li><li><code>Thread.State</code> 六種；<code>BLOCKED</code> 只給 <code>synchronized</code>，等 <code>java.util.concurrent</code> 的鎖與工具是 <code>WAITING</code>。</li><li>執行緒池順序是核心、佇列、最大、拒絕；無界佇列讓 <code>maximumPoolSize</code> 失效。<code>newFixedThreadPool</code> 吃堆、<code>newCachedThreadPool</code> 執行緒無上限；批次選有界佇列加 <code>CallerRunsPolicy</code>。</li><li><code>ReentrantLock</code> 多了限時、可中斷、公平、多個 <code>Condition</code>。<code>volatile</code> 靠 happens-before 給可見性與順序，不給原子性。</li><li>ABA 用 <code>AtomicStampedReference</code>；統計計數選 <code>LongAdder</code>。<code>ConcurrentHashMap</code> 讀不加鎖，寫是 CAS 加桶級 <code>synchronized</code>，複合操作用 <code>compute</code> 家族。</li><li>Latch 等別人做完、Barrier 大家互等、Semaphore 限量放行；<code>CompletableFuture</code> 跑阻塞 I/O 傳自己的池；<code>BlockingQueue</code> 用 <code>put</code>／<code>take</code> 加結束物件。</li><li>卡住先看 CPU，再 <code>jcmd Thread.print</code> 找 <code>Found one Java-level deadlock</code>；<code>ThreadLocal</code> 用完 <code>remove()</code>。</li></ul></div>
