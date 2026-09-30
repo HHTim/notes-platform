@@ -56,7 +56,7 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
   /* 三狀態提示（文字照規格第 7 節的表格） */
   function showLoggedOut() {
     synced = false; uid = null;
-    setHint('進度只存在這台裝置 · <a href="#" id="syncLogin">登入後跨裝置同步</a>');
+    setHint('<span class="st">進度只存在這台裝置 · </span><a href="#" id="syncLogin">登入後跨裝置同步</a>');
     var a = document.getElementById('syncLogin');
     if (a) a.addEventListener('click', function (e) {
       e.preventDefault();
@@ -65,12 +65,12 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
   }
   function showUnauthorized() {
     synced = false;
-    setHint('此帳號未獲授權，進度僅存於本機 · <a href="#" id="syncOut">登出</a>');
+    setHint('<span class="st">此帳號未獲授權，進度僅存於本機</span><span class="sh">未獲授權</span> · <a href="#" id="syncOut">登出</a>');
     bindLogout();
   }
   function showSynced(user) {
     synced = true;
-    setHint('已同步（' + esc(user.displayName || user.email) + '）· <a href="#" id="syncOut">登出</a>');
+    setHint('已同步<span class="st">（' + esc(user.displayName || user.email) + '）</span> · <a href="#" id="syncOut">登出</a>');
     bindLogout();
   }
   /* 已登入、但白名單或進度暫時讀不到（例如斷線）：不是授權問題，也不是沒登入。
@@ -79,7 +79,7 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
      所以這裡自己給一個「重試」連結，直接重跑 loadAndMerge。 */
   function showRetry(user) {
     synced = false;
-    setHint('暫時連不上雲端 · <a href="#" id="syncRetry">重試</a>');
+    setHint('<span class="st">暫時連不上雲端</span><span class="sh">連不上雲端</span> · <a href="#" id="syncRetry">重試</a>');
     var a = document.getElementById('syncRetry');
     if (a) a.addEventListener('click', function (e) { e.preventDefault(); loadAndMerge(user); });
   }
