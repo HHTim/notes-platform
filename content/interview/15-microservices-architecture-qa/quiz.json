@@ -1,0 +1,54 @@
+{
+ "questions": [
+  {
+   "q": "團隊在 API Gateway 上陸續加了欄位轉換、呼叫三個服務再合併結果、依客戶等級套不同業務規則。依 Fowler「聰明端點、笨管線」的觀點，這樣做的問題是什麼？",
+   "opts": ["聰明被放回管線裡，Gateway 慢慢長成新的 ESB，業務規則離開了服務本身", "沒有問題，Gateway 本來就該集中所有跨服務邏輯", "問題只在效能：Gateway 多做事會變慢，邏輯放哪裡不影響架構", "Gateway 不能呼叫多個服務，技術上做不到"],
+   "exp": "Fowler 把 ESB 當「把聰明放進通訊機制」的代表；Gateway 該管路由、認證、限流這類入口的事，編排與業務規則留在服務裡。"
+  },
+  {
+   "q": "Spring Boot 服務部署在 Kubernetes 上，程式只對 http://core-banking 發請求，由叢集把請求轉到某個 Pod。這屬於哪一種服務發現？",
+   "opts": ["伺服器端模式：用戶端打固定位置，由路由器（叢集在每台主機跑的代理）查註冊表再轉發", "用戶端模式：因為請求是從用戶端的程式發出的", "用戶端模式：Kubernetes 會把所有 Pod 的 IP 發給應用自己挑", "兩者都不是，Kubernetes 沒有服務發現"],
+   "exp": "差別在誰查名冊；microservices.io 伺服器端那頁直接寫 Kubernetes 在每台主機跑代理當伺服器端發現的路由器，應用不用碰註冊表。"
+  },
+  {
+   "q": "斷路器設 slidingWindowSize 100、minimumNumberOfCalls 20、failureRateThreshold 50。服務剛啟動，前 10 次呼叫全部失敗，斷路器現在是什麼狀態？",
+   "opts": ["仍是 CLOSED：呼叫數還沒到 minimumNumberOfCalls，還不能計算失敗率", "OPEN：失敗率 100% 已超過 50%", "HALF_OPEN：失敗過多先進入試探", "FORCED_OPEN：啟動期間失敗會強制打開"],
+   "exp": "文件的例子是「設 10、只評估了 9 次，即使全失敗也不會跳開」；最少呼叫數沒到，失敗率不算數。"
+  },
+  {
+   "q": "查餘額的斷路器把 InsufficientBalanceException（餘額不足）列進 ignoreExceptions，主要是為了什麼？",
+   "opts": ["餘額不足是正確的業務拒絕，不代表下游壞了；預設所有例外都算失敗，不排除就可能把健康的下游熔斷", "讓餘額不足時自動重試直到餘額足夠", "讓餘額不足的呼叫計入慢呼叫比例", "ignoreExceptions 會讓例外被吞掉，前端就不會看到錯誤"],
+   "exp": "文件寫預設所有例外都算失敗，列進忽略清單的「既不算失敗也不算成功」；例外照樣拋給呼叫端。"
+  },
+  {
+   "q": "入帳 API 呼叫下游逾時，重試後帳戶多了一筆相同的入帳。依 Azure 重試模式的說明，最可能的原因與解法是什麼？",
+   "opts": ["第一次其實已處理成功只是回應沒送回來；入帳不是冪等操作，要帶請求編號讓下游去重", "重試間隔太短；把 waitDuration 拉長就不會重複", "斷路器沒開；打開斷路器就能擋掉重複入帳", "maxAttempts 設太大；設成 2 就不會重複"],
+   "exp": "Azure 的例子正是「服務成功處理了請求，卻沒能送出回應」；間隔與次數只影響多快、多少次，不冪等的寫入重試一次就可能重複。"
+  },
+  {
+   "q": "下游完全不回應、連線一直掛著，而呼叫端只設了斷路器、重試、隔艙，沒有設逾時。會發生什麼事？",
+   "opts": ["呼叫一直不結束：斷路器記不到失敗、重試等不到上一次結束、隔艙名額被卡住的呼叫占滿", "斷路器會因為沒有回應而立刻跳到 OPEN", "重試會在固定間隔後自動發出第二次呼叫", "隔艙會自動把卡住的呼叫踢掉，釋出名額"],
+   "exp": "三件套都要等「呼叫結束」才能動作；Azure 也提醒逾時太長，跑斷路器的執行緒會被卡很久才知道操作失敗。"
+  },
+  {
+   "q": "每天凌晨的對帳批次跑 5 分鐘就結束，Prometheus 每 1 分鐘來拉一次指標，常常抓不到批次最後的統計。依 Spring Boot 文件該怎麼做？",
+   "opts": ["改用 Prometheus Pushgateway，由批次在結束前把指標推上去", "把 Prometheus 拉取間隔改成 1 秒", "在批次裡寫日誌檔，讓 Prometheus 讀日誌", "把批次改成永不結束的行程，讓 Prometheus 能抓到"],
+   "exp": "Prometheus 走 HTTP 拉取；Spring Boot 文件說存在時間不夠長、來不及被抓的短命或批次工作，用 Pushgateway 支援把指標交給 Prometheus。"
+  },
+  {
+   "q": "Spring Boot 服務加了 Prometheus 的 registry 相依，但打 /actuator/prometheus 回 404，/actuator/health 正常。最可能的原因是？",
+   "opts": ["預設只有 health 端點透過 HTTP 曝露，要在 management.endpoints.web.exposure.include 加上 prometheus", "Prometheus 端點只能透過 JMX 存取，HTTP 永遠打不到", "要先把 management.tracing.sampling.probability 設成 1.0 才會產生指標", "Micrometer 只支援推送，不提供拉取端點"],
+   "exp": "Actuator 文件：預設只有 health 透過 HTTP 與 JMX 曝露，其他端點要用 exposure.include 打開；取樣率是追蹤的設定，與指標端點無關。"
+  },
+  {
+   "q": "A 服務收到帶 traceparent 的請求，處理時再呼叫 C 服務。A 送給 C 的 traceparent 裡，哪個欄位應該維持不變、哪個要換？",
+   "opts": ["trace-id 維持不變；parent-id 換成 A 自己這一段 span 的 ID", "trace-id 換成新的；parent-id 維持不變", "兩個都維持不變，原封不動轉送", "兩個都換成新的，每一跳都是新的追蹤"],
+   "exp": "trace-id 是整條追蹤的 ID，所有服務帶同一個；parent-id 是「呼叫端所知的這個請求的 ID」，OpenTelemetry 文件說下游建立新 span、把上游的 span 當父節點。"
+  },
+  {
+   "q": "網銀服務把登入後的使用者資料放在行程記憶體，靠負載平衡的黏性工作階段把同一使用者導回同一台。依十二要素第 VI 條，問題在哪？",
+   "opts": ["行程應該無狀態、不共享，黏性工作階段違反十二要素；工作階段資料該放 Redis 這類外部存放區", "沒有問題，只要負載平衡器支援黏性工作階段就符合十二要素", "問題在設定：工作階段逾時應該放環境變數", "問題在日誌：工作階段的內容要寫到 stdout"],
+   "exp": "十二要素原文：行程是無狀態且不共享的，黏性工作階段「永遠不該使用或依賴」，並建議把工作階段資料放在有到期機制的存放區。"
+  }
+ ]
+}
