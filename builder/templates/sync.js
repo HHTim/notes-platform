@@ -27,7 +27,17 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
   firebase.initializeApp(FIREBASE_CONFIG);
   var auth = firebase.auth();
   var db = firebase.firestore();
-  var course = window.NotesCourse;   // course.js 開的掛勾
+  /* 兩種頁面共用這支檔：模組頁有 course.js 開的 NotesCourse（單一模組的進度）；
+     首頁沒有課，只有 home.html 開的 NotesHome（全部模組的 id 與重算卡片的函式）。 */
+  var course = window.NotesCourse || null;
+  var home = window.NotesHome || null;
+  function localKey(mid) { return 'notes-progress:' + mid; }
+  function loadLocal(mid) {
+    try { return JSON.parse(localStorage.getItem(localKey(mid))) || {}; } catch (e) { return {}; }
+  }
+  function saveLocal(mid, d) {
+    try { localStorage.setItem(localKey(mid), JSON.stringify(d)); } catch (e) {}
+  }
   var hint = document.getElementById('syncHint');
   var synced = false;                // 目前是不是「已登入＋白名單」狀態
   var uid = null;
@@ -74,11 +84,30 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     if (a) a.addEventListener('click', function (e) { e.preventDefault(); loadAndMerge(user); });
   }
 
-  function pushCloud(data) {
+  /* patch 的形狀是 { 模組id: 該模組的進度 }，可以一次帶多個模組；merge:true 不會蓋掉其他模組 */
+  function pushCloud(patch) {
     if (!synced || !uid) return;
-    var patch = {};
-    patch[course.module] = data;
     db.collection('progress').doc(uid).set(patch, { merge: true })['catch'](function () {});
+  }
+
+  /* 把雲端文件與本機合併、寫回本機；回傳要推上雲端的 patch。
+     模組頁只管自己這個模組；首頁把每個模組都合併一次，卡片上的完成數才會對。 */
+  function mergeAll(cloudDoc) {
+    var patch = {};
+    if (course) {
+      var merged = NotesSync.merge(course.loadDone(), cloudDoc[course.module] || {});
+      course.saveDone(merged);   // 寫回本機（此刻 synced 還是 false，事件不會重複推雲端）
+      course.refreshTicks();
+      patch[course.module] = merged;
+    } else if (home) {
+      home.modules.forEach(function (mid) {
+        var m = NotesSync.merge(loadLocal(mid), cloudDoc[mid] || {});
+        saveLocal(mid, m);
+        patch[mid] = m;
+      });
+      home.refresh();
+    }
+    return patch;
   }
 
   /* 登入後的整套流程：讀白名單 → 讀雲端進度 → 與本機合併 → 寫回本機並推上雲端。
@@ -91,12 +120,9 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
       db.collection('progress').doc(user.uid).get().then(function (p) {
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;   // 重試中途登出或換帳號，遲到的回應不算
         uid = user.uid;
-        var cloud = (p.exists && p.data()[course.module]) || {};
-        var merged = NotesSync.merge(course.loadDone(), cloud);
-        course.saveDone(merged);   // 寫回本機（此刻 synced 還是 false，事件不會重複推雲端）
-        course.refreshTicks();
+        var patch = mergeAll((p.exists && p.data()) || {});
         showSynced(user);          // 從這裡開始，之後的每次作答才會推雲端
-        pushCloud(merged);         // 合併結果推上雲端一次
+        pushCloud(patch);          // 合併結果推上雲端一次
       })['catch'](function () {
         showRetry(user);           // 在名單上，但進度暫時讀不到
       });
@@ -114,6 +140,9 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
 
   /* 之後每次對答案，course.js 存檔時會發這個事件 */
   document.addEventListener('notes:progress-saved', function (e) {
-    if (e.detail && e.detail.module === course.module) pushCloud(e.detail.data);
+    if (!course || !e.detail || e.detail.module !== course.module) return;
+    var patch = {};
+    patch[course.module] = e.detail.data;
+    pushCloud(patch);
   });
 })();

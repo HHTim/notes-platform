@@ -15,6 +15,7 @@
 <header class="topbar">
   <button class="burger" id="burger" aria-label="開關模組選單">☰</button>
   <a class="brand" href="./">Tim 的<b>筆記平台</b></a>
+  <p class="synchint" id="syncHint">進度只存在這台裝置</p>
 </header>
 <div class="scrim" id="scrim"></div>
 <nav class="sidebar" id="sidebar" aria-label="模組選單">
@@ -30,7 +31,7 @@ __SIDEBAR__
   <div class="mod-cards">
 __CARDS__
   </div>
-  <footer class="site">內容公開；這裡的完成度以這台裝置的紀錄為準，登入後進入各模組頁會同步雲端進度。</footer>
+  <footer class="site">內容公開；完成度以這台裝置的紀錄為準，右上角登入後會跟雲端同步。</footer>
 </main>
 <script>
 (function(){
@@ -40,16 +41,22 @@ document.getElementById('burger').addEventListener('click',function(){
   sidebar.classList.toggle('open');scrim.classList.toggle('show');
 });
 scrim.addEventListener('click',function(){sidebar.classList.remove('open');scrim.classList.remove('show');});
-MODS.forEach(function(m){
-  var done=0;
-  try{
-    var d=JSON.parse(localStorage.getItem('notes-progress:'+m.id))||{};
-    Object.keys(d).forEach(function(k){if(d[k]&&d[k].done)done++;});
-  }catch(e){}
-  var el=document.querySelector('[data-stat="'+m.id+'"]');
-  if(el)el.innerHTML='完成 <b>'+done+'</b> / '+m.count+' 課';
-});
+function refresh(){
+  MODS.forEach(function(m){
+    var done=0;
+    try{
+      var d=JSON.parse(localStorage.getItem('notes-progress:'+m.id))||{};
+      Object.keys(d).forEach(function(k){if(d[k]&&d[k].done)done++;});
+    }catch(e){}
+    var el=document.querySelector('[data-stat="'+m.id+'"]');
+    if(el)el.innerHTML='完成 <b>'+done+'</b> / '+m.count+' 課';
+  });
+}
+refresh();
+/* 同步程式開的掛勾：登入後雲端進度合併回本機，卡片上的完成數要重算 */
+window.NotesHome={modules:MODS.map(function(m){return m.id;}),refresh:refresh};
 })();
 </script>
+__SYNC__
 </body>
 </html>

@@ -159,6 +159,17 @@ def modsel_html(mods, current_id):
                    for m in mods)
 
 
+def sync_html(firebase, prefix):
+    """登入同步那一段 <script>：Firebase 設定＋SDK＋sync.js。首頁與模組頁都用，差在 sync.js 的相對路徑。
+    沒有 content/firebase.json 就整段不放（規格：同步是可選功能）。"""
+    if not firebase:
+        return ''
+    sdk = 'https://www.gstatic.com/firebasejs/10.14.1/firebase-%s-compat.js'
+    return ('<script>var FIREBASE_CONFIG=%s;</script>\n' % json.dumps(firebase).replace('</', '<\\/')
+            + ''.join('<script src="%s"></script>\n' % (sdk % part) for part in ('app', 'auth', 'firestore'))
+            + '<script src="%ssync.js"></script>' % prefix)
+
+
 def render_module_page(mod, mods, tpl, firebase=None):
     quiz = {L['slug']: L['quiz'] for L in mod['lessons']}
     slugs = [L['slug'] for L in mod['lessons']]
@@ -166,14 +177,7 @@ def render_module_page(mod, mods, tpl, firebase=None):
             % (json.dumps(mod['id']), json.dumps(quiz, ensure_ascii=False),
                json.dumps(slugs, ensure_ascii=False)))
     data = data.replace('</', '<\\/')   # 防護：測驗文字若含 </ 之類的字，不會提前把嵌入的 <script> 截斷
-    if firebase:
-        sdk = 'https://www.gstatic.com/firebasejs/10.14.1/firebase-%s-compat.js'
-        sync = ('<script>var FIREBASE_CONFIG=%s;</script>\n' % json.dumps(firebase).replace('</', '<\\/')
-                + ''.join('<script src="%s"></script>\n' % (sdk % part)
-                          for part in ('app', 'auth', 'firestore'))
-                + '<script src="../sync.js"></script>')
-    else:
-        sync = ''
+    sync = sync_html(firebase, '../')
     arts = [overview_html(mod)] + [article_html(mod, i, L) for i, L in enumerate(mod['lessons'])]
     page = tpl['module.html']
     for key, val in (('__TITLE__', mod['title']), ('__MODSEL__', modsel_html(mods, mod['id'])),
@@ -183,7 +187,7 @@ def render_module_page(mod, mods, tpl, firebase=None):
     return page
 
 
-def render_home_page(site, mods, tpl):
+def render_home_page(site, mods, tpl, firebase=None):
     side = ''.join('  <a href="%s/"><span class="n">%s</span><span>%s</span></a>\n'
                    % (m['id'], m['icon'], m['title']) for m in mods)
     cards = ''.join(
@@ -195,7 +199,8 @@ def render_home_page(site, mods, tpl):
                          ensure_ascii=False)
     page = tpl['home.html']
     for key, val in (('__SITE_TITLE__', site['site_title']), ('__SITE_INTRO__', site['site_intro']),
-                     ('__SIDEBAR__', side), ('__CARDS__', cards), ('__MODS__', mods_js)):
+                     ('__SIDEBAR__', side), ('__CARDS__', cards), ('__MODS__', mods_js),
+                     ('__SYNC__', sync_html(firebase, ''))):
         page = page.replace(key, val)
     return page
 
@@ -214,7 +219,7 @@ def build(content_dir=None, tpl_dir=None, out_dir=None):
     (out_dir / 'favicon.svg').write_text(tpl['favicon.svg'], encoding='utf-8')   # 網站圖示：分頁、書籤、手機主畫面都用它
     if site['firebase']:
         (out_dir / 'sync.js').write_text(tpl['sync.js'], encoding='utf-8')
-    (out_dir / 'index.html').write_text(render_home_page(site, mods, tpl), encoding='utf-8')
+    (out_dir / 'index.html').write_text(render_home_page(site, mods, tpl, site['firebase']), encoding='utf-8')
     for mod in mods:
         d = out_dir / mod['id']
         d.mkdir()

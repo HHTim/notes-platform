@@ -107,10 +107,11 @@ class TestFirebaseInjection(unittest.TestCase):
 
     def test_off_without_config(self):
         out = build_variant(None)
-        html = (out / 'k8s' / 'index.html').read_text(encoding='utf-8')
-        self.assertNotIn('firebasejs', html)
-        self.assertNotIn('FIREBASE_CONFIG', html)
-        self.assertNotIn('sync.js', html)
+        for page in ('k8s/index.html', 'index.html'):
+            html = (out / page).read_text(encoding='utf-8')
+            self.assertNotIn('firebasejs', html, page)
+            self.assertNotIn('FIREBASE_CONFIG', html, page)
+            self.assertNotIn('sync.js', html, page)
         self.assertFalse((out / 'sync.js').exists())
 
     def test_on_with_config(self):
@@ -126,8 +127,12 @@ class TestFirebaseInjection(unittest.TestCase):
             # 順序：course.js 要先於 sync.js（sync.js 依賴 NotesCourse）
             self.assertLess(html.index('course.js'), html.index('sync.js'), mid)
         self.assertTrue((out / 'sync.js').exists())
+        # 首頁也要能登入登出：同一段 SDK，sync.js 走同層路徑；且要在首頁自己的 script（開 NotesHome 掛勾）之後
         home = (out / 'index.html').read_text(encoding='utf-8')
-        self.assertNotIn('firebasejs', home)
+        self.assertIn('var FIREBASE_CONFIG=', home)
+        self.assertIn('<script src="sync.js"></script>', home)
+        self.assertIn('id="syncHint"', home)
+        self.assertLess(home.index('window.NotesHome='), home.index('<script src="sync.js">'))
 
     def test_placeholder_never_leaks(self):
         for out in (build_variant(None), build_variant(self.CFG)):
