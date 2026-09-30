@@ -16,7 +16,7 @@ class TestBuild(unittest.TestCase):
         cls.site, cls.mods = builder.load_site(ROOT / 'content')
 
     def test_output_files(self):
-        for name in ('index.html', 'style.css', 'course.js'):
+        for name in ('index.html', 'style.css', 'course.js', 'favicon.svg'):
             self.assertTrue((self.out / name).exists(), name)
         for mod in self.mods:
             self.assertTrue((self.out / mod['id'] / 'index.html').exists(), mod['id'])
@@ -37,6 +37,7 @@ class TestBuild(unittest.TestCase):
         self.assertIn("var MODULE=\"k8s\"", html)
         # 共用樣式與腳本用相對路徑
         self.assertIn('../style.css', html)
+        self.assertIn('<link rel="icon" type="image/svg+xml" href="../favicon.svg">', html)
         self.assertIn('../course.js', html)
         # 頂欄：回首頁連結與模組下拉選單，選單有全部模組
         self.assertIn('href="../"', html)
@@ -75,6 +76,7 @@ class TestBuild(unittest.TestCase):
             self.assertIn('data-stat="%s"' % mod['id'], html)
             self.assertIn('共 %d 課' % len(mod['lessons']), html)
         self.assertIn('style.css', html)
+        self.assertIn('<link rel="icon" type="image/svg+xml" href="favicon.svg">', html)
         self.assertIn('viewport', html)
 
     def test_fixnote_styles(self):

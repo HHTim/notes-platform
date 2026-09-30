@@ -55,7 +55,7 @@ def check_tag_balance(html, where):
 
 
 def load_templates(tpl_dir):
-    names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html')
+    names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html', 'favicon.svg')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
 
 
@@ -211,6 +211,7 @@ def build(content_dir=None, tpl_dir=None, out_dir=None):
     out_dir.mkdir(parents=True)
     (out_dir / 'style.css').write_text(tpl['style.css'], encoding='utf-8')
     (out_dir / 'course.js').write_text(tpl['course.js'], encoding='utf-8')
+    (out_dir / 'favicon.svg').write_text(tpl['favicon.svg'], encoding='utf-8')   # 網站圖示：分頁、書籤、手機主畫面都用它
     if site['firebase']:
         (out_dir / 'sync.js').write_text(tpl['sync.js'], encoding='utf-8')
     (out_dir / 'index.html').write_text(render_home_page(site, mods, tpl), encoding='utf-8')
