@@ -14,9 +14,9 @@
    "q": "映像檔寫成 ENTRYPOINT java -jar app.jar（shell 形式）。K8s 刪 Pod 時，Spring Boot 沒有優雅關閉，等滿寬限期才被結束。最可能的原因是？",
    "opts": [
     "/bin/sh 是 PID 1，它不會把 SIGTERM 轉傳給 java",
-    "K8s 刪 Pod 一開始就送 SIGKILL，本來就不會優雅關閉",
+    "K8s 刪 Pod 一開始就直接送 SIGKILL，Spring 本來就不可能優雅關閉",
     "Spring Boot 的優雅關閉預設是關的，要另外打開",
-    "shell 形式讀不到環境變數，所以 Spring 啟動參數錯了"
+    "shell 形式讀不到環境變數，所以 Spring 的啟動參數全部設錯了"
    ],
    "exp": "shell 形式以 /bin/sh -c 的子指令啟動，程式不是 PID 1、收不到訊號；K8s 先送 TERM 給 1 號行程，寬限期 30 秒到才送 KILL。"
   },
@@ -34,8 +34,8 @@
    "q": "Deployment 有 10 個副本，maxSurge 與 maxUnavailable 都用預設值。滾動更新時的上下限是？",
    "opts": [
     "最多 2 個不可用、最多多開 3 個，捨去與進位各算一邊",
-    "最多 3 個不可用、最多多開 2 個，不可用那邊進位",
-    "兩個都是 2 個，百分比換算一律無條件捨去",
+    "最多 3 個不可用、最多多開 2 個，因為不可用那邊採無條件進位",
+    "兩個都是 2 個，因為 25% 的百分比換算一律採無條件捨去",
     "兩個都是 3 個，百分比換算一律無條件進位"
    ],
    "exp": "兩者預設 25%，10 的 25% 是 2.5；maxUnavailable 無條件捨去成 2，maxSurge 無條件進位成 3。"
