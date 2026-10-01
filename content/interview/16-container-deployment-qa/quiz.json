@@ -13,7 +13,7 @@
   {
    "q": "映像檔寫成 ENTRYPOINT java -jar app.jar（shell 形式）。K8s 刪 Pod 時，Spring Boot 沒有優雅關閉，等滿寬限期才被結束。最可能的原因是？",
    "opts": [
-    "/bin/sh 是 PID 1，它不轉傳 SIGTERM",
+    "/bin/sh 是 PID 1，它不會把 SIGTERM 轉傳給 java",
     "K8s 刪 Pod 一開始就送 SIGKILL，本來就不會優雅關閉",
     "Spring Boot 的優雅關閉預設是關的，要另外打開",
     "shell 形式讀不到環境變數，所以 Spring 啟動參數錯了"
@@ -23,27 +23,27 @@
   {
    "q": "Java 25 的 Spring Boot 服務跑在記憶體上限 1 GiB 的 Linux 容器裡，沒加任何記憶體參數。最大堆大約是多少？",
    "opts": [
-    "約 256 MB，可用記憶體取容器上限，MaxRAMPercentage 預設 25%",
+    "約 256 MiB，可用記憶體取容器上限，MaxRAMPercentage 預設 25%",
     "主機實體記憶體的 25%，因為 JVM 讀不到容器的限制",
-    "1 GB，堆預設吃滿容器上限",
-    "約 768 MB，Java 21 起 MaxRAMPercentage 預設改成 75%"
+    "1 GiB，堆預設吃滿容器上限",
+    "約 768 MiB，Java 21 起 MaxRAMPercentage 預設改成 75%"
    ],
    "exp": "UseContainerSupport 預設開啟，MaxRAM 取實體記憶體與容器限制的小者，MaxRAMPercentage 在 21 與 25 都預設 25%。"
   },
   {
    "q": "Deployment 有 10 個副本，maxSurge 與 maxUnavailable 都用預設值。滾動更新時的上下限是？",
    "opts": [
-    "最多 2 個不可用、最多多開 3 個",
-    "最多 3 個不可用、最多多開 2 個",
-    "兩個都是 2 個，百分比一律無條件捨去",
-    "兩個都是 3 個，百分比一律無條件進位"
+    "最多 2 個不可用、最多多開 3 個，捨去與進位各算一邊",
+    "最多 3 個不可用、最多多開 2 個，不可用那邊進位",
+    "兩個都是 2 個，百分比換算一律無條件捨去",
+    "兩個都是 3 個，百分比換算一律無條件進位"
    ],
    "exp": "兩者預設 25%，10 的 25% 是 2.5；maxUnavailable 無條件捨去成 2，maxSurge 無條件進位成 3。"
   },
   {
    "q": "照官方的金絲雀做法：stable 與 canary 兩個 Deployment，副本數 3 與 1，Service 的 selector 只寫兩者共同的 app 標籤。新版大約收到多少流量？",
    "opts": [
-    "約四分之一，比例由兩邊的副本數決定",
+    "約四分之一，Service 選到的 4 個 Pod 裡有 1 個是新版",
     "一半，Service 在兩個 Deployment 之間平均分配",
     "全部，Service 會優先送給較新的那組",
     "零，Service 預設只選標了 track: stable 的 Pod"
@@ -73,8 +73,8 @@
   {
    "q": "Pod 只有一個容器，requests 是 cpu 500m、memory 1Gi，limits 只寫 memory 1Gi。它的 QoS 等級是？",
    "opts": [
-    "Burstable，因為 CPU 沒有設上限",
-    "Guaranteed，因為記憶體的 request 等於 limit 就夠了",
+    "Burstable，因為 CPU 沒有設上限，不符合 Guaranteed 的條件",
+    "Guaranteed，因為記憶體的 request 等於 limit，CPU 不寫上限也算數",
     "BestEffort，因為 limits 沒有寫齊",
     "Guaranteed，因為沒寫的 limit 會自動複製 request"
    ],
@@ -93,8 +93,8 @@
   {
    "q": "同事說：「密碼放 Secret，值都是 base64，所以很安全。」這句話該怎麼回？",
    "opts": [
-    "base64 只是編碼，Secret 預設未加密存在 etcd",
-    "沒錯，Secret 預設用 AES 加密存進 etcd，base64 只是傳輸格式",
+    "base64 只是編碼，Secret 預設未加密存在 etcd，要另開靜態加密與 RBAC",
+    "沒錯，Secret 預設就用 AES 加密存進 etcd，base64 只是 API 傳輸時的格式",
     "要改用 stringData 寫，Kubernetes 才會幫它加密",
     "Secret 只有 Pod 讀得到，有權限的人也無法用 kubectl 取出"
    ],
