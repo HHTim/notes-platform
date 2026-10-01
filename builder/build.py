@@ -114,10 +114,23 @@ def sidebar_html(mod):
     return ''.join(out)
 
 
+def intro_html(intro):
+    """總覽開場：一個字串是一段；陣列裡的字串各成一段，巢狀陣列變成列點。"""
+    if isinstance(intro, str):
+        intro = [intro]
+    out = []
+    for block in intro:
+        if isinstance(block, list):
+            out.append('<ul class="ov-points">\n%s</ul>\n' % ''.join('<li>%s</li>\n' % x for x in block))
+        else:
+            out.append('<p>%s</p>\n' % block)
+    return ''.join(out)
+
+
 def overview_html(mod):
     o = ['<article id="pg-ov">\n<div class="ov-hero">\n<p class="kick">%s</p>\n<h1>%s</h1>\n'
          % (mod['kick'], mod['title'])]
-    o.append('<p>%s</p>\n' % mod['overview_intro'])
+    o.append(intro_html(mod['overview_intro']))
     o.append('<p class="ov-progress" id="ovProgress"></p>\n</div>\n<div class="lesson-list">\n')
     for i, L in enumerate(mod['lessons']):
         o.append('<a href="#/lesson/%s"><span class="n">%d</span><span class="tt"><b>%s</b>'

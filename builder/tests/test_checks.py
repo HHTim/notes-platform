@@ -84,3 +84,13 @@ class TestSlugs(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestOverviewIntro(unittest.TestCase):
+    def test_string_is_one_paragraph(self):
+        self.assertEqual(builder.intro_html('一段'), '<p>一段</p>\n')
+
+    def test_list_mixes_paragraphs_and_points(self):
+        html = builder.intro_html(['開場', ['第一點', '第二點'], '結尾'])
+        self.assertEqual(html, '<p>開場</p>\n<ul class="ov-points">\n<li>第一點</li>\n<li>第二點</li>\n</ul>\n<p>結尾</p>\n')
+
