@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "ThreadPoolExecutor 的核心數 4、最大數 8、佇列容量 100。4 條核心執行緒都在忙、佇列還有空位，新任務會怎樣？",
+   "opts": [
+    "排進佇列",
+    "開第 5 條執行緒",
+    "被拒絕",
+    "交給呼叫者執行"
+   ],
+   "exp": "文件：已經有 corePoolSize 條以上時，永遠偏好排隊而不是新增執行緒；佇列滿了才會加到最大數。"
+  },
+  {
+   "q": "用沒給容量的 LinkedBlockingQueue 建 ThreadPoolExecutor(4, 16, …)，maximumPoolSize 的 16 有作用嗎？",
+   "opts": [
+    "沒有，佇列永遠排得進去，執行緒最多就是 4 條",
+    "有，忙的時候會加到 16 條",
+    "有，佇列滿 16 個就加執行緒",
+    "沒有，因為執行緒數會變成 1"
+   ],
+   "exp": "文件：無界佇列不會建立超過 corePoolSize 的執行緒，maximumPoolSize 因此沒有作用。newFixedThreadPool 就是這種組合。"
+  },
+  {
+   "q": "批次對帳希望「池子塞滿時，送任務的那條執行緒被拖慢，自動減速」，該選哪個拒絕策略？",
+   "opts": [
+    "CallerRunsPolicy",
+    "AbortPolicy",
+    "DiscardPolicy",
+    "DiscardOldestPolicy"
+   ],
+   "exp": "CallerRunsPolicy 由呼叫 execute 的執行緒自己執行任務，文件說這是讓新任務送進來的速度變慢的簡單回饋控制。"
+  },
+  {
+   "q": "Executors.newCachedThreadPool() 在大量慢任務湧入時，最可能出什麼問題？",
+   "opts": [
+    "執行緒無上限地增加，最後開不出新執行緒",
+    "佇列無上限地增加，堆被吃光",
+    "任務被 AbortPolicy 拒絕",
+    "任務被默默丟掉"
+   ],
+   "exp": "OpenJDK 原始碼：cached 是核心 0、最大 Integer.MAX_VALUE、配 SynchronousQueue；等不到空閒執行緒就開新的。佇列吃光堆的是 newFixedThreadPool。"
+  },
+  {
+   "q": "4 核心機器上，沒傳執行器的 CompletableFuture.supplyAsync 跑在哪裡？",
+   "opts": [
+    "ForkJoinPool.commonPool()，平行度 3",
+    "每次新開一條平台執行緒",
+    "呼叫者自己的執行緒",
+    "一個 4 條執行緒的新池子"
+   ],
+   "exp": "文件：沒有明確執行器的 async 方法用 commonPool；它的平行度預設是處理器數減一。只有平行度不到 2 時才改成每個任務開新執行緒。"
+  },
+  {
+   "q": "supplyAsync 丟出 IllegalStateException，呼叫 join() 會得到什麼？",
+   "opts": [
+    "CompletionException，getCause() 才是那個 IllegalStateException",
+    "直接得到 IllegalStateException",
+    "ExecutionException",
+    "回傳 null"
+   ],
+   "exp": "join 失敗時丟非受檢的 CompletionException，真正原因在 getCause()。Future.get() 才是包成 ExecutionException。"
+  },
+  {
+   "q": "多條執行緒要對 ConcurrentHashMap 裡的分行計數加 1，下面哪個寫法不會少算？",
+   "opts": [
+    "map.merge(branch, 1, Integer::sum)",
+    "map.put(branch, map.get(branch) + 1)",
+    "if (map.containsKey(branch)) map.put(branch, map.get(branch) + 1)",
+    "map.put(branch, map.getOrDefault(branch, 0) + 1)"
+   ],
+   "exp": "merge 一次完成「讀出、合併、寫回」；其他寫法都是先讀再寫的兩次呼叫，中間會被別的執行緒插隊而互相蓋掉。"
+  },
+  {
+   "q": "核心帳務系統最多同時接 20 個查詢，前面有上百個任務要查，最直接的工具是什麼？",
+   "opts": [
+    "Semaphore(20)",
+    "CountDownLatch(20)",
+    "CyclicBarrier(20)",
+    "newSingleThreadExecutor()"
+   ],
+   "exp": "Semaphore 維護一組許可，常用來限制能存取某資源的執行緒數。CountDownLatch 是等別人做完，CyclicBarrier 是大家互等。"
+  },
+  {
+   "q": "Web 應用在請求開始時把使用者 ID 放進 ThreadLocal，結束時沒有 remove，最可能發生什麼事？",
+   "opts": [
+    "下一個借到同一條池內執行緒的請求讀到上一個人的 ID",
+    "請求結束時 JVM 自動清掉，不會有事",
+    "每個請求都拿到 null",
+    "編譯錯誤"
+   ],
+   "exp": "ThreadLocal 的副本跟著執行緒活，池裡的執行緒不會消失。實跑時單一執行緒池的第二個任務讀到了第一個任務設的值。要在 finally 裡 remove()。"
+  },
+  {
+   "q": "執行緒 A 寫一個普通欄位，執行緒 B 之後讀它。下面哪個做法能保證 B 看到 A 寫的值？",
+   "opts": [
+    "把欄位宣告成 volatile",
+    "讓 B 先 Thread.sleep(1000) 再讀",
+    "讓 A 寫完之後呼叫 Thread.yield()",
+    "什麼都不用做，Java 一定保證看得到"
+   ],
+   "exp": "JLS 17.4.5：寫入 volatile 欄位 happens-before 之後每一次讀取。JLS 17.3 也明說 sleep 與 yield 沒有任何同步語意。"
+  }
+ ]
+}

@@ -1,0 +1,654 @@
+<!-- 來源：依 Oracle Java SE 21 API 文件（java.util.concurrent 套件說明與 ThreadPoolExecutor、Executors、CompletableFuture、ConcurrentHashMap、CountDownLatch、Semaphore、CyclicBarrier、BlockingQueue、ArrayBlockingQueue、LinkedBlockingQueue、SynchronousQueue、ForkJoinPool，java.lang.ThreadLocal、java.lang.Runtime）、Java 語言規格 SE 21 第 17.3、17.4.5 節、Java 21 Core Libraries 的 Virtual Threads 指南、JEP 444、OpenJDK jdk-21-ga 原始碼（Executors.java、ForkJoinPool.java、ConcurrentHashMap.java）新寫；範例與練習題全部自編，程式以 Java 21 在 Docker 的 Linux 容器（eclipse-temurin:21，限制 4 顆 CPU）實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 <code>ThreadPoolExecutor</code> 的七個參數，畫出任務進來時「核心、佇列、最大、拒絕」的處理順序，並選對拒絕策略</li><li>知道 <code>Executors</code> 工廠方法的預設值會出什麼事，替批次對帳估一個合理的池子大小</li><li>用 <code>CompletableFuture</code> 組合非同步查詢並處理例外與逾時，用 <code>ConcurrentHashMap</code>、<code>CountDownLatch</code>、<code>Semaphore</code>、<code>CyclicBarrier</code>、<code>BlockingQueue</code> 解決常見的協調問題</li><li>說明 <code>ThreadLocal</code> 在池裡為什麼會洩漏、happens-before 保證什麼，以及什麼時候改用虛擬執行緒</li></ul></div>
+
+<section>
+<p class="era">為什麼不要每個任務開一條執行緒</p>
+<h3 class="head">ThreadPoolExecutor 的七個參數與任務進來的處理順序</h3>
+<p>〈執行緒與並行〉講過，大量工作不要一個配一條新執行緒；〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉實測過，每條平台執行緒都是一條作業系統執行緒，開得越多、上下文切換越頻繁。<strong>執行緒池</strong>（thread pool）重複使用固定數量的執行緒，任務排隊等著被拿去做。Java 的標準實作是 <code>ThreadPoolExecutor</code>，建構子最完整的版本有七個參數：</p>
+<pre><code>int cores = Runtime.getRuntime().availableProcessors();
+ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        cores,                                     // corePoolSize：常駐的執行緒數
+        cores * 2,                                 // maximumPoolSize：佇列滿了最多加到這麼多
+        60, TimeUnit.SECONDS,                      // keepAliveTime、unit：多出來的閒置執行緒活多久
+        new ArrayBlockingQueue&lt;&gt;(500),             // workQueue：放還沒開始的任務
+        Thread.ofPlatform().name("recon-", 0).factory(),   // threadFactory：替執行緒取名字
+        new ThreadPoolExecutor.CallerRunsPolicy()); // handler：塞不下時怎麼辦</code></pre>
+<p>任務進來時怎麼處理，文件的「佇列」一段寫成三條：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>執行中的執行緒少於 <code>corePoolSize</code>：「永遠偏好新增執行緒，而不是排隊」（always prefers adding a new thread rather than queuing），而且「即使其他工作執行緒閒著」也一樣開新的。</li>
+<li>已經有 <code>corePoolSize</code> 條以上：「永遠偏好把請求排進佇列，而不是新增執行緒」（always prefers queuing a request rather than adding a new thread）。</li>
+<li>佇列排不進去：「新增一條執行緒，除非這會超過 <code>maximumPoolSize</code>，那樣任務就會被拒絕」（a new thread is created unless this would exceed maximumPoolSize, in which case, the task will be rejected）。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="任務進來的處理順序：執行緒少於核心數就開新執行緒；否則佇列沒滿就排隊；佇列滿了而執行緒少於最大數就再開新執行緒；都滿了就交給拒絕策略">
+  <defs><marker id="jt-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" fill-opacity=".6"/></marker></defs>
+  <rect x="20" y="20" width="140" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/>
+  <text x="90" y="47" font-size="13" text-anchor="middle" font-weight="700">新任務進來</text>
+  <line x1="160" y1="42" x2="196" y2="42" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <polygon points="290,12 390,42 290,72 190,42" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="290" y="39" font-size="12" text-anchor="middle">執行緒數</text>
+  <text x="290" y="55" font-size="12" text-anchor="middle">&lt; 核心數？</text>
+  <line x1="390" y1="42" x2="566" y2="42" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <text x="478" y="35" font-size="11.5" text-anchor="middle">是</text>
+  <rect x="570" y="20" width="170" height="44" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="655" y="47" font-size="12.5" text-anchor="middle">開新執行緒來做</text>
+  <line x1="290" y1="72" x2="290" y2="106" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <text x="302" y="94" font-size="11.5">否</text>
+  <polygon points="290,110 390,140 290,170 190,140" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="290" y="137" font-size="12" text-anchor="middle">佇列</text>
+  <text x="290" y="153" font-size="12" text-anchor="middle">還放得下？</text>
+  <line x1="390" y1="140" x2="566" y2="140" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <text x="478" y="133" font-size="11.5" text-anchor="middle">是</text>
+  <rect x="570" y="118" width="170" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/>
+  <text x="655" y="145" font-size="12.5" text-anchor="middle">排進佇列等</text>
+  <line x1="290" y1="170" x2="290" y2="204" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <text x="302" y="192" font-size="11.5">否</text>
+  <polygon points="290,208 390,238 290,268 190,238" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="290" y="235" font-size="12" text-anchor="middle">執行緒數</text>
+  <text x="290" y="251" font-size="12" text-anchor="middle">&lt; 最大數？</text>
+  <line x1="390" y1="238" x2="566" y2="238" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <text x="478" y="231" font-size="11.5" text-anchor="middle">是</text>
+  <rect x="570" y="216" width="170" height="44" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="655" y="243" font-size="12.5" text-anchor="middle">再開一條執行緒</text>
+  <line x1="290" y1="268" x2="290" y2="290" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#jt-1-arrow)"/>
+  <text x="302" y="284" font-size="11.5">否</text>
+  <rect x="200" y="292" width="180" height="32" rx="6" fill="var(--surface)" stroke="var(--danger)"/>
+  <text x="290" y="313" font-size="12.5" text-anchor="middle">交給拒絕策略</text>
+  <text x="40" y="150" font-size="11.5" opacity=".75">注意順序：</text>
+  <text x="40" y="168" font-size="11.5" opacity=".75">先排隊，</text>
+  <text x="40" y="186" font-size="11.5" opacity=".75">佇列滿了</text>
+  <text x="40" y="204" font-size="11.5" opacity=".75">才加到最大</text>
+</svg>
+<figcaption>ThreadPoolExecutor 的處理順序：核心沒滿就開執行緒，核心滿了先排隊，佇列滿了才加到最大，最大也滿了才拒絕。</figcaption>
+</figure>
+<p>實跑一個「核心 2、最大 4、佇列容量 2」的池，七個任務都卡在一個門閂上不會結束，每送一個就印出目前的執行緒數與佇列長度：</p>
+<pre><code>CountDownLatch release = new CountDownLatch(1);
+ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        2, 4, 60, TimeUnit.SECONDS,
+        new ArrayBlockingQueue&lt;&gt;(2));               // 預設的拒絕策略是 AbortPolicy
+for (int i = 1; i &lt;= 7; i++) {
+    try {
+        pool.execute(() -&gt; {
+            try { release.await(); } catch (InterruptedException e) { }
+        });
+        System.out.println("第 " + i + " 個任務：執行緒 " + pool.getPoolSize()
+                + "，佇列 " + pool.getQueue().size());
+    } catch (RejectedExecutionException e) {
+        System.out.println("第 " + i + " 個任務：被拒絕 " + e.getClass().getSimpleName());
+    }
+}
+// 第 1 個任務：執行緒 1，佇列 0
+// 第 2 個任務：執行緒 2，佇列 0
+// 第 3 個任務：執行緒 2，佇列 1
+// 第 4 個任務：執行緒 2，佇列 2
+// 第 5 個任務：執行緒 3，佇列 2
+// 第 6 個任務：執行緒 4，佇列 2
+// 第 7 個任務：被拒絕 RejectedExecutionException</code></pre>
+<p>第 3、4 個任務排進佇列，執行緒數停在 2；佇列滿了，第 5、6 個才讓執行緒加到 4；第 7 個什麼都塞不下，被拒絕。另外兩個參數：<code>keepAliveTime</code> 是「超過 <code>corePoolSize</code> 的那些執行緒閒置超過這麼久就結束」；<code>threadFactory</code> 用來改執行緒的名字、優先權等，沒指定時用 <code>Executors.<wbr>defaultThreadFactory()</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 替執行緒取好認的名字（上面的 <code>recon-0</code>、<code>recon-1</code>），出事時看執行緒傾印才分得出誰是誰（傾印怎麼抓見〈JVM 記憶體與垃圾回收〉）。</p>
+<p class="formula">核心沒滿就開執行緒，核心滿了先排隊，佇列滿了才加到最大，最大也滿了才拒絕</p>
+
+<div class="drill">
+  <p class="dq">一個「核心 2、最大 4、佇列容量 2」的池，目前已有 2 條執行緒都在忙、佇列是空的。再送一個任務進來，會怎樣？</p>
+  <ul class="dopts"><li>開第 3 條執行緒來做</li><li data-ok>排進佇列</li><li>被拒絕</li><li>等其中一條執行緒做完再直接交給它</li></ul>
+  <p class="dexp">已經有 corePoolSize 條執行緒，文件說永遠偏好排隊而不是新增執行緒。實跑時第 3 個任務印出「執行緒 2，佇列 1」。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個池，現在 2 條執行緒在忙、佇列已經放了 2 個。再送一個任務，會怎樣？</p>
+  <ul class="dopts"><li>被拒絕，因為佇列已經滿了</li><li data-ok>開第 3 條執行緒來做</li><li>排到佇列最前面優先處理</li><li>擠掉佇列裡最舊的那個任務</li></ul>
+  <p class="dexp">佇列排不進去，而且執行緒數還沒到 maximumPoolSize（4），就新增一條。實跑時第 5 個任務印出「執行緒 3，佇列 2」。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個池，4 條執行緒都在忙、佇列也滿了。用預設的拒絕策略再送一個任務，會怎樣？</p>
+  <ul class="dopts"><li data-ok>丟出 RejectedExecutionException</li><li>開第 5 條執行緒，超過最大數也照開</li><li>任務被默默丟掉，不會有任何通知</li><li>交給呼叫者自己執行這個任務</li></ul>
+  <p class="dexp">預設的拒絕策略是 AbortPolicy，拒絕時丟出執行期例外 RejectedExecutionException。實跑時第 7 個任務就是這樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">池裡執行緒數還少於 corePoolSize，而且有一條執行緒正閒著。新任務進來，會怎樣？</p>
+  <ul class="dopts"><li data-ok>還是開一條新執行緒</li><li>交給那條閒著的執行緒</li><li>排進佇列</li><li>等 keepAliveTime 到了再處理</li></ul>
+  <p class="dexp">文件原句：少於 corePoolSize 時會建立新執行緒處理請求，「即使其他工作執行緒閒著」。核心執行緒是一條一條建起來的。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>keepAliveTime</code> 管的是哪些執行緒？</p>
+  <ul class="dopts"><li>所有執行緒，閒置太久就全部結束</li><li data-ok>預設只管超過核心數的那些執行緒</li><li>只管核心執行緒，其他的一直留著</li><li>任務的最長執行時間，超過就中斷</li></ul>
+  <p class="dexp">文件：池裡多於 corePoolSize 條時，多出來的執行緒閒置超過 keepAliveTime 就結束；要套用到核心執行緒得另外呼叫 allowCoreThreadTimeOut(true)。它不是任務的逾時。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼建議自己傳 <code>threadFactory</code> 替池裡的執行緒取名字？</p>
+  <ul class="dopts"><li>不取名字，池子就不能建立</li><li data-ok>出事時在執行緒傾印裡才認得出是哪個池</li><li>取了名字的執行緒跑得比較快</li><li>名字決定了執行緒的優先權</li></ul>
+  <p class="dexp">預設的 defaultThreadFactory 取的名字看不出用途。執行緒傾印裡看到 recon-3 卡住，就知道是對帳池的問題。</p>
+</div>
+</section>
+
+<section>
+<p class="era">塞不下的時候怎麼辦</p>
+<h3 class="head">四種拒絕策略</h3>
+<p>文件列了四個預先定義的策略：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>策略</th><th>文件怎麼說</th><th>適合</th></tr></thead><tbody>
+<tr><th><code>AbortPolicy</code>（預設）</th><td>拒絕時「丟出執行期的 <code>RejectedExecutionException</code>」</td><td>寧可失敗也不能默默丟掉，例如轉帳</td></tr>
+<tr><th><code>CallerRunsPolicy</code></th><td>「呼叫 execute 的那條執行緒自己執行這個任務」，「提供一個簡單的回饋控制，讓新任務送進來的速度變慢」</td><td>批次工作：送任務的人被拖慢，就是自動減速</td></tr>
+<tr><th><code>DiscardPolicy</code></th><td>無法執行的任務「直接丟掉」，「只為極少數從不依賴任務完成的情況設計」</td><td>可以丟的統計、心跳</td></tr>
+<tr><th><code>DiscardOldestPolicy</code></th><td>丟掉佇列最前面的任務再重試；「這個策略很少能接受」</td><td>幾乎不選</td></tr>
+</tbody></table></div>
+<pre><code>// CallerRunsPolicy：核心 1、最大 1、佇列容量 1
+CountDownLatch release = new CountDownLatch(1);
+ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        1, 1, 0, TimeUnit.SECONDS, new ArrayBlockingQueue&lt;&gt;(1),
+        new ThreadPoolExecutor.CallerRunsPolicy());
+pool.execute(() -&gt; { try { release.await(); } catch (InterruptedException e) { } });   // 占住唯一的執行緒
+pool.execute(() -&gt; { });                                                            // 排進佇列
+pool.execute(() -&gt; System.out.println("第 3 個任務由 " + Thread.currentThread().getName() + " 執行"));
+// 第 3 個任務由 main 執行
+
+// DiscardPolicy 與 DiscardOldestPolicy：執行緒被占住，再送 1〜4 號任務，佇列只放得下 2 個
+// DiscardPolicy 實際執行了：[1, 2]           ← 後到的 3、4 被丟掉
+// DiscardOldestPolicy 實際執行了：[3, 4]     ← 每次擠掉佇列最前面的，留下最新的</code></pre>
+
+<div class="drill">
+  <p class="dq">轉帳指令送進池子，絕對不能默默不見。佇列滿時應該用哪個拒絕策略？</p>
+  <ul class="dopts"><li>DiscardPolicy</li><li>DiscardOldestPolicy</li><li>不設，預設會等到有空位</li><li data-ok>AbortPolicy</li></ul>
+  <p class="dexp">AbortPolicy 丟出 RejectedExecutionException，呼叫端一定知道失敗了，可以回應錯誤或重試。兩個 Discard 都會無聲丟掉任務。預設本來就是 AbortPolicy，它不會等。</p>
+</div>
+<div class="drill">
+  <p class="dq">CallerRunsPolicy 為什麼適合批次工作？</p>
+  <ul class="dopts"><li>因為它會替池子再開更多執行緒</li><li data-ok>送任務的人被拖慢，自然減速</li><li>因為它會把塞不下的任務存到磁碟</li><li>因為它保證所有任務照順序完成</li></ul>
+  <p class="dexp">文件：由呼叫 execute 的執行緒自己執行任務，是一個簡單的回饋控制，讓新任務送進來的速度變慢。實跑時第 3 個任務印出「由 main 執行」。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實驗，執行緒被占住、佇列放得下 2 個，再依序送 1、2、3、4 號任務。DiscardOldestPolicy 最後執行的是哪幾個？</p>
+  <ul class="dopts"><li data-ok>3、4</li><li>1、2</li><li>1、2、3、4</li><li>一個都沒有</li></ul>
+  <p class="dexp">3 號進來時佇列已有 1、2，丟掉最前面的 1；4 號進來再丟掉 2。最後留下 3、4。DiscardPolicy 則是丟掉後來的 3、4，留下 1、2。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一種情況，用 DiscardPolicy 比較說得過去？</p>
+  <ul class="dopts"><li>寫入每一筆交易紀錄</li><li>寄送月底對帳單給客戶</li><li>執行一筆扣款</li><li data-ok>每秒一次的監控心跳</li></ul>
+  <p class="dexp">文件說它只為「從不依賴任務完成」的少數情況設計。心跳下一秒還會再送；其餘三個少一筆都是事故。</p>
+</div>
+<div class="drill">
+  <p class="dq">ThreadPoolExecutor 在什麼情況下會拒絕新任務？</p>
+  <ul class="dopts"><li>只要佇列裡還有任務沒做</li><li>只要所有核心執行緒都在忙</li><li>任務執行得比 keepAliveTime 還久</li><li data-ok>已關閉，或執行緒與佇列都滿了</li></ul>
+  <p class="dexp">文件：已經關閉，或最大執行緒數與佇列容量都有限、而且都飽和時，新任務會被拒絕。核心在忙只會讓任務排隊。</p>
+</div>
+</section>
+
+<section>
+<p class="era">方便的預設值有代價</p>
+<h3 class="head">Executors 工廠方法的坑，與池子要開多大</h3>
+<p><code>ThreadPoolExecutor</code> 的文件其實是鼓勵用 <code>Executors</code> 的工廠方法的（programmers are urged to use the more convenient Executors factory methods）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a>，問題在於要知道它們的預設值。OpenJDK 21 的原始碼：<code>newFixedThreadPool</code> 是 <code>new LinkedBlockingQueue&lt;Runnable&gt;()</code>，沒給容量；<code>newCachedThreadPool</code> 是核心 0、最大 <code>Integer.MAX_VALUE</code>，配 <code>SynchronousQueue</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/Executors.java" target="_blank" rel="noopener">出處</a> 對照文件的三種佇列策略：無界佇列「不會建立超過 corePoolSize 的執行緒（maximumPoolSize 因此沒有作用）」，但「工作佇列可能無限制地成長」；直接交遞（<code>SynchronousQueue</code>）「通常需要無上限的 maximumPoolSize」，這又「允許執行緒無限制地成長」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 實跑各送 100 個卡住的任務：</p>
+<pre><code>CountDownLatch release = new CountDownLatch(1);
+ThreadPoolExecutor fixed = (ThreadPoolExecutor) Executors.newFixedThreadPool(2);
+ThreadPoolExecutor cached = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+for (int i = 0; i &lt; 100; i++) {
+    Runnable wait = () -&gt; { try { release.await(); } catch (InterruptedException e) { } };
+    fixed.execute(wait);
+    cached.execute(wait);
+}
+// fixed(2)：執行緒 2，佇列 98，佇列還能放 2147483549
+// cached：執行緒 100，最大執行緒數 2147483647</code></pre>
+<p>任務湧入時，fixed 的佇列一直長，最後是堆被吃光的 <code>OutOfMemoryError: Java heap space</code>；cached 的執行緒一直開，最後是 <code>unable to create native thread</code>（兩種錯見〈JVM 記憶體與垃圾回收〉）。需要控制的場合，自己 <code>new ThreadPoolExecutor</code>，給有界佇列與明確的拒絕策略。</p>
+<p><strong>池子開多大。</strong>官方文件沒有公式，只有方向：起點是 <code>Runtime.<wbr>availableProcessors()</code>（「回傳 Java 虛擬機可用的處理器數」）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Runtime.html" target="_blank" rel="noopener">出處</a>；而 <code>ThreadPoolExecutor</code> 的文件提醒「如果任務常常阻塞（例如 I/O 密集），系統可能有辦法排程比你允許的更多的執行緒」，大佇列配小池子「可能讓吞吐量低得不自然」，小佇列配大池子則可能遇到「無法接受的排程負擔」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 所以一般的做法（這是通則、不是官方規定）：</p>
+<ul class="plainlist">
+<li><strong>CPU 密集</strong>（解析檔案、算利息）：執行緒數接近核心數。多開也不會多出算力，只會多切換。</li>
+<li><strong>I/O 密集</strong>（寫資料庫、呼叫核心系統）：執行緒大部分時間在等，可以開比核心數多很多，常見的估算式是「核心數 ×（1＋等待時間 ÷ 計算時間）」，它出自並行程式設計的教材，只是起點，要靠壓測與監控修正。</li>
+<li><strong>下游的上限才是真正的上限</strong>：資料庫連線池只有 20 條，對帳池開 200 條也只有 20 條在做事，其餘在等連線。</li>
+</ul>
+<p><strong>銀行情境：批次對帳。</strong>4 核心的機器上，對帳分兩段：讀檔與比對是 CPU 密集，開 4 條；每筆寫回資料庫平均等 40 毫秒、自己只算 10 毫秒，照估算式是 4 ×（1＋40÷10）＝ 20 條，再跟資料庫連線池的大小取小的。佇列給上限（例如 500），拒絕策略用 CallerRunsPolicy，讀檔的執行緒被拖慢就自動減速。這些數字都是起點，跑一次壓測、看 CPU 使用率與資料庫連線等待時間再調。</p>
+<p class="muted">容器裡 <code>availableProcessors()</code> 回傳的是容器被分到的 CPU 數：在 <code>--cpus=4</code> 的容器實跑印出 4。〈JVM 記憶體與垃圾回收〉也看過，容器的 CPU 與記憶體上限會影響 JVM 選哪個垃圾回收器。</p>
+
+<div class="drill">
+  <p class="dq"><code>Executors.<wbr>newFixedThreadPool(2)</code> 送進 100 個都會卡住的任務，結果是什麼？</p>
+  <ul class="dopts"><li>開到 100 條執行緒</li><li>第 3 個任務開始被拒絕</li><li data-ok>2 條執行緒，98 個排隊</li><li>開到 4 條執行緒，其餘排隊</li></ul>
+  <p class="dexp">fixed 用的是沒給容量的 LinkedBlockingQueue，任務一律排隊、不會被拒絕，也不會超過 2 條執行緒。實跑印出「執行緒 2，佇列 98」。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Executors.<wbr>newCachedThreadPool()</code> 在任務一直湧入、每個都很慢時，最可能出什麼事？</p>
+  <ul class="dopts"><li>佇列無限成長，堆被吃光</li><li data-ok>執行緒無限成長，最後開不出新執行緒</li><li>任務被 AbortPolicy 拒絕</li><li>任務被默默丟掉</li></ul>
+  <p class="dexp">cached 的最大執行緒數是 Integer.MAX_VALUE、佇列是不存東西的 SynchronousQueue，每個等不到空閒執行緒的任務都會開一條新的。實跑送 100 個就開了 100 條。</p>
+</div>
+<div class="drill">
+  <p class="dq">用無界的 LinkedBlockingQueue 建 <code>ThreadPoolExecutor(4, 16, ...)</code>，最多會有幾條執行緒？</p>
+  <ul class="dopts"><li>16</li><li>沒有上限</li><li data-ok>4</li><li>1</li></ul>
+  <p class="dexp">文件：用無界佇列時不會建立超過 corePoolSize 的執行緒，maximumPoolSize 因此沒有作用。因為佇列永遠排得進去，「佇列滿了才加到最大」那一步永遠不會發生。</p>
+</div>
+<div class="drill">
+  <p class="dq">4 核心機器上，一個純計算、幾乎不等 I/O 的批次工作，執行緒池開多大比較合理？</p>
+  <ul class="dopts"><li data-ok>大約 4 條</li><li>大約 400 條</li><li>每個任務一條</li><li>1 條就夠，多了反而錯</li></ul>
+  <p class="dexp">CPU 密集的工作，同一瞬間最多 4 條在跑，多開只會多切換、不會多出算力。I/O 密集的工作才需要比核心數多。</p>
+</div>
+<div class="drill">
+  <p class="dq">對帳池開了 200 條執行緒寫資料庫，但資料庫連線池只有 20 條。實際上同時在寫的大概幾條？</p>
+  <ul class="dopts"><li>200 條全部都在寫</li><li data-ok>大約 20 條，其餘在等連線</li><li>220 條，連線池會自動加開</li><li>0 條，因為一定會死結</li></ul>
+  <p class="dexp">每次寫入都要先借一條連線，下游只有 20 條，其餘 180 條執行緒只是在等。池子的大小要跟下游的上限一起看。</p>
+</div>
+<div class="drill">
+  <p class="dq">每筆工作平均等 I/O 40 毫秒、計算 10 毫秒，機器 4 核心。用「核心數 ×（1＋等待÷計算）」估，起點是幾條？</p>
+  <ul class="dopts"><li data-ok>20</li><li>4</li><li>8</li><li>40</li></ul>
+  <p class="dexp">4 ×（1＋40÷10）＝ 4 × 5 ＝ 20。這個式子出自教材、不是官方規定，只是起點，還要跟下游上限取小的、再用壓測修正。</p>
+</div>
+</section>
+
+<section>
+<p class="era">非同步結果怎麼接起來</p>
+<h3 class="head">CompletableFuture：組合、例外與逾時</h3>
+<p><code>Future</code> 只能「等它算完再用 <code>get</code> 拿」；<code>CompletableFuture</code> 可以在完成時觸發下一步，把好幾個非同步步驟串接、合併。常用的組合：</p>
+<div class="tablewrap"><table><thead><tr><th>方法</th><th>做什麼</th></tr></thead><tbody>
+<tr><td><code>supplyAsync(工作, 執行器)</code></td><td>在指定的執行器上非同步算出一個值</td></tr>
+<tr><td><code>thenApply(函式)</code></td><td>拿到結果後轉換成另一個值（同步的轉換）</td></tr>
+<tr><td><code>thenCompose(函式)</code></td><td>下一步本身也是非同步、回傳 <code>CompletableFuture</code> 時用，不會變成兩層</td></tr>
+<tr><td><code>thenCombine(另一個, 函式)</code></td><td>兩個都完成後合併結果</td></tr>
+<tr><td><code>allOf(...)</code></td><td>全部完成才完成</td></tr>
+<tr><td><code>exceptionally(函式)</code></td><td>前面失敗時給一個替代值</td></tr>
+<tr><td><code>orTimeout(時間, 單位)</code></td><td>時間到還沒完成，就以 <code>TimeoutException</code> 結束</td></tr>
+<tr><td><code>join()</code></td><td>等結果；失敗時丟出非受檢的 <code>CompletionException</code></td></tr>
+</tbody></table></div>
+<p>授信查核：同時問餘額與額度，兩個都到了才決定：</p>
+<pre><code>record Balance(long amount) {}
+record Limit(long amount) {}
+
+ExecutorService pool = Executors.newFixedThreadPool(4);
+CompletableFuture&lt;Balance&gt; balance = CompletableFuture.supplyAsync(() -&gt; new Balance(80_000), pool);
+CompletableFuture&lt;Limit&gt; limit = CompletableFuture.supplyAsync(() -&gt; new Limit(50_000), pool);
+String decision = balance.thenCombine(limit, (b, l) -&gt; b.amount() &gt;= l.amount() ? "核准" : "拒絕")
+        .thenApply(d -&gt; "授信結果：" + d)
+        .join();
+System.out.println(decision);              // 授信結果：核准
+
+CompletableFuture&lt;String&gt; composed = CompletableFuture.supplyAsync(() -&gt; "A001", pool)
+        .thenCompose(acct -&gt; CompletableFuture.supplyAsync(() -&gt; acct + " 的戶名是王小明", pool));
+System.out.println(composed.join());       // A001 的戶名是王小明</code></pre>
+<p><strong>例外會被包起來。</strong>上游丟出的例外，到了 <code>join()</code> 是一個 <code>CompletionException</code>，真正的原因在 <code>getCause()</code>；接在後面的 <code>exceptionally</code> 拿到的也是包過的那一層。實跑：</p>
+<pre><code>CompletableFuture&lt;String&gt; failed = CompletableFuture
+        .supplyAsync(() -&gt; { throw new IllegalStateException("核心系統逾時"); }, pool)
+        .thenApply(x -&gt; "不會執行到這裡：" + x);
+try {
+    failed.join();
+} catch (CompletionException e) {
+    System.out.println("join 丟出 " + e.getClass().getSimpleName() + "，原因是 " + e.getCause());
+}
+// join 丟出 CompletionException，原因是 java.lang.IllegalStateException: 核心系統逾時
+String recovered = failed.exceptionally(ex -&gt; "改用備援：" + ex.getClass().getSimpleName()).join();
+System.out.println(recovered);   // 改用備援：CompletionException
+
+CompletableFuture&lt;String&gt; slow = CompletableFuture.supplyAsync(() -&gt; {
+    try { Thread.sleep(2_000); } catch (InterruptedException e) { }
+    return "慢回應";
+}, pool).orTimeout(200, TimeUnit.MILLISECONDS);
+System.out.println(slow.exceptionally(ex -&gt; "逾時：" + ex.getClass().getSimpleName()).join());
+// 逾時：TimeoutException</code></pre>
+<p>所以在 <code>exceptionally</code> 裡要判斷原因時，先拆一層：<code>ex instanceof CompletionException ? ex.<wbr>getCause() : ex</code>。</p>
+<p><strong>沒指定執行器會跑在哪裡。</strong>文件：「所有沒有明確 Executor 參數的 async 方法，都用 <code>ForkJoinPool.commonPool()</code> 執行（除非它不支援至少 2 的平行度，那時每個任務各建一條新執行緒）」（unless it does not support a parallelism level of at least two, in which case, a new Thread is created to run each task）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> common pool 的平行度預設是可用處理器數減一、最少 1，OpenJDK 21 原始碼寫的是 <code>pc = Math.<wbr>max(1, Runtime.<wbr>getRuntime().<wbr>availableProcessors() - 1)</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/ForkJoinPool.java" target="_blank" rel="noopener">出處</a> 實跑：</p>
+<pre><code>System.out.println("處理器 " + Runtime.getRuntime().availableProcessors()
+        + "，common pool 平行度 " + ForkJoinPool.commonPool().getParallelism());
+System.out.println("supplyAsync 跑在：" + CompletableFuture.supplyAsync(() -&gt; Thread.currentThread().getName()).join());
+// --cpus=4 的容器：處理器 4，common pool 平行度 3
+//                 supplyAsync 跑在：ForkJoinPool.commonPool-worker-1
+// --cpus=2 的容器：處理器 2，common pool 平行度 1
+//                 supplyAsync 跑在：Thread-0        ← 平行度不到 2，每個任務開一條新執行緒</code></pre>
+<p>common pool 是整個 JVM 共用的，平行流也用它（見〈Stream API：把迴圈寫成資料流〉）；拿它跑會阻塞的查詢，幾個慢請求就拖住全 JVM 的非同步工作；只有 2 顆 CPU 的容器又會變成每個任務開一條新執行緒。所以要呼叫外部系統的 <code>supplyAsync</code>，一律傳自己的執行器。</p>
+
+<div class="drill">
+  <p class="dq">餘額查詢與額度查詢互不相依，要兩個都回來才做決定，用哪個方法接？</p>
+  <ul class="dopts"><li>thenApply</li><li>thenCompose</li><li data-ok>thenCombine</li><li>exceptionally</li></ul>
+  <p class="dexp">thenCombine 等兩個 CompletableFuture 都完成，再用一個函式合併兩個結果。thenCompose 是「前一步的結果決定下一個非同步呼叫」。</p>
+</div>
+<div class="drill">
+  <p class="dq">先查帳號、再用帳號非同步查戶名，第二步本身回傳 <code>CompletableFuture&lt;String&gt;</code>。用 thenApply 接會得到什麼型別？</p>
+  <ul class="dopts"><li>CompletableFuture&lt;String&gt;</li><li>String，thenApply 會自動等結果</li><li>編譯錯誤，thenApply 不能回傳 CompletableFuture</li><li data-ok>CompletableFuture 包著 CompletableFuture</li></ul>
+  <p class="dexp">thenApply 把函式的回傳值原樣包一層；函式回傳的本身就是 CompletableFuture，就變成兩層。這種情況用 thenCompose，結果才是一層的 CompletableFuture&lt;String&gt;。</p>
+</div>
+<div class="drill">
+  <p class="dq">上游的 supplyAsync 丟出 IllegalStateException，在後面呼叫 <code>join()</code>，拿到的是什麼？</p>
+  <ul class="dopts"><li>IllegalStateException 原樣丟出來</li><li data-ok>包成 CompletionException</li><li>ExecutionException，原因在 getCause</li><li>null，例外會被吃掉</li></ul>
+  <p class="dexp">join 失敗時丟非受檢的 CompletionException，真正的例外在 getCause()。實跑印出「join 丟出 CompletionException，原因是 java.lang.IllegalStateException: 核心系統逾時」。Future.get 才是包成 ExecutionException。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>failed</code>（supplyAsync 丟例外、後面接了 thenApply），再接 <code>exceptionally(<wbr>ex -&gt; ex.<wbr>getClass().<wbr>getSimpleName())</code>，回傳什麼？</p>
+  <ul class="dopts"><li>IllegalStateException</li><li data-ok>CompletionException</li><li>TimeoutException</li><li>null</li></ul>
+  <p class="dexp">例外經過中間的 thenApply 時被包成 CompletionException，所以 exceptionally 拿到的是外面那一層。要看原因就先 getCause()。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>supplyAsync(...).<wbr>orTimeout(200, TimeUnit.<wbr>MILLISECONDS)</code>，工作要 2 秒才完成，結果是什麼？</p>
+  <ul class="dopts"><li>等 2 秒，照樣拿到正常結果</li><li>200 毫秒後回傳 null</li><li data-ok>以 TimeoutException 結束</li><li>工作被自動重試一次再回傳</li></ul>
+  <p class="dexp">orTimeout：時間到還沒完成，就以 TimeoutException 例外完成。實跑接 exceptionally 印出「逾時：TimeoutException」。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 4 核心的機器上呼叫 <code>CompletableFuture.<wbr>supplyAsync(工作)</code>（沒給執行器），工作在哪裡執行？</p>
+  <ul class="dopts"><li data-ok>common pool</li><li>呼叫者自己的執行緒</li><li>每次新開一條平台執行緒</li><li>每次新開一條虛擬執行緒</li></ul>
+  <p class="dexp">文件：沒有明確執行器的 async 方法用 commonPool；平行度預設是處理器數減一（4−1＝3）。實跑印出 ForkJoinPool.commonPool-worker-1。</p>
+</div>
+<div class="drill">
+  <p class="dq">同樣的程式放進只有 2 顆 CPU 的容器，<code>supplyAsync(工作)</code> 會怎樣？</p>
+  <ul class="dopts"><li>照樣在 common pool，平行度是 2</li><li>丟出 RejectedExecutionException</li><li>改在呼叫者的執行緒裡同步執行</li><li data-ok>每個任務各開一條新執行緒</li></ul>
+  <p class="dexp">2−1＝1，文件說 common pool 不支援至少 2 的平行度時，每個任務建一條新執行緒。實跑印出 Thread-0。這也是要自己傳執行器的理由之一。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼呼叫外部系統的 <code>supplyAsync</code> 建議傳自己的執行器？</p>
+  <ul class="dopts"><li data-ok>共用池被阻塞查詢卡住，會拖累其他非同步工作</li><li>因為不傳執行器就不能用 thenCombine</li><li>因為自己建的執行器一定比較快</li><li>因為 common pool 不能處理例外</li></ul>
+  <p class="dexp">common pool 只有處理器數減一條，而且平行流、其他沒指定執行器的非同步工作都用它；把它拿去等外部系統，大家都被卡住。</p>
+</div>
+</section>
+
+<section>
+<p class="era">多執行緒共用的表</p>
+<h3 class="head">ConcurrentHashMap：讀不加鎖、寫鎖一個桶</h3>
+<p><code>HashMap</code> 不是執行緒安全的。8 條執行緒同時對 4 家分行各累加 10 萬次（應該是 80 萬）：</p>
+<pre><code>String[] branches = { "信義", "大安", "松山", "中山" };
+Map&lt;String, Integer&gt; plain = new HashMap&lt;&gt;();
+ConcurrentHashMap&lt;String, Integer&gt; safe = new ConcurrentHashMap&lt;&gt;();
+ExecutorService pool = Executors.newFixedThreadPool(8);
+CountDownLatch start = new CountDownLatch(1);
+List&lt;Future&lt;?&gt;&gt; fs = new ArrayList&lt;&gt;();
+for (int t = 0; t &lt; 8; t++) {
+    fs.add(pool.submit(() -&gt; {
+        try { start.await(); } catch (InterruptedException e) { }
+        for (int i = 0; i &lt; 100_000; i++) {
+            String b = branches[i % 4];
+            plain.merge(b, 1, Integer::sum);          // HashMap：沒有同步
+            safe.merge(b, 1, Integer::sum);           // ConcurrentHashMap：merge 是原子的
+        }
+    }));
+}
+start.countDown();
+for (Future&lt;?&gt; f : fs) {
+    try { f.get(); } catch (ExecutionException e) { System.out.println("HashMap 那邊丟出 " + e.getCause()); }
+}
+// 同一批四次實跑，HashMap 總和：760220、768839、759175、751849（每次都少，而且每次不同）
+// ConcurrentHashMap 總和：800000（四次都是）</code></pre>
+<p><strong>為什麼快又安全。</strong>文件：它「支援完整並行的讀取與高度並行的更新」，「所有操作都是執行緒安全的，但讀取操作不涉及鎖定，也不支援鎖住整張表」（retrieval operations do not entail locking）；讀取（包括 <code>get</code>）「一般不會阻塞，可以跟更新重疊」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a> 寫入怎麼做，OpenJDK 21 原始碼的註解：在空的桶放進第一個節點「只靠 CAS 就完成」（performed by just CASing it to the bin），這是最常見的情況；其他更新需要鎖，但不想替每個桶配一個鎖物件，「所以直接用桶裡串列的第一個節點當鎖」，靠內建的 <code>synchronized</code> 監視器。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java" target="_blank" rel="noopener">出處</a> 不同的桶互不影響，所以 8 條執行緒同時寫不同分行，大多不會互等。CAS 是什麼見〈執行緒與並行〉。</p>
+<p><strong>兩個用法提醒。</strong>第一，它「不允許 null 當鍵或值」（does not allow null to be used as a key or value）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a>，實跑 <code>put("中正", null)</code> 丟 <code>NullPointerException</code>。第二，「先 get 再 put」是兩次呼叫，中間會被別的執行緒插隊；要一次做完就用 <code>merge</code>、<code>compute</code>、<code>computeIfAbsent</code>：</p>
+<pre><code>ConcurrentHashMap&lt;String, LongAdder&gt; freq = new ConcurrentHashMap&lt;&gt;();
+for (String b : List.of("信義", "大安", "信義")) {
+    freq.computeIfAbsent(b, k -&gt; new LongAdder()).increment();
+}
+System.out.println("computeIfAbsent 計數：" + new TreeMap&lt;&gt;(freq));
+// computeIfAbsent 計數：{信義=2, 大安=1}</code></pre>
+
+<div class="drill">
+  <p class="dq">8 條執行緒同時對同一個 <code>HashMap</code> 做 <code>merge(key, 1, Integer::sum)</code> 共 80 萬次，總和會是多少？</p>
+  <ul class="dopts"><li>一定是 800000</li><li data-ok>不一定，通常少於 800000，每次不同</li><li>一定是 0</li><li>一定丟出 ConcurrentModificationException</li></ul>
+  <p class="dexp">HashMap 沒有同步，多條執行緒同時改會互相蓋掉。實跑四次分別少了三四萬到五萬多筆，每次不同；ConcurrentHashMap 四次都是 800000。</p>
+</div>
+<div class="drill">
+  <p class="dq">ConcurrentHashMap 的 <code>get</code> 會不會因為別的執行緒正在 <code>put</code> 而被擋住？</p>
+  <ul class="dopts"><li>會，整張表一次只能一個人用</li><li>會，同一個桶就會互相擋住</li><li data-ok>一般不會，讀取不加鎖，可以跟更新重疊</li><li>只有在擴容的時候才不會擋住</li></ul>
+  <p class="dexp">文件：讀取操作不涉及鎖定，一般不會阻塞，可以跟 put、remove 重疊；讀到的是它開始時最近已完成的更新結果。</p>
+</div>
+<div class="drill">
+  <p class="dq">依 OpenJDK 21 原始碼的註解，往一個空的桶放進第一個節點，ConcurrentHashMap 用什麼完成？</p>
+  <ul class="dopts"><li>鎖住整張表</li><li data-ok>CAS</li><li>每個桶一個 ReentrantLock</li><li>先複製一份新表</li></ul>
+  <p class="dexp">註解：空桶插入第一個節點只靠 CAS，這是最常見的情況；其他更新才鎖住桶的第一個節點（用內建的 synchronized）。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>concurrentMap.<wbr>put(<wbr>"中正", null)</code> 會怎樣？</p>
+  <ul class="dopts"><li>存進一個值是 null 的項目</li><li>什麼都不做，也不報錯</li><li>把鍵「中正」移除掉</li><li data-ok>丟出 NullPointerException</li></ul>
+  <p class="dexp">文件：ConcurrentHashMap 不允許 null 當鍵或值。實跑丟出 NullPointerException。HashMap 才允許 null。</p>
+</div>
+<div class="drill">
+  <p class="dq">多條執行緒要替各分行計數，下面哪個寫法在 ConcurrentHashMap 上不會少算？</p>
+  <ul class="dopts"><li>if (!map.<wbr>containsKey(<wbr>b)) map.<wbr>put(<wbr>b, 0); map.<wbr>put(<wbr>b, map.<wbr>get(<wbr>b) + 1);</li><li>map.<wbr>put(<wbr>b, map.<wbr>getOrDefault(<wbr>b, 0) + 1);</li><li data-ok>map.<wbr>merge(<wbr>b, 1, Integer::sum);</li><li>synchronized 只包住 map.get(b)</li></ul>
+  <p class="dexp">merge 是一次完成的原子操作。前兩個都是「先讀再寫」的兩次呼叫，中間會被插隊；只包住 get 也擋不住寫回時互相蓋掉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">等別人、互相等、限量放行</p>
+<h3 class="head">CountDownLatch、Semaphore、CyclicBarrier</h3>
+<div class="tablewrap"><table><thead><tr><th>類別</th><th>文件怎麼說</th><th>關鍵性質</th></tr></thead><tbody>
+<tr><th><code>CountDownLatch</code></th><td>「讓一條或多條執行緒等待，直到其他執行緒正在做的一組操作完成」</td><td>「一次性的，計數不能重設」；要重設就用 CyclicBarrier</td></tr>
+<tr><th><code>Semaphore</code></th><td>「概念上維護一組許可（permits）」，<code>acquire</code> 在有許可前阻塞然後取走一個，<code>release</code> 加回一個；「常用來限制能存取某種資源的執行緒數」</td><td>只是一個計數，沒有真的許可物件</td></tr>
+<tr><th><code>CyclicBarrier</code></th><td>「讓一組執行緒全部互相等待，直到到達共同的屏障點」</td><td>「叫 cyclic 是因為等待的執行緒被釋放後可以重複使用」；可以帶一個每個屏障點執行一次的動作</td></tr>
+</tbody></table></div>
+<p>表中引文分別出自三個類別的文件。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CountDownLatch.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/Semaphore.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CyclicBarrier.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>// CountDownLatch：等四個對帳分片都做完才出總表
+CountDownLatch done = new CountDownLatch(4);
+AtomicLong total = new AtomicLong();
+ExecutorService pool = Executors.newFixedThreadPool(4);
+for (int i = 1; i &lt;= 4; i++) {
+    int shard = i;
+    pool.execute(() -&gt; {
+        total.addAndGet(shard * 1_000L);             // 每個分片對完一部分
+        done.countDown();
+    });
+}
+done.await();
+System.out.println("四個分片都完成，合計 " + total.get() + "，計數剩 " + done.getCount());
+// 四個分片都完成，合計 10000，計數剩 0
+
+// Semaphore：10 條執行緒搶 30 個查詢，核心帳務同時最多接 3 個
+Semaphore permits = new Semaphore(3);
+// 每個查詢：permits.acquire(); try { 查詢 } finally { permits.release(); }
+// 實跑記錄同時進行的最大數量：10 條執行緒搶 30 個查詢，同時進行最多 3 個
+
+// CyclicBarrier：三家分行每輪都算完才進下一輪，跑兩輪
+CyclicBarrier barrier = new CyclicBarrier(3, () -&gt; System.out.println("  這一輪三家都到了"));
+//   這一輪三家都到了
+//   這一輪三家都到了</code></pre>
+<p class="muted">這些工具也建立 happens-before：<code>java.util.concurrent</code> 套件說明寫「<code>Lock.unlock</code>、<code>Semaphore.release</code>、<code>CountDownLatch.countDown</code> 這類『釋放』方法之前的動作，happens-before 另一條執行緒在同一個同步器上成功『取得』（例如 <code>CountDownLatch.await</code>）之後的動作」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/package-summary.html" target="_blank" rel="noopener">出處</a> 所以上面主執行緒在 <code>await()</code> 之後一定看得到各分片寫進 <code>total</code> 的值。happens-before 本身在後面一段。</p>
+
+<div class="drill">
+  <p class="dq">主執行緒要等 8 個對帳分片都做完才出總表，用哪個工具最直接？</p>
+  <ul class="dopts"><li data-ok>CountDownLatch(8)</li><li>Semaphore(8)</li><li>CyclicBarrier(8)</li><li>ConcurrentHashMap</li></ul>
+  <p class="dexp">CountDownLatch 讓一條或多條執行緒等待其他執行緒的一組操作完成：每個分片做完 countDown，主執行緒 await 到計數歸零。分片之間不需要互等，所以不用 CyclicBarrier。</p>
+</div>
+<div class="drill">
+  <p class="dq">核心帳務系統一次只能接 20 個查詢，前面有上百條執行緒要查，用哪個工具限量？</p>
+  <ul class="dopts"><li>CountDownLatch(20)</li><li data-ok>Semaphore(20)</li><li>CyclicBarrier(20)</li><li>把所有查詢包進同一個 synchronized</li></ul>
+  <p class="dexp">Semaphore 維護一組許可，常用來限制能存取某資源的執行緒數。實跑用 3 個許可，10 條執行緒搶 30 個查詢，同時進行的最多就是 3 個。synchronized 會變成一次只有 1 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">CountDownLatch 的計數降到 0 之後，還能把它重設回 4 再用一次嗎？</p>
+  <ul class="dopts"><li>可以，呼叫 reset() 就行</li><li>可以，再呼叫 countDown 會往回加</li><li data-ok>不行，它是一次性的，要重設就選 CyclicBarrier</li><li>可以，但只能重設一次</li></ul>
+  <p class="dexp">文件：這是一次性的現象，計數不能重設；需要可重設的版本就考慮 CyclicBarrier。</p>
+</div>
+<div class="drill">
+  <p class="dq">三個分行的試算要分好幾輪，每一輪三個都算完、交換結果後才能進下一輪。用哪個工具？</p>
+  <ul class="dopts"><li>CountDownLatch(3)</li><li>Semaphore(3)</li><li>BlockingQueue</li><li data-ok>CyclicBarrier(3)</li></ul>
+  <p class="dexp">CyclicBarrier 讓一組執行緒互相等待到共同的屏障點，釋放後可以重複使用，還能帶一個每輪執行一次的動作。實跑兩輪各印一次「這一輪三家都到了」。</p>
+</div>
+<div class="drill">
+  <p class="dq">主執行緒在 <code>done.await()</code> 返回之後讀 <code>total</code>，一定看得到各分片在 <code>countDown()</code> 之前寫入的值嗎？</p>
+  <ul class="dopts"><li data-ok>一定看得到，countDown 之前的動作 happens-before await 之後</li><li>不一定，total 要宣告成 volatile 才行</li><li>不一定，要先 sleep 一小段時間</li><li>一定看不到，要用 synchronized 讀</li></ul>
+  <p class="dexp">java.util.concurrent 套件說明：CountDownLatch.countDown 這類釋放方法之前的動作，happens-before 另一條執行緒成功 await 之後的動作。透過這些工具交手的資料不必另外加 volatile。</p>
+</div>
+</section>
+
+<section>
+<p class="era">綁在執行緒上的變數</p>
+<h3 class="head">ThreadLocal 與它在執行緒池裡的洩漏</h3>
+<p><code>ThreadLocal</code> 讓每條執行緒有自己的一份變數，文件說它「通常是類別裡的 private static 欄位，用來把狀態跟執行緒綁在一起（例如使用者 ID 或交易 ID）」；而且「只要執行緒還活著、ThreadLocal 實體也還存取得到，每條執行緒都持有它那份副本的隱含參考；執行緒消失後，它所有的副本都可以被回收」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a> 問題就在「執行緒消失後」這幾個字：池裡的執行緒不會消失。</p>
+<pre><code>static final ThreadLocal&lt;String&gt; USER = new ThreadLocal&lt;&gt;();
+
+ExecutorService pool = Executors.newSingleThreadExecutor();   // 只有一條執行緒，任務一定共用它
+pool.submit(() -&gt; USER.set("王小明")).get();                     // 第一個請求設了，沒有清
+System.out.println("下一個請求讀到：" + pool.submit(() -&gt; USER.get()).get());
+// 下一個請求讀到：王小明          ← 讀到上一個人的資料
+pool.submit(() -&gt; {
+    USER.set("陳美玲");
+    try {
+        // 處理請求
+    } finally {
+        USER.remove();                                        // 用完一定清掉
+    }
+}).get();
+System.out.println("有 remove 之後下一個請求讀到：" + pool.submit(() -&gt; USER.get()).get());
+// 有 remove 之後下一個請求讀到：null</code></pre>
+<p>沒清有兩個後果：值一直被執行緒抓著，是〈JVM 記憶體與垃圾回收〉講的記憶體洩漏；更糟的是下一個借到這條執行緒的請求讀到上一個人的身分。Web 伺服器處理請求的執行緒也是池子，所以在過濾器或攔截器裡設的 ThreadLocal，一定要在 <code>finally</code> 裡 <code>remove()</code>。<code>ThreadPoolExecutor</code> 的文件也提到，可以覆寫 <code>beforeExecute</code>、<code>afterExecute</code> 做「重新初始化 ThreadLocal」這類事。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">上面的實驗，第二個任務讀到「王小明」，原因是什麼？</p>
+  <ul class="dopts"><li>ThreadLocal 是所有執行緒共用的一份</li><li data-ok>同一條執行緒，上一個沒清</li><li>JVM 的快取剛好讀到舊值</li><li>submit 會複製上一個任務的區域變數</li></ul>
+  <p class="dexp">單一執行緒的池讓兩個任務共用同一條執行緒；ThreadLocal 的副本跟著執行緒活，第一個任務沒 remove，第二個就讀到它。</p>
+</div>
+<div class="drill">
+  <p class="dq">在執行緒池裡用 ThreadLocal，正確的收尾是什麼？</p>
+  <ul class="dopts"><li>不用收，任務結束後 JVM 會自動清</li><li>呼叫 USER.set(null) 就算清乾淨</li><li data-ok>finally 裡呼叫 remove()</li><li>呼叫 System.gc() 讓它被回收</li></ul>
+  <p class="dexp">放在 finally 才能保證例外時也清掉。set(null) 雖然讓值變 null，但項目本身還留在那條執行緒上；remove 才是把它拿掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">依 ThreadLocal 的文件，執行緒的副本什麼時候才可以被回收？</p>
+  <ul class="dopts"><li>任務一結束</li><li data-ok>執行緒消失之後（除非有別的參考指著）</li><li>下一次年輕代回收</li><li>ThreadLocal 被讀過一次之後</li></ul>
+  <p class="dexp">文件：執行緒活著且 ThreadLocal 可存取時持有副本的隱含參考；執行緒消失後副本才可被回收。池裡的執行緒不會消失，所以要自己 remove。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一邊生產、一邊消費</p>
+<h3 class="head">BlockingQueue：生產者消費者</h3>
+<p><code>BlockingQueue</code> 是「取元素時等待佇列變成非空、放元素時等待有空間」的佇列，「主要用於生產者消費者佇列」；它「不接受 null」，也「本身不支援 close 或 shutdown」，文件建議生產者放進一個特殊的「結束物件」（poison object）通知消費者收工。四組方法：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/BlockingQueue.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>做不到時</th><th>放入</th><th>取出</th></tr></thead><tbody>
+<tr><td>丟例外</td><td><code>add(e)</code></td><td><code>remove()</code></td></tr>
+<tr><td>回傳特殊值（false／null）</td><td><code>offer(e)</code></td><td><code>poll()</code></td></tr>
+<tr><td>阻塞</td><td><code>put(e)</code></td><td><code>take()</code></td></tr>
+<tr><td>阻塞到逾時</td><td><code>offer(e, time, unit)</code></td><td><code>poll(time, unit)</code></td></tr>
+</tbody></table></div>
+<pre><code>static final String END = new String("__END__");   // 結束物件：比的是「同一個物件」
+
+BlockingQueue&lt;String&gt; queue = new ArrayBlockingQueue&lt;&gt;(10);   // 有界：生產者太快就會被 put 擋住
+int consumers = 3;
+AtomicInteger processed = new AtomicInteger();
+List&lt;Thread&gt; workers = new ArrayList&lt;&gt;();
+for (int i = 0; i &lt; consumers; i++) {
+    workers.add(Thread.ofPlatform().start(() -&gt; {
+        try {
+            while (true) {
+                String line = queue.take();               // 空了就等
+                if (line == END) break;                   // 比的是同一個物件
+                processed.incrementAndGet();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }));
+}
+for (int i = 0; i &lt; 1_000; i++) {
+    queue.put("TX-" + i);                                  // 滿了就等
+}
+for (int i = 0; i &lt; consumers; i++) {
+    queue.put(END);                                        // 每個消費者一個結束物件
+}
+for (Thread w : workers) w.join();
+System.out.println("處理了 " + processed.get() + " 筆");   // 處理了 1000 筆</code></pre>
+<p>三種常見實作剛好對上執行緒池的三種佇列策略：<code>ArrayBlockingQueue</code> 是「以陣列實作的有界阻塞佇列」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ArrayBlockingQueue.html" target="_blank" rel="noopener">出處</a>；<code>LinkedBlockingQueue</code> 是「可選擇是否有界」，沒指定容量就等於 <code>Integer.MAX_VALUE</code><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/LinkedBlockingQueue.html" target="_blank" rel="noopener">出處</a>；<code>SynchronousQueue</code>「沒有任何內部容量，連一個都沒有」，每個放入都要等一個取出。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/SynchronousQueue.html" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">生產者要「佇列滿了就等，不要丟資料、也不要丟例外」，該用哪個方法放？</p>
+  <ul class="dopts"><li>add(e)</li><li>offer(e)</li><li data-ok>put(e)</li><li>poll()</li></ul>
+  <p class="dexp">BlockingQueue 的四組方法裡，put 是放不下就阻塞等待；add 會丟例外，offer 回傳 false，poll 是取出。</p>
+</div>
+<div class="drill">
+  <p class="dq">消費者在佇列空的時候呼叫 <code>poll()</code>（不帶時間），會怎樣？</p>
+  <ul class="dopts"><li>一直等到有資料</li><li>丟出 NoSuchElementException</li><li data-ok>立刻回傳 null</li><li>回傳結束物件</li></ul>
+  <p class="dexp">poll() 屬於「回傳特殊值」那一組，空的就回傳 null。要等就用 take()，要等一段時間就用 poll(時間, 單位)。</p>
+</div>
+<div class="drill">
+  <p class="dq">BlockingQueue 沒有 close 方法，生產者做完要怎麼通知 3 個消費者收工？</p>
+  <ul class="dopts"><li>放一個 null 進去當作信號</li><li>呼叫 queue.clear() 清空佇列</li><li data-ok>每個消費者放一個結束物件</li><li>等佇列變空，消費者會自己結束</li></ul>
+  <p class="dexp">文件建議用特殊的結束物件；它不接受 null。佇列變空時 take() 只會一直等，消費者不會自己結束。有幾個消費者就放幾個結束物件。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼範例的結束物件寫成 <code>new String("__END__")</code>，比對時用 <code>==</code>？</p>
+  <ul class="dopts"><li>因為字串不能用 equals 比較</li><li>因為 == 比 equals 快很多</li><li>因為 BlockingQueue 規定要用 ==</li><li data-ok>資料剛好相同也不會被誤認</li></ul>
+  <p class="dexp">比同一性而不是內容：只有那一個物件才是結束信號。如果寫字面值 "__END__"，它會進字串池，別處同樣的字面值是同一個物件，就可能撞到。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪個佇列「一個元素都存不了」，放入一定要等到有人來取？</p>
+  <ul class="dopts"><li>ArrayBlockingQueue(1)</li><li>LinkedBlockingQueue()</li><li>LinkedBlockingQueue(1)</li><li data-ok>SynchronousQueue</li></ul>
+  <p class="dexp">SynchronousQueue 沒有內部容量，連一個都沒有，所以 newCachedThreadPool 配它時，每個任務不是交給閒著的執行緒就是開一條新的。</p>
+</div>
+</section>
+
+<section>
+<p class="era">誰寫的值，別人什麼時候看得到</p>
+<h3 class="head">happens-before：JLS 17.4.5</h3>
+<p>多執行緒裡「我寫了，你就看得到」不是理所當然的。JLS 17.3 有一個例子：<code>while (!this.<wbr>done) Thread.<wbr>sleep(1000);</code>，<code>done</code> 是普通（非 volatile）欄位時，「編譯器可以只讀一次 <code>this.done</code>，之後每一圈都重用快取的值；這表示即使另一條執行緒改了 <code>this.done</code>，迴圈也可能永遠不會結束」（This would mean that the loop would never terminate, even if another thread changed the value of this.done.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-17.html#jls-17.3" target="_blank" rel="noopener">出處</a> 實跑一個空轉讀旗標的迴圈：</p>
+<pre><code>static boolean plainStop = false;
+static volatile boolean volatileStop = false;
+
+Thread spin = Thread.ofPlatform().daemon().start(() -&gt; {
+    long n = 0;
+    while (!plainStop) { n++; }                            // 一直讀一個普通欄位
+});
+Thread.sleep(500);
+plainStop = true;
+spin.join(2_000);
+System.out.println("普通欄位：設成 true 兩秒後，迴圈還在跑嗎？" + spin.isAlive());
+// 普通欄位：設成 true 兩秒後，迴圈還在跑嗎？true      ← 四次實跑都是 true
+// 同樣的寫法換成 volatileStop：
+// volatile 欄位：設成 true 兩秒後，迴圈還在跑嗎？false</code></pre>
+<p>規格沒有說普通欄位「一定」看不到，只是不保證看得到；這次在 Java 21 上剛好每次都看不到。要保證，就要建立 <strong>happens-before</strong>（先行發生）關係。JLS 17.4.5：「如果一個動作 happens-before 另一個，則第一個對第二個可見，而且排在它之前」（If one action happens-before another, then the first is visible to and ordered before the second.）。規格從定義推出的幾條：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-17.html#jls-17.4.5" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>這個動作</th><th>happens-before</th></tr></thead><tbody>
+<tr><td>同一條執行緒裡前面的動作</td><td>同一條執行緒裡後面的動作（程式順序）</td></tr>
+<tr><td>對一個監視器解鎖（離開 <code>synchronized</code>）</td><td>之後每一次對同一個監視器上鎖</td></tr>
+<tr><td>寫入一個 volatile 欄位</td><td>之後每一次讀取那個欄位</td></tr>
+<tr><td>呼叫一條執行緒的 <code>start()</code></td><td>那條執行緒裡的任何動作</td></tr>
+<tr><td>一條執行緒裡的所有動作</td><td>另一條執行緒對它的 <code>join()</code> 成功返回</td></tr>
+</tbody></table></div>
+<p>而且它可以遞移：hb(x, y) 且 hb(y, z) 就有 hb(x, z)。所以「先寫一般資料、再寫 volatile 旗標」，讀到旗標的執行緒也看得到那些一般資料。<code>java.util.concurrent</code> 把這些保證延伸到高階工具：放進並行集合之前的動作 happens-before 另一條執行緒取出之後的動作；送進執行器之前的動作 happens-before 任務開始執行；非同步計算的動作 happens-before 另一條執行緒用 <code>Future.get()</code> 拿到結果之後的動作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/package-summary.html" target="_blank" rel="noopener">出處</a> volatile 不保證 <code>count++</code> 的原子性，這點見〈執行緒與並行〉。</p>
+
+<div class="drill">
+  <p class="dq">執行緒 A 把普通欄位 <code>done</code> 設成 true，執行緒 B 在迴圈裡一直讀 <code>done</code>。依 JLS，B 一定會看到 true 嗎？</p>
+  <ul class="dopts"><li>一定會，只是會晚一點才看到</li><li data-ok>不保證，沒有 happens-before 就可能一直讀到舊值</li><li>一定不會，普通欄位只有自己看得到</li><li>只有在單核心機器上才保證看得到</li></ul>
+  <p class="dexp">JLS 17.3 的例子：編譯器可以只讀一次、之後重用快取的值，迴圈可能永遠不結束。實跑四次都沒結束。宣告成 volatile 就有寫入 happens-before 讀取的保證。</p>
+</div>
+<div class="drill">
+  <p class="dq">執行緒 A 先寫 <code>data = 42</code>（普通欄位），再寫 <code>ready = true</code>（volatile）。執行緒 B 讀到 <code>ready</code> 是 true 之後讀 <code>data</code>，會看到什麼？</p>
+  <ul class="dopts"><li>不一定，data 也要是 volatile</li><li>一定是 0</li><li data-ok>一定是 42</li><li>會丟出例外</li></ul>
+  <p class="dexp">A 裡寫 data 在寫 ready 之前（程式順序），寫 volatile happens-before 讀到它的那次讀取，再加上 B 裡讀 ready 在讀 data 之前；遞移起來，寫 data happens-before 讀 data。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一組<strong>沒有</strong> happens-before 關係？</p>
+  <ul class="dopts"><li>呼叫 t.start() 之前的動作，與 t 裡的動作</li><li>t 裡的所有動作，與另一條執行緒的 t.<wbr>join() 返回之後</li><li>離開 synchronized(<wbr>lock) 與之後進入 synchronized(<wbr>lock)</li><li data-ok>執行緒 A 寫一個普通欄位，與執行緒 B 之後讀那個欄位</li></ul>
+  <p class="dexp">前三個都是 JLS 17.4.5 列出的。兩條執行緒對普通欄位的寫與讀，中間沒有任何同步，就沒有 happens-before，也就是資料競爭。</p>
+</div>
+<div class="drill">
+  <p class="dq">任務送進 <code>ExecutorService</code> 之前，主執行緒先把一個普通物件的欄位設好。任務開始執行時，一定看得到那些值嗎？</p>
+  <ul class="dopts"><li data-ok>一定看得到，送出之前的動作 happens-before 任務開始</li><li>不一定，欄位要宣告成 volatile</li><li>不一定，要先 sleep 一下才保險</li><li>只有用虛擬執行緒時才保證</li></ul>
+  <p class="dexp">java.util.concurrent 套件說明：送出 Runnable 給 Executor 之前的動作，happens-before 它開始執行；Callable 送進 ExecutorService 也一樣。</p>
+</div>
+</section>
+
+<section>
+<p class="era">等待型的工作，有另一個答案</p>
+<h3 class="head">虛擬執行緒什麼時候用</h3>
+<p>Java 21 的 Virtual Threads 指南有兩條跟執行緒池直接相關的建議。第一，「把每個應用程式的任務都表示成一條執行緒」，不要共用一個池；虛擬執行緒很多，「每條都應該代表一個任務，而不是共用的、池化的資源」，所以「永遠不要池化虛擬執行緒」。第二，要限制並行數，例如某個外部服務最多只能同時接 10 個請求，以前用固定大小的池來達成，但「限制並行只是執行緒池運作的副作用」，「池是為了共用稀有資源而設計的，虛擬執行緒並不稀有，所以永遠不該被池化」；要限量就「用專門為這個目的設計的結構：<code>Semaphore</code> 類別」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html" target="_blank" rel="noopener">出處</a> JEP 444 也說虛擬執行緒適合大部分時間在等的工作，不是讓計算變快。<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a> 實跑一萬個「各等 100 毫秒」的任務：</p>
+<pre><code>try (ExecutorService pool = Executors.newFixedThreadPool(100)) {
+    for (int i = 0; i &lt; 10_000; i++) {
+        pool.submit(() -&gt; { Thread.sleep(100); return null; });
+    }
+}                                                          // close() 會等全部做完
+try (ExecutorService vt = Executors.newVirtualThreadPerTaskExecutor()) {
+    for (int i = 0; i &lt; 10_000; i++) {
+        vt.submit(() -&gt; { Thread.sleep(100); return null; });
+    }
+}
+// 100 條平台執行緒的池：約 10137 毫秒（第二次 10152）
+// 每個任務一條虛擬執行緒：約 153 毫秒（第二次 175）</code></pre>
+<p>100 條執行緒一次只能讓 100 個任務在等，一萬個任務就要排 100 輪、約 10 秒；虛擬執行緒讓一萬個一起等，總時間接近一個任務的 100 毫秒。換成每個任務都在算東西，就不會有這種差別，CPU 密集的工作照樣用大小接近核心數的池。虛擬執行緒跟作業系統執行緒的對應見〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉；釘住載體等面試追問見〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+<div class="tablewrap"><table><thead><tr><th>工作的樣子</th><th>建議</th></tr></thead><tbody>
+<tr><td>大部分時間在等（呼叫 API、查資料庫、讀網路）</td><td>虛擬執行緒，每個任務一條；要限量用 <code>Semaphore</code></td></tr>
+<tr><td>大部分時間在算（解析、加密、壓縮）</td><td>平台執行緒的池，大小接近核心數</td></tr>
+<tr><td>要排隊、要拒絕、要回饋減速（批次對帳）</td><td><code>ThreadPoolExecutor</code>，有界佇列加拒絕策略</td></tr>
+</tbody></table></div>
+
+<div class="drill">
+  <p class="dq">用虛擬執行緒呼叫一個最多只能同時接 10 個請求的外部服務，依 Java 21 指南，該怎麼限量？</p>
+  <ul class="dopts"><li>建一個 10 條虛擬執行緒的池</li><li>用 newFixedThreadPool(10) 包起來</li><li data-ok>每個任務一條，用 Semaphore(10)</li><li>不用限量，虛擬執行緒會自動排隊</li></ul>
+  <p class="dexp">指南：虛擬執行緒不稀有，永遠不該池化；限制並行要用專門的 Semaphore。用固定池限量只是池子的副作用。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實驗，一萬個「各等 100 毫秒」的任務，100 條平台執行緒的池為什麼要 10 秒左右？</p>
+  <ul class="dopts"><li>因為平台執行緒的 sleep 比較慢</li><li>因為池子在每個任務之間會休息</li><li data-ok>一次只有 100 個在等，一萬個要排 100 輪</li><li>因為上下文切換就花了 10 秒</li></ul>
+  <p class="dexp">10,000 ÷ 100 ＝ 100 輪，每輪約 100 毫秒，合計約 10 秒。虛擬執行緒讓一萬個同時等，實跑約 150 毫秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個把影像檔重新壓縮的工作，全程都在計算，換成虛擬執行緒會快很多嗎？</p>
+  <ul class="dopts"><li>會，虛擬執行緒一定比較快</li><li>會，因為可以同時開一萬條</li><li data-ok>不會，CPU 密集的工作受限於核心數</li><li>會，因為不需要上下文切換</li></ul>
+  <p class="dexp">JEP 444 與 Thread 文件都說虛擬執行緒適合大部分時間在等的工作，不適合長時間 CPU 密集的運算。核心都在忙時，多開的執行緒只是排隊。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼指南說虛擬執行緒「永遠不要池化」？</p>
+  <ul class="dopts"><li>因為虛擬執行緒不能放進集合</li><li>因為池化會讓虛擬執行緒變成平台執行緒</li><li>因為 Java 不允許 ThreadPoolExecutor 用虛擬執行緒</li><li data-ok>因為池是為了共用稀有資源而設計的，虛擬執行緒並不稀有</li></ul>
+  <p class="dexp">指南原意：池化是為了重複使用昂貴的平台執行緒；虛擬執行緒便宜，每個任務一條就好。技術上做得到池化，但沒有好處，還會讓 ThreadLocal 這類狀態在任務之間殘留。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>ThreadPoolExecutor 七個參數：核心數、最大數、閒置存活時間與單位、工作佇列、執行緒工廠、拒絕策略。處理順序：核心沒滿就開執行緒，核心滿了先排隊，佇列滿了才加到最大，最大也滿了才拒絕。</li><li>拒絕策略：AbortPolicy（預設，丟例外）、CallerRunsPolicy（呼叫者自己跑，自動減速）、DiscardPolicy（丟掉新的）、DiscardOldestPolicy（丟掉最舊的，很少能接受）。</li><li>newFixedThreadPool 用無界佇列，堆會被吃光；newCachedThreadPool 執行緒沒有上限。要控制就自己 new，有界佇列加明確的拒絕策略。CPU 密集接近核心數，I/O 密集可以多開，但要跟下游上限一起看。</li><li>CompletableFuture：thenApply 轉換、thenCompose 接非同步、thenCombine 合併兩個、allOf 等全部；join 失敗丟 CompletionException，原因在 getCause；orTimeout 逾時。沒給執行器就用 common pool（處理器數減一），不到 2 就每個任務開新執行緒，所以呼叫外部系統要傳自己的執行器。</li><li>ConcurrentHashMap 讀不加鎖，寫入空桶用 CAS、其他鎖住桶的第一個節點；不收 null；複合操作用 merge、compute 家族。</li><li>CountDownLatch 等別人做完（一次性）、Semaphore 限量放行、CyclicBarrier 大家互等（可重用）。BlockingQueue 用 put／take 加結束物件。ThreadLocal 在池裡用完一定 remove。</li><li>happens-before 決定看不看得到：解鎖對之後上鎖、寫 volatile 對之後讀、start 與 join、並行工具的釋放對取得；可以遞移。等待型的工作用虛擬執行緒、每個任務一條，用 Semaphore 限量，不要池化。</li></ul></div>
