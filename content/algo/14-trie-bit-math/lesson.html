@@ -1,0 +1,882 @@
+<!-- 來源：依 https://algs4.cs.princeton.edu/52trie/ 新寫；另參考 algs4 第 5.2 節 TrieST.java 與投影片〈Tries〉、普林斯頓《Introduction to Programming in Java》第 1.4、2.3 節（PrimeSieve、Euclid）、MIT OpenCourseWare 6.006（2020 春）第 1 講、Java 語言規格 SE 25 第 4.2.2、15.17.3、15.19 節、Java SE 25 API 文件（Integer、Math、BigInteger）；程式碼與練習題全部自編，以 Java 21 實際編譯執行 · 收錄日期：2026-10-03 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>畫出 Trie（前綴樹）長什麼樣，手寫插入、搜尋與前綴查詢，說出它的時間與空間代價，以及孩子用陣列或 HashMap 存的取捨</li><li>用 AND、OR、XOR、位移讀懂一行位元運算，會用 <code>n &amp; (n - 1)</code>、XOR 抵消、用整數表示子集合這幾招</li><li>分清 Java 的 <code>&gt;&gt;</code> 與 <code>&gt;&gt;&gt;</code>，知道 <code>1 &lt;&lt; 32</code> 為什麼是 1</li><li>寫出輾轉相除法、質數篩、快速冪，並在取模時避開溢位，分清 <code>%</code> 與 <code>Math.floorMod</code></li></ul></div>
+
+<section>
+<p class="era">按字母一層一層往下找</p>
+<h3 class="head">Trie 的結構：共用前綴的樹</h3>
+<p>想像一本按字母分層的電話簿索引：先翻到 c，再翻到 ca，再翻到 car，每翻一層範圍就縮小，而 car、card、care 共用前面同一段路。這就是 <strong>Trie</strong>（也叫前綴樹，prefix tree；名稱來自 re<strong>trie</strong>val，取出資料）。〈雜湊表：HashMap 怎麼做到幾乎一步找到〉能很快回答「這個字在不在」，但回答不了「有哪些字是 ca 開頭」；Trie 兩件事都做得到。普林斯頓《Algorithms》第 5.2 節對它的期待是：「跟雜湊一樣快，比二元搜尋樹更有彈性」（Goal: as fast as hashing, more flexible than binary search trees.），而且「能有效率地支援額外的操作，包括前綴比對與萬用字元比對」（Can efficiently support additional operations including prefix and wildcard matching）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/" target="_blank" rel="noopener">出處</a></p>
+<p>結構很單純：每個節點有一組「孩子」，第 i 個孩子代表「下一個字母是第 i 個字母」；字母本身不存在節點裡，而是由「走哪一條路」決定。普林斯頓的投影片說「字元由連結的索引隱含決定」（characters are implicitly defined by link index）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 另外每個節點要記一個標記：有沒有一個完整的字在這裡結束。下面只處理小寫英文字母，所以孩子是一個 26 格的陣列：</p>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class Trie {
+    // 每個節點：26 個孩子（a～z）＋「有一個字在這裡結束」的標記
+    static class Node {
+        Node[] next = new Node[26];
+        boolean end;
+    }
+
+    private final Node root = new Node();
+    private int nodes = 1;                             // 算上根節點
+
+    void insert(String word) {
+        Node x = root;
+        for (char ch : word.toCharArray()) {
+            int i = ch - 'a';
+            if (x.next[i] == null) {                   // 沒有這條路就開一個新節點
+                x.next[i] = new Node();
+                nodes++;
+            }
+            x = x.next[i];
+        }
+        x.end = true;                                  // 走到最後一個字母，標記「這裡是一個完整的字」
+    }
+
+    private Node walk(String s) {                      // 照著 s 一個字母一個字母往下走，走不下去回傳 null
+        Node x = root;
+        for (char ch : s.toCharArray()) {
+            x = x.next[ch - 'a'];
+            if (x == null) return null;
+        }
+        return x;
+    }
+
+    boolean search(String word) { Node x = walk(word); return x != null &amp;&amp; x.end; }
+
+    boolean startsWith(String prefix) { return walk(prefix) != null; }
+
+    List&lt;String&gt; keysWithPrefix(String prefix) {       // 找到前綴的節點，再往下收集所有完整的字
+        List&lt;String&gt; out = new ArrayList&lt;&gt;();
+        collect(walk(prefix), new StringBuilder(prefix), out);
+        return out;
+    }
+
+    private void collect(Node x, StringBuilder sb, List&lt;String&gt; out) {
+        if (x == null) return;
+        if (x.end) out.add(sb.toString());
+        for (int i = 0; i &lt; 26; i++) {
+            if (x.next[i] != null) {
+                sb.append((char) ('a' + i));
+                collect(x.next[i], sb, out);
+                sb.deleteCharAt(sb.length() - 1);
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        Trie t = new Trie();
+        for (String w : new String[]{"car", "card", "care", "cat", "dog"}) t.insert(w);
+        System.out.println("節點數 " + t.nodes);
+        System.out.println("search(car) " + t.search("car") + "，search(ca) " + t.search("ca") + "，search(cow) " + t.search("cow"));
+        System.out.println("startsWith(ca) " + t.startsWith("ca") + "，startsWith(do) " + t.startsWith("do") + "，startsWith(x) " + t.startsWith("x"));
+        System.out.println("keysWithPrefix(car) " + t.keysWithPrefix("car"));
+        System.out.println("keysWithPrefix(c) " + t.keysWithPrefix("c"));
+        System.out.println("孩子格子總數 " + t.nodes * 26 + "，真的有用到的 " + (t.nodes - 1));
+    }
+}</code></pre>
+<pre><code>節點數 10
+search(car) true，search(ca) false，search(cow) false
+startsWith(ca) true，startsWith(do) true，startsWith(x) false
+keysWithPrefix(car) [car, card, care]
+keysWithPrefix(c) [car, card, care, cat]
+孩子格子總數 260，真的有用到的 9</code></pre>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="放進 car、card、care、cat、dog 五個字的 Trie：根節點往下有 c 與 d 兩條路；c 往下是 a，a 往下分成 r 與 t；r 往下分成 d 與 e。car、card、care、cat、dog 結束的節點用古銅色標出，ca 結束的節點沒有標記，所以 search(ca) 是 false。共 10 個節點">
+  <defs><marker id="tb-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <line x1="300" y1="56" x2="214" y2="102" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="340" y1="56" x2="456" y2="102" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="200" y1="140" x2="200" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="190" y1="212" x2="134" y2="246" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="212" y1="212" x2="268" y2="246" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="112" y1="284" x2="68" y2="302" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="132" y1="284" x2="168" y2="302" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="470" y1="140" x2="470" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <line x1="470" y1="212" x2="470" y2="244" stroke="currentColor" stroke-width="1.5" marker-end="url(#tb-a1)"/>
+  <circle cx="320" cy="40" r="20" fill="var(--surface)" stroke="currentColor"/><text x="320" y="45" font-size="12" text-anchor="middle">根</text>
+  <circle cx="200" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="200" y="125" font-size="14" text-anchor="middle" class="mono">c</text>
+  <circle cx="200" cy="192" r="20" fill="var(--surface)" stroke="currentColor"/><text x="200" y="197" font-size="14" text-anchor="middle" class="mono">a</text>
+  <circle cx="122" cy="264" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="122" y="269" font-size="14" text-anchor="middle" class="mono">r</text>
+  <circle cx="282" cy="264" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="282" y="269" font-size="14" text-anchor="middle" class="mono">t</text>
+  <circle cx="56" cy="312" r="16" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="56" y="317" font-size="13" text-anchor="middle" class="mono">d</text>
+  <circle cx="180" cy="312" r="16" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="180" y="317" font-size="13" text-anchor="middle" class="mono">e</text>
+  <circle cx="470" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="470" y="125" font-size="14" text-anchor="middle" class="mono">d</text>
+  <circle cx="470" cy="192" r="20" fill="var(--surface)" stroke="currentColor"/><text x="470" y="197" font-size="14" text-anchor="middle" class="mono">o</text>
+  <circle cx="470" cy="264" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="470" y="269" font-size="14" text-anchor="middle" class="mono">g</text>
+  <text x="80" y="258" font-size="11" text-anchor="end" fill="var(--gold-deep)">car</text>
+  <text x="312" y="268" font-size="11" text-anchor="start" fill="var(--gold-deep)">cat</text>
+  <text x="30" y="300" font-size="11" text-anchor="end" fill="var(--gold-deep)">card</text>
+  <text x="204" y="316" font-size="11" text-anchor="start" fill="var(--gold-deep)">care</text>
+  <text x="500" y="268" font-size="11" text-anchor="start" fill="var(--gold-deep)">dog</text>
+  <text x="232" y="196" font-size="11" text-anchor="start" fill="var(--slate-deep)">ca：路存在，但沒有字在這裡結束</text>
+  <text x="560" y="60" font-size="12" text-anchor="start">古銅＝有一個字在這裡結束</text>
+  <text x="560" y="82" font-size="12" text-anchor="start">白色＝只是路過的前綴</text>
+  <text x="560" y="104" font-size="12" text-anchor="start">共 10 個節點（含根）</text>
+</svg>
+<figcaption>car、card、care、cat、dog 的 Trie。car、card、care 共用 c→a→r 這段路；ca 那個節點沒有結束標記，所以 ca 是前綴、不是一個字。</figcaption>
+</figure>
+<p>三個要分清的操作：<code>search</code> 要走得到<strong>而且</strong>結束標記是 true；<code>startsWith</code> 只要走得到；<code>keysWithPrefix</code> 先走到前綴的節點，再把底下所有結束標記收集起來（這一步是〈遞迴與回溯〉的選擇、遞迴、撤銷）。普林斯頓的投影片把兩種結果講得很清楚：搜尋成功是「搜尋結束的節點有值」，搜尋失敗是「走到 null 連結，或結束的節點沒有值」（Search miss: reach null link or node where search ends has null value.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">上面的 Trie 放了 car、card、care、cat、dog。<code>search("ca")</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>false，ca 沒有結束標記</li><li>true，因為這條路走得到</li><li>丟出 NullPointerException</li><li>回傳所有 ca 開頭的字</li></ul>
+  <p class="dexp">c→a 這條路存在，但沒有任何字在 a 結束。search 要走得到而且 end 是 true；只走得到是 startsWith。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一棵 Trie，<code>startsWith("ca")</code> 回傳什麼？</p>
+  <ul class="dopts"><li>false</li><li data-ok>true</li><li>2</li><li>null</li></ul>
+  <p class="dexp">startsWith 只問路走不走得到，不管結束標記。實跑 startsWith(ca) true。</p>
+</div>
+<div class="drill">
+  <p class="dq">在這棵 Trie 再插入 <code>"cart"</code>，會新增幾個節點？</p>
+  <ul class="dopts"><li>4 個</li><li data-ok>1 個</li><li>0 個</li><li>2 個</li></ul>
+  <p class="dexp">c→a→r 已經存在，只要在 r 底下多開一個 t。共用前綴就是 Trie 省空間的地方。</p>
+</div>
+<div class="drill">
+  <p class="dq">再插入 <code>"ca"</code>，會發生什麼？</p>
+  <ul class="dopts"><li>新增 2 個節點，c 與 a</li><li data-ok>不新增節點，只設結束標記</li><li>新增 1 個節點，放在 a 底下</li><li>把 car、card、care 都刪掉</li></ul>
+  <p class="dexp">c→a 這段路已經在，插入走到 a 之後只做 end = true。之後 search("ca") 就變成 true。</p>
+</div>
+<div class="drill">
+  <p class="dq">Trie 的節點裡存的是什麼？</p>
+  <ul class="dopts"><li>一個完整的單字字串</li><li>這個字算出來的雜湊碼</li><li>從根走到這裡的路徑長度</li><li data-ok>孩子連結加上結束標記</li></ul>
+  <p class="dexp">字母由走哪一條連結決定，節點本身不存字母；投影片的說法是 characters are implicitly defined by link index。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式裡 <code>int i = ch - 'a';</code> 是在做什麼？</p>
+  <ul class="dopts"><li>把小寫字母轉成大寫字母</li><li>算出這個字母的雜湊碼</li><li data-ok>把 a～z 對應到 0～25</li><li>檢查這個字母是不是小寫</li></ul>
+  <p class="dexp">char 可以做減法，'a' − 'a' 是 0、'z' − 'a' 是 25。程式假設只有小寫字母，輸入有大寫或數字時索引會超出 0～25。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>keysWithPrefix("c")</code> 的實跑結果是什麼？</p>
+  <ul class="dopts"><li>[car, cat]</li><li>[c]</li><li>[car, card, care, cat, dog]</li><li data-ok>[car, card, care, cat]</li></ul>
+  <p class="dexp">先走到 c，再收集底下所有結束標記是 true 的節點；dog 在另一個分支，不會被收進來。陣列依 a～z 走，所以結果照字母順序。</p>
+</div>
+</section>
+
+<section>
+<p class="era">快在哪、貴在哪</p>
+<h3 class="head">複雜度，以及孩子用陣列還是 HashMap</h3>
+<p>插入、搜尋、前綴查詢都是「照著字串一個字母走一步」，跟 Trie 裡放了多少個字<strong>無關</strong>，只跟字串長度 L 有關。algs4 的 <code>TrieST</code> 文件寫：「put、contains、delete 與最長前綴操作所花的時間與鍵的長度成正比（最壞情況）」（The put, contains, delete, and longest prefix operations take time proportional to the length of the key (in the worst case).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/TrieST.java.html" target="_blank" rel="noopener">出處</a> 搜尋失敗通常更快，投影片：「可能第一個字元就對不上……一般情況只看幾個字元」（Could have mismatch on first character. Typical case: examine only a few characters (sublinear).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> <code>keysWithPrefix</code> 還要加上收集底下所有字的時間。</p>
+<p>代價在空間。實跑最後一行：10 個節點、每個節點 26 格，共 260 格，真的用到的只有 9 格，其他都是 null。投影片的結論是「搜尋成功很快、搜尋失敗更快，但浪費空間」（Fast search hit and even faster search miss, but wastes space.），空間是「每個節點 R + 1 個參考」（R 是字母表大小，表上寫 (R+1) N），並且「R 很大時記憶體太多」（Too much memory for large R.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 字元不只 26 個英文字母時（中文、大小寫加數字），常見的做法是把孩子改成 <code>HashMap</code>：</p>
+<pre><code>import java.util.HashMap;
+import java.util.Map;
+
+public class TrieMap {
+    // 孩子改用 HashMap 存：只為真的出現的字元開位置，什麼字元都能放
+    static class Node {
+        Map&lt;Character, Node&gt; next = new HashMap&lt;&gt;();
+        boolean end;
+    }
+
+    private final Node root = new Node();
+
+    void insert(String word) {
+        Node x = root;
+        for (char ch : word.toCharArray()) {
+            x = x.next.computeIfAbsent(ch, c -&gt; new Node());
+        }
+        x.end = true;
+    }
+
+    boolean search(String word) {
+        Node x = root;
+        for (char ch : word.toCharArray()) {
+            x = x.next.get(ch);
+            if (x == null) return false;
+        }
+        return x.end;
+    }
+
+    public static void main(String[] args) {
+        TrieMap t = new TrieMap();
+        for (String w : new String[]{"台北", "台中", "台南", "Taipei"}) t.insert(w);
+        System.out.println("search(台中) " + t.search("台中") + "，search(台東) " + t.search("台東"));
+        System.out.println("根節點有 " + t.root.next.size() + " 個孩子：" + t.root.next.keySet());
+    }
+}</code></pre>
+<pre><code>search(台中) true，search(台東) false
+根節點有 2 個孩子：[台, T]</code></pre>
+<div class="tablewrap"><table><thead><tr><th></th><th>孩子用陣列 <code>Node[26]</code></th><th>孩子用 <code>HashMap&lt;Character, Node&gt;</code></th></tr></thead><tbody>
+<tr><th>找下一個孩子</th><td>索引一步到位</td><td>雜湊查找，平均 O(1)，常數比陣列大</td></tr>
+<tr><th>每個節點的空間</th><td>固定 26 格，大多是 null</td><td>只存真的出現的孩子，但每筆都有 HashMap 的額外負擔</td></tr>
+<tr><th>能放什麼字元</th><td>只能放事先定好的字母表</td><td>任何字元，中文也行</td></tr>
+<tr><th>孩子的順序</th><td>依字母順序，收集結果自然排好</td><td>沒有順序；要排序得改用 <code>TreeMap</code></td></tr>
+</tbody></table></div>
+<p>面試題多半限定小寫英文字母，用陣列最簡單也最快。algs4 還介紹了另一種省空間的變形：三元搜尋樹（ternary search trie，每個節點只有小於、等於、大於三個孩子），這裡不展開。</p>
+
+<div class="drill">
+  <p class="dq">Trie 裡已經有一百萬個字，搜尋一個長度 8 的字，最多要走幾步（每步看一個節點）？</p>
+  <ul class="dopts"><li>大約 log₂(一百萬) ≈ 20 步</li><li data-ok>8 步</li><li>一百萬步</li><li>8 × 一百萬步</li></ul>
+  <p class="dexp">每個字母往下走一層，步數只跟字串長度有關，跟 Trie 裡有多少字無關。log 是二元搜尋樹的等級。</p>
+</div>
+<div class="drill">
+  <p class="dq">要找「所有 ca 開頭的字」，哪一種結構最直接？</p>
+  <ul class="dopts"><li>HashSet</li><li data-ok>Trie</li><li>沒排序的 ArrayList</li><li>堆積</li></ul>
+  <p class="dexp">Trie 走到 ca 的節點，底下就是全部 ca 開頭的字。HashSet 只能一個一個問「在不在」，前綴查詢得掃過全部。</p>
+</div>
+<div class="drill">
+  <p class="dq">實跑結果「孩子格子總數 260，真的有用到的 9」說明了什麼？</p>
+  <ul class="dopts"><li data-ok>格子大多是 null，浪費空間</li><li>程式寫錯了，應該全部都用到</li><li>Trie 的搜尋速度很慢</li><li>這棵 Trie 最多只能放 9 個字</li></ul>
+  <p class="dexp">投影片的結論：Fast search hit and even faster search miss, but wastes space。字母表越大（R 越大）越浪費。</p>
+</div>
+<div class="drill">
+  <p class="dq">要建一個存「台灣地名」的 Trie（中文字），孩子該用哪一種存？</p>
+  <ul class="dopts"><li>Node[26] 陣列</li><li>Node[2] 陣列</li><li>一個 String 欄位存整個字</li><li data-ok>HashMap&lt;Character, Node&gt;</li></ul>
+  <p class="dexp">中文字有好幾萬個，開陣列每個節點都要好幾萬格。HashMap 只存真的出現的孩子，實跑的 TrieMap 就能放「台北」「台中」。</p>
+</div>
+<div class="drill">
+  <p class="dq">孩子用 HashMap 存時，<code>keysWithPrefix</code> 收集出來的字會照字母順序嗎？</p>
+  <ul class="dopts"><li data-ok>不一定，改 TreeMap 才排序</li><li>會，HashMap 會自動排序</li><li>會，因為 Trie 本來就有序</li><li>不會，而且還會漏掉字</li></ul>
+  <p class="dexp">陣列版依索引 0～25 走，結果自然照 a～z；HashMap 走訪順序不保證，〈雜湊表：HashMap 怎麼做到幾乎一步找到〉講過要排序得用 TreeMap。</p>
+</div>
+<div class="drill">
+  <p class="dq">搜尋一個 Trie 裡不存在的字，通常會怎樣？</p>
+  <ul class="dopts"><li>一定要走完整個字串才知道</li><li>要掃過 Trie 裡所有的字</li><li>一定會丟出例外</li><li data-ok>常在前幾個字母碰到 null</li></ul>
+  <p class="dexp">投影片：搜尋失敗可能第一個字元就對不上，一般只看幾個字元。例如 search("x") 在根就走不下去。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一排開關，一次處理一整排</p>
+<h3 class="head">位元運算：AND、OR、XOR 與位移</h3>
+<p>Java 的 <code>int</code> 是 32 個位元（〈陣列與字串〉），可以想成一排 32 個開關。位元運算一次對整排開關做同一件事，而且是常數時間：MIT 6.006 第 1 講列出 Word-RAM 模型（計算機以固定長度的「字」為單位運算的模型）能在 O(1) 做的運算，其中包含「位元運算：（&amp;、|、&lt;&lt;、&gt;&gt;、…）」（bitwise arithmetic: (&amp;, |, &lt;&lt;, &gt;&gt;, ...)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>運算子</th><th>規則</th><th>常用來</th></tr></thead><tbody>
+<tr><th><code>&amp;</code>（AND）</th><td>兩邊都是 1 才是 1</td><td>檢查某一位是不是 1、把某些位清成 0</td></tr>
+<tr><th><code>|</code>（OR）</th><td>有一邊是 1 就是 1</td><td>把某一位設成 1</td></tr>
+<tr><th><code>^</code>（XOR）</th><td>兩邊不同才是 1</td><td>切換某一位、找出不同的地方</td></tr>
+<tr><th><code>~</code>（NOT）</th><td>每一位反過來</td><td>做遮罩</td></tr>
+<tr><th><code>&lt;&lt;</code>、<code>&gt;&gt;</code></th><td>整排往左、往右移</td><td>乘、除以 2 的次方</td></tr>
+</tbody></table></div>
+<p>Java 語言規格對位移的定義：<code>n &lt;&lt; s</code>「等於乘以 2 的 s 次方（即使溢位也一樣）」（this is equivalent (even if overflow occurs) to multiplication by two to the power s），<code>n &gt;&gt; s</code> 的結果是「floor(n / 2^s)」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class Bits {
+    static String b(int x) {                           // 補滿 8 位，方便對齊看
+        String s = Integer.toBinaryString(x);
+        return s.length() &gt;= 8 ? s : "0".repeat(8 - s.length()) + s;
+    }
+
+    public static void main(String[] args) {
+        int a = 0b1100, c = 0b1010;                    // 12 與 10
+        System.out.println("a     = " + b(a));
+        System.out.println("c     = " + b(c));
+        System.out.println("a &amp; c = " + b(a &amp; c) + "（兩邊都是 1 才是 1）");
+        System.out.println("a | c = " + b(a | c) + "（有一邊是 1 就是 1）");
+        System.out.println("a ^ c = " + b(a ^ c) + "（兩邊不同才是 1）");
+        System.out.println("a &lt;&lt; 1 = " + b(a &lt;&lt; 1) + " = " + (a &lt;&lt; 1) + "，a &gt;&gt; 2 = " + b(a &gt;&gt; 2) + " = " + (a &gt;&gt; 2));
+
+        int n = 0b10110100;                            // 180
+        System.out.println("n         = " + b(n));
+        System.out.println("n - 1     = " + b(n - 1));
+        System.out.println("n &amp; (n-1) = " + b(n &amp; (n - 1)) + "（最低位的 1 被去掉）");
+        System.out.println("n &amp; -n    = " + b(n &amp; -n) + "，Integer.lowestOneBit(n) = " + b(Integer.lowestOneBit(n)));
+
+        int count = 0;
+        for (int x = n; x != 0; x &amp;= x - 1) count++;   // 每次去掉一個 1，迴圈跑幾次就有幾個 1
+        System.out.println("數 1 的個數：" + count + "，Integer.bitCount(n) = " + Integer.bitCount(n));
+
+        for (int x : new int[]{64, 96, 1, 0}) {
+            System.out.println(x + " 是 2 的次方嗎？" + (x &gt; 0 &amp;&amp; (x &amp; (x - 1)) == 0));
+        }
+    }
+}</code></pre>
+<pre><code>a     = 00001100
+c     = 00001010
+a &amp; c = 00001000（兩邊都是 1 才是 1）
+a | c = 00001110（有一邊是 1 就是 1）
+a ^ c = 00000110（兩邊不同才是 1）
+a &lt;&lt; 1 = 00011000 = 24，a &gt;&gt; 2 = 00000011 = 3
+n         = 10110100
+n - 1     = 10110011
+n &amp; (n-1) = 10110000（最低位的 1 被去掉）
+n &amp; -n    = 00000100，Integer.lowestOneBit(n) = 00000100
+數 1 的個數：4，Integer.bitCount(n) = 4
+64 是 2 的次方嗎？true
+96 是 2 的次方嗎？false
+1 是 2 的次方嗎？true
+0 是 2 的次方嗎？false</code></pre>
+<p>先看前六行：12 是 <code>1100</code>、10 是 <code>1010</code>，逐位比較就得到 AND、OR、XOR 的結果；左移一位是乘 2（24），右移兩位是除以 4（3）。後半段是下一節的內容。</p>
+
+<div class="drill">
+  <p class="dq"><code>0b1100 &amp; 0b0110</code> 是多少（十進位）？</p>
+  <ul class="dopts"><li>14</li><li data-ok>4</li><li>10</li><li>0</li></ul>
+  <p class="dexp">兩邊都是 1 的只有第 2 位（從右數，0 起算）：0100 = 4。OR 才是 1110 = 14，XOR 是 1010 = 10。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>0b1100 ^ 0b0110</code> 是多少（十進位）？</p>
+  <ul class="dopts"><li>4</li><li>14</li><li>6</li><li data-ok>10</li></ul>
+  <p class="dexp">兩邊不同的位是 1：1100 與 0110 不同的是第 3 位和第 1 位，得 1010 = 10。</p>
+</div>
+<div class="drill">
+  <p class="dq">要把 <code>x</code> 的第 3 位（從右數，0 起算）設成 1、其他位不變，該寫哪一個？</p>
+  <ul class="dopts"><li data-ok><code>x | (1 &lt;&lt; 3)</code></li><li><code>x &amp; (1 &lt;&lt; 3)</code></li><li><code>x ^ 3</code></li><li><code>x &lt;&lt; 3</code></li></ul>
+  <p class="dexp">1 &lt;&lt; 3 是只有第 3 位是 1 的遮罩，OR 上去就把那一位設成 1。AND 會把其他位清掉；x &lt;&lt; 3 是整排移動。</p>
+</div>
+<div class="drill">
+  <p class="dq">要檢查 <code>x</code> 的第 i 位是不是 1，哪一個條件正確？</p>
+  <ul class="dopts"><li><code>(x | (1 &lt;&lt; i)) != 0</code></li><li><code>(x ^ i) == 1</code></li><li><code>(x &gt;&gt; i) == 1</code></li><li data-ok><code>(x &amp; (1 &lt;&lt; i)) != 0</code></li></ul>
+  <p class="dexp">AND 上只有第 i 位是 1 的遮罩，結果不是 0 就表示那一位是 1。(x &gt;&gt; i) == 1 只有在更高的位全是 0 時才對。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>5 &lt;&lt; 3</code> 是多少？</p>
+  <ul class="dopts"><li>15</li><li>8</li><li data-ok>40</li><li>125</li></ul>
+  <p class="dexp">左移 3 位等於乘以 2³ = 8，5 × 8 = 40。規格的說法是乘以 2 的 s 次方。</p>
+</div>
+<div class="drill">
+  <p class="dq">MIT 6.006 的 Word-RAM 模型把位元運算算成多少時間？</p>
+  <ul class="dopts"><li>O(位元數)</li><li>O(log n)</li><li data-ok>O(1)</li><li>看 CPU 而定</li></ul>
+  <p class="dexp">講義把整數運算、邏輯運算與位元運算都列為對固定長度的字做的常數時間操作。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每次拿掉一個 1</p>
+<h3 class="head"><code>n &amp; (n - 1)</code>：去掉最低位的 1</h3>
+<p>回到上面 <code>Bits</code> 的後半段。<code>n - 1</code> 會把 n 最右邊那個 1 變成 0、它右邊的 0 全變成 1，左邊不動；兩者做 AND，左邊不變、右邊全部變 0，結果就是「把最低位的 1 拿掉」。實跑：<code>10110100</code> 變成 <code>10110000</code>。</p>
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="n 等於 10110100、n 減 1 等於 10110011、兩者 AND 等於 10110000。n 最右邊的 1 在第 2 位，用古銅色標出；減 1 之後那一位變 0、右邊兩位變 1；AND 之後左邊五位不變、右邊三位全是 0">
+  <text x="150" y="58" font-size="13" text-anchor="end" class="mono">n</text>
+  <text x="150" y="108" font-size="13" text-anchor="end" class="mono">n - 1</text>
+  <text x="150" y="168" font-size="13" text-anchor="end" class="mono">n &amp; (n-1)</text>
+  <g font-size="14" text-anchor="middle" class="mono">
+    <rect x="170" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="198" y="58">1</text>
+    <rect x="226" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="254" y="58">0</text>
+    <rect x="282" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="310" y="58">1</text>
+    <rect x="338" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="366" y="58">1</text>
+    <rect x="394" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="422" y="58">0</text>
+    <rect x="450" y="36" width="56" height="34" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="478" y="58">1</text>
+    <rect x="506" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="534" y="58">0</text>
+    <rect x="562" y="36" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="590" y="58">0</text>
+    <rect x="170" y="86" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="198" y="108">1</text>
+    <rect x="226" y="86" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="254" y="108">0</text>
+    <rect x="282" y="86" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="310" y="108">1</text>
+    <rect x="338" y="86" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="366" y="108">1</text>
+    <rect x="394" y="86" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="422" y="108">0</text>
+    <rect x="450" y="86" width="56" height="34" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="478" y="108">0</text>
+    <rect x="506" y="86" width="56" height="34" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="534" y="108">1</text>
+    <rect x="562" y="86" width="56" height="34" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="590" y="108">1</text>
+    <rect x="170" y="146" width="56" height="34" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="198" y="168">1</text>
+    <rect x="226" y="146" width="56" height="34" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="254" y="168">0</text>
+    <rect x="282" y="146" width="56" height="34" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="310" y="168">1</text>
+    <rect x="338" y="146" width="56" height="34" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="366" y="168">1</text>
+    <rect x="394" y="146" width="56" height="34" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="422" y="168">0</text>
+    <rect x="450" y="146" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="478" y="168">0</text>
+    <rect x="506" y="146" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="534" y="168">0</text>
+    <rect x="562" y="146" width="56" height="34" fill="var(--surface)" stroke="currentColor"/><text x="590" y="168">0</text>
+  </g>
+  <text x="640" y="58" font-size="12" text-anchor="start">= 180</text>
+  <text x="640" y="108" font-size="12" text-anchor="start">= 179</text>
+  <text x="640" y="168" font-size="12" text-anchor="start">= 176</text>
+  <text x="394" y="210" font-size="12" text-anchor="middle" fill="var(--slate-deep)">古銅＝減 1 時改變的位；灰藍＝AND 之後原封不動的左半邊</text>
+</svg>
+<figcaption>減 1 只改到「最右邊的 1」以及它右邊的位；AND 之後，左半邊不變，那個 1 消失了。</figcaption>
+</figure>
+<p>三個常見用法都在實跑裡：</p>
+<ul class="plainlist">
+<li><strong>數有幾個 1</strong>：一直做 <code>x &amp;= x - 1</code> 直到 0，跑幾次就有幾個 1，迴圈次數只跟 1 的個數有關。Java 有現成的 <code>Integer.bitCount</code>：「回傳二補數表示法裡 1 的個數」（Returns the number of one-bits in the two's complement binary representation of the specified int value.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html#bitCount(int)" target="_blank" rel="noopener">出處</a></li>
+<li><strong>是不是 2 的次方</strong>：2 的次方只有一個 1，拿掉之後就是 0，所以條件是 <code>x &gt; 0 &amp;&amp; (x &amp; (x - 1)) == 0</code>。0 要另外排除（0 &amp; −1 也是 0）。</li>
+<li><strong>只留最低位的 1</strong>：<code>n &amp; -n</code>，跟 <code>Integer.lowestOneBit</code> 一樣，文件說它回傳「最多只有一個 1，位置在最低位那個 1」的值（Returns an int value with at most a single one-bit, in the position of the lowest-order ("rightmost") one-bit in the specified int value.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+
+<div class="drill">
+  <p class="dq"><code>12 &amp; 11</code> 是多少？（12 = <code>1100</code>）</p>
+  <ul class="dopts"><li>12</li><li>11</li><li>4</li><li data-ok>8</li></ul>
+  <p class="dexp">11 是 1011，12 &amp; 11 = 1000 = 8，正好把 12 最低位的 1（第 2 位）拿掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 <code>for (x = n; x != 0; x &amp;= x - 1) count++;</code> 數 1 的個數，<code>n = 0b10000001</code> 時迴圈跑幾次？</p>
+  <ul class="dopts"><li>8 次</li><li>1 次</li><li data-ok>2 次</li><li>129 次</li></ul>
+  <p class="dexp">每次拿掉一個 1，有兩個 1 就跑兩次，跟中間有幾個 0 無關。逐位檢查的寫法才要跑 8 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼「是不是 2 的次方」的條件要加 <code>x &gt; 0</code>？</p>
+  <ul class="dopts"><li>因為負數不能做 AND 運算</li><li>因為 1 不是 2 的次方</li><li data-ok>0 &amp; (0 − 1) 也是 0</li><li>只是習慣，拿掉也完全一樣</li></ul>
+  <p class="dexp">0 沒有任何 1，(0 &amp; −1) == 0 成立。實跑 0 是 false 就是靠 x &gt; 0 擋掉的；1 是 2⁰，正確答案是 true。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Integer.bitCount(7)</code> 是多少？</p>
+  <ul class="dopts"><li>7</li><li>1</li><li data-ok>3</li><li>8</li></ul>
+  <p class="dexp">7 是 111，三個 1。bitCount 數的是 1 的個數，不是數值。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>40 &amp; -40</code> 是多少？（40 = <code>101000</code>）</p>
+  <ul class="dopts"><li>40</li><li>32</li><li>0</li><li data-ok>8</li></ul>
+  <p class="dexp">n &amp; -n 只留下最低位的 1，40 最右邊的 1 在第 3 位，值是 8，跟 Integer.lowestOneBit(40) 一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個是 2 的次方？</p>
+  <ul class="dopts"><li>96</li><li data-ok>128</li><li>100</li><li>0</li></ul>
+  <p class="dexp">128 = 2⁷，二進位只有一個 1，128 &amp; 127 == 0。96 是 1100000，有兩個 1；0 被 x &gt; 0 排除。</p>
+</div>
+</section>
+
+<section>
+<p class="era">成對的會抵消，每一位代表選或不選</p>
+<h3 class="head">XOR 找唯一的數、用整數表示子集合</h3>
+<p>XOR 有兩個性質：<code>x ^ x = 0</code>（自己跟自己抵消）、<code>x ^ 0 = x</code>；而且順序可以任意調換。所以「其他數字都出現兩次、只有一個出現一次」的題目，全部 XOR 起來，成對的都抵消成 0，剩下的就是答案，時間 O(n)、額外空間 O(1)（用〈雜湊表：HashMap 怎麼做到幾乎一步找到〉的計數法也行，但要 O(n) 空間）：</p>
+<pre><code>public class Xor {
+    // 其他數字都出現兩次，只有一個出現一次：全部 XOR 起來，成對的互相抵消
+    static int single(int[] nums) {
+        int r = 0;
+        for (int x : nums) r ^= x;
+        return r;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("5 ^ 5 = " + (5 ^ 5) + "，5 ^ 0 = " + (5 ^ 0));
+        int[] nums = {4, 1, 2, 1, 2};
+        System.out.println("只出現一次的是 " + single(nums));
+        int r = 0;
+        for (int x : nums) {
+            r ^= x;
+            System.out.print(r + " ");                 // 每一步的中間結果
+        }
+        System.out.println();
+    }
+}</code></pre>
+<pre><code>5 ^ 5 = 0，5 ^ 0 = 5
+只出現一次的是 4
+4 5 7 6 4 </code></pre>
+<p>第三行是每一步的中間值：4、4^1=5、5^2=7、7^1=6（1 抵消了）、6^2=4（2 抵消了）。</p>
+<p>另一招：n 個東西的子集合有 2ⁿ 個，正好是 0 到 2ⁿ − 1 這些整數；把整數的第 i 位當成「選不選第 i 個」，就能用一個迴圈列出所有子集合，不必寫遞迴（〈遞迴與回溯〉用回溯法做同一件事）：</p>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class Subsets {
+    public static void main(String[] args) {
+        String[] items = {"A", "B", "C"};
+        int n = items.length;
+        for (int mask = 0; mask &lt; (1 &lt;&lt; n); mask++) {  // 0 到 2ⁿ − 1，每個數字代表一個子集合
+            List&lt;String&gt; pick = new ArrayList&lt;&gt;();
+            for (int i = 0; i &lt; n; i++) {
+                if ((mask &amp; (1 &lt;&lt; i)) != 0) pick.add(items[i]);   // 第 i 位是 1 就選第 i 個
+            }
+            String bin = String.format("%3s", Integer.toBinaryString(mask)).replace(' ', '0');
+            System.out.println(bin + " " + pick);
+        }
+    }
+}</code></pre>
+<pre><code>000 []
+001 [A]
+010 [B]
+011 [A, B]
+100 [C]
+101 [A, C]
+110 [B, C]
+111 [A, B, C]</code></pre>
+<p>這種寫法只適合 n 很小（<code>int</code> 最多 31 個元素，而且 2ⁿ 本身就長得很快）。它也常用在〈動態規劃入門〉的進階題，把「哪些已經選過」壓成一個整數當狀態。</p>
+
+<div class="drill">
+  <p class="dq"><code>{7, 3, 5, 3, 7}</code> 全部 XOR 起來是多少？</p>
+  <ul class="dopts"><li>0</li><li>25</li><li data-ok>5</li><li>7</li></ul>
+  <p class="dexp">7 與 7、3 與 3 互相抵消成 0，剩下 0 ^ 5 = 5。XOR 的順序可以任意調換。</p>
+</div>
+<div class="drill">
+  <p class="dq">XOR 找唯一數的做法，額外空間是多少？</p>
+  <ul class="dopts"><li data-ok>O(1)</li><li>O(n)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">只用一個變數 r 累積結果。用 HashMap 計數也能做，但要 O(n) 的空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">如果陣列裡「每個數都出現兩次，只有一個出現<strong>三次</strong>」，全部 XOR 起來會得到什麼？</p>
+  <ul class="dopts"><li>結果一定會是 0</li><li data-ok>那個出現三次的數</li><li>那個數乘以三的值</li><li>沒辦法預測結果</li></ul>
+  <p class="dexp">出現三次的數，兩次互相抵消、剩一次；其他成對的全部抵消。所以結果是它本身。出現次數是奇數的才會留下來。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>Subsets</code> 裡，<code>mask = 5</code>（二進位 <code>101</code>）對應哪個子集合？</p>
+  <ul class="dopts"><li>[A, B]</li><li>[B, C]</li><li data-ok>[A, C]</li><li>[C]</li></ul>
+  <p class="dexp">第 0 位是 1 選 A、第 1 位是 0 不選 B、第 2 位是 1 選 C。實跑那一行就是 101 [A, C]。</p>
+</div>
+<div class="drill">
+  <p class="dq">4 個元素用位元列子集合，<code>mask</code> 要從 0 跑到多少？</p>
+  <ul class="dopts"><li>4</li><li>8</li><li data-ok>15</li><li>16</li></ul>
+  <p class="dexp">2⁴ = 16 個子集合，對應 0 到 15。迴圈條件 mask &lt; (1 &lt;&lt; n) 就是 mask &lt; 16。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼用一個 <code>int</code> 當 mask 列子集合，n 最多只能到 31 左右？</p>
+  <ul class="dopts"><li data-ok>1 &lt;&lt; 31 已經是負數</li><li>Java 規定迴圈最多跑 31 次</li><li>因為 HashMap 只能放 31 個鍵</li><li>因為子集合最多只有 31 個</li></ul>
+  <p class="dexp">1 &lt;&lt; 31 是 -2147483648，下一節會看到；而且 2³¹ 個子集合也跑不完。元素再多就要用 long 或乾脆換回溯法。</p>
+</div>
+</section>
+
+<section>
+<p class="era">負數右移，左邊補什麼</p>
+<h3 class="head"><code>&gt;&gt;</code> 對 <code>&gt;&gt;&gt;</code>，以及位移距離與溢位</h3>
+<p>Java 的 <code>int</code> 用二補數表示負數，最左邊那一位是正負號。右移時左邊空出來的位要補什麼，就是兩個運算子的差別。語言規格：<code>n &gt;&gt; s</code> 是「帶正負號延伸的右移」（right-shifted s bit positions with sign-extension），<code>n &gt;&gt;&gt; s</code> 是「補零延伸的右移」（right-shifted s bit positions with zero-extension）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class Shift {
+    public static void main(String[] args) {
+        int x = -16;
+        System.out.println("x          = " + Integer.toBinaryString(x));
+        System.out.println("x &gt;&gt; 2     = " + (x &gt;&gt; 2) + "（補正負號那一位：還是負數）");
+        System.out.println("x &gt;&gt;&gt; 2    = " + (x &gt;&gt;&gt; 2) + "（左邊補 0：變成很大的正數）");
+        System.out.println("-7 &gt;&gt; 1    = " + (-7 &gt;&gt; 1) + "，-7 / 2 = " + (-7 / 2));
+        System.out.println("1 &lt;&lt; 31    = " + (1 &lt;&lt; 31));
+        System.out.println("1 &lt;&lt; 32    = " + (1 &lt;&lt; 32) + "，1L &lt;&lt; 32 = " + (1L &lt;&lt; 32));
+        System.out.println("1 &lt;&lt; 33    = " + (1 &lt;&lt; 33));
+    }
+}</code></pre>
+<pre><code>x          = 11111111111111111111111111110000
+x &gt;&gt; 2     = -4（補正負號那一位：還是負數）
+x &gt;&gt;&gt; 2    = 1073741820（左邊補 0：變成很大的正數）
+-7 &gt;&gt; 1    = -4，-7 / 2 = -3
+1 &lt;&lt; 31    = -2147483648
+1 &lt;&lt; 32    = 1，1L &lt;&lt; 32 = 4294967296
+1 &lt;&lt; 33    = 2</code></pre>
+<figure>
+<svg viewBox="0 0 760 236" role="img" aria-label="-16 的 32 位元表示是 28 個 1 加上 4 個 0。右移 2 位時，&gt;&gt; 在左邊補兩個 1，結果還是負數 -4；&gt;&gt;&gt; 在左邊補兩個 0，結果變成正數 1073741820">
+  <text x="96" y="50" font-size="12" text-anchor="end" class="mono">x = -16</text>
+  <text x="96" y="110" font-size="12" text-anchor="end" class="mono">x &gt;&gt; 2</text>
+  <text x="96" y="170" font-size="12" text-anchor="end" class="mono">x &gt;&gt;&gt; 2</text>
+  <rect x="106" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="115" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="124" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="133" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="142" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="151" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="160" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="169" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="178" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="187" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="196" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="205" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="214" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="223" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="232" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="241" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="250" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="259" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="268" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="277" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="286" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="295" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="304" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="313" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="322" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="331" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="340" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="349" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="358" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="367" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="376" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="385" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="394" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="403" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="412" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="421" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="430" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="439" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="448" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="457" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="466" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="475" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="484" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="493" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="502" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="511" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="520" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="529" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="538" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="547" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="556" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="565" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="574" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="583" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="592" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="601" y="54" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="610" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="619" y="54" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="628" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="637" y="54" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="646" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="655" y="54" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="664" y="38" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="673" y="54" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="106" y="98" width="18" height="22" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width=".8"/><text x="115" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="124" y="98" width="18" height="22" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width=".8"/><text x="133" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="142" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="151" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="160" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="169" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="178" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="187" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="196" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="205" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="214" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="223" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="232" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="241" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="250" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="259" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="268" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="277" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="286" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="295" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="304" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="313" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="322" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="331" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="340" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="349" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="358" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="367" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="376" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="385" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="394" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="403" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="412" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="421" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="430" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="439" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="448" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="457" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="466" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="475" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="484" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="493" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="502" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="511" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="520" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="529" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="538" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="547" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="556" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="565" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="574" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="583" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="592" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="601" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="610" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="619" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="628" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="637" y="114" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="646" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="655" y="114" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="664" y="98" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="673" y="114" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="106" y="158" width="18" height="22" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width=".8"/><text x="115" y="174" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="124" y="158" width="18" height="22" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width=".8"/><text x="133" y="174" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="142" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="151" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="160" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="169" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="178" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="187" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="196" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="205" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="214" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="223" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="232" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="241" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="250" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="259" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="268" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="277" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="286" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="295" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="304" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="313" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="322" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="331" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="340" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="349" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="358" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="367" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="376" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="385" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="394" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="403" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="412" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="421" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="430" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="439" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="448" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="457" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="466" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="475" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="484" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="493" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="502" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="511" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="520" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="529" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="538" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="547" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="556" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="565" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="574" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="583" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="592" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="601" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="610" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="619" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="628" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="637" y="174" font-size="11" text-anchor="middle" class="mono">1</text>
+  <rect x="646" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="655" y="174" font-size="11" text-anchor="middle" class="mono">0</text>
+  <rect x="664" y="158" width="18" height="22" fill="var(--surface)" stroke="currentColor" stroke-width=".8"/><text x="673" y="174" font-size="11" text-anchor="middle" class="mono">0</text>
+  <text x="682" y="138" font-size="12" text-anchor="end">= -4</text>
+  <text x="682" y="198" font-size="12" text-anchor="end">= 1073741820</text>
+  <text x="394" y="226" font-size="12" text-anchor="middle" fill="var(--slate-deep)">古銅＝右移時從左邊補進來的位</text>
+</svg>
+<figcaption>-16 往右移 2 位：<code>&gt;&gt;</code> 補進兩個 1，還是負數；<code>&gt;&gt;&gt;</code> 補進兩個 0，正負號那一位變成 0，變成很大的正數。</figcaption>
+</figure>
+<p>實跑裡還有三件值得記的事：</p>
+<ul class="plainlist">
+<li><strong><code>&gt;&gt;</code> 是往下取整，不是 <code>/</code>。</strong>規格說 <code>n &gt;&gt; s</code> 的結果是 floor(n / 2^s)，對非負數才「等於整數除法」（For non-negative values of n, this is equivalent to truncating integer division）。所以 <code>-7 &gt;&gt; 1</code> 是 -4，<code>-7 / 2</code> 是 -3（除法往 0 靠）。</li>
+<li><strong>位移距離只看最低 5 位。</strong>規格：左邊是 <code>int</code> 時，「只用右邊運算元的最低五個位元當位移距離」（only the five lowest-order bits of the right-hand operand are used as the shift distance），所以實際距離永遠在 0 到 31。<code>1 &lt;&lt; 32</code> 等於 <code>1 &lt;&lt; 0</code> = 1，<code>1 &lt;&lt; 33</code> 等於 <code>1 &lt;&lt; 1</code> = 2。要移 32 位以上得用 <code>long</code>（看最低 6 位）：<code>1L &lt;&lt; 32</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></li>
+<li><strong><code>1 &lt;&lt; 31</code> 是負數。</strong>1 被移到正負號那一位，得到 <code>Integer.MIN_VALUE</code>。這就是整數溢位：規格說「整數運算子不會以任何方式表示溢位」（The integer operators do not indicate overflow or underflow in any way.），不會報錯，只會悄悄繞過去。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a> 加法溢位在〈陣列與字串〉〈面試解題流程與題型對照〉已經講過，下一節會碰到乘法溢位。</li>
+</ul>
+<p>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉看過的 <code>h ^ (h &gt;&gt;&gt; 16)</code>、〈排序與二分搜尋〉看過的 <code>(low + high) &gt;&gt;&gt; 1</code>，用的都是 <code>&gt;&gt;&gt;</code>：前者要把高 16 位原封不動搬下來，後者要把溢位成負數的和當成正數看。</p>
+
+<div class="drill">
+  <p class="dq"><code>-8 &gt;&gt; 1</code> 是多少？</p>
+  <ul class="dopts"><li>4</li><li>2147483644</li><li data-ok>-4</li><li>-16</li></ul>
+  <p class="dexp">&gt;&gt; 左邊補正負號，負數還是負數：floor(-8 / 2) = -4。&gt;&gt;&gt; 才會變成很大的正數。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>-8 &gt;&gt;&gt; 28</code> 是多少？（-8 的 32 位元是 29 個 1 加 3 個 0）</p>
+  <ul class="dopts"><li>-1</li><li>0</li><li data-ok>15</li><li>-8</li></ul>
+  <p class="dexp">往右移 28 位只剩最左邊 4 位 1111，左邊補 0，得 15。用 &gt;&gt; 的話會補 1，得 -1。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>-9 &gt;&gt; 1</code> 和 <code>-9 / 2</code> 分別是多少？</p>
+  <ul class="dopts"><li>都是 -4</li><li data-ok>-5 與 -4</li><li>都是 -5</li><li>-4 與 -5</li></ul>
+  <p class="dexp">&gt;&gt; 是 floor，往負無窮取整得 -5；/ 往 0 取整得 -4。只有非負數兩者才一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>int</code> 的 <code>1 &lt;&lt; 35</code> 是多少？</p>
+  <ul class="dopts"><li>34359738368</li><li>0</li><li>丟出例外</li><li data-ok>8</li></ul>
+  <p class="dexp">int 只看位移距離的最低 5 位：35 &amp; 31 = 3，所以等於 1 &lt;&lt; 3 = 8。要得到 2³⁵ 得寫 1L &lt;&lt; 35。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>System.out.println(1 &lt;&lt; 31);</code> 印出什麼？</p>
+  <ul class="dopts"><li>2147483648</li><li data-ok>-2147483648</li><li>0</li><li>丟出 ArithmeticException</li></ul>
+  <p class="dexp">1 移到正負號那一位，得到 Integer.MIN_VALUE。整數運算不會表示溢位，不會丟例外。</p>
+</div>
+<div class="drill">
+  <p class="dq">二分搜尋寫 <code>(low + high) &gt;&gt;&gt; 1</code> 而不是 <code>(low + high) &gt;&gt; 1</code>，是為了什麼？</p>
+  <ul class="dopts"><li>&gt;&gt;&gt; 跑得比 &gt;&gt; 快很多</li><li>&gt;&gt; 不能用在 int 型別上</li><li>兩者完全一樣，只是習慣不同</li><li data-ok>補 0 才得到正確中點</li></ul>
+  <p class="dexp">low + high 超過 int 上限會變負數；&gt;&gt; 會補 1 得到負的中點，&gt;&gt;&gt; 補 0 把那 32 位當無號數除以 2，剛好是正確的值。</p>
+</div>
+</section>
+
+<section>
+<p class="era">兩千年前的演算法，今天還在用</p>
+<h3 class="head">最大公因數與質數篩</h3>
+<p><strong>輾轉相除法</strong>（歐幾里得演算法，Euclid's algorithm）找最大公因數。普林斯頓《Introduction to Programming in Java》的說法：對正整數 p 與 q，「如果 p &gt; q，p 與 q 的最大公因數等於 q 與 p % q 的最大公因數」（If p &gt; q, the gcd of p and q is the same as the gcd of q and p % q.），一直做到第二個數是 0。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class Gcd {
+    static int gcd(int p, int q) {                     // 輾轉相除：gcd(p, q) = gcd(q, p % q)，直到 q 是 0
+        System.out.println("gcd(" + p + ", " + q + ")");
+        if (q == 0) return p;
+        return gcd(q, p % q);
+    }
+
+    static long gcdLoop(long p, long q) {              // 同一件事的迴圈版
+        while (q != 0) {
+            long r = p % q;
+            p = q;
+            q = r;
+        }
+        return p;
+    }
+
+    static long lcm(long a, long b) {                  // 先除再乘，中間值比較不會溢位
+        return a / gcdLoop(a, b) * b;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("答案 " + gcd(1440, 408));
+        System.out.println("gcdLoop(102, 68) = " + gcdLoop(102, 68));
+        System.out.println("lcm(4, 6) = " + lcm(4, 6) + "，lcm(21, 6) = " + lcm(21, 6));
+    }
+}</code></pre>
+<pre><code>gcd(1440, 408)
+gcd(408, 216)
+gcd(216, 192)
+gcd(192, 24)
+gcd(24, 0)
+答案 24
+gcdLoop(102, 68) = 34
+lcm(4, 6) = 12，lcm(21, 6) = 42</code></pre>
+<p>前五行就是遞迴每一層的參數，跟普林斯頓書上 gcd(1440, 408) 的追蹤一樣。第二個數每一輪都嚴格變小，很快就到 0。最小公倍數用 <code>a / gcd * b</code>：先除再乘，比 <code>a * b / gcd</code> 不容易在中間溢位。</p>
+<p><strong>質數篩</strong>（埃拉托斯特尼篩法，Sieve of Eratosthenes）一次找出 n 以內所有質數：先假設 2 到 n 全是質數，從 2 開始，把每個質數的倍數劃掉。普林斯頓的 <code>PrimeSieve</code> 用這個方法算出「100 以內有 25 個質數」「1,000,000 以內有 78,498 個」。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/14array/PrimeSieve.java.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class Sieve {
+    // 埃拉托斯特尼篩法：先假設全是質數，再把每個質數的倍數劃掉
+    static boolean[] sieve(int n) {
+        boolean[] isPrime = new boolean[n + 1];
+        for (int i = 2; i &lt;= n; i++) isPrime[i] = true;
+        for (int f = 2; (long) f * f &lt;= n; f++) {      // 只要篩到根號 n
+            if (!isPrime[f]) continue;
+            for (long j = (long) f * f; j &lt;= n; j += f) isPrime[(int) j] = false;   // 從 f² 開始劃
+        }
+        return isPrime;
+    }
+
+    static int count(boolean[] p) {
+        int c = 0;
+        for (boolean b : p) if (b) c++;
+        return c;
+    }
+
+    public static void main(String[] args) {
+        boolean[] p = sieve(30);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i &lt;= 30; i++) if (p[i]) sb.append(i).append(' ');
+        System.out.println("30 以內的質數：" + sb.toString().trim());
+        for (int n : new int[]{100, 1_000_000}) System.out.println(n + " 以內有 " + count(sieve(n)) + " 個質數");
+    }
+}</code></pre>
+<pre><code>30 以內的質數：2 3 5 7 11 13 17 19 23 29
+100 以內有 25 個質數
+1000000 以內有 78498 個質數</code></pre>
+<p>兩個加速的地方：外層只跑到 f² ≤ n（大於根號 n 的合數，一定已經被比它小的因數劃掉）；內層從 f² 開始劃（比 f² 小的倍數，已經被更小的質數劃過）。<code>(long) f * f</code> 是為了避免 n 很大時 f × f 溢位。</p>
+
+<div class="drill">
+  <p class="dq">用輾轉相除法算 <code>gcd(48, 18)</code>，依序會經過哪些參數？</p>
+  <ul class="dopts"><li>(48, 18) → (30, 18) → (12, 18) → (12, 6)，答案 12</li><li>(48, 18) → (18, 6) → (6, 0)，答案 18</li><li data-ok>(48, 18) → (18, 12) → (12, 6) → (6, 0)，答案 6</li><li>(48, 18) → (24, 9) → (12, 3)，答案 3</li></ul>
+  <p class="dexp">每一輪變成 (q, p % q)：48 % 18 = 12、18 % 12 = 6、12 % 6 = 0，第二個數是 0 時答案是 6。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>gcd(7, 0)</code> 回傳什麼？</p>
+  <ul class="dopts"><li>0</li><li>1</li><li data-ok>7</li><li>丟出 ArithmeticException</li></ul>
+  <p class="dexp">q 是 0 就直接回傳 p，這是遞迴的終止條件，不會去算 7 % 0。</p>
+</div>
+<div class="drill">
+  <p class="dq">最小公倍數寫成 <code>a / gcd(a, b) * b</code>，而不是 <code>a * b / gcd(a, b)</code>，主要是為了什麼？</p>
+  <ul class="dopts"><li>結果會比較精確一點</li><li data-ok>中間值小，不易溢位</li><li>程式跑得比較快</li><li>兩種寫法的結果一定不同</li></ul>
+  <p class="dexp">數學上兩者相等，但 a × b 可能先超過型別上限；先除掉公因數，中間值就小很多。</p>
+</div>
+<div class="drill">
+  <p class="dq">篩法的外層迴圈為什麼只要跑到 f × f ≤ n？</p>
+  <ul class="dopts"><li>因為大於根號 n 的數都是質數</li><li>因為陣列只開到根號 n 那麼大</li><li>只是為了省一點記憶體</li><li data-ok>大的合數已被小因數劃掉</li></ul>
+  <p class="dexp">合數 m 若兩個因數都大於根號 n，乘起來會超過 n。所以它一定有小因數，在篩那個小因數時就被劃掉了。</p>
+</div>
+<div class="drill">
+  <p class="dq">實跑結果，30 以內有幾個質數？</p>
+  <ul class="dopts"><li>9</li><li>11</li><li>15</li><li data-ok>10</li></ul>
+  <p class="dexp">2、3、5、7、11、13、17、19、23、29，共 10 個。1 不是質數，程式從 2 開始。</p>
+</div>
+</section>
+
+<section>
+<p class="era">指數很大時，平方再平方</p>
+<h3 class="head">快速冪、取模避免溢位，以及 % 對 Math.floorMod</h3>
+<p>要算 3 的十億次方除以 1,000,000,007 的餘數，乘十億次太慢。<strong>快速冪</strong>（也叫平方求冪）的想法：把指數寫成二進位，例如 13 = 1101，3¹³ = 3⁸ × 3⁴ × 3¹；底數每一輪自己平方（3、3²、3⁴、3⁸……），指數那一位是 1 才乘進答案。輪數是指數的二進位位數，也就是大約 log₂ b：</p>
+<pre><code>import java.math.BigInteger;
+
+public class Power {
+    static int mults;
+
+    // 快速冪：b 的二進位每一位決定要不要乘進答案，底數每輪自己平方
+    static long modPow(long a, long b, long m) {
+        long result = 1;
+        a %= m;
+        while (b &gt; 0) {
+            if ((b &amp; 1) == 1) { result = result * a % m; mults++; }
+            a = a * a % m;
+            mults++;
+            b &gt;&gt;= 1;
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+        long m = 1_000_000_007L;
+        System.out.println("2^10 mod m = " + modPow(2, 10, m));
+        mults = 0;
+        long r = modPow(3, 1_000_000_000L, m);
+        System.out.println("3^1000000000 mod m = " + r + "，乘法次數 " + mults);
+        System.out.println("BigInteger.modPow 驗算 = " + BigInteger.valueOf(3).modPow(BigInteger.valueOf(1_000_000_000L), BigInteger.valueOf(m)));
+    }
+}</code></pre>
+<pre><code>2^10 mod m = 1024
+3^1000000000 mod m = 235939645，乘法次數 43
+BigInteger.modPow 驗算 = 235939645</code></pre>
+<p>十億的二進位有 30 位、其中 13 個 1，所以是 30 次平方加 13 次乘進答案，共 43 次，跟逐次相乘的十億次差很多。答案跟 JDK 的 <code>BigInteger.modPow</code>（「回傳 this 的 exponent 次方 mod m」，Returns a BigInteger whose value is (this<sup>exponent</sup> mod m).）一致。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/math/BigInteger.html" target="_blank" rel="noopener">出處</a> 程式能放心寫 <code>a * a % m</code>，是因為 a 已經小於 m（約 10⁹），平方約 10¹⁸，裝得進 <code>long</code>（上限約 9.2 × 10¹⁸）。</p>
+<h4>取模之前先別溢位</h4>
+<p>題目常說「答案很大，請回傳除以 10⁹ + 7 的餘數」。陷阱在相乘那一步：兩個不到 10⁹ 的 <code>int</code> 相乘，在取模<strong>之前</strong>就已經溢位了：</p>
+<pre><code>public class Mod {
+    public static void main(String[] args) {
+        final int M = 1_000_000_007;
+        int a = 123_456_789, b = 987_654_321;
+        System.out.println("int 相乘再取模：" + (a * b % M) + "（先溢位了，答案錯）");
+        System.out.println("long 相乘再取模：" + ((long) a * b % M));
+        try {
+            Math.multiplyExact(a, b);
+        } catch (ArithmeticException e) {
+            System.out.println("Math.multiplyExact：" + e.getMessage());
+        }
+        System.out.println("-7 % 3 = " + (-7 % 3) + "，Math.floorMod(-7, 3) = " + Math.floorMod(-7, 3));
+        System.out.println("7 % -3 = " + (7 % -3) + "，Math.floorMod(7, -3) = " + Math.floorMod(7, -3));
+        int day = 2;                                   // 星期二（0 是星期日）
+        System.out.println("星期二往前 10 天：% 得 " + ((day - 10) % 7) + "，floorMod 得 " + Math.floorMod(day - 10, 7));
+        System.out.println("Math.abs(Integer.MIN_VALUE) = " + Math.abs(Integer.MIN_VALUE));
+    }
+}</code></pre>
+<pre><code>int 相乘再取模：-67153019（先溢位了，答案錯）
+long 相乘再取模：259106859
+Math.multiplyExact：integer overflow
+-7 % 3 = -1，Math.floorMod(-7, 3) = 2
+7 % -3 = 1，Math.floorMod(7, -3) = -2
+星期二往前 10 天：% 得 -1，floorMod 得 6
+Math.abs(Integer.MIN_VALUE) = -2147483648</code></pre>
+<p>修法是先轉 <code>long</code> 再乘：<code>(long) a * b % M</code>（轉型要寫在乘法之前，寫成 <code>(long) (a * b)</code> 就晚了）。想在溢位時直接報錯，用 <code>Math.multiplyExact</code>：「回傳兩數相乘的結果，如果溢位就丟出例外」（Returns the product of the arguments, throwing an exception if the result overflows an int.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
+<h4>負數取模：% 與 Math.floorMod</h4>
+<p>Java 的 <code>%</code> 結果的正負號跟著<strong>被除數</strong>：語言規格說「餘數運算的結果只有在被除數是負數時才可能是負的」（the result of the remainder operation can be negative only if the dividend is negative）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3" target="_blank" rel="noopener">出處</a> 所以 <code>-7 % 3</code> 是 -1。<code>Math.floorMod</code> 的結果則「跟除數同號或是 0」（has the same sign as the divisor y or is zero），文件的例子是 <code>floorMod(-4, +3) == +2</code>、<code>(-4 % +3) == -1</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)" target="_blank" rel="noopener">出處</a> 算「往前推幾天是星期幾」、環狀陣列往回走這類題目，要的是 0 到 6 之間的數，就用 <code>floorMod</code>（實跑：星期二往前 10 天，<code>%</code> 得 -1，<code>floorMod</code> 得 6，也就是星期六）。</p>
+<p class="muted">最後一行是另一個常見陷阱：<code>Math.abs(Integer.MIN_VALUE)</code> 還是負數。文件寫明「參數等於 Integer.MIN_VALUE 時，結果是同一個值，是負數」（the result is that same value, which is negative），要報錯得用 <code>Math.absExact</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">用快速冪算 a 的 1024 次方，大約要平方幾次？</p>
+  <ul class="dopts"><li data-ok>約 10 次</li><li>1024 次</li><li>512 次</li><li>32 次</li></ul>
+  <p class="dexp">1024 = 2¹⁰，每次平方指數就翻倍，10 次左右就到了。逐次相乘才要 1023 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">指數是 13（二進位 <code>1101</code>），快速冪的答案由哪幾項相乘？</p>
+  <ul class="dopts"><li>a¹ × a² × a⁴ × a⁸</li><li data-ok>a¹ × a⁴ × a⁸</li><li>a¹³ 直接算</li><li>a² × a⁴ × a⁸</li></ul>
+  <p class="dexp">13 = 8 + 4 + 1，二進位是 1 的那幾位才乘進答案；第 1 位是 0，a² 不乘。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>int a = 123456789, b = 987654321;</code>，下面哪個寫法能算出正確的 <code>a * b % 1_000_000_007</code>？</p>
+  <ul class="dopts"><li><code>a * b % M</code></li><li data-ok><code>(long) a * b % M</code></li><li><code>(long) (a * b) % M</code></li><li><code>a * (b % M)</code></li></ul>
+  <p class="dexp">要在相乘之前就變成 long。(long) (a * b) 是先用 int 乘完（已經溢位）才轉型；實跑 int 版本得到 -67153019。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>-7 % 3</code> 在 Java 裡是多少？</p>
+  <ul class="dopts"><li>2</li><li data-ok>-1</li><li>1</li><li>-2</li></ul>
+  <p class="dexp">% 的正負號跟被除數走，-7 = 3 × (-2) + (-1)。要 0 到 2 之間的答案用 Math.floorMod(-7, 3)，得 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">環狀陣列長度 n，從索引 i 往回走 k 步，最安全的寫法是？</p>
+  <ul class="dopts"><li><code>(i - k) % n</code></li><li data-ok><code>Math.floorMod(i - k, n)</code></li><li><code>Math.abs(i - k) % n</code></li><li><code>(i - k + n) / n</code></li></ul>
+  <p class="dexp">i − k 可能是負數，% 會得到負的索引；abs 會走到錯的位置。floorMod 的結果跟除數 n 同號，一定落在 0 到 n − 1。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Math.abs(Integer.MIN_VALUE)</code> 會得到什麼？</p>
+  <ul class="dopts"><li data-ok>-2147483648，還是負數</li><li>2147483648</li><li>丟出 ArithmeticException</li><li>0</li></ul>
+  <p class="dexp">int 的正數最大只到 2147483647，裝不下 2147483648，結果繞回自己。文件寫明這一點；要報錯用 Math.absExact。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，先易後難</p>
+<h3 class="head">動手練</h3>
+<p>下面的題目連到 LeetCode 題目頁，題目敘述請到原站看。位元題先在紙上把數字寫成二進位走一遍，再寫程式；數學題先想清楚會不會溢位。</p>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/single-number/" target="_blank" rel="noopener">136. Single Number</a></td><td>XOR 讓成對的數抵消</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/number-of-1-bits/" target="_blank" rel="noopener">191. Number of 1 Bits</a></td><td><code>n &amp; (n - 1)</code> 一次拿掉一個 1</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/power-of-two/" target="_blank" rel="noopener">231. Power of Two</a></td><td>只有一個 1；記得排除 0 與負數</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/implement-trie-prefix-tree/" target="_blank" rel="noopener">208. Implement Trie (Prefix Tree)</a></td><td>插入、搜尋、前綴查詢，分清 search 與 startsWith</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/subsets/" target="_blank" rel="noopener">78. Subsets</a></td><td>用 0 到 2ⁿ − 1 的整數列出子集合</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/count-primes/" target="_blank" rel="noopener">204. Count Primes</a></td><td>質數篩，外層到根號 n、內層從 f² 開始</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/powx-n/" target="_blank" rel="noopener">50. Pow(x, n)</a></td><td>快速冪；n 是 Integer.MIN_VALUE 時先轉 long 再取負</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/word-search-ii/" target="_blank" rel="noopener">212. Word Search II</a></td><td>把單字放進 Trie，在格子上做 DFS 時順著 Trie 剪枝</td><td>Hard</td></tr>
+</tbody></table></div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>Trie 共用前綴：search 要走得到而且有結束標記，startsWith 只要走得到。插入、搜尋、前綴查詢與字串長度 L 成正比，跟存了多少字無關；代價是空間，陣列版每個節點的孩子格子大多是 null，字母表大或是中文時改用 HashMap。</li><li>位元運算 O(1)：&amp; 檢查或清除、| 設定、^ 切換或找不同、&lt;&lt; 與 &gt;&gt; 乘除 2 的次方。</li><li><code>n &amp; (n - 1)</code> 去掉最低位的 1：數 1 的個數、判斷 2 的次方（記得 x &gt; 0）；<code>n &amp; -n</code> 只留最低位的 1。</li><li>XOR 成對抵消，O(1) 空間找出出現奇數次的數；0 到 2ⁿ − 1 的整數可以表示 n 個元素的所有子集合。</li><li><code>&gt;&gt;</code> 補正負號（結果是 floor），<code>&gt;&gt;&gt;</code> 補 0；int 位移距離只看最低 5 位，<code>1 &lt;&lt; 32</code> 是 1；<code>1 &lt;&lt; 31</code> 是負數，整數溢位不會報錯。</li><li>gcd(p, q) = gcd(q, p % q)；lcm 先除再乘。質數篩外層到根號 n、內層從 f² 開始。快速冪約 log₂ b 輪。</li><li>取模前先轉 long 再乘，或用 Math.multiplyExact 抓溢位；% 跟被除數同號，Math.floorMod 跟除數同號；Math.abs(Integer.MIN_VALUE) 還是負數。</li></ul></div>
