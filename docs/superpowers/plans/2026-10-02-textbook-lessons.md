@@ -20,7 +20,7 @@
 | `spring/14-boot-autoconfig-actuator` | Spring Boot 自動組態與 Actuator | （新）進階 | 同上、〈微服務與架構面試題〉 | ✅ `d83fa5b`（47 題、4 圖；mins 70） | ✅ 同上：刪亂碼段、砍到 39 題、JSON 只留關鍵行；兩課長陷阱選項反向洩題 | 同上 | ✅ 10-03 上線 | | |
 | `web/11-tcp-udp-tls` | TCP、UDP 與 TLS 握手 | 網路與伺服器 | 〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉 | ✅ `f318961`（50 題、6 圖；mins 60） | ✅ 10-02 審完：Linux 原始碼註解引錯一處、四處補出處或前提；12 課砍到 50 題；清單 `.superpowers/audit/web/findings-11-12.md`；修正交回 `write-web-b` | 修正 `4b0c6c9`（10 條全改、各 50 題）；範圍複審 ✅（(304) 說明主控補） | ✅ 10-03 上線 `c59553f` | | | |
 | `web/12-http-advanced` | HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進 | 網路與伺服器 | 同上 | ✅ `6864ff6`（52 題、4 圖；mins 65） | 同上 | 同上 | ✅ 10-03 上線 | |
-| `spring/15-security-jwt-oauth` | JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接 | （新）進階 | 〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉 | ✅ `0653f43`（47 題、4 圖、31 出處；mins 60；Boot 4.1.1／Security 7.1.1） | ✅ 10-02 審完：程式片段漏 @Bean、舊雜湊升級說過頭、四處補原始碼出處、選項長度最嚴重；清單 `.superpowers/audit/spring/findings-15.md`；修正交回 `write-algo-d` | 修正 `85acf3f`（11 條全改）；範圍複審中 | | | |
+| `spring/15-security-jwt-oauth` | JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接 | （新）進階 | 〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉 | ✅ `0653f43`（47 題、4 圖、31 出處；mins 60；Boot 4.1.1／Security 7.1.1） | ✅ 10-02 審完：程式片段漏 @Bean、舊雜湊升級說過頭、四處補原始碼出處、選項長度最嚴重；清單 `.superpowers/audit/spring/findings-15.md`；修正交回 `write-algo-d` | 修正 `85acf3f`（11 條全改）；範圍複審 ✅ | ✅ 10-03 上線 `a90319c` | | | |
 
 ## 接著做（「可以等」那批）
 
@@ -38,7 +38,7 @@
 | `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | ✅ `188d31a`（40 題、4 圖、17 網址；Flyway 12.4、MySQL 8.4 實跑 18 步）；Spring 9 課手機撐寬 `0da686c`；全站掃描另抓 6 頁撐寬，已修 `cde2a24`（全站 153 頁 0 頁撐寬） | ✅ 10-03 審完：一句引文找不到出處、repair 那題跟實跑不符、測驗正解太長；清單 `.superpowers/audit/spring/findings-22.md`；修正交回 `write-algo-d` | | | |
 | `java/18-solid-antipatterns` | SOLID 與常見反模式 | ✅ `e305b96`（43 題、3 圖、21 出處；mins 50） | ✅ 10-03 審完：無錯誤級，5 條小修主控直接改（Liskov 1987 原文 ACM 擋 403 無法逐字核對，主控決定保留 DOI） | — | ✅ 10-03 上線 `214d03f` | | | |
 | `cloud/16-aws-lb-autoscaling-messaging` | 負載平衡、自動擴展與訊息服務 | 撰寫中（`fix-algo-0910`） | | | |
-| `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | 審查中（`review-algo-d`） | | | |
+| `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | ✅ 10-03 審完：測驗一題正解可能不唯一、採 AWS 繁中官方譯名、分割區統一；縮到 mins 60；清單 `.superpowers/audit/cloud/findings-17.md`；修正排給 `fix-db08` | | | |
 | `database/09-sql-advanced` | SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式 | ✅ `88d46c5`（47 題、4 圖、18 網址；MySQL 8.4 與 PostgreSQL 18 對照） | 審查中（`write-algo-b` 轉當審查者） | | | |
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
