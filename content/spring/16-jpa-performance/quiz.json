@@ -21,24 +21,24 @@
    "exp": "多對一預設 EAGER；JPQL 沒 JOIN FETCH 時，Hibernate 用第二句 SQL 去初始化它，一樣造成 N+1。實跑 4 台筆電、3 個主人，共 4 次 SQL。"
   },
   {
-   "q": "在 Hibernate 6 用 left join fetch 查部門與員工，為什麼不必再加 distinct？",
+   "q": "用 Hibernate 7 的 left join fetch 查部門與員工，為什麼不必再加 distinct？",
    "opts": [
-    "Hibernate 6 會自動在記憶體去重",
+    "Hibernate 會自動在記憶體去重",
     "left join 不會產生重複的列",
-    "distinct 在 Hibernate 6 會造成語法錯誤",
+    "distinct 在 Hibernate 7 會造成語法錯誤",
     "資料庫會自動合併主鍵相同的那些列"
    ],
-   "exp": "SQL 仍然一個員工一列，但 Hibernate 6 在把結果轉成物件後自動去重，使用指南說不該再為這個目的用 distinct。"
+   "exp": "SQL 仍然一個員工一列，但從 Hibernate 6 起，Hibernate 在把結果轉成物件後自動去重，使用指南說不該再為這個目的用 distinct。"
   },
   {
-   "q": "join fetch 一個集合又加上分頁（每頁 2 筆），實跑時發生什麼事？",
+   "q": "Hibernate 7.4 執行「join fetch 集合＋分頁」的查詢，資料庫支援子查詢 LIMIT 時怎麼做？",
    "opts": [
-    "整批撈回，在記憶體裡切頁",
-    "SQL 帶 limit 2，只撈兩筆",
-    "只撈兩名員工，部門不完整",
-    "分頁設定被忽略，回傳全部"
+    "分頁放進子查詢，先切部門再 join",
+    "整批撈回來，再在記憶體裡切頁",
+    "外層直接加 limit，員工可能被切掉",
+    "直接丟出例外，拒絕執行"
    ],
-   "exp": "Hibernate 印出 HHH90003004，SQL 沒有筆數限制，全部部門與員工撈回來再在記憶體裡取前 2 個部門。"
+   "exp": "實跑在 H2 與 MySQL 8.4 上，SQL 都是先在子查詢裡切出這一頁的部門，再 left join 員工。在記憶體裡切是 Hibernate 6.6 的行為，或資料庫不支援子查詢 LIMIT 時的退路；打開 fail_on_pagination_over_collection_fetch 才會丟例外。"
   },
   {
    "q": "default_batch_fetch_size=10、30 個部門，逐一讀員工集合，大約送幾次 SQL？",
