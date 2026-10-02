@@ -25,7 +25,7 @@
 |---|---|---|---|---|
 | `java/12-lambda-functional` | ✅ `86ea72a`＋`075d33e`（55 題；mins 55） | ✅ 10-02 審完：132 題正解都唯一（三題只在 JDK 實作上唯一，要標明實跑）；出處連結裡塞了 wbr 點不開；測驗正解太常最長；清單 `.superpowers/audit/java/findings-12-13.md`；修正交給 `fix-java-1213` | ✅ 10-02 上線 |
 | `java/13-stream-api` | ✅ `c09e024`（57 題；mins 55） | 同上 | ✅ 10-02 上線 |
-| `java/14-modern-syntax` | ✅ 寫完 | ✅ 10-02 審完（`review-java-a`）：內容都對；兩課測驗正解太常最長（7／10、9／10）必修；yield 是 Java 13 改的、var 與 long、setScale 會丟例外、AsynchronousFileChannel 在 Linux 用執行緒池模擬等；清單 `.superpowers/audit/java/findings-14-15.md` | 修正交給 `fix-algo-0708` | |
+| `java/14-modern-syntax` | ✅ 寫完 | ✅ 10-02 審完（`review-java-a`）：內容都對；兩課測驗正解太常最長（7／10、9／10）必修；yield 是 Java 13 改的、var 與 long、setScale 會丟例外、AsynchronousFileChannel 在 Linux 用執行緒池模擬等；清單 `.superpowers/audit/java/findings-14-15.md` | 修正 `614aa76`（17 條全改）；範圍複審中 | |
 | `java/15-os-process-io` | ✅ 寫完 | 同上 | | |
 | `interview/17-java-modern-qa` | | | | |
 
@@ -34,7 +34,7 @@
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
 | `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | 修正 `9442bb4`；範圍複審 ✅ | ✅ 10-02 上線 `b45d58b`（總覽與行為面試複習表同步改成十六課） |
-| `web/09-git-branching` Git 分支與協作 | ✅ `08b2c08`（57 題、6 張圖、30 出處；mins 60） | 審查中（`review-algo-a`，09＋10 一起） | | |
-| `web/10-cicd-pipeline` CI/CD：從 push 到上線 | ✅ `4b74b0e`（60 題、6 張圖、53 出處；mins 80） | 同上 | | |
+| `web/09-git-branching` Git 分支與協作 | ✅ `08b2c08`（57 題、6 張圖、30 出處；mins 60） | ✅ 10-02 審完：技術無錯、輸出全部重現；來源註記筆誤、測驗與練習重複、砍 7 題；清單 `.superpowers/audit/web/findings-09-10.md`；修正交給 `fix-int17` | | |
+| `web/10-cicd-pipeline` CI/CD：從 push 到上線 | ✅ `4b74b0e`（60 題、6 張圖、53 出處；mins 80） | ✅ 同上：upload-pages-artifact@v3 會打包隱藏檔（寫反）；選項長度全面洩題（73% 正解最長）；砍 8 題；修正交給 `fix-algo-0708` | | |
 
 Git 與 CI/CD 兩課放網頁模組，分組「開發流程」（跟〈軟體開發生命週期〉同組）；出處以 Pro Git（git-scm.com/book）與 GitHub Docs 為主；CI/CD 以本站自己的 `.github/workflows/deploy.yml` 當範例。
