@@ -27,7 +27,7 @@
 </div>
 <div class="drill">
   <p class="dq">追蹤指出慢在 account，想知道 account 那一段到底發生了什麼錯。下一步看哪裡？</p>
-  <ul class="dopts"><li>Prometheus 的錯誤率圖</li><li>Grafana 的儀表板</li><li>把 account 服務重開一次</li><li data-ok>account 的日誌，用 traceId 篩</li></ul>
+  <ul class="dopts"><li>Prometheus 上的錯誤率趨勢圖</li><li>Grafana 上的整體儀表板</li><li>把 account 服務重開一次看看</li><li data-ok>account 的日誌，用 traceId 篩</li></ul>
   <p class="dexp">日誌寫下那一段發生的事。實跑時 account 那行日誌寫著「核心帳務逾時 account=X999」，靠的是它跟追蹤帶著同一個 traceId。</p>
 </div>
 <div class="drill">
@@ -190,7 +190,7 @@ transfer_checks_total{result="ok"} 793.0</code></pre>
 
 <div class="drill">
   <p class="dq">Micrometer 官方說它「就像 SLF4J，只是用在可觀測性」。這個比喻的意思是？</p>
-  <ul class="dopts"><li>Micrometer 會取代 SLF4J 印日誌</li><li data-ok>換監控系統只要換相依套件</li><li>Micrometer 只能搭配 Logback</li><li>Micrometer 會把指標寫進日誌檔</li></ul>
+  <ul class="dopts"><li>Micrometer 會取代 SLF4J 印日誌</li><li data-ok>程式不綁廠商，換監控系統只要換相依套件</li><li>Micrometer 只能搭配 Logback</li><li>Micrometer 會把指標寫進日誌檔</li></ul>
   <p class="dexp">SLF4J 讓你不綁定 Logback 或 Log4j；Micrometer 讓你不綁定 Prometheus 或其他監控系統，兩者都是門面。</p>
 </div>
 <div class="drill">
@@ -215,7 +215,7 @@ transfer_checks_total{result="ok"} 793.0</code></pre>
 </div>
 <div class="drill">
   <p class="dq">程式裡建立 <code>Counter.<wbr>builder(<wbr>"transfer.<wbr>checks")</code>，在 Prometheus 裡看到的名稱是？</p>
-  <ul class="dopts"><li>transfer.checks</li><li>transfer-checks</li><li>TransferChecks</li><li data-ok>transfer_checks_total</li></ul>
+  <ul class="dopts"><li>transfer.checks（原名不變）</li><li>transfer-checks-total</li><li>TransferChecksTotal</li><li data-ok>transfer_checks_total</li></ul>
   <p class="dexp">送到 Prometheus 時點換成底線，計數器加上 _total。實跑的端點輸出就是 transfer_<wbr>checks_<wbr>total{result=<wbr>"ok"}。</p>
 </div>
 <div class="drill">
@@ -297,7 +297,7 @@ $ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (resu
 </div>
 <div class="drill">
   <p class="dq">PromQL 查 <code>up</code> 得到 transfer 是 1。代表？</p>
-  <ul class="dopts"><li>transfer 目前有 1 個錯誤</li><li>transfer 每秒收到 1 個請求</li><li data-ok>上一次拉取成功</li><li>transfer 只部署了 1 個實例</li></ul>
+  <ul class="dopts"><li>transfer 目前有 1 個錯誤</li><li>transfer 每秒收到 1 個請求</li><li data-ok>上一次拉取 transfer 成功</li><li>transfer 只部署了 1 個實例</li></ul>
   <p class="dexp">up 是 Prometheus 替每個拉取目標記的：拉成功是 1、失敗是 0。服務掛掉時最先變的就是它。</p>
 </div>
 <div class="drill">
@@ -456,7 +456,7 @@ public String balance(@PathVariable String id,
 </div>
 <div class="drill">
   <p class="dq">在 <code>traceparent: 00-67e70a40…e2-ceae3b4330fd56b3-03</code> 裡，<code>ceae3b4330fd56b3</code> 是？</p>
-  <ul class="dopts"><li>trace-id</li><li>account 自己的 span ID</li><li>version</li><li data-ok>parent-id：呼叫端那一段 span 的 ID</li></ul>
+  <ul class="dopts"><li>trace-id，整條追蹤的 ID</li><li>account 自己這一段的 span ID</li><li>version，規格的版本號</li><li data-ok>parent-id，呼叫端那段的 ID</li></ul>
   <p class="dexp">四個欄位依序是 version、trace-id、parent-id、trace-flags。parent-id 是呼叫端所知的這個請求的 ID，也就是 transfer 發出呼叫那段的 span ID。</p>
 </div>
 <div class="drill">
@@ -486,7 +486,7 @@ public String balance(@PathVariable String id,
 </div>
 <div class="drill">
   <p class="dq">Spring Boot 4.1 要用 OpenTelemetry 送追蹤，加哪個 starter？</p>
-  <ul class="dopts"><li>spring-cloud-starter-sleuth</li><li data-ok>spring-boot-starter-opentelemetry</li><li>spring-boot-starter-zipkin</li><li>spring-boot-starter-jaeger</li></ul>
+  <ul class="dopts"><li>spring-cloud-starter-sleuth</li><li data-ok>spring-boot-starter-opentelemetry</li><li>spring-boot-starter-zipkin</li><li>spring-boot-starter-jaeger-tracing</li></ul>
   <p class="dexp">Spring Boot 4.1 文件：OpenTelemetry 加 OTLP 需要 spring-boot-starter-opentelemetry；spring-boot-starter-zipkin 是 Brave 加 Zipkin 那一組。Sleuth 是 Spring Boot 2 時代的東西。</p>
 </div>
 <div class="drill">
@@ -550,12 +550,12 @@ public String balance(@PathVariable String id,
 </div>
 <div class="drill">
   <p class="dq">日誌裡的 <code>traceId</code> 與 <code>spanId</code> 是誰放進去的？</p>
-  <ul class="dopts"><li>程式設計師在每一行手動加</li><li data-ok>Micrometer Tracing 自動放進 MDC</li><li>Prometheus 拉指標時順便加上</li><li>Jaeger 收到 span 後回寫</li></ul>
+  <ul class="dopts"><li>程式設計師在每一行 log 手動加上</li><li data-ok>Micrometer Tracing 自動放進 MDC</li><li>Prometheus 來拉指標時順便加上去</li><li>Jaeger 收到 span 之後回寫到日誌</li></ul>
   <p class="dexp">Spring Boot 文件：用了 Micrometer Tracing，預設就會在日誌加上關聯 ID，由 MDC 的 traceId 與 spanId 組成。</p>
 </div>
 <div class="drill">
   <p class="dq">MDC 的資料是以什麼為單位管理的？</p>
-  <ul class="dopts"><li>以整個應用程式為單位，所有請求共用</li><li>以 HTTP 連線為單位</li><li>以 logger 名稱為單位</li><li data-ok>以執行緒為單位</li></ul>
+  <ul class="dopts"><li>以整個應用程式為單位</li><li>以 HTTP 連線為單位</li><li>以 logger 名稱為單位</li><li data-ok>以執行緒為單位，各自一份</li></ul>
   <p class="dexp">Logback 手冊：MDC 以執行緒為單位管理情境資訊。所以同一條執行緒處理下一個請求時，沒清掉的值還在。</p>
 </div>
 <div class="drill">
@@ -565,7 +565,7 @@ public String balance(@PathVariable String id,
 </div>
 <div class="drill">
   <p class="dq">把兩個服務的日誌合起來，怎麼找出「同一個請求」的所有紀錄？</p>
-  <ul class="dopts"><li>找同一秒的日誌</li><li>找同一個執行緒名稱</li><li>找同一個 logger</li><li data-ok>用同一個 traceId 篩選</li></ul>
+  <ul class="dopts"><li>找時間戳記在同一秒的日誌</li><li>找執行緒名稱相同的日誌</li><li>找 logger 名稱相同的日誌</li><li data-ok>用同一個 traceId 篩選</li></ul>
   <p class="dexp">不同服務的執行緒、logger 都不一樣，同一秒也有很多請求；只有 traceId 是同一個請求全程共用的。實跑篩出四行，兩個服務各兩行。</p>
 </div>
 </section>
