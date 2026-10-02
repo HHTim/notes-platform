@@ -14,8 +14,8 @@ Tim 10-02 交代：「不試用，你繼續幹活」。
 | `11-grammar-modals` 助動詞 | ✅ `ad3ac2a`（52 題課中練習、1 張推測刻度圖、54 出處／25 網址；mins 40；自己改掉 13 題爭議題） | 同上 | 同上 | ✅ 10-02 上線 |
 | `12-grammar-infinitive-gerund` 不定詞與動名詞 | ✅ `25c9bb2`（67 題課中練習、53 出處／45 網址；mins 48） | ✅ 10-02 審完（12＋13）：148 題沒有正解不唯一；規則會學錯 3 條（to 介系詞判斷法有反例、-ing 不能當補語、縮短關係子句的條件）＋不精確多條、選項長度洩題 7 題；清單在 `.superpowers/audit/english/findings-b2c.md`；修正交回原寫課代理 | ✅ 修正 `45c780f`（全改、零駁回；prices 題改用 quote 而非 display）；範圍複審 ✅（quote 換題成立、「做完的一次性動作不縮成 -ing」不掛出處可以）；兩處小尾巴主控順手修 | ✅ 10-02 上線（英文模組第 12、13 課） |
 | `13-grammar-participles` 分詞與分詞構句 | ✅ `c0d85fa`（61 題課中練習、30 出處／22 網址；mins 44） | 同上 | 同上 | ✅ 10-02 上線 |
-| `14-grammar-adj-adv` 形容詞與副詞（含比較級） | ✅ `d83e5e3`（66 題課中練習、59 出處／43 網址；mins 48） | 審查中（Opus `review-en-b2d`，14＋15 一起） | | |
-| `15-grammar-prepositions` 介系詞 | ✅ `261efd3`（64 題課中練習、60 出處／49 網址；mins 46） | 同上 | | |
+| `14-grammar-adj-adv` 形容詞與副詞（含比較級） | ✅ `d83e5e3`（66 題課中練習、59 出處／43 網址；mins 48） | ✅ 10-02 審完（14＋15）：只有 1 題正解不唯一（left the room for the presentation 也通）；alone 的位置、quicker than 靠塞字等不精確；建議刪 10 題重複回到 60 題；三個有爭議的陷阱（below the age、by foot、between）主控決定換掉；清單在 `.superpowers/audit/english/findings-b2d.md`；修正交回原寫課代理 | ✅ 修正 `1a5f955`（全改；「大部分兩個音節用 more」改引 British Council 原句保留；刪題後兩課各 60 題）；範圍複審 ✅；兩處小尾巴（still 題解析、退房題把 until 換成 for、加 throughout）主控順手修 | ✅ 10-02 上線（英文模組第 14、15 課） |
+| `15-grammar-prepositions` 介系詞 | ✅ `261efd3`（64 題課中練習、60 出處／49 網址；mins 46） | 同上 | 同上 | ✅ 10-02 上線 |
 | `16-grammar-conjunctions` 連接詞與連接副詞 | 撰寫中（10-02，Opus `write-en-b2e`） | | | |
 | `17-grammar-relative` 關係詞 | 撰寫中（10-02，Opus `write-en-b2e`） | | | |
 | `18-grammar-noun-clauses` 名詞子句 | 撰寫中（10-02，Opus `write-en-b2f`） | | | |
