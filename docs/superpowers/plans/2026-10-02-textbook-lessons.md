@@ -41,11 +41,11 @@
 | `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | ✅ 10-03 審完：測驗一題正解可能不唯一、採 AWS 繁中官方譯名、分割區統一；縮到 mins 60；清單 `.superpowers/audit/cloud/findings-17.md`；修正排給 `fix-db08` | 修正 `b9fd0a8`（39 題、約 26,900 字）；範圍複審 ✅ | ✅ 10-03 上線（mins 65） | | | |
 | `database/09-sql-advanced` | SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式 | ✅ `88d46c5`（47 題、4 圖、18 網址；MySQL 8.4 與 PostgreSQL 18 對照） | ✅ 10-03 審完（`write-algo-b`）：長字串撐寬整頁、一題錯誤原因講錯、測驗一題洩題；「聚合函數」兩課改「聚合函式」；清單 `.superpowers/audit/database/findings-09.md`；修正交回 `fix-int17` | 修正 `6edeb2e`（15 條全改）；範圍複審 ✅（RANK 一句主控改） | ✅ 10-03 上線 | | | |
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
-| `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
+| `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | ✅ `45378e2`（45 題、5 圖、30 網址；kind＋Istio 1.31.1 實跑） | 審查中（`review-java-a`） | | | |
 | `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | ✅ `d631eeb`（42 題、4 圖、12 網址；Batch 6.0.5、MySQL 8.4 四次執行實跑） | ✅ 10-03 審完：可上線，7 條順手修（結束代碼 5 的來源、兩處補出處、行／筆、選項長度）；清單 `.superpowers/audit/spring/findings-23.md`；交回 `write-algo-c` | 修正 `8c2501c`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | ✅ `12c638f`（48 題、3 圖、20 出處） | ✅ 10-03 審完：測驗角括號沒跳脫（註冊後測試會失敗）等 5 處小修，主控直接改 | — | ✅ 10-03 上線 | | | |
 | `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | 撰寫中（`write-algo-d`） | | | |
-| `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | 撰寫中（`fix-algo-1112`） | | | |
+| `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | ✅ `007996f`（39 題、2 圖、21 出處；MySQL 8.4 實跑死結對照） | 審查中（`review-algo-d`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
