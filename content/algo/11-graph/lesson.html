@@ -1,0 +1,1035 @@
+<!-- 來源：依 https://algs4.cs.princeton.edu/41graph/ 新寫；另參考 algs4.cs.princeton.edu 第 1.5、4.2、4.4 節、MIT OpenCourseWare 6.006（2020 春）第 9、10 講與第 9 次習題課、Java SE 25 API 文件（ArrayDeque、PriorityQueue）；程式碼與練習題全部自編，以 Java 21 實際編譯執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用頂點、邊、有向無向、有權無權這幾個詞描述轉帳關係、服務相依這類問題，並選鄰接串列或鄰接矩陣來存</li><li>手寫 BFS 與 DFS，給一張圖就排得出走訪順序，知道 BFS 為什麼能找無權圖的最短路徑，兩者都是 O(V + E)</li><li>把格子題（島嶼數量）看成圖，用 DFS 或 BFS 數連通的區塊</li><li>用 Kahn 演算法做拓樸排序、順便偵測有沒有環；知道有權重時要換 Dijkstra、判斷「是否同一群」可以用聯集—找出</li></ul></div>
+
+<section>
+<p class="era">人與人、服務與服務之間的線</p>
+<h3 class="head">圖的名詞：頂點、邊、有向與無向、有權與無權</h3>
+<p>把「一堆東西，以及它們兩兩之間的關係」畫出來，就是一張<strong>圖</strong>（graph）。普林斯頓《Algorithms》的定義是：圖是「一組頂點，加上一組各自連接兩個頂點的邊」（A graph is a set of vertices and a collection of edges that each connect a pair of vertices）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a> 東西叫<strong>頂點</strong>（vertex，也叫節點），關係叫<strong>邊</strong>（edge）。職場上到處都是圖：</p>
+<ul class="plainlist">
+<li><strong>轉帳關係</strong>：每個帳戶是頂點，「甲轉錢給乙」是一條從甲指向乙的邊，金額可以記在邊上。</li>
+<li><strong>服務相依</strong>：每個微服務是頂點，「付款服務要呼叫帳務服務」是一條邊；要決定誰先啟動、某個服務掛了會影響誰，都是在圖上找路。</li>
+<li><strong>好友關係、路網、課程先修</strong>：一樣是頂點加邊。</li>
+</ul>
+<p>邊有兩種分法。<strong>有向</strong>（directed）的邊有方向，(u, v) 跟 (v, u) 是兩條不同的邊；<strong>無向</strong>（undirected）的邊沒有方向，連起來就是雙方互相。MIT 6.006 講義的寫法：有向邊是「有順序的一對頂點」（Directed edges are ordered pairs），無向邊是「沒有順序的一對」（Undirected edges are unordered pairs）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/196a95604877d326c6586e60477b59d4_MIT6_006S20_lec9.pdf" target="_blank" rel="noopener">出處</a> 另一種分法是邊上有沒有數字：有數字（距離、金額、耗時）叫<strong>有權</strong>（weighted），那個數字叫<strong>權重</strong>；沒有就是<strong>無權</strong>，每條邊都算「一步」。</p>
+<figure>
+<svg viewBox="0 0 760 280" role="img" aria-label="兩種圖：左邊是無向無權的好友關係，A、B、C、D 四個人之間用線相連，沒有方向；右邊是有向有權的轉帳紀錄，甲轉 5,000 元給乙、乙轉 1,200 元給丙、甲轉 300 元給丙，箭頭表示方向、數字是權重">
+  <defs><marker id="gr-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <text x="180" y="24" font-size="13" text-anchor="middle" font-weight="700">無向、無權：好友關係</text>
+  <text x="560" y="24" font-size="13" text-anchor="middle" font-weight="700">有向、有權：轉帳紀錄（元）</text>
+  <line x1="110.0" y1="80.0" x2="250.0" y2="80.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="90.0" y1="100.0" x2="90.0" y2="190.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="270.0" y1="100.0" x2="270.0" y2="190.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="110.0" y1="210.0" x2="250.0" y2="210.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="106.2" y1="91.7" x2="253.8" y2="198.3" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="90" cy="80" r="20" fill="var(--surface)" stroke="currentColor"/><text x="90" y="85" font-size="14" text-anchor="middle" class="mono">A</text>
+  <circle cx="270" cy="80" r="20" fill="var(--surface)" stroke="currentColor"/><text x="270" y="85" font-size="14" text-anchor="middle" class="mono">B</text>
+  <circle cx="90" cy="210" r="20" fill="var(--surface)" stroke="currentColor"/><text x="90" y="215" font-size="14" text-anchor="middle" class="mono">C</text>
+  <circle cx="270" cy="210" r="20" fill="var(--surface)" stroke="currentColor"/><text x="270" y="215" font-size="14" text-anchor="middle" class="mono">D</text>
+  <text x="180" y="262" font-size="12" text-anchor="middle" fill="var(--slate-deep)">邊沒有方向：A 是 B 的好友，B 也是 A 的好友</text>
+  <line x1="470.0" y1="80.0" x2="648.0" y2="80.0" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a1)"/>
+  <text x="560.0" y="70.0" font-size="12" text-anchor="middle" fill="var(--gold-deep)" class="mono">5,000</text>
+  <line x1="657.1" y1="95.3" x2="574.2" y2="193.2" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a1)"/>
+  <text x="647.0" y="145.0" font-size="12" text-anchor="middle" fill="var(--gold-deep)" class="mono">1,200</text>
+  <line x1="462.9" y1="95.3" x2="545.8" y2="193.2" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a1)"/>
+  <text x="475.0" y="145.0" font-size="12" text-anchor="middle" fill="var(--gold-deep)" class="mono">300</text>
+  <circle cx="450" cy="80" r="20" fill="var(--surface)" stroke="currentColor"/><text x="450" y="85" font-size="13" text-anchor="middle" class="mono">甲</text>
+  <circle cx="670" cy="80" r="20" fill="var(--surface)" stroke="currentColor"/><text x="670" y="85" font-size="13" text-anchor="middle" class="mono">乙</text>
+  <circle cx="560" cy="210" r="20" fill="var(--surface)" stroke="currentColor"/><text x="560" y="215" font-size="13" text-anchor="middle" class="mono">丙</text>
+  <text x="560" y="262" font-size="12" text-anchor="middle" fill="var(--slate-deep)">箭頭是方向（誰轉給誰），數字是權重（金額）</text>
+</svg>
+<figcaption>好友關係是雙向的，用無向邊；轉帳有方向也有金額，用有向、有權的邊。</figcaption>
+</figure>
+<p>幾個後面會一直用到的詞：</p>
+<div class="tablewrap"><table><thead><tr><th>名詞</th><th>白話</th></tr></thead><tbody>
+<tr><th>相鄰、鄰居</th><td>有一條邊直接連著的兩個頂點互為鄰居</td></tr>
+<tr><th>度數</th><td>一個頂點連著幾條邊（degree）。有向圖再分成<strong>入度</strong>（in-degree，幾條邊指向它）與<strong>出度</strong>（out-degree，它指出去幾條）</td></tr>
+<tr><th>路徑</th><td>沿著邊一步一步走的一串頂點；路徑長度＝走了幾條邊</td></tr>
+<tr><th>環</th><td>走一圈又回到出發點的路徑（cycle）</td></tr>
+<tr><th>連通</th><td>無向圖裡任兩個頂點之間都有路可走；走得到彼此的一群頂點叫一個<strong>連通塊</strong>（connected component）</td></tr>
+<tr><th>有向無環圖</th><td>有向、而且沒有任何環的圖，英文縮寫 DAG（directed acyclic graph）。拓樸排序只能用在這種圖上</td></tr>
+</tbody></table></div>
+<p>這些定義都出自普林斯頓的名詞表：度數是「連在這個頂點上的邊數」、環是「起點與終點相同的路徑」、連通塊是「最大的連通子圖」；入度是「指向它的邊數」（The indegree of a vertex is the number of edges pointing to it）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://algs4.cs.princeton.edu/42digraph/" target="_blank" rel="noopener">有向圖</a> 名詞表還有一句：<strong>樹是「沒有環的連通圖」</strong>（A tree is an acyclic connected graph），所以〈樹與二元搜尋樹〉的樹，其實是圖的一種特例。圖的大小用兩個數字描述：頂點數 V、邊數 E，這課的複雜度都用它們表示。</p>
+
+<div class="drill">
+  <p class="dq">要表示「帳戶甲轉了 5,000 元給帳戶乙」，最貼切的是哪一種邊？</p>
+  <ul class="dopts"><li data-ok>有向、有權的邊</li><li>無向、無權的邊</li><li>無向、有權的邊</li><li>有向、無權的邊</li></ul>
+  <p class="dexp">轉帳有方向（甲到乙不等於乙到甲），也有金額可以記在邊上當權重，所以是有向、有權。</p>
+</div>
+<div class="drill">
+  <p class="dq">「付款服務要呼叫帳務服務才能運作」，如果把服務畫成頂點，這個關係最適合畫成什麼？</p>
+  <ul class="dopts"><li data-ok>付款指向帳務的有向邊</li><li>連接兩個服務、沒有方向的無向邊</li><li>把兩個服務畫成同一個頂點</li><li>不用畫邊，只在頂點上標註</li></ul>
+  <p class="dexp">呼叫關係有方向：付款依賴帳務，帳務不依賴付款，所以用有向邊。方向反過來也可以（「帳務先啟動」），只要整張圖講好同一種意思。</p>
+</div>
+<div class="drill">
+  <p class="dq">有向圖的邊是 A→B、C→B、B→D、A→D。頂點 B 的入度是多少？</p>
+  <ul class="dopts"><li>1</li><li data-ok>2</li><li>3</li><li>0</li></ul>
+  <p class="dexp">指向 B 的有 A→B、C→B 兩條，入度 2。B→D 是 B 指出去的，算出度。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一張圖（A→B、C→B、B→D、A→D），哪個頂點的入度是 0？</p>
+  <ul class="dopts"><li>只有 A</li><li>只有 D</li><li>B 和 D</li><li data-ok>A 和 C</li></ul>
+  <p class="dexp">沒有任何邊指向 A，也沒有任何邊指向 C，兩個入度都是 0。D 被 B 與 A 指向，入度 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">無向圖有頂點 1 到 6，邊是 1-2、2-3、4-5。這張圖有幾個連通塊？</p>
+  <ul class="dopts"><li>2</li><li>4</li><li data-ok>3</li><li>6</li></ul>
+  <p class="dexp">{1, 2, 3} 一群、{4, 5} 一群，6 沒有任何邊，自己一群，共 3 個。沒有邊的頂點也算一個連通塊。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一張有向圖<strong>不是</strong>有向無環圖（DAG）？</p>
+  <ul class="dopts"><li>A→B、B→C、A→C</li><li data-ok>A→B、B→C、C→A</li><li>A→B、A→C、B→D、C→D</li><li>只有一條邊 A→B</li></ul>
+  <p class="dexp">A→B→C→A 走一圈回到 A，是環。其他三張都只能往前走、回不到出發點。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼說樹是圖的一種？</p>
+  <ul class="dopts"><li>樹的每個頂點都恰好有兩個鄰居</li><li data-ok>樹就是沒有環、而且連通的圖</li><li>樹的邊一定有權重</li><li>樹一定是有向圖</li></ul>
+  <p class="dexp">普林斯頓的定義：A tree is an acyclic connected graph。二元樹每個節點最多兩個子節點，但葉節點只有一個鄰居（它的父節點）。</p>
+</div>
+</section>
+
+<section>
+<p class="era">名冊與對照表</p>
+<h3 class="head">兩種存法：鄰接串列對鄰接矩陣</h3>
+<p>程式裡存一張圖有兩種常見做法：</p>
+<ul class="plainlist">
+<li><strong>鄰接串列</strong>（adjacency list）：像通訊錄，每個頂點記一份「我的鄰居有誰」。普林斯頓的實作就用它：「一個用頂點編號當索引的陣列，每一格是一條清單，列出跟這個頂點有邊相連的頂點」（a vertex-indexed array of lists of the vertices connected by an edge to each vertex）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>鄰接矩陣</strong>（adjacency matrix）：像一張 V × V 的對照表，第 u 列第 v 欄記「u 與 v 之間有沒有邊」。普林斯頓的 <code>AdjMatrixGraph</code> 一建立就配置 <code>new boolean[V][V]</code>。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/AdjMatrixGraph.java.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class MatrixVsList {
+    public static void main(String[] args) {
+        int n = 4;
+        int[][] edges = {{0, 1}, {0, 2}, {1, 2}, {2, 3}};
+
+        boolean[][] matrix = new boolean[n][n];          // 鄰接矩陣：n × n 格
+        List&lt;List&lt;Integer&gt;&gt; list = new ArrayList&lt;&gt;();    // 鄰接串列：每個頂點一條清單
+        for (int i = 0; i &lt; n; i++) list.add(new ArrayList&lt;&gt;());
+        for (int[] e : edges) {
+            matrix[e[0]][e[1]] = matrix[e[1]][e[0]] = true;
+            list.get(e[0]).add(e[1]);
+            list.get(e[1]).add(e[0]);
+        }
+
+        for (boolean[] row : matrix) {
+            StringBuilder sb = new StringBuilder();
+            for (boolean b : row) sb.append(b ? 1 : 0).append(' ');
+            System.out.println(sb.toString().trim());
+        }
+        System.out.println(list);
+        System.out.println("1 和 3 相鄰嗎？矩陣 " + matrix[1][3] + "，串列 " + list.get(1).contains(3));
+    }
+}</code></pre>
+<pre><code>0 1 1 0
+1 0 1 0
+1 1 0 1
+0 0 1 0
+[[1, 2], [0, 2], [0, 1, 3], [2]]
+1 和 3 相鄰嗎？矩陣 false，串列 false</code></pre>
+<figure>
+<svg viewBox="0 0 760 290" role="img" aria-label="同一張圖的兩種存法：圖有 0、1、2、3 四個頂點，邊是 0-1、0-2、1-2、2-3。中間是 4 乘 4 的鄰接矩陣，相鄰的格子填 1；右邊是鄰接串列，0 的鄰居是 1、2，1 的鄰居是 0、2，2 的鄰居是 0、1、3，3 的鄰居是 2">
+  <defs></defs>
+  <line x1="100.0" y1="70.0" x2="180.0" y2="70.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="90.3" y1="87.1" x2="129.7" y2="152.9" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="189.7" y1="87.1" x2="150.3" y2="152.9" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="140.0" y1="190.0" x2="140.0" y2="240.0" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="80" cy="70" r="20" fill="var(--surface)" stroke="currentColor"/><text x="80" y="75" font-size="14" text-anchor="middle" class="mono">0</text>
+  <circle cx="200" cy="70" r="20" fill="var(--surface)" stroke="currentColor"/><text x="200" y="75" font-size="14" text-anchor="middle" class="mono">1</text>
+  <circle cx="140" cy="170" r="20" fill="var(--surface)" stroke="currentColor"/><text x="140" y="175" font-size="14" text-anchor="middle" class="mono">2</text>
+  <circle cx="140" cy="260" r="20" fill="var(--surface)" stroke="currentColor"/><text x="140" y="265" font-size="14" text-anchor="middle" class="mono">3</text>
+  <text x="330" y="30" font-size="13" text-anchor="start" font-weight="700">鄰接矩陣（4 × 4 格）</text>
+  <text opacity=".6" x="370.0" y="56" font-size="12" text-anchor="middle" class="mono">0</text>
+  <text opacity=".6" x="410.0" y="56" font-size="12" text-anchor="middle" class="mono">1</text>
+  <text opacity=".6" x="450.0" y="56" font-size="12" text-anchor="middle" class="mono">2</text>
+  <text opacity=".6" x="490.0" y="56" font-size="12" text-anchor="middle" class="mono">3</text>
+  <text opacity=".6" x="338" y="90" font-size="12" text-anchor="middle" class="mono">0</text>
+  <rect x="350" y="64" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="370.0" y="90" font-size="13" text-anchor="middle" class="mono">0</text>
+  <rect x="390" y="64" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="410.0" y="90" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="430" y="64" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="450.0" y="90" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="470" y="64" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="490.0" y="90" font-size="13" text-anchor="middle" class="mono">0</text>
+  <text opacity=".6" x="338" y="130" font-size="12" text-anchor="middle" class="mono">1</text>
+  <rect x="350" y="104" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="370.0" y="130" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="390" y="104" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="410.0" y="130" font-size="13" text-anchor="middle" class="mono">0</text>
+  <rect x="430" y="104" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="450.0" y="130" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="470" y="104" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="490.0" y="130" font-size="13" text-anchor="middle" class="mono">0</text>
+  <text opacity=".6" x="338" y="170" font-size="12" text-anchor="middle" class="mono">2</text>
+  <rect x="350" y="144" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="370.0" y="170" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="390" y="144" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="410.0" y="170" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="430" y="144" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="450.0" y="170" font-size="13" text-anchor="middle" class="mono">0</text>
+  <rect x="470" y="144" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="490.0" y="170" font-size="13" text-anchor="middle" class="mono">1</text>
+  <text opacity=".6" x="338" y="210" font-size="12" text-anchor="middle" class="mono">3</text>
+  <rect x="350" y="184" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="370.0" y="210" font-size="13" text-anchor="middle" class="mono">0</text>
+  <rect x="390" y="184" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="410.0" y="210" font-size="13" text-anchor="middle" class="mono">0</text>
+  <rect x="430" y="184" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="450.0" y="210" font-size="13" text-anchor="middle" class="mono">1</text>
+  <rect x="470" y="184" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="490.0" y="210" font-size="13" text-anchor="middle" class="mono">0</text>
+  <text x="330" y="250" font-size="12" text-anchor="start" fill="var(--slate-deep)">第 u 列第 v 格是 1：u 與 v 相鄰</text>
+  <text x="560" y="30" font-size="13" text-anchor="start" font-weight="700">鄰接串列</text>
+  <text x="570" y="84" font-size="14" text-anchor="start" class="mono">0: [1, 2]</text>
+  <text x="570" y="124" font-size="14" text-anchor="start" class="mono">1: [0, 2]</text>
+  <text x="570" y="164" font-size="14" text-anchor="start" class="mono">2: [0, 1, 3]</text>
+  <text x="570" y="204" font-size="14" text-anchor="start" class="mono">3: [2]</text>
+  <text x="560" y="250" font-size="12" text-anchor="start" fill="var(--slate-deep)">每個頂點只記它真正的鄰居</text>
+</svg>
+<figcaption>同一張圖的兩種存法。無向圖的矩陣左右對稱（u 到 v 有邊，v 到 u 也有）；串列裡每條無向邊出現兩次。</figcaption>
+</figure>
+<div class="tablewrap"><table><thead><tr><th></th><th>鄰接串列</th><th>鄰接矩陣</th></tr></thead><tbody>
+<tr><th>空間</th><td>O(V + E)</td><td>O(V²)，不管有幾條邊</td></tr>
+<tr><th>u 與 v 有沒有邊</th><td>要掃 u 的清單，最多 O(度數)</td><td>O(1)，直接看那一格</td></tr>
+<tr><th>列出 u 的所有鄰居</th><td>O(度數)</td><td>O(V)，整列都要看</td></tr>
+<tr><th>適合</th><td>邊不多的圖（大部分實際問題），BFS、DFS 的預設</td><td>頂點不多、邊很密，或常常要問「這兩個有沒有連」</td></tr>
+</tbody></table></div>
+<p>表格的根據：MIT 習題課講義說，鄰接串列「大小是 Θ(|V| + |E|)」，缺點是判斷某條邊在不在「可能要 Ω(|V|) 時間」逐一看過清單；如果每條清單改用雜湊表存，就能在期望 O(1) 內判斷，空間仍然是 Θ(|V| + |E|)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/6afd7e9a85d7d36e204533569f9fccf6_MIT6_006S20_r09.pdf" target="_blank" rel="noopener">出處</a> 矩陣的 V × V 格來自上面那行 <code>new boolean[V][V]</code>。實際的圖（例如一百萬個帳戶，每個帳戶只跟幾十個帳戶往來）邊數遠小於 V²，用矩陣會配置一兆格，所以面試題預設用串列。</p>
+<p>頂點不是 0 到 V − 1 的編號，而是帳號、服務名稱這種字串時，外層改用 <code>Map&lt;String, List&lt;String&gt;&gt;</code>，MIT 講義也說外層「常用陣列或雜湊表」（Common to use direct access array or hash table for Adj）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/196a95604877d326c6586e60477b59d4_MIT6_006S20_lec9.pdf" target="_blank" rel="noopener">出處</a> 雜湊表見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+
+<div class="drill">
+  <p class="dq">一張圖有 V 個頂點、E 條邊，用鄰接矩陣存要多少空間？</p>
+  <ul class="dopts"><li data-ok>O(V²)</li><li>O(V + E)</li><li>O(E)</li><li>O(E²)</li></ul>
+  <p class="dexp">矩陣一開始就配好 V × V 格，有沒有邊都佔一格，跟 E 無關。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一張圖用鄰接串列存（每條清單用陣列），空間是多少？</p>
+  <ul class="dopts"><li data-ok>O(V + E)</li><li>O(V²)</li><li>O(V × E)</li><li>O(E log V)</li></ul>
+  <p class="dexp">外層每個頂點一格，共 V；每條邊在清單裡出現一次（無向圖兩次），共 O(E)。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式最常做的事是「問 u 與 v 之間有沒有邊」，頂點只有 500 個、邊很密。哪一種存法比較適合？</p>
+  <ul class="dopts"><li>鄰接串列，每條清單用陣列</li><li>只存一份所有邊的清單</li><li>鄰接串列，每條清單用 LinkedList</li><li data-ok>鄰接矩陣</li></ul>
+  <p class="dexp">矩陣看一格就知道，O(1)；500 × 500 格也不大。陣列或 LinkedList 做的清單要一個一個找。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面 <code>MatrixVsList</code> 的那張圖（邊 0-1、0-2、1-2、2-3），<code>matrix[3][2]</code> 是什麼？</p>
+  <ul class="dopts"><li data-ok>true</li><li>false</li><li>丟出例外</li><li>要看 matrix[2][3]</li></ul>
+  <p class="dexp">2-3 是無向邊，程式同時設了 matrix[2][3] 與 matrix[3][2]，所以是 true。</p>
+</div>
+<div class="drill">
+  <p class="dq">無向圖有 5 條邊，用鄰接串列存。所有清單的長度加起來是多少？</p>
+  <ul class="dopts"><li>5</li><li data-ok>10</li><li>25</li><li>要看頂點有幾個</li></ul>
+  <p class="dexp">每條無向邊 u-v 會出現在 u 的清單、也出現在 v 的清單，所以是 2 × 5 = 10。</p>
+</div>
+<div class="drill">
+  <p class="dq">用鄰接矩陣，列出頂點 u 的所有鄰居要多久？</p>
+  <ul class="dopts"><li>O(1)</li><li>O(u 的度數)</li><li data-ok>O(V)</li><li>O(V²)</li></ul>
+  <p class="dexp">要把 u 那一列的 V 格都看過，才知道哪些是 1。串列只要看 u 的清單，O(度數)。</p>
+</div>
+<div class="drill">
+  <p class="dq">頂點是服務名稱（例如 <code>"payment"</code>、<code>"account"</code>），不是 0、1、2 這種編號。用什麼存鄰接串列最自然？</p>
+  <ul class="dopts"><li><code>boolean[][]</code></li><li><code>List&lt;List&lt;Integer&gt;&gt;</code></li><li data-ok><code>Map&lt;String, List&lt;String&gt;&gt;</code></li><li><code>Map&lt;Integer, Set&lt;Integer&gt;&gt;</code></li></ul>
+  <p class="dexp">外層用雜湊表，從名字直接查到鄰居清單。用 Integer 當鍵的寫法、List 和陣列，都要先把名字轉成編號。</p>
+</div>
+</section>
+
+<section>
+<p class="era">丟一顆石頭，漣漪一圈一圈往外擴</p>
+<h3 class="head">BFS：用佇列一層一層找</h3>
+<p><strong>廣度優先搜尋</strong>（breadth-first search，BFS）像石頭丟進水裡的漣漪：先看離起點一步的所有頂點，再看兩步的，再看三步的。普林斯頓的描述：先檢查「沿一條邊走得到」的頂點，再檢查「沿兩條邊走得到」的，依此類推；做法是用一個佇列，放「已經標記、但鄰居還沒檢查」的頂點，然後重複兩件事直到佇列空了：<strong>從佇列拿出下一個頂點 v；把 v 所有還沒標記的鄰居標記起來、放進佇列</strong>（Remove the next vertex v from the queue. Put onto the queue all unmarked vertices that are adjacent to v and mark them.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a> 佇列（先進先出）在〈堆疊與佇列〉講過，先發現的先處理，所以一定是近的先處理完。</p>
+<p>這課的範例圖有 7 個頂點，邊是 0-1、0-2、1-3、2-3、2-5、3-4、5-6。每條清單裡的鄰居照編號由小到大排，這樣走訪順序才固定（換了鄰居的順序，順序就會變）。</p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+
+public class Graphs {
+    // 無向圖：鄰接串列。adj.get(u) 是 u 的鄰居清單
+    static List&lt;List&lt;Integer&gt;&gt; undirected(int n, int[][] edges) {
+        List&lt;List&lt;Integer&gt;&gt; adj = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; n; i++) adj.add(new ArrayList&lt;&gt;());
+        for (int[] e : edges) {
+            adj.get(e[0]).add(e[1]);                   // 無向：兩邊都要加
+            adj.get(e[1]).add(e[0]);
+        }
+        return adj;
+    }
+
+    // BFS：用佇列一層一層往外，順便記下每個頂點離起點幾步
+    static List&lt;Integer&gt; bfs(List&lt;List&lt;Integer&gt;&gt; adj, int start, int[] dist) {
+        List&lt;Integer&gt; order = new ArrayList&lt;&gt;();
+        Arrays.fill(dist, -1);                         // -1 表示還沒到過
+        Deque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+        dist[start] = 0;
+        queue.offer(start);
+        while (!queue.isEmpty()) {
+            int u = queue.poll();
+            order.add(u);
+            for (int v : adj.get(u)) {
+                if (dist[v] == -1) {                   // 放進佇列的當下就標記，才不會重複放
+                    dist[v] = dist[u] + 1;
+                    queue.offer(v);
+                }
+            }
+        }
+        return order;
+    }
+
+    // DFS（遞迴）：一路往深處走，走不下去再退回來
+    static void dfs(List&lt;List&lt;Integer&gt;&gt; adj, int u, boolean[] visited, List&lt;Integer&gt; order) {
+        visited[u] = true;
+        order.add(u);
+        for (int v : adj.get(u)) {
+            if (!visited[v]) dfs(adj, v, visited, order);
+        }
+    }
+
+    public static void main(String[] args) {
+        int[][] edges = {{0, 1}, {0, 2}, {1, 3}, {2, 3}, {2, 5}, {3, 4}, {5, 6}};
+        List&lt;List&lt;Integer&gt;&gt; adj = undirected(7, edges);
+        System.out.println("鄰接串列 " + adj);
+
+        int[] dist = new int[7];
+        System.out.println("BFS 順序 " + bfs(adj, 0, dist));
+        System.out.println("離 0 幾步 " + Arrays.toString(dist));
+
+        List&lt;Integer&gt; order = new ArrayList&lt;&gt;();
+        dfs(adj, 0, new boolean[7], order);
+        System.out.println("DFS 順序 " + order);
+    }
+}</code></pre>
+<pre><code>鄰接串列 [[1, 2], [0, 3], [0, 3, 5], [1, 2, 4], [3], [2, 6], [5]]
+BFS 順序 [0, 1, 2, 3, 5, 4, 6]
+離 0 幾步 [0, 1, 1, 2, 3, 2, 3]
+DFS 順序 [0, 1, 3, 2, 5, 6, 4]</code></pre>
+<figure>
+<svg viewBox="0 0 760 296" role="img" aria-label="BFS 走訪示意：七個頂點 0 到 6，邊是 0-1、0-2、1-3、2-3、2-5、3-4、5-6。依離 0 的步數分成四欄：0 步是 0；1 步是 1、2；2 步是 3、5；3 步是 4、6。拜訪順序依序是 0、1、2、3、5、4、6">
+  <defs></defs>
+  <rect x="30" y="36" width="120" height="216" rx="10" fill="var(--gold-soft)" fill-opacity=".35" stroke="currentColor" stroke-opacity=".15"/>
+  <text x="90" y="28" font-size="12" text-anchor="middle" fill="var(--slate-deep)">離 0 有 0 步</text>
+  <rect x="190" y="36" width="120" height="216" rx="10" fill="none" fill-opacity=".35" stroke="currentColor" stroke-opacity=".15"/>
+  <text x="250" y="28" font-size="12" text-anchor="middle" fill="var(--slate-deep)">離 0 有 1 步</text>
+  <rect x="350" y="36" width="120" height="216" rx="10" fill="none" fill-opacity=".35" stroke="currentColor" stroke-opacity=".15"/>
+  <text x="410" y="28" font-size="12" text-anchor="middle" fill="var(--slate-deep)">離 0 有 2 步</text>
+  <rect x="510" y="36" width="120" height="216" rx="10" fill="none" fill-opacity=".35" stroke="currentColor" stroke-opacity=".15"/>
+  <text x="570" y="28" font-size="12" text-anchor="middle" fill="var(--slate-deep)">離 0 有 3 步</text>
+  <line x1="108.7" y1="133.0" x2="231.3" y2="87.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="108.7" y1="147.0" x2="231.3" y2="193.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="270.0" y1="80.0" x2="390.0" y2="80.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="266.0" y1="188.0" x2="394.0" y2="92.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="270.0" y1="200.0" x2="390.0" y2="200.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="430.0" y1="80.0" x2="550.0" y2="80.0" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="430.0" y1="200.0" x2="550.0" y2="200.0" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="90" cy="140" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="90" y="145" font-size="14" text-anchor="middle" class="mono">0</text>
+  <circle cx="250" cy="80" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="85" font-size="14" text-anchor="middle" class="mono">1</text>
+  <circle cx="250" cy="200" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="205" font-size="14" text-anchor="middle" class="mono">2</text>
+  <circle cx="410" cy="80" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="410" y="85" font-size="14" text-anchor="middle" class="mono">3</text>
+  <circle cx="410" cy="200" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="410" y="205" font-size="14" text-anchor="middle" class="mono">5</text>
+  <circle cx="570" cy="80" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="570" y="85" font-size="14" text-anchor="middle" class="mono">4</text>
+  <circle cx="570" cy="200" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="570" y="205" font-size="14" text-anchor="middle" class="mono">6</text>
+  <text x="90" y="113" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第1</text>
+  <text x="250" y="53" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第2</text>
+  <text x="250" y="238" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第3</text>
+  <text x="410" y="53" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第4</text>
+  <text x="410" y="238" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第5</text>
+  <text x="570" y="53" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第6</text>
+  <text x="570" y="238" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第7</text>
+  <text x="380" y="282" font-size="12" text-anchor="middle">BFS 從 0 出發的拜訪順序：0、1、2、3、5、4、6（鄰居照編號由小到大）</text>
+</svg>
+<figcaption>BFS 依「離起點幾步」一層一層拜訪：先 0，再 1、2，再 3、5，最後 4、6。「第 k」是第幾個被拿出佇列。</figcaption>
+</figure>
+<p>一步一步看佇列怎麼變（佇列寫在方括號裡，左邊是隊首）：</p>
+<div class="tablewrap"><table><thead><tr><th>拿出</th><th>它的鄰居</th><th>新放進去的</th><th>之後的佇列</th></tr></thead><tbody>
+<tr><td>（開始）</td><td></td><td>0</td><td>[0]</td></tr>
+<tr><td>0</td><td>1、2</td><td>1、2</td><td>[1, 2]</td></tr>
+<tr><td>1</td><td>0、3</td><td>3（0 已標記）</td><td>[2, 3]</td></tr>
+<tr><td>2</td><td>0、3、5</td><td>5（0、3 已標記）</td><td>[3, 5]</td></tr>
+<tr><td>3</td><td>1、2、4</td><td>4</td><td>[5, 4]</td></tr>
+<tr><td>5</td><td>2、6</td><td>6</td><td>[4, 6]</td></tr>
+<tr><td>4</td><td>3</td><td></td><td>[6]</td></tr>
+<tr><td>6</td><td>5</td><td></td><td>[]</td></tr>
+</tbody></table></div>
+<h4>為什麼 BFS 能找最短路徑</h4>
+<p>因為它是照「離起點幾步」的順序拜訪的：所有一步到得了的，都比兩步的先處理。所以某個頂點<strong>第一次</strong>被發現時，用的就是最少的步數。普林斯頓的命題：對任何從 s 走得到的頂點 v，BFS 算出的是 s 到 v 的最短路徑，「沒有哪條路徑的邊數比它少」（no path from s to v has fewer edges）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a> 注意這裡的「最短」是<strong>邊數最少</strong>；邊上有權重時就不成立了，本課最後一段會講。</p>
+<p>要印出路徑本身，就在發現 v 時記下「v 是從誰走過來的」（parent），最後從終點一路往回走到起點、再反轉。MIT 講義把這些 parent 合起來叫最短路徑樹（shortest paths tree）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/196a95604877d326c6586e60477b59d4_MIT6_006S20_lec9.pdf" target="_blank" rel="noopener">出處</a></p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
+
+public class ShortestPath {
+    // BFS 記下每個頂點是從誰走過來的，最後從終點倒著走回起點
+    static List&lt;Integer&gt; path(List&lt;List&lt;Integer&gt;&gt; adj, int s, int t) {
+        int[] parent = new int[adj.size()];
+        Arrays.fill(parent, -2);                         // -2：還沒到過
+        parent[s] = -1;                                  // 起點沒有前一個
+        Deque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+        queue.offer(s);
+        while (!queue.isEmpty()) {
+            int u = queue.poll();
+            if (u == t) break;                           // 終點一出佇列就可以停
+            for (int v : adj.get(u)) {
+                if (parent[v] == -2) {
+                    parent[v] = u;
+                    queue.offer(v);
+                }
+            }
+        }
+        if (parent[t] == -2) return List.of();           // 走不到
+        List&lt;Integer&gt; p = new ArrayList&lt;&gt;();
+        for (int v = t; v != -1; v = parent[v]) p.add(v);
+        Collections.reverse(p);
+        return p;
+    }
+
+    public static void main(String[] args) {
+        int[][] edges = {{0, 1}, {0, 2}, {1, 3}, {2, 3}, {2, 5}, {3, 4}, {5, 6}};
+        List&lt;List&lt;Integer&gt;&gt; adj = Graphs.undirected(7, edges);
+        System.out.println(path(adj, 0, 4));
+        System.out.println(path(adj, 0, 6));
+        System.out.println(path(adj, 4, 6));
+    }
+}</code></pre>
+<pre><code>[0, 1, 3, 4]
+[0, 2, 5, 6]
+[4, 3, 2, 5, 6]</code></pre>
+<p>0 到 4 有兩條三步的路（經過 1 或經過 2），BFS 回傳哪一條取決於鄰居的順序；兩條都是最短。</p>
+<h4>複雜度</h4>
+<p>每個頂點最多進佇列一次、出佇列一次；每個頂點出佇列時把它的清單掃一遍，所有清單加起來是 O(E)。總共 O(V + E)，普林斯頓的原句是「BFS 最壞的時間與 V + E 成正比」（BFS takes time proportional to V + E in the worst case）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a> 額外空間是佇列加 visited，O(V)。</p>
+<p class="muted">標記要在<strong>放進佇列的當下</strong>做，不是拿出來時才做。晚一步標記的話，同一個頂點可能被好幾個鄰居各放進佇列一次，結果還是對，但會多做很多事。</p>
+
+<div class="drill">
+  <p class="dq">BFS 用來存「發現了、但還沒處理」頂點的資料結構是什麼？</p>
+  <ul class="dopts"><li data-ok>佇列，先進先出</li><li>堆疊，後進先出</li><li>優先佇列，最小的先出</li><li>雜湊表，沒有順序</li></ul>
+  <p class="dexp">先發現的離起點比較近，要先處理，正好是先進先出。換成堆疊就會變成一路往深處走，那是 DFS。</p>
+</div>
+<div class="drill">
+  <p class="dq">用範例圖（邊 0-1、0-2、1-3、2-3、2-5、3-4、5-6，鄰居由小到大），從 <strong>3</strong> 出發做 BFS，拜訪順序是？</p>
+  <ul class="dopts"><li>3, 1, 0, 2, 5, 6, 4</li><li>3, 4, 2, 1, 5, 0, 6</li><li data-ok>3, 1, 2, 4, 0, 5, 6</li><li>3, 1, 2, 4, 5, 0, 6</li></ul>
+  <p class="dexp">3 的鄰居 1、2、4 先依序進佇列；拿出 1 放 0；拿出 2 放 5（0 已標記）；拿出 4 沒有新的；拿出 0、5，5 放 6。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一張圖從 3 出發，頂點 6 離 3 幾步？</p>
+  <ul class="dopts"><li data-ok>3</li><li>1</li><li>2</li><li>4</li></ul>
+  <p class="dexp">最短是 3 → 2 → 5 → 6，三條邊。實跑的 dist 陣列也是 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 0 出發的 BFS（就是上面那張佇列表），拿出 1 並處理完它的鄰居之後，佇列裡是什麼？</p>
+  <ul class="dopts"><li>[3]</li><li>[3, 2]</li><li>[2, 3, 0]</li><li data-ok>[2, 3]</li></ul>
+  <p class="dexp">拿出 0 後佇列是 [1, 2]；拿出 1，鄰居 0 已標記、3 沒有，放 3 到尾端，變成 [2, 3]。</p>
+</div>
+<div class="drill">
+  <p class="dq">另一張無向圖，邊是 0-1、0-3、1-2、3-4、2-4，鄰居由小到大。從 0 出發做 BFS，順序是？</p>
+  <ul class="dopts"><li>0, 1, 2, 4, 3</li><li data-ok>0, 1, 3, 2, 4</li><li>0, 3, 1, 4, 2</li><li>0, 1, 3, 4, 2</li></ul>
+  <p class="dexp">0 的鄰居 1、3 先進；拿出 1 放 2；拿出 3 放 4；之後拿出 2、4。照「一步的、再兩步的」排。</p>
+</div>
+<div class="drill">
+  <p class="dq">BFS 能保證找到最短路徑，前提是什麼？</p>
+  <ul class="dopts"><li data-ok>邊都算一步（無權），比的是邊數</li><li>圖一定要是有向圖，而且邊都指向外面</li><li>圖裡不能有任何環，否則會繞圈</li><li>起點的度數要是全圖最大的</li></ul>
+  <p class="dexp">BFS 照步數一層一層找，所以最少邊數一定先找到。有權重時，邊數少不一定總權重小。有向、有環都不影響。</p>
+</div>
+<div class="drill">
+  <p class="dq">BFS 的時間複雜度是多少（V 個頂點、E 條邊、用鄰接串列）？</p>
+  <ul class="dopts"><li data-ok>O(V + E)</li><li>O(V × E)</li><li>O(V²)</li><li>O(E log V)</li></ul>
+  <p class="dexp">每個頂點進出佇列各一次，每條清單掃一遍，加起來 O(V + E)。用鄰接矩陣的話，每個頂點要掃一整列，變成 O(V²)。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 BFS 改成「從佇列拿出來時才標記 visited」，放進佇列時不檢查也不標記。結果會怎樣？</p>
+  <ul class="dopts"><li>拜訪順序和效能都跟原本完全一樣</li><li>有些頂點永遠不會被拜訪到</li><li data-ok>同一個頂點會重複進佇列，多做白工</li><li>佇列永遠不會空，變成無窮迴圈</li></ul>
+  <p class="dexp">還沒拿出來前它都沒被標記，其他鄰居會再放一次。拿出時再檢查 visited 就能跳過重複的，不會無窮迴圈，但佇列可能塞到 O(E) 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">有向圖的邊是 0→1、1→2、3→1。從 0 出發做 BFS，會拜訪哪些頂點？</p>
+  <ul class="dopts"><li>0, 1, 2, 3</li><li>0, 1, 3</li><li data-ok>0, 1, 2</li><li>只有 0</li></ul>
+  <p class="dexp">有向圖只能順著箭頭走：0 到 1、1 到 2。3→1 是指向 1 的，從 1 走不回 3。</p>
+</div>
+</section>
+
+<section>
+<p class="era">走到死巷再回頭</p>
+<h3 class="head">DFS：遞迴或堆疊，一路走到底</h3>
+<p><strong>深度優先搜尋</strong>（depth-first search，DFS）像走迷宮：選一條路一直走，走到死巷就退回上一個岔路口，換一條還沒走過的。普林斯頓的描述只有兩步：拜訪一個頂點時，<strong>先標記它，再遞迴拜訪它所有還沒標記的鄰居</strong>（Mark it as having been visited. Visit (recursively) all the vertices that are adjacent to it and that have not yet been marked.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/41graph/" target="_blank" rel="noopener">出處</a> MIT 講義的白話是「沿著任一條路走到卡住，再退回去，直到找到還沒探索的路」（follow any path until you get stuck, backtrack until finding an unexplored path to explore）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/f3e349e0eb3288592289d2c81e0c4f4d_MIT6_006S20_lec10.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>上面 <code>Graphs</code> 類別裡的 <code>dfs</code> 就是這樣寫的，從 0 出發的順序是 0、1、3、2、5、6、4：從 0 走到 1，1 走到 3，3 的第一個沒拜訪的鄰居是 2，2 走到 5，5 走到 6；6 沒有新鄰居，退回 5、退回 2、退回 3，3 還有 4 沒去，走到 4。</p>
+<figure>
+<svg viewBox="0 0 760 304" role="img" aria-label="DFS 走訪示意：同一張圖從 0 出發，一路往深處走 0 到 1 到 3 到 2 到 5 到 6，6 沒有新鄰居，一路退回 3 再走到 4。拜訪順序是 0、1、3、2、5、6、4；0-2 那條邊走到時 2 已經拜訪過，畫成虛線">
+  <defs><marker id="gr-a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs>
+  <line x1="108.7" y1="133.0" x2="229.4" y2="87.7" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a4)"/>
+  <line x1="108.7" y1="147.0" x2="231.3" y2="193.0" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" stroke-opacity=".5"/>
+  <line x1="270.0" y1="80.0" x2="388.0" y2="80.0" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a4)"/>
+  <line x1="394.0" y1="92.0" x2="267.6" y2="186.8" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a4)"/>
+  <line x1="270.0" y1="200.0" x2="388.0" y2="200.0" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a4)"/>
+  <line x1="430.0" y1="80.0" x2="548.0" y2="80.0" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a4)"/>
+  <line x1="430.0" y1="200.0" x2="548.0" y2="200.0" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a4)"/>
+  <circle cx="90" cy="140" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="90" y="145" font-size="14" text-anchor="middle" class="mono">0</text>
+  <circle cx="250" cy="80" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="85" font-size="14" text-anchor="middle" class="mono">1</text>
+  <circle cx="250" cy="200" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="205" font-size="14" text-anchor="middle" class="mono">2</text>
+  <circle cx="410" cy="80" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="410" y="85" font-size="14" text-anchor="middle" class="mono">3</text>
+  <circle cx="410" cy="200" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="410" y="205" font-size="14" text-anchor="middle" class="mono">5</text>
+  <circle cx="570" cy="80" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="570" y="85" font-size="14" text-anchor="middle" class="mono">4</text>
+  <circle cx="570" cy="200" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="570" y="205" font-size="14" text-anchor="middle" class="mono">6</text>
+  <text x="90" y="113" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第1</text>
+  <text x="250" y="53" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第2</text>
+  <text x="410" y="53" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第3</text>
+  <text x="250" y="238" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第4</text>
+  <text x="410" y="238" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第5</text>
+  <text x="570" y="238" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第6</text>
+  <text x="570" y="53" font-size="11" text-anchor="middle" fill="var(--gold-deep)">第7</text>
+  <text x="380" y="270" font-size="12" text-anchor="middle">DFS 從 0 出發的拜訪順序：0、1、3、2、5、6、4</text>
+  <text x="380" y="290" font-size="12" text-anchor="middle" fill="var(--slate-deep)">古銅箭頭＝第一次走到某個頂點的那條邊；虛線＝走到時對面已經拜訪過</text>
+</svg>
+<figcaption>DFS 先一路往深處走（0→1→3→2→5→6），卡住了才退回 3 去 4。古銅箭頭合起來是一棵 DFS 樹。</figcaption>
+</figure>
+<h4>不用遞迴：自己管一個堆疊</h4>
+<p>遞迴本身就是用呼叫堆疊在記「還沒走完的岔路口」（〈遞迴與回溯〉）。圖很大、路很長時，遞迴可能太深而 <code>StackOverflowError</code>，這時改成自己用 <code>ArrayDeque</code> 當堆疊：</p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+
+public class DfsStack {
+    // DFS（堆疊）：不用遞迴，自己管一個堆疊
+    static List&lt;Integer&gt; dfs(List&lt;List&lt;Integer&gt;&gt; adj, int start) {
+        List&lt;Integer&gt; order = new ArrayList&lt;&gt;();
+        boolean[] visited = new boolean[adj.size()];
+        Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            int u = stack.pop();
+            if (visited[u]) continue;                    // 同一個頂點可能被推進去好幾次
+            visited[u] = true;
+            order.add(u);
+            List&lt;Integer&gt; nb = adj.get(u);
+            for (int i = nb.size() - 1; i &gt;= 0; i--) {   // 反著推，小的鄰居才會先被拿出來
+                if (!visited[nb.get(i)]) stack.push(nb.get(i));
+            }
+        }
+        return order;
+    }
+
+    public static void main(String[] args) {
+        int[][] edges = {{0, 1}, {0, 2}, {1, 3}, {2, 3}, {2, 5}, {3, 4}, {5, 6}};
+        System.out.println("DFS 順序 " + dfs(Graphs.undirected(7, edges), 0));
+    }
+}</code></pre>
+<pre><code>DFS 順序 [0, 1, 3, 2, 5, 6, 4]</code></pre>
+<p>兩個細節讓它跟遞迴版順序一樣：鄰居<strong>反著推</strong>（堆疊後進先出，最後推的最先拿出來）；<strong>拿出來時才標記</strong>，並跳過已標記的。跟 BFS 不同，這裡要拿出時才標記，否則順序會跟遞迴版不一樣。面試寫哪一種都可以，但要能說出順序為什麼是這樣。</p>
+<h4>BFS 與 DFS 怎麼選</h4>
+<div class="tablewrap"><table><thead><tr><th></th><th>BFS</th><th>DFS</th></tr></thead><tbody>
+<tr><th>工具</th><td>佇列</td><td>遞迴或堆疊</td></tr>
+<tr><th>拜訪順序</th><td>一層一層，近的先</td><td>一條路走到底再回頭</td></tr>
+<tr><th>無權最短路徑</th><td>可以</td><td>不行，找到的路不一定最短</td></tr>
+<tr><th>時間</th><td>O(V + E)</td><td>O(V + E)</td></tr>
+<tr><th>常用在</th><td>最短步數、一層一層擴散（例如多個起點同時往外）</td><td>連通塊、走得到嗎、找環、拓樸排序的另一種做法、回溯</td></tr>
+</tbody></table></div>
+<p>MIT 講義也說 DFS 解的是「走不走得到」，回傳的路徑「不一定是最短的」（not necessarily shortest）；兩者都可以重複「從還沒拜訪的頂點再出發」把整張圖走完，時間都是 O(|V| + |E|)，每出發一次找到的就是一個連通塊。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/f3e349e0eb3288592289d2c81e0c4f4d_MIT6_006S20_lec10.pdf" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">用範例圖（邊 0-1、0-2、1-3、2-3、2-5、3-4、5-6，鄰居由小到大），從 <strong>5</strong> 出發做遞迴 DFS，拜訪順序是？</p>
+  <ul class="dopts"><li data-ok>5, 2, 0, 1, 3, 4, 6</li><li>5, 2, 6, 0, 3, 1, 4</li><li>5, 6, 2, 0, 1, 3, 4</li><li>5, 2, 0, 1, 3, 6, 4</li></ul>
+  <p class="dexp">5 先去 2；2 先去 0；0 去 1；1 去 3；3 的 1、2 都拜訪過，去 4；一路退回 5 才去 6。從 5 出發的 BFS 順序才是 5, 2, 6, 0, 3, 1, 4。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一張圖從 <strong>3</strong> 出發做遞迴 DFS，拜訪順序是？</p>
+  <ul class="dopts"><li>3, 1, 2, 4, 0, 5, 6</li><li>3, 4, 2, 5, 6, 0, 1</li><li data-ok>3, 1, 0, 2, 5, 6, 4</li><li>3, 1, 0, 2, 4, 5, 6</li></ul>
+  <p class="dexp">3 去 1，1 去 0，0 的下一個是 2，2 去 5，5 去 6；退回 3 才去 4。3, 1, 2, 4… 是 BFS 的順序。</p>
+</div>
+<div class="drill">
+  <p class="dq">無向圖的邊是 0-1、0-3、1-2、3-4、2-4，鄰居由小到大。從 0 出發做遞迴 DFS，順序是？</p>
+  <ul class="dopts"><li>0, 1, 3, 2, 4</li><li>0, 3, 4, 2, 1</li><li>0, 1, 2, 3, 4</li><li data-ok>0, 1, 2, 4, 3</li></ul>
+  <p class="dexp">0 去 1，1 去 2，2 去 4，4 的鄰居 2 已拜訪、3 沒有，去 3。0, 1, 3, 2, 4 是 BFS。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 0 出發，下面哪一個工具搭配會得到 DFS 的拜訪方式？</p>
+  <ul class="dopts"><li data-ok>堆疊，或直接寫遞迴</li><li>佇列</li><li>優先佇列</li><li>只能用遞迴，不能用迴圈</li></ul>
+  <p class="dexp">後進先出讓最新發現的先處理，就會一路往深處走。遞迴靠的是呼叫堆疊；自己用 ArrayDeque 當堆疊也可以。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>DfsStack</code> 裡，如果鄰居改成「照順序推」（不反著推），從 0 出發的順序會變成什麼？（範例圖）</p>
+  <ul class="dopts"><li>0, 1, 3, 2, 5, 6, 4</li><li>0, 1, 2, 3, 5, 4, 6</li><li data-ok>0, 2, 5, 6, 3, 4, 1</li><li>0, 2, 3, 1, 4, 5, 6</li></ul>
+  <p class="dexp">推 1、2 後先拿出 2；2 推 3、5，先拿出 5；5 推 6，拿出 6；接著拿出 3，推 1、4，先拿出 4，最後是 1。還是 DFS，只是先走大的鄰居。</p>
+</div>
+<div class="drill">
+  <p class="dq">要找「從起點走到終點最少要幾步」（每步都一樣），該用哪一個？</p>
+  <ul class="dopts"><li>DFS，因為它會走得比較遠</li><li data-ok>BFS</li><li>兩個都可以，結果一樣</li><li>都不行，一定要用 Dijkstra</li></ul>
+  <p class="dexp">BFS 照步數一層一層找，第一次碰到終點就是最少步數。DFS 找到的路不一定最短。每步一樣（無權）不需要 Dijkstra。</p>
+</div>
+<div class="drill">
+  <p class="dq">遞迴版 DFS 在一張「一條長長的線」的圖上（0-1-2-…-999999）會有什麼風險？</p>
+  <ul class="dopts"><li>拜訪的順序會整個亂掉</li><li>某些頂點會被漏掉沒拜訪</li><li>時間會變成 O(V²)</li><li data-ok>遞迴太深，呼叫堆疊撐爆</li></ul>
+  <p class="dexp">每往下一個頂點就多一層呼叫，一百萬層會撐爆呼叫堆疊。改用自己管的堆疊就不受這個限制。時間還是 O(V + E)。</p>
+</div>
+<div class="drill">
+  <p class="dq">要算一張無向圖有幾個連通塊，下面哪個做法正確？</p>
+  <ul class="dopts"><li>從 0 做一次 DFS，數總共拜訪了幾個頂點</li><li data-ok>每個沒拜訪的頂點出發一次，數出發幾次</li><li>數整張圖總共有幾條邊</li><li>數度數是 0 的頂點有幾個</li></ul>
+  <p class="dexp">每次從新的、沒拜訪過的頂點出發，就會把它那一塊全部標記起來；出發的次數就是連通塊數。只做一次只找得到起點那一塊。</p>
+</div>
+<div class="drill">
+  <p class="dq">DFS 的時間複雜度是多少（鄰接串列）？</p>
+  <ul class="dopts"><li>O(V²)</li><li data-ok>O(V + E)</li><li>O(2^V)</li><li>O(E log E)</li></ul>
+  <p class="dexp">每個頂點只拜訪一次，拜訪時掃一次自己的清單，加起來 O(V + E)，跟 BFS 一樣。標記過就不再走，所以不會指數爆炸。</p>
+</div>
+</section>
+
+<section>
+<p class="era">格子也是一張圖</p>
+<h3 class="head">格子題：島嶼數量</h3>
+<p>很多題目給的是一張二維格子（地圖、棋盤、圖片像素），乍看不像圖，其實每一格都是頂點，跟上下左右的格子之間有邊。最經典的是「島嶼數量」：<code>1</code> 是陸地、<code>0</code> 是水，上下左右相連的陸地算同一座島，問有幾座。這就是在數連通塊：每遇到一塊還沒走過的陸地，島數加一，然後用 DFS 把整座島「淹掉」（改成 <code>0</code>），之後就不會再數到它。</p>
+<pre><code>public class Islands {
+    static final int[][] DIRS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};   // 上下左右
+
+    static int count(char[][] grid) {
+        int islands = 0;
+        for (int r = 0; r &lt; grid.length; r++) {
+            for (int c = 0; c &lt; grid[0].length; c++) {
+                if (grid[r][c] == '1') {
+                    islands++;                           // 碰到一塊沒走過的陸地：新的島
+                    sink(grid, r, c);                    // 把整座島淹掉，之後就不會再數到
+                }
+            }
+        }
+        return islands;
+    }
+
+    static void sink(char[][] grid, int r, int c) {
+        if (r &lt; 0 || c &lt; 0 || r &gt;= grid.length || c &gt;= grid[0].length) return;   // 出界
+        if (grid[r][c] != '1') return;                   // 是水，或已經淹過
+        grid[r][c] = '0';                                // 標記走過（直接改格子當 visited）
+        for (int[] d : DIRS) sink(grid, r + d[0], c + d[1]);
+    }
+
+    public static void main(String[] args) {
+        String[] rows = {
+            "11000",
+            "11010",
+            "00010",
+            "10001"
+        };
+        char[][] grid = new char[rows.length][];
+        for (int i = 0; i &lt; rows.length; i++) grid[i] = rows[i].toCharArray();
+        System.out.println(count(grid));
+    }
+}</code></pre>
+<pre><code>4</code></pre>
+<figure>
+<svg viewBox="0 0 760 236" role="img" aria-label="島嶼數量示意：4 列 5 欄的格子，1 是陸地、0 是水。左上角四格相連是第 1 座島，第 2、3 列第 4 欄兩格是第 2 座島，左下角一格是第 3 座島，右下角一格是第 4 座島，共 4 座">
+  <defs></defs>
+  <rect x="180" y="24" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="208.0" y="45" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="208.0" y="61" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 1</text>
+  <rect x="236" y="24" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="264.0" y="45" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="264.0" y="61" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 1</text>
+  <rect x="292" y="24" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="320.0" y="45" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="348" y="24" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="376.0" y="45" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="404" y="24" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="432.0" y="45" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="180" y="68" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="208.0" y="89" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="208.0" y="105" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 1</text>
+  <rect x="236" y="68" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="264.0" y="89" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="264.0" y="105" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 1</text>
+  <rect x="292" y="68" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="320.0" y="89" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="348" y="68" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="376.0" y="89" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="376.0" y="105" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 2</text>
+  <rect x="404" y="68" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="432.0" y="89" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="180" y="112" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="208.0" y="133" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="236" y="112" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="264.0" y="133" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="292" y="112" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="320.0" y="133" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="348" y="112" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="376.0" y="133" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="376.0" y="149" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 2</text>
+  <rect x="404" y="112" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="432.0" y="133" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="180" y="156" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="208.0" y="177" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="208.0" y="193" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 3</text>
+  <rect x="236" y="156" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="264.0" y="177" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="292" y="156" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="320.0" y="177" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="348" y="156" width="56" height="44" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="376.0" y="177" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="404" y="156" width="56" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="432.0" y="177" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="432.0" y="193" font-size="10" text-anchor="middle" fill="var(--gold-deep)">島 4</text>
+  <text x="484" y="60" font-size="12" text-anchor="start" fill="var(--gold-deep)">1＝陸地</text>
+  <text x="484" y="82" font-size="12" text-anchor="start" fill="var(--slate-deep)">0＝水</text>
+  <text x="484" y="118" font-size="12" text-anchor="start">只看上下左右，</text>
+  <text x="484" y="138" font-size="12" text-anchor="start">斜對角不算相連</text>
+  <text x="380" y="222" font-size="13" text-anchor="middle" font-weight="700">共 4 座島</text>
+</svg>
+<figcaption>四座島：左上四格、右邊中間直排兩格、左下一格、右下一格。斜對角相鄰的格子不算同一座島（題目定義只看上下左右）。</figcaption>
+</figure>
+<p>格子有 R 列 C 欄，頂點是 R × C 個，每個頂點最多 4 條邊，所以 O(V + E) 就是 O(R × C)。三個常見的坑：<strong>先檢查出界再讀格子</strong>（順序反了會 <code>ArrayIndexOutOfBoundsException</code>）；<strong>標記要在遞迴下去之前</strong>（不然兩格互相呼叫停不下來）；直接改輸入的格子很省事，但如果題目或呼叫端還要用原本的資料，就另外開一個 <code>boolean[][] visited</code>。很大的格子用遞迴可能太深，可以改用 BFS（佇列放座標 <code>int[]{r, c}</code>）。</p>
+
+<div class="drill">
+  <p class="dq">下面這張格子（1 是陸地，只看上下左右）有幾座島？</p>
+  <pre><code>111
+010
+111</code></pre>
+  <ul class="dopts"><li data-ok>1</li><li>2</li><li>3</li><li>7</li></ul>
+  <p class="dexp">上排三格經由中間那格連到下排，全部連成一座。實跑也是 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這張格子有幾座島？</p>
+  <pre><code>101
+010
+101</code></pre>
+  <ul class="dopts"><li>1</li><li>2</li><li>4</li><li data-ok>5</li></ul>
+  <p class="dexp">五塊陸地彼此只在斜對角相鄰，斜對角不算相連，每塊各自一座島，共 5 座。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這張格子有幾座島？</p>
+  <pre><code>1100
+0110
+0011</code></pre>
+  <ul class="dopts"><li>3</li><li data-ok>1</li><li>2</li><li>6</li></ul>
+  <p class="dexp">每一排都跟下一排有上下相鄰的格子（第 1 欄、第 2 欄），像樓梯一樣全部連成一座。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>sink</code> 如果把兩個檢查的順序對調，先寫 <code>if (grid[r][c] != '1') return;</code> 再檢查出界，會怎樣？</p>
+  <ul class="dopts"><li data-ok>走到界外時讀格子，陣列索引越界</li><li>結果一樣，只是每格多檢查一次、跑得比較慢</li><li>島的數量會少算一座</li><li>會無窮遞迴停不下來</li></ul>
+  <p class="dexp">往上下左右走時 r 或 c 可能變成 -1 或超過邊界，還沒確認在範圍內就讀格子，陣列索引會越界。</p>
+</div>
+<div class="drill">
+  <p class="dq">R 列 C 欄的格子，島嶼數量這個做法的時間複雜度是多少？</p>
+  <ul class="dopts"><li>O(R + C)</li><li data-ok>O(R × C)</li><li>O((R × C)²)</li><li>O(島的數量)</li></ul>
+  <p class="dexp">外層迴圈看每一格一次，每格陸地只會被淹一次，每次最多看 4 個方向，總共是格子數的常數倍。</p>
+</div>
+<div class="drill">
+  <p class="dq">如果 <code>sink</code> 忘了寫 <code>grid[r][c] = '0'</code>，會發生什麼事？</p>
+  <ul class="dopts"><li>島的數量會多算，每格都算一座</li><li>結果一樣，只是不能再呼叫第二次</li><li>島的數量會少算，有些島被跳過</li><li data-ok>兩塊陸地互相呼叫，遞迴停不下來</li></ul>
+  <p class="dexp">沒標記的話，(0,0) 呼叫 (0,1)，(0,1) 又呼叫回 (0,0)，永遠走不完，最後 StackOverflowError。改格子就是 visited。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先修課排在前面</p>
+<h3 class="head">拓樸排序：Kahn 演算法與偵測有環</h3>
+<p>系統開機時，設定服務要先起來，資料庫才能起來，帳務服務又要等資料庫和快取。把「A 要在 B 之前」畫成 A→B，問「可以照什麼順序全部啟動」，就是<strong>拓樸排序</strong>（topological sort）。MIT 講義的定義：拓樸順序是一種排列，讓<strong>每一條邊 (u, v) 都滿足 u 排在 v 前面</strong>（every edge (u, v) ∈ E satisfies f(u) &lt; f(v)）；而且有向圖<strong>只有在沒有環時</strong>才排得出來（a directed graph admits a topological ordering if and only if it is a DAG）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/f3e349e0eb3288592289d2c81e0c4f4d_MIT6_006S20_lec10.pdf" target="_blank" rel="noopener">出處</a> 有環就是「A 等 B、B 又等 A」，誰都起不來。課程先修（修完程式設計才能修資料結構）、建置工具的模組相依、試算表的公式計算順序，都是同一個問題。</p>
+<figure>
+<svg viewBox="0 0 760 286" role="img" aria-label="服務啟動順序的有向無環圖：config 指向 db 與 cache；db 指向 auth 與 account；cache 指向 account；auth 指向 gateway；account 指向 payment；payment 指向 gateway。每個方塊下面標入度：config 0、db 1、cache 1、auth 1、account 2、payment 1、gateway 2">
+  <defs><marker id="gr-a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <line x1="118.9" y1="123.0" x2="198.4" y2="88.2" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="118.9" y1="157.0" x2="198.4" y2="191.8" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="282.0" y1="70.0" x2="375.0" y2="70.0" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="261.9" y1="87.0" x2="395.8" y2="191.2" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="282.0" y1="210.0" x2="375.0" y2="210.0" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="462.0" y1="74.7" x2="645.0" y2="95.0" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="462.0" y1="210.0" x2="535.0" y2="210.0" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <line x1="597.0" y1="193.0" x2="670.9" y2="119.1" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a6)"/>
+  <rect x="38.0" y="123.0" width="84" height="34" rx="7" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="80" y="145" font-size="13" text-anchor="middle" class="mono">config</text>
+  <text x="80" y="174" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 0</text>
+  <rect x="198.0" y="53.0" width="84" height="34" rx="7" fill="var(--surface)" stroke="currentColor"/><text x="240" y="75" font-size="13" text-anchor="middle" class="mono">db</text>
+  <text x="240" y="104" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 1</text>
+  <rect x="198.0" y="193.0" width="84" height="34" rx="7" fill="var(--surface)" stroke="currentColor"/><text x="240" y="215" font-size="13" text-anchor="middle" class="mono">cache</text>
+  <text x="240" y="244" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 1</text>
+  <rect x="378.0" y="53.0" width="84" height="34" rx="7" fill="var(--surface)" stroke="currentColor"/><text x="420" y="75" font-size="13" text-anchor="middle" class="mono">auth</text>
+  <text x="420" y="104" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 1</text>
+  <rect x="378.0" y="193.0" width="84" height="34" rx="7" fill="var(--surface)" stroke="currentColor"/><text x="420" y="215" font-size="13" text-anchor="middle" class="mono">account</text>
+  <text x="420" y="244" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 2</text>
+  <rect x="538.0" y="193.0" width="84" height="34" rx="7" fill="var(--surface)" stroke="currentColor"/><text x="580" y="215" font-size="13" text-anchor="middle" class="mono">payment</text>
+  <text x="580" y="244" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 1</text>
+  <rect x="648.0" y="83.0" width="84" height="34" rx="7" fill="var(--surface)" stroke="currentColor"/><text x="690" y="105" font-size="13" text-anchor="middle" class="mono">gateway</text>
+  <text x="690" y="134" font-size="11" text-anchor="middle" fill="var(--slate-deep)">入度 2</text>
+  <text x="380" y="270" font-size="12" text-anchor="middle">箭頭 A → B：A 要先啟動，B 才能啟動。入度＝有幾條箭頭指向它</text>
+</svg>
+<figcaption>服務啟動順序：每個方塊下面是它的入度，也就是還要等幾個前置服務。只有 config 的入度是 0，它是唯一可以第一個啟動的。</figcaption>
+</figure>
+<h4>Kahn 演算法：入度歸零就輪到你</h4>
+<p>入度是「還有幾個前置條件沒完成」。做法是：先把入度 0 的頂點放進佇列；每拿出一個就排進結果，然後把它指向的每個頂點入度減 1，<strong>減到 0 的就放進佇列</strong>。普林斯頓習題的描述：用一個陣列記每個頂點的入度，先把所有入度 0 的放進佇列，然後重複「拿出一個並排上順序；把它每條邊指向的頂點入度減 1；減到 0 就放進佇列」（If decrementing any entry causes it to become 0, insert the corresponding vertex onto the source queue.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/42digraph/" target="_blank" rel="noopener">出處</a> 這個做法常以提出者的名字叫 Kahn 演算法。</p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+
+public class Topo {
+    // Kahn 演算法：入度是 0 的先排；排掉一個，就把它指向的頂點入度減 1
+    static List&lt;Integer&gt; kahn(int n, int[][] edges) {
+        List&lt;List&lt;Integer&gt;&gt; adj = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; n; i++) adj.add(new ArrayList&lt;&gt;());
+        int[] indegree = new int[n];
+        for (int[] e : edges) {                          // e[0] → e[1]：e[0] 要排在 e[1] 前面
+            adj.get(e[0]).add(e[1]);
+            indegree[e[1]]++;
+        }
+        System.out.println("入度 " + Arrays.toString(indegree));
+
+        Deque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+        for (int v = 0; v &lt; n; v++) if (indegree[v] == 0) queue.offer(v);
+        List&lt;Integer&gt; order = new ArrayList&lt;&gt;();
+        while (!queue.isEmpty()) {
+            int u = queue.poll();
+            order.add(u);
+            for (int v : adj.get(u)) {
+                if (--indegree[v] == 0) queue.offer(v);  // 前置條件都排完了，輪到它
+            }
+        }
+        if (order.size() &lt; n) return null;               // 有頂點的入度永遠降不到 0：有環
+        return order;
+    }
+
+    public static void main(String[] args) {
+        String[] name = {"config", "db", "cache", "auth", "account", "payment", "gateway"};
+        int[][] edges = {{0, 1}, {0, 2}, {1, 3}, {1, 4}, {2, 4}, {3, 6}, {4, 5}, {5, 6}};
+        List&lt;Integer&gt; order = kahn(7, edges);
+        List&lt;String&gt; names = new ArrayList&lt;&gt;();
+        for (int v : order) names.add(name[v]);
+        System.out.println("啟動順序 " + names);
+
+        int[][] withCycle = {{0, 1}, {1, 2}, {2, 1}};    // 1 等 2、2 又等 1
+        System.out.println("有環時 " + kahn(3, withCycle));
+    }
+}</code></pre>
+<pre><code>入度 [0, 1, 1, 1, 2, 1, 2]
+啟動順序 [config, db, cache, auth, account, payment, gateway]
+入度 [0, 2, 1]
+有環時 null</code></pre>
+<div class="tablewrap"><table><thead><tr><th>拿出</th><th>它指向的頂點，入度變化</th><th>放進佇列</th><th>之後的佇列</th></tr></thead><tbody>
+<tr><td>（開始）</td><td>入度 0 的只有 config</td><td>config</td><td>[config]</td></tr>
+<tr><td>config</td><td>db 1→0、cache 1→0</td><td>db、cache</td><td>[db, cache]</td></tr>
+<tr><td>db</td><td>auth 1→0、account 2→1</td><td>auth</td><td>[cache, auth]</td></tr>
+<tr><td>cache</td><td>account 1→0</td><td>account</td><td>[auth, account]</td></tr>
+<tr><td>auth</td><td>gateway 2→1</td><td></td><td>[account]</td></tr>
+<tr><td>account</td><td>payment 1→0</td><td>payment</td><td>[payment]</td></tr>
+<tr><td>payment</td><td>gateway 1→0</td><td>gateway</td><td>[gateway]</td></tr>
+<tr><td>gateway</td><td>（沒有指出去的邊）</td><td></td><td>[]</td></tr>
+</tbody></table></div>
+<p>三件要記住的事：</p>
+<ul class="plainlist">
+<li><strong>拓樸順序通常不只一種。</strong>db 與 cache 都只等 config，誰先誰後都對；上面的結果只是這個程式（照邊的放入順序、用佇列）跑出來的那一種。檢查一個順序合不合法，只要看<strong>每一條邊的起點是不是都排在終點前面</strong>。</li>
+<li><strong>順便偵測有環。</strong>環上的頂點彼此等待，入度永遠降不到 0，不會進佇列；所以排完時結果少於 V 個，就表示有環。上面第二個例子 1 等 2、2 又等 1，只排得出 0。</li>
+<li><strong>複雜度 O(V + E)。</strong>算入度掃一次所有邊；每個頂點進出佇列一次，拿出時掃一次自己的邊。</li>
+</ul>
+<p class="muted">另一種做法用 DFS：普林斯頓與 MIT 都證明了「有向無環圖的 DFS 後序反過來就是拓樸順序」（Reverse postorder in a DAG is a topological sort；後序是每個頂點的鄰居都拜訪完、要退回時才記下它）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/42digraph/" target="_blank" rel="noopener">出處</a> 面試用 Kahn 比較好講，也比較好順便判斷有環。</p>
+
+<div class="drill">
+  <p class="dq">服務相依圖（上圖）裡，config 啟動完、db 也啟動完之後，account 的入度剩多少？</p>
+  <ul class="dopts"><li>0</li><li data-ok>1</li><li>2</li><li>3</li></ul>
+  <p class="dexp">account 原本入度 2（db、cache 指向它）。db 排掉減 1，剩 1，還在等 cache。config 不直接指向 account，不影響它。</p>
+</div>
+<div class="drill">
+  <p class="dq">服務相依圖（邊：config→db、config→cache、db→auth、db→account、cache→account、auth→gateway、account→payment、payment→gateway）。下面哪一個是合法的啟動順序？</p>
+  <ul class="dopts"><li>config, db, account, cache, auth, payment, gateway</li><li>config, db, auth, gateway, cache, account, payment</li><li data-ok>config, cache, db, account, auth, payment, gateway</li><li>config, cache, account, db, auth, payment, gateway</li></ul>
+  <p class="dexp">逐條邊檢查起點在前：合法的那個每條都成立。account 排在 cache 前面違反 cache→account；gateway 排在 payment 前面違反 payment→gateway；account 排在 db 前面違反 db→account。</p>
+</div>
+<div class="drill">
+  <p class="dq">課程先修：0→2、1→2、2→3、1→4（箭頭左邊的要先修）。下面哪一個是合法的修課順序？</p>
+  <ul class="dopts"><li>0, 2, 1, 4, 3</li><li>1, 4, 2, 0, 3</li><li>0, 1, 3, 2, 4</li><li data-ok>1, 0, 4, 2, 3</li></ul>
+  <p class="dexp">2 要等 0 和 1 都修完；3 要等 2。0, 2, 1… 讓 2 早於 1；1, 4, 2, 0 讓 2 早於 0；0, 1, 3, 2 讓 3 早於 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一組先修關係（0→2、1→2、2→3、1→4），一開始入度是 0 的課有哪些？</p>
+  <ul class="dopts"><li>只有 0</li><li data-ok>0 和 1</li><li>3 和 4</li><li>只有 2</li></ul>
+  <p class="dexp">沒有邊指向 0，也沒有邊指向 1。2 被 0、1 指向（入度 2），3 和 4 各被指一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>kahn</code>（佇列、鄰居照邊的放入順序）跑 0→2、1→2、2→3、1→4，回傳的順序是什麼？</p>
+  <ul class="dopts"><li>0, 1, 2, 3, 4</li><li>1, 0, 4, 2, 3</li><li data-ok>0, 1, 2, 4, 3</li><li>0, 1, 4, 2, 3</li></ul>
+  <p class="dexp">一開始佇列 [0, 1]。拿出 0：2 的入度 2→1。拿出 1：2 變 0 放進、4 變 0 放進，佇列 [2, 4]。拿出 2：3 變 0 放進，佇列 [4, 3]。最後 4、3。</p>
+</div>
+<div class="drill">
+  <p class="dq">只有一條鏈的圖 0→1→2→3，合法的拓樸順序有幾種？</p>
+  <ul class="dopts"><li data-ok>1 種</li><li>2 種</li><li>4 種</li><li>24 種</li></ul>
+  <p class="dexp">每一個都要等前一個，只能 0, 1, 2, 3。順序有多種，是因為有些頂點之間沒有先後要求。</p>
+</div>
+<div class="drill">
+  <p class="dq">邊是 0→1、1→2、2→0、2→3。用 Kahn 演算法跑，結果是什麼？</p>
+  <ul class="dopts"><li>照順序排出 0, 1, 2, 3</li><li>只排出 3，因為 3 不在環上</li><li data-ok>排不出來：沒有入度 0 的頂點，有環</li><li>排出 2, 3, 0, 1，從環的出口開始</li></ul>
+  <p class="dexp">0、1、2 互相形成環，入度都是 1；3 被 2 指向，入度也是 1。沒有人能先開始，什麼都排不出來，實跑回傳 null。</p>
+</div>
+<div class="drill">
+  <p class="dq">Kahn 演算法跑完，結果只排了 5 個頂點，但圖有 7 個頂點。這代表什麼？</p>
+  <ul class="dopts"><li>那 2 個頂點沒有任何邊</li><li>程式寫錯了，Kahn 一定會排完</li><li>那 2 個頂點的入度本來就是 0</li><li data-ok>有環，環上的頂點入度降不到 0</li></ul>
+  <p class="dexp">沒有邊的頂點入度是 0，一開始就會進佇列。排不完的那些互相等待，就是環（或卡在環後面）。</p>
+</div>
+<div class="drill">
+  <p class="dq">判斷一個給定的順序是不是合法的拓樸順序，最直接的方法是什麼？</p>
+  <ul class="dopts"><li>看它是不是跟 Kahn 演算法跑出來的一模一樣</li><li data-ok>檢查每一條邊 u→v，u 都排在 v 前面</li><li>看第一個頂點的入度是不是 0 就夠了</li><li>看最後一個頂點的出度是不是 0 就夠了</li></ul>
+  <p class="dexp">定義就是每條邊都要起點在前。合法順序常有好幾種，跟某一次程式跑出來的不同不代表錯；只看頭尾也不夠。</p>
+</div>
+<div class="drill">
+  <p class="dq">Kahn 演算法的時間複雜度是多少？</p>
+  <ul class="dopts"><li>O(V²)</li><li>O(V log V)</li><li data-ok>O(V + E)</li><li>O(V × E)</li></ul>
+  <p class="dexp">算入度掃一次所有邊，每個頂點進出佇列一次，每條邊在被拿出的起點那裡處理一次。</p>
+</div>
+</section>
+
+<section>
+<p class="era">有權重就換工具，分群可以更快</p>
+<h3 class="head">點到為止：Dijkstra 與聯集—找出</h3>
+<h4>Dijkstra：有權重的最短路徑</h4>
+<p>邊上有權重（例如每段路的公里數、每次轉介的手續費）時，「邊數最少」不等於「總權重最小」：</p>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="有權重的最短路徑：0 到 1 權重 4、0 到 2 權重 1、2 到 1 權重 2、1 到 3 權重 1、2 到 3 權重 5。從 0 出發的最短距離是 0 到 0 為 0、到 2 為 1、到 1 為 3、到 3 為 4，最短路徑 0、2、1、3 用古銅色標出">
+  <defs><marker id="gr-a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="gr-a7g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs>
+  <line x1="129.0" y1="133.9" x2="339.0" y2="66.7" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a7)"/>
+  <text x="235.0" y="88.0" font-size="13" text-anchor="middle" font-weight="700" class="mono">4</text>
+  <line x1="129.0" y1="146.1" x2="339.0" y2="213.3" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a7g)"/>
+  <text x="229.0" y="194.0" font-size="13" text-anchor="middle" fill="var(--gold-deep)" font-weight="700" class="mono">1</text>
+  <line x1="360.0" y1="200.0" x2="360.0" y2="82.0" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a7g)"/>
+  <text x="374.0" y="140.0" font-size="13" text-anchor="middle" fill="var(--gold-deep)" font-weight="700" class="mono">2</text>
+  <line x1="379.0" y1="66.1" x2="589.0" y2="133.3" stroke="var(--gold)" stroke-width="2.2" marker-end="url(#gr-a7g)"/>
+  <text x="489.0" y="88.0" font-size="13" text-anchor="middle" fill="var(--gold-deep)" font-weight="700" class="mono">1</text>
+  <line x1="379.0" y1="213.9" x2="589.0" y2="146.7" stroke="currentColor" stroke-width="1.5" marker-end="url(#gr-a7)"/>
+  <text x="491.0" y="196.0" font-size="13" text-anchor="middle" font-weight="700" class="mono">5</text>
+  <circle cx="110" cy="140" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="110" y="145" font-size="14" text-anchor="middle" class="mono">0</text>
+  <circle cx="360" cy="60" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="360" y="65" font-size="14" text-anchor="middle" class="mono">1</text>
+  <circle cx="360" cy="220" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="360" y="225" font-size="14" text-anchor="middle" class="mono">2</text>
+  <circle cx="610" cy="140" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="610" y="145" font-size="14" text-anchor="middle" class="mono">3</text>
+  <text x="110" y="180" font-size="12" text-anchor="middle" fill="var(--slate-deep)">距離 0</text>
+  <text x="360" y="30" font-size="12" text-anchor="middle" fill="var(--slate-deep)">距離 3</text>
+  <text x="360" y="260" font-size="12" text-anchor="middle" fill="var(--slate-deep)">距離 1</text>
+  <text x="610" y="180" font-size="12" text-anchor="middle" fill="var(--slate-deep)">距離 4</text>
+  <text x="380" y="288" font-size="12" text-anchor="middle">直接 0 → 1 要 4，繞 0 → 2 → 1 只要 3：邊數少不代表比較近</text>
+</svg>
+<figcaption>0 直接到 1 要 4；繞道 0→2→1 只要 1 + 2 = 3。BFS 會說 1 離 0 一步，但最省的是兩步那條。</figcaption>
+</figure>
+<p>這時用 <strong>Dijkstra 演算法</strong>：用優先佇列（每次拿出最小的那個）放「目前已知的距離」，每次拿出距離最小的頂點，用它去更新鄰居（經過它比較近就改掉，叫<strong>鬆弛</strong>，relax）。普林斯頓的命題：Dijkstra 解「權重不為負」的單一起點最短路徑，「時間與 E log V 成正比」（solves the single-source shortest-paths problem in edge-weighted digraphs with nonnegative weights using extra space proportional to V and time proportional to E log V）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/44sp/" target="_blank" rel="noopener">出處</a> log 那一項來自優先佇列：Java 的 <code>PriorityQueue</code> 文件寫，放入與取出（<code>offer</code>、<code>poll</code>）是 O(log(n))。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a> 優先佇列怎麼做到的見〈堆積與優先佇列〉。</p>
+<pre><code>import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.PriorityQueue;
+
+public class Dijkstra {
+    // 有權重（不能是負數）的最短路徑：每次從優先佇列拿出「目前最近」的頂點
+    static long[] shortest(int n, int[][] edges, int s) {
+        List&lt;List&lt;int[]&gt;&gt; adj = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; n; i++) adj.add(new ArrayList&lt;&gt;());
+        for (int[] e : edges) adj.get(e[0]).add(new int[]{e[1], e[2]});   // e[0] → e[1]，權重 e[2]
+
+        long[] dist = new long[n];
+        Arrays.fill(dist, Long.MAX_VALUE);
+        dist[s] = 0;
+        PriorityQueue&lt;long[]&gt; pq = new PriorityQueue&lt;&gt;((a, b) -&gt; Long.compare(a[1], b[1]));
+        pq.offer(new long[]{s, 0});
+        while (!pq.isEmpty()) {
+            long[] top = pq.poll();
+            int u = (int) top[0];
+            if (top[1] &gt; dist[u]) continue;              // 舊的紀錄，已經有更短的了
+            for (int[] e : adj.get(u)) {
+                int v = e[0];
+                long nd = dist[u] + e[1];
+                if (nd &lt; dist[v]) {                      // 經過 u 再到 v 比較近：更新
+                    dist[v] = nd;
+                    pq.offer(new long[]{v, nd});
+                }
+            }
+        }
+        return dist;
+    }
+
+    public static void main(String[] args) {
+        int[][] edges = {{0, 1, 4}, {0, 2, 1}, {2, 1, 2}, {1, 3, 1}, {2, 3, 5}};
+        System.out.println(Arrays.toString(shortest(4, edges, 0)));
+    }
+}</code></pre>
+<pre><code>[0, 3, 1, 4]</code></pre>
+<p>面試只要知道三件事：權重<strong>不能是負的</strong>（這課的程式假設如此）；工具從佇列換成<strong>優先佇列</strong>；複雜度 <strong>O(E log V)</strong>。每條邊權重都一樣時，退回用 BFS 就好，O(V + E) 更快。</p>
+<h4>聯集—找出：快速判斷「是不是同一群」</h4>
+<p>有些題目只關心「這兩個頂點連不連得到」，而且邊是一條一條加進來的，例如「每加入一筆轉帳關係，就問兩個帳戶現在是不是同一個往來群組」。每次都重做一次 DFS 太慢，這時用<strong>聯集—找出</strong>（union-find，又叫互斥集合 disjoint set）：每一群選一個代表，<code>find(x)</code> 找 x 那一群的代表，<code>union(a, b)</code> 把兩群合併。普林斯頓的版本把小的那群掛到大的底下（weighted quick-union），證明了樹的深度最多 lg n，所以三個操作最壞都是 O(log n)（the worst-case order of growth of the cost of find(), connected(), and union() is log n）；再加上「找的時候順手讓經過的節點直接指向根」的<strong>路徑壓縮</strong>，會更接近常數。<a class="fixsrc" href="https://algs4.cs.princeton.edu/15uf/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class UnionFind {
+    private final int[] parent, size;
+    private int components;
+
+    UnionFind(int n) {
+        parent = new int[n];
+        size = new int[n];
+        components = n;
+        for (int i = 0; i &lt; n; i++) { parent[i] = i; size[i] = 1; }   // 一開始每個人自成一組
+    }
+
+    int find(int x) {                                    // 找 x 所在那一組的代表（根）
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];               // 路徑壓縮：順手指向祖父，讓樹變矮
+            x = parent[x];
+        }
+        return x;
+    }
+
+    boolean union(int a, int b) {                        // 合併兩組；本來就同組回傳 false
+        int ra = find(a), rb = find(b);
+        if (ra == rb) return false;
+        if (size[ra] &lt; size[rb]) { int t = ra; ra = rb; rb = t; }
+        parent[rb] = ra;                                 // 小的那組掛到大的底下
+        size[ra] += size[rb];
+        components--;
+        return true;
+    }
+
+    public static void main(String[] args) {
+        UnionFind uf = new UnionFind(6);
+        int[][] links = {{0, 1}, {1, 2}, {3, 4}, {2, 0}};
+        for (int[] l : links) System.out.print(uf.union(l[0], l[1]) + " ");
+        System.out.println();
+        System.out.println(uf.components + " " + (uf.find(0) == uf.find(2)) + " " + (uf.find(0) == uf.find(3)));
+    }
+}</code></pre>
+<pre><code>true true true false
+3 true false</code></pre>
+<p>第四次 <code>union(2, 0)</code> 回傳 false：2 和 0 早就同一群，再加這條邊會形成環。所以聯集—找出也常拿來判斷「無向圖加一條邊會不會成環」。6 個頂點最後剩 3 群：{0, 1, 2}、{3, 4}、{5}。</p>
+
+<div class="drill">
+  <p class="dq">上面 Dijkstra 那張圖，從 0 到 3 的最短距離是多少？</p>
+  <ul class="dopts"><li>5</li><li>6</li><li data-ok>4</li><li>2</li></ul>
+  <p class="dexp">0→2（1）→1（2）→3（1），共 4。0→1→3 是 5，0→2→3 是 6。實跑結果 dist[3] = 4。</p>
+</div>
+<div class="drill">
+  <p class="dq">邊上有不同的權重、而且都不是負數，要找單一起點到其他頂點的最短距離。該用哪一個？</p>
+  <ul class="dopts"><li data-ok>Dijkstra，用優先佇列</li><li>BFS，因為它找的是最短路徑</li><li>DFS</li><li>拓樸排序</li></ul>
+  <p class="dexp">BFS 的最短是邊數最少，不管權重。權重不為負時用 Dijkstra。拓樸排序只處理先後順序。</p>
+</div>
+<div class="drill">
+  <p class="dq">Dijkstra 演算法的時間複雜度（普林斯頓用優先佇列的版本）是多少？</p>
+  <ul class="dopts"><li>O(V + E)</li><li data-ok>O(E log V)</li><li>O(V²)，跟 BFS 一樣</li><li>O(2^V)</li></ul>
+  <p class="dexp">每條邊最多觸發一次優先佇列操作，每次 O(log)，所以是 E log V 的等級。BFS 才是 O(V + E)。</p>
+</div>
+<div class="drill">
+  <p class="dq">聯集—找出，<code>union(a, b)</code> 回傳 false 代表什麼？</p>
+  <ul class="dopts"><li>a 或 b 不在這個結構裡</li><li>合併失敗了，要再重試一次</li><li>兩群的大小剛好一樣，無法合併</li><li data-ok>兩者本來就同一群，這條邊會成環</li></ul>
+  <p class="dexp">兩個的代表相同就不必合併，回傳 false。在無向圖上，同一群的兩點再連一條邊就是環。</p>
+</div>
+<div class="drill">
+  <p class="dq">6 個頂點，依序 union(0, 1)、union(2, 3)、union(1, 3)、union(4, 5)、union(0, 2)。最後有幾群？</p>
+  <ul class="dopts"><li data-ok>2</li><li>1</li><li>3</li><li>4</li></ul>
+  <p class="dexp">前三次把 0、1、2、3 併成一群；第四次 4、5 一群；第五次 0 和 2 已經同群，不變。剩 {0, 1, 2, 3} 和 {4, 5} 兩群。</p>
+</div>
+<div class="drill">
+  <p class="dq">weighted quick-union 為什麼要「把小的那群掛到大的底下」？</p>
+  <ul class="dopts"><li>讓 union 可以回傳正確的 true 或 false</li><li>讓群組的代表永遠是編號最小的</li><li data-ok>讓樹不會長得太高，find 最壞只要 O(log n)</li><li>讓每一群的大小都一樣</li></ul>
+  <p class="dexp">隨便掛可能掛成一長條，find 要走 O(n) 步。小的掛到大的底下，普林斯頓證明深度最多 lg n。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，先易後難</p>
+<h3 class="head">動手練</h3>
+<p>下面的題目連到 LeetCode 題目頁，題目敘述請到原站看。每題先說出頂點是什麼、邊是什麼、有向還是無向，再決定用 BFS、DFS 還是拓樸排序。</p>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/flood-fill/" target="_blank" rel="noopener">733. Flood Fill</a></td><td>格子上的 DFS 或 BFS，從一格擴散出去</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/find-if-path-exists-in-graph/" target="_blank" rel="noopener">1971. Find if Path Exists in Graph</a></td><td>建鄰接串列，BFS 或 DFS 判斷走不走得到</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/number-of-islands/" target="_blank" rel="noopener">200. Number of Islands</a></td><td>格子數連通塊，走過就淹掉</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/rotting-oranges/" target="_blank" rel="noopener">994. Rotting Oranges</a></td><td>多個起點同時放進佇列的 BFS，層數就是分鐘數</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/course-schedule/" target="_blank" rel="noopener">207. Course Schedule</a></td><td>Kahn 演算法，排不完就是有環</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/course-schedule-ii/" target="_blank" rel="noopener">210. Course Schedule II</a></td><td>Kahn 演算法，回傳任一個合法順序</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/number-of-provinces/" target="_blank" rel="noopener">547. Number of Provinces</a></td><td>鄰接矩陣上數連通塊，DFS 或聯集—找出</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/network-delay-time/" target="_blank" rel="noopener">743. Network Delay Time</a></td><td>有權重的最短路徑，Dijkstra</td><td>Medium</td></tr>
+</tbody></table></div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>圖＝頂點＋邊；邊分有向無向、有權無權。入度是幾條邊指向它；樹是沒有環的連通圖；有向無環圖（DAG）才能拓樸排序。</li><li>鄰接串列空間 O(V + E)、列鄰居快，是預設選擇；鄰接矩陣空間 O(V²)、判斷兩點有沒有邊 O(1)，適合頂點少、邊很密。頂點是字串時用 <code>Map&lt;String, List&lt;String&gt;&gt;</code>。</li><li>BFS 用佇列、放進佇列時就標記，一層一層拜訪，第一次發現就是無權圖的最短步數；記 parent 可以印出路徑。</li><li>DFS 用遞迴或堆疊，一路走到底再回頭；用來數連通塊、判斷走不走得到、找環。圖很深時改用自己的堆疊，避免 StackOverflowError。</li><li>BFS 與 DFS 都是 O(V + E)。格子題每格是頂點、上下左右是邊，先檢查出界、先標記再往下走，時間 O(R × C)。</li><li>Kahn 演算法：入度 0 的進佇列，拿出一個就把它指向的入度減 1、減到 0 的進佇列；排不完 V 個就有環。合法順序常有好幾種，檢查方法是每條邊起點都在前。</li><li>有權重（不為負）用 Dijkstra＋優先佇列，O(E log V)；只問「是不是同一群」、邊一條條加進來時用聯集—找出，小的掛到大的底下加路徑壓縮。</li></ul></div>
