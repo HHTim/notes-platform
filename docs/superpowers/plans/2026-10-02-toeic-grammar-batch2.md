@@ -10,14 +10,14 @@ Tim 10-02 交代：「不試用，你繼續幹活」。
 |---|---|---|---|---|
 | `04-grammar-nouns` 名詞、冠詞與數量詞 | ✅ `ed3dba6`（58 題課中練習、68 出處／34 網址；mins 45） | ✅ 10-02 審完（04＋05）：131 題只有 1 題正解不唯一（Another two 也對）；不精確 8（the other 可當代名詞、no 接三種名詞、the number of 引文只引一半等）；AWELU 來源判定可用；清單在 `.superpowers/audit/english/findings-b2a.md`；修正交回原寫課代理 | ✅ 修正 `8ee4a5d`（10 條＋順手全改；可刪那條保留）；範圍複審 ✅ 可上線；兩處小尾巴主控順手修 | ✅ 10-02 上線（英文模組第 4、5 課） |
 | `05-grammar-pronouns-agreement` 代名詞與主詞動詞一致 | ✅ `2929827`（53 題課中練習、46 出處／30 網址，其中 8 個用隆德大學 AWELU；mins 42） | 同上 | 同上 | ✅ 10-02 上線 |
-| `10-grammar-passive` 被動語態 | ✅ `44deffd`（50 題課中練習、1 張圖、41 出處／23 網址；mins 40；自己改掉 16 題爭議題） | ✅ 10-02 審完（10＋11）：正解不唯一 3 處（install 可不及物、needn't／mustn't、推測題的 mustn't 美式可用）；see 改被動的出處撐不住；授與動詞 to／for、shall「只配 I、we」說過頭；推測圖長得像時態時間軸；清單在 `.superpowers/audit/english/findings-b2b.md`；修正交回原寫課代理 | | |
-| `11-grammar-modals` 助動詞 | ✅ `ad3ac2a`（52 題課中練習、1 張推測刻度圖、54 出處／25 網址；mins 40；自己改掉 13 題爭議題） | 同上 | | |
-| `12-grammar-infinitive-gerund` 不定詞與動名詞 | ✅ `25c9bb2`（67 題課中練習、53 出處／45 網址；mins 48） | 審查中（Opus `review-en-b2c`，12＋13 一起） | | |
+| `10-grammar-passive` 被動語態 | ✅ `44deffd`（50 題課中練習、1 張圖、41 出處／23 網址；mins 40；自己改掉 16 題爭議題） | ✅ 10-02 審完（10＋11）：正解不唯一 3 處（install 可不及物、needn't／mustn't、推測題的 mustn't 美式可用）；see 改被動的出處撐不住；授與動詞 to／for、shall「只配 I、we」說過頭；推測圖長得像時態時間軸；清單在 `.superpowers/audit/english/findings-b2b.md`；修正交回原寫課代理 | ✅ 修正 `26d3566`（19 條全改；see 被動改引牛津學習者辭典；推測圖重畫成確定程度軸；被動語態 50→47 題）；範圍複審 ✅；三處小尾巴與 let 出處網址統一主控順手修 | ✅ 10-02 上線（英文模組第 10、11 課） |
+| `11-grammar-modals` 助動詞 | ✅ `ad3ac2a`（52 題課中練習、1 張推測刻度圖、54 出處／25 網址；mins 40；自己改掉 13 題爭議題） | 同上 | 同上 | ✅ 10-02 上線 |
+| `12-grammar-infinitive-gerund` 不定詞與動名詞 | ✅ `25c9bb2`（67 題課中練習、53 出處／45 網址；mins 48） | ✅ 10-02 審完（12＋13）：148 題沒有正解不唯一；規則會學錯 3 條（to 介系詞判斷法有反例、-ing 不能當補語、縮短關係子句的條件）＋不精確多條、選項長度洩題 7 題；清單在 `.superpowers/audit/english/findings-b2c.md`；修正交回原寫課代理 | | |
 | `13-grammar-participles` 分詞與分詞構句 | ✅ `c0d85fa`（61 題課中練習、30 出處／22 網址；mins 44） | 同上 | | |
 | `14-grammar-adj-adv` 形容詞與副詞（含比較級） | 撰寫中（10-02，Opus `write-en-b2d`） | | | |
 | `15-grammar-prepositions` 介系詞 | 撰寫中（10-02，Opus `write-en-b2d`） | | | |
-| `16-grammar-conjunctions` 連接詞與連接副詞 | | | | |
-| `17-grammar-relative` 關係詞 | | | | |
+| `16-grammar-conjunctions` 連接詞與連接副詞 | 撰寫中（10-02，Opus `write-en-b2e`） | | | |
+| `17-grammar-relative` 關係詞 | 撰寫中（10-02，Opus `write-en-b2e`） | | | |
 | `18-grammar-noun-clauses` 名詞子句 | | | | |
 | `19-grammar-conditionals` 假設語氣 | | | | |
 | `20-grammar-inversion-strategy` 倒裝與省略＋多益文法題解題順序 | | | | |
