@@ -1,10 +1,10 @@
 <!-- 來源：依 https://introcs.cs.princeton.edu/java/23recursion/ 新寫；另參考 MIT OpenCourseWare 6.006（2020 春）第 15、16 講與第 18 次習題課；程式碼與練習題全部自編，以 Java 21 實際編譯執行 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>從〈遞迴與回溯〉的費氏數列接上，說出動態規劃的兩個條件：重疊子問題、最佳子結構</li><li>分清由上而下（遞迴＋備忘錄）與由下而上（填表），並用四個問題拆解任何一題：狀態是什麼、轉移式、初始值、答案在哪</li><li>寫出爬樓梯、最小硬幣數、0/1 背包、最長共同子序列、最長遞增子序列，每題都能畫出填表過程</li><li>用「只留前一列」把空間壓下來，知道背包壓成一維時迴圈為什麼要倒著跑</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>從〈遞迴與回溯〉的費氏數列接上，說出動態規劃的兩個條件：重疊子問題、最佳子結構</li><li>分清由上而下（遞迴＋備忘錄）與由下而上（填表），並用四個問題拆解任何一題：狀態是什麼（dp[i] 這一格代表什麼）、轉移式（怎麼用比較小的格子算出這一格）、初始值、答案在哪</li><li>寫出爬樓梯、最小硬幣數、0/1 背包、最長共同子序列、最長遞增子序列，每題都能畫出填表過程</li><li>用「只留前一列」把空間壓下來，知道背包壓成一維時迴圈為什麼要倒著跑</li></ul></div>
 
 <section>
 <p class="era">算過的，不要再算</p>
 <h3 class="head">從費氏數列接上：什麼是動態規劃</h3>
-<p>〈遞迴與回溯〉看過：照定義寫的費氏數列 <code>fib(30)</code> 要呼叫 2,692,537 次，因為同一個 <code>fib(k)</code> 被重算了很多遍；加上備忘錄（memoization，把算過的答案存起來，下次直接查）之後只要 59 次，時間從 O(2ⁿ) 降到 O(n)。那一課最後說，這招往下延伸就是<strong>動態規劃</strong>（dynamic programming，簡稱 DP）。</p>
+<p>〈遞迴與回溯〉看過：照定義寫的費氏數列 <code>fib(30)</code> 要呼叫 2,692,537 次，因為同一個 <code>fib(k)</code> 被重算了很多遍；加上備忘錄（memoization，把算過的答案存起來，下次直接查）之後只要 59 次，時間從 O(2ⁿ) 降到 O(n)。那一課說，這招往下延伸就是<strong>動態規劃</strong>（dynamic programming，簡稱 DP）。</p>
 <p>普林斯頓《Introduction to Programming in Java》的定義：動態規劃的基本想法是「把複雜的問題遞迴拆成一些比較簡單的子問題；把每個子問題的答案存起來；最後用存起來的答案解出原本的問題」，而且因為「每個子問題只解一次（不是一解再解）」，它避開了執行時間可能的指數爆炸（By solving each subproblem only once (instead of over and over), this technique avoids a potential exponential blow-up in the running time.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <h4>兩個條件</h4>
 <p>不是每個遞迴都該用動態規劃。值得用、也用得上的題目有兩個特徵：</p>
@@ -13,7 +13,7 @@
 <li><strong>最佳子結構</strong>（optimal substructure）：大題目的最好答案，可以用小題目的最好答案拼出來。例如「湊 6 元最少幾枚硬幣」：如果最後一枚是 3 元，剩下的 3 元也一定要用最少的方式湊。MIT 同一份講義在「能寫出遞迴解，就表示問題能拆成子問題」這句的註腳寫：這個性質「常被叫做最佳子結構」（This property often called optimal substructure）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <figure>
-<svg viewBox="0 0 760 234" role="img" aria-label="費氏數列的子問題相依圖：F5 需要 F4 與 F3，F4 需要 F3 與 F2，依此類推到 F1、F0。F3 同時被 F5 與 F4 需要，F2 同時被 F4 與 F3 需要，這就是重疊子問題">
+<svg viewBox="0 0 760 234" role="img" aria-label="費氏數列的子問題相依圖：F5 需要 F4 與 F3，F4 需要 F3 與 F2，依此類推到 F1、F0。F3 同時被 F5 與 F4 需要，F2 同時被 F4 與 F3 需要，F1 同時被 F3 與 F2 需要，這就是重疊子問題">
   <defs><marker id="dp-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="dp-a1s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--slate)"/></marker></defs>
   <line x1="110.0" y1="120.0" x2="188.0" y2="120.0" stroke="currentColor" stroke-width="1.5" marker-end="url(#dp-a1)"/>
   <path d="M90 100 Q 210.0 29.0 330 98" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#dp-a1s)"/>
@@ -27,14 +27,15 @@
   <circle cx="210" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="210" y="125" font-size="13" text-anchor="middle" class="mono">F4</text>
   <circle cx="330" cy="120" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="330" y="125" font-size="13" text-anchor="middle" class="mono">F3</text>
   <circle cx="450" cy="120" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="450" y="125" font-size="13" text-anchor="middle" class="mono">F2</text>
-  <circle cx="570" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="570" y="125" font-size="13" text-anchor="middle" class="mono">F1</text>
+  <circle cx="570" cy="120" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="570" y="125" font-size="13" text-anchor="middle" class="mono">F1</text>
   <circle cx="690" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="690" y="125" font-size="13" text-anchor="middle" class="mono">F0</text>
   <text x="330" y="164" font-size="12" text-anchor="middle" fill="var(--gold-deep)">被 F5、F4 共用</text>
   <text x="450" y="164" font-size="12" text-anchor="middle" fill="var(--gold-deep)">被 F4、F3 共用</text>
+  <text x="570" y="164" font-size="12" text-anchor="middle" fill="var(--gold-deep)">被 F3、F2 共用</text>
   <text x="380" y="196" font-size="12" text-anchor="middle">箭頭 Fi → Fj：算 Fi 要用到 Fj。直線是 i − 1，弧線是 i − 2</text>
   <text x="380" y="218" font-size="12" text-anchor="middle" fill="var(--slate-deep)">同一個子問題被兩個以上的子問題需要＝重疊子問題，存起來就只算一次</text>
 </svg>
-<figcaption>費氏數列的子問題相依圖。每個 Fi 都被兩個人需要（直線一條、弧線一條），重疊得很厲害；把每個 Fi 存起來，總共只要算 6 個子問題。這張圖是有向無環圖，〈圖：BFS、DFS 與拓樸排序〉的那種。</figcaption>
+<figcaption>費氏數列的子問題相依圖。F3、F2、F1 都被兩個子問題需要（古銅標出；F4 只被 F5 需要，F0 只被 F2 需要），重疊得很厲害；把每個 Fi 存起來，總共只要算 6 個子問題。這張圖是有向無環圖，〈圖：BFS、DFS 與拓樸排序〉的那種。</figcaption>
 </figure>
 <p>題目看到「<strong>最多、最少、最長、有幾種方法</strong>」，而且暴力解要試遍所有選法、會指數爆炸時，就先想想能不能用動態規劃。</p>
 
@@ -99,7 +100,7 @@
         long[] f = new long[n + 1];
         f[0] = 0;                                      // 初始值
         f[1] = 1;
-        for (int i = 2; i &lt;= n; i++) f[i] = f[i - 1] + f[i - 2];   // 轉移式
+        for (int i = 2; i &lt;= n; i++) f[i] = f[i - 1] + f[i - 2];   // 轉移式：用前兩格算出這一格
         return f[n];                                   // 答案在最後一格
     }
 
@@ -179,7 +180,7 @@ return f[n];</code></pre>
 <section>
 <p class="era">四個問題問自己</p>
 <h3 class="head">解題四步驟：狀態、轉移式、初始值、答案在哪</h3>
-<p>MIT 6.006 把寫遞迴（也就是寫動態規劃）整理成幾個步驟：定義子問題、把子問題的解用遞迴關係連起來、確認子問題之間沒有環（有拓樸順序）、寫出初始情況、說明原問題的答案從哪個子問題來，最後分析時間。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 面試時濃縮成四個問題就好：</p>
+<p>MIT 6.006 把寫遞迴（也就是寫動態規劃）整理成幾個步驟：定義子問題、把子問題的解用遞迴關係連起來、確認子問題之間沒有環（有拓樸順序）、寫出初始情況、說明原問題的答案從哪個子問題來，最後分析時間。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 面試時濃縮成四個問題就好。先講兩個名詞：<strong>狀態</strong>是「dp[i] 這一格代表什麼」，<strong>轉移式</strong>是「怎麼用比較小的格子算出這一格的公式」。</p>
 <div class="tablewrap"><table><thead><tr><th>步驟</th><th>問自己</th><th>爬樓梯的回答</th></tr></thead><tbody>
 <tr><th>1. 狀態</th><td><code>dp[i]</code> 代表什麼？要能用一句話講完</td><td><code>dp[i]</code>＝爬到第 i 階的走法數</td></tr>
 <tr><th>2. 轉移式</th><td>最後一步有哪幾種選擇？每種選擇之前的狀態是什麼？</td><td>最後一步爬 1 階（從 i − 1 來）或 2 階（從 i − 2 來）：<code>dp[i] = dp[i − 1] + dp[i − 2]</code></td></tr>
@@ -256,7 +257,7 @@ return f[n];</code></pre>
 </section>
 
 <section>
-<p class="era">找零錢，貪心不一定對</p>
+<p class="era">找零錢，貪婪不一定對</p>
 <h3 class="head">最小硬幣數：每一格看最後一枚用哪個</h3>
 <p>題目：有幾種面額的硬幣（每種數量不限），湊出某個金額最少要幾枚？湊不出來回傳 -1。照四步驟：</p>
 <ul class="plainlist">
@@ -307,7 +308,7 @@ public class Coins {
 [0, 4, 1, 4]
 -1</code></pre>
 <figure>
-<svg viewBox="0 0 760 252" role="img" aria-label="最小硬幣數的表：硬幣面額 1、3、4，dp[0] 到 dp[6] 依序是 0、1、2、1、1、2、2。dp[6] 從三個地方來：最後一枚 1 元看 dp[5] 加 1 等於 2，最後一枚 3 元看 dp[3] 加 1 等於 2，最後一枚 4 元看 dp[2] 加 1 等於 3，取最小 2">
+<svg viewBox="0 0 760 252" role="img" aria-label="最小硬幣數的表：硬幣面額 1、3、4，dp[0] 到 dp[6] 依序是 0、1、2、1、1、2、2。dp[6] 從三個地方來：最後一枚 1 元看 dp[5] 加 1 等於 3，最後一枚 3 元看 dp[3] 加 1 等於 2，最後一枚 4 元看 dp[2] 加 1 等於 3，取最小 2">
   <defs><marker id="dp-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="dp-a2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs>
   <text x="140" y="82" font-size="13" text-anchor="end" class="mono">dp[x]</text>
   <text x="140" y="48" font-size="12" text-anchor="end">x（元）</text>
@@ -331,7 +332,7 @@ public class Coins {
   <text x="40" y="178" font-size="12" text-anchor="start" fill="var(--gold-deep)">最後一枚 3 元：dp[3] + 1 = 2</text>
   <path d="M572.0 96 Q 443.0 175.0 314.0 98" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#dp-a2)"/>
   <text x="40" y="200" font-size="12" text-anchor="start">最後一枚 4 元：dp[2] + 1 = 3</text>
-  <text x="380" y="236" font-size="12" text-anchor="middle" fill="var(--slate-deep)">dp[6] = min(2, 2, 3) = 2：最後一枚用 3 元（或 1 元）最好，答案是 3 + 3</text>
+  <text x="380" y="236" font-size="12" text-anchor="middle" fill="var(--slate-deep)">dp[6] = min(3, 2, 3) = 2：最後一枚用 3 元最好，答案是 3 + 3</text>
 </svg>
 <figcaption>面額 1、3、4 湊 6 元：dp[6] 試三種「最後一枚」，取最少的 2 枚（3 + 3）。每一格都用同樣的方法從左邊的格子算出來。</figcaption>
 </figure>
@@ -486,13 +487,14 @@ public class Knapsack {
   <rect x="540" y="168" width="58" height="32" fill="var(--surface)" stroke="currentColor"/><text x="569.0" y="189.0" font-size="14" text-anchor="middle" class="mono">7</text>
   <rect x="598" y="168" width="58" height="32" fill="var(--surface)" stroke="currentColor"/><text x="627.0" y="189.0" font-size="14" text-anchor="middle" class="mono">8</text>
   <rect x="656" y="168" width="58" height="32" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="685.0" y="189.0" font-size="14" text-anchor="middle" class="mono">9</text>
-  <path d="M685.0 168 Q 686.0 169.0 687.0 170" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#dp-a3)"/>
+  <line x1="725" y1="152" x2="725" y2="184" stroke="currentColor" stroke-width="1.5" marker-end="url(#dp-a3)"/>
+  <text x="731" y="172" font-size="11" text-anchor="start">不拿</text>
   <path d="M395.0 166 Q 540.0 274.0 685.0 202" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#dp-a3s)"/>
   <text x="380" y="262" font-size="12" text-anchor="middle" fill="var(--gold-deep)">dp[4][7] = max(不拿：dp[3][7] = 9，拿：dp[3][2] + 7 = 8) = 9</text>
 </svg>
 <figcaption>背包的表一列一列往下填：每一格只看正上方（不拿）和上一列往左 w 格再加 v（拿）。最大價值 9＝物品 2 加物品 3（重 3 + 4 = 7，值 4 + 5 = 9）。</figcaption>
 </figure>
-<p>貪婪法在這裡一樣會錯。MIT 講義的例子：三樣東西（重量, 價值）是 (6, 6)、(9, 9)、(10, 12)，容量 15，最好是拿前兩樣（價值 15），「貪婪法會失敗」（greedy fails）：照「價值除以重量」最高的先拿，會先拿 (10, 12)，剩下的容量放不下其他東西，只有 12。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/e88f4499b351ab82ebf07c4de2859272_MIT6_006S20_r18.pdf" target="_blank" rel="noopener">出處</a> 表有 (n + 1) × (W + 1) 格、每格 O(1)，講義寫的時間是 O(nS)（S 就是這裡的 W）。</p>
+<p>貪婪法在這裡一樣會錯。MIT 講義的例子：三樣東西（重量, 價值）是 (6, 6)、(9, 9)、(10, 12)，容量 15，最好是拿前兩樣（價值 15），「貪婪法會失敗」（greedy fails）：例如照「價值除以重量」最高的先拿，會先拿 (10, 12)，剩下的容量放不下其他東西，只有 12。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/e88f4499b351ab82ebf07c4de2859272_MIT6_006S20_r18.pdf" target="_blank" rel="noopener">出處</a> 表有 (n + 1) × (W + 1) 格、每格 O(1)，講義寫的時間是 O(nS)（S 就是這裡的 W）。</p>
 <p class="muted">一維版本的 <code>j</code> 由大到小，原因在最後一段「空間壓縮」講。</p>
 
 <div class="drill">
@@ -540,7 +542,7 @@ public class Knapsack {
 <section>
 <p class="era">兩串字的共同部分</p>
 <h3 class="head">最長共同子序列（LCS）</h3>
-<p><strong>子序列</strong>（subsequence）是從字串裡刪掉一些字、剩下的字照原順序排出來的結果，不必連續。普林斯頓的定義：從 x 刪掉一些字、從 y 刪掉一些字，剩下的兩個字串相等，就叫共同子序列；LCS 問題是找最長的那一個。他們的例子：<code>GGCACCACG</code> 與 <code>ACGGCGGATACG</code> 的 LCS 是 <code>GGCAACG</code>，長度 7。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 比對兩個版本的文字差在哪（像 git 的 diff）用的就是這類比對。</p>
+<p><strong>子序列</strong>（subsequence）是從字串裡刪掉一些字、剩下的字照原順序排出來的結果，不必連續。普林斯頓的定義：從 x 刪掉一些字、從 y 刪掉一些字，剩下的兩個字串相等，就叫共同子序列；LCS 問題是找最長的那一個。他們的例子：<code>GGCACCACG</code> 與 <code>ACGGCGGATACG</code> 的 LCS 是 <code>GGCAACG</code>，長度 7。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>狀態</strong>：<code>dp[i][j]</code>＝a 的前 i 個字與 b 的前 j 個字的 LCS 長度。</li>
 <li><strong>轉移式</strong>：看兩邊的最後一個字。一樣的話，它一定可以算進 LCS：<code>dp[i − 1][j − 1] + 1</code>；不一樣，至少有一邊的最後一個字用不到，丟掉其中一邊取大的：<code>max(dp[i − 1][j], dp[i][j − 1])</code>。</li>
@@ -742,7 +744,7 @@ public class Lis {
 </svg>
 <figcaption>每一格 dp[i] 往左看所有比 nums[i] 小的數，接在 dp 最大的那一個後面。2、5、7、18 是其中一條長度 4 的遞增子序列（2、3、7、101 也是）。</figcaption>
 </figure>
-<p>兩層迴圈，O(n²) 時間、O(n) 空間。MIT 講義把「加速到 O(n log n)」留作練習；常見的做法是另外維護一個「長度 k 的遞增子序列，結尾最小可以是多少」的陣列，用二分搜尋更新它（〈排序與二分搜尋〉）。面試先寫 O(n²) 版本，再說得出有更快的做法就夠了。</p>
+<p>兩層迴圈，O(n²) 時間、O(n) 空間。MIT 講義把「加速到 O(n log n)」留作練習（Exercise: speed up to O(|A| log |A|)）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a>；常見的做法是另外維護一個「長度 k 的遞增子序列，結尾最小可以是多少」的陣列，用二分搜尋更新它（〈排序與二分搜尋〉）。面試先寫 O(n²) 版本，再說得出有更快的做法就夠了。</p>
 
 <div class="drill">
   <p class="dq">LIS 的狀態 <code>dp[i]</code> 定義成「以 nums[i] 結尾」的最長遞增子序列，為什麼不定義成「前 i 個數裡」的最長遞增子序列？</p>
@@ -782,11 +784,11 @@ public class Lis {
 <p>填表時，如果每一格只用到「前幾格」或「上一列」，更早的格子就可以丟掉，空間跟著變小。代價是表不完整了：要還原答案本身（不只是長度或最大值）時，通常要從最後一格沿著整張表往回走，普林斯頓找出 LCS 字串的方法就是「把填表的步驟倒著走回去」（retrace the steps of the dynamic programming algorithm backward），這時就不能丟。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>只用前兩格</strong>（費氏、爬樓梯）：留兩個變數，空間 O(1)，上面 <code>Fib.twoVars</code> 就是。</li>
-<li><strong>只用上一列</strong>（LCS 長度）：留兩列，空間從 O(m × n) 降到 O(n)。</li>
-<li><strong>只用上一列、而且是左邊的格子</strong>（0/1 背包）：可以壓成一列，但 <code>j</code> 要<strong>由大到小</strong>。</li>
+<li><strong>只用上一列和這一列左邊那格</strong>（LCS 長度）：留兩列，空間從 O(m × n) 降到 O(n)。</li>
+<li><strong>只用上一列的正上方與左上方</strong>（0/1 背包）：可以壓成一列，但 <code>j</code> 要<strong>由大到小</strong>。</li>
 </ul>
 <pre><code>public class Rolling {
-    // LCS 只要長度時，每一列只用到上一列：留兩列就夠
+    // LCS 只要長度時，每一格只用到上一列和這一列左邊那格：留兩列就夠
     static int lcsTwoRows(String a, String b) {
         int n = b.length();
         int[] prev = new int[n + 1], cur = new int[n + 1];
@@ -833,7 +835,7 @@ public class Lis {
 <div class="drill">
   <p class="dq">LCS 只要長度、改成只留兩列，空間從 O(m × n) 降到多少？</p>
   <ul class="dopts"><li>O(1)</li><li data-ok>O(n)（b 的長度）</li><li>O(m + n) 的平方</li><li>不變，還是 O(m × n)</li></ul>
-  <p class="dexp">每一列只用到上一列，留 prev、cur 兩列，各 n + 1 格。時間還是 O(m × n)。</p>
+  <p class="dexp">每一格只用到上一列和這一列左邊那格，留 prev、cur 兩列，各 n + 1 格。時間還是 O(m × n)。</p>
 </div>
 <div class="drill">
   <p class="dq">用 <code>twoVars</code> 的寫法（<code>prev = 0, cur = 1</code>，從 i = 2 跑到 n），n = 7 時回傳什麼？</p>
