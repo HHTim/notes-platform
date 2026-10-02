@@ -1,11 +1,11 @@
-<!-- 來源：依 Oracle Java SE 21 API 文件（java.util.stream 套件說明與 Stream、IntStream、Collectors，java.util.Collection）、Java SE 25 API 文件（java.util.stream.Gatherers）、dev.java Stream 教學（Parallelizing Streams）、Oracle Java 教學（Parallelism）、JEP 485、Java 語言規格 SE 21 第 11.2.3、15.27.2 節新寫；範例與練習題全部自編，程式碼以 Java 21 實際編譯執行，Java 24 起的寫法以 Java 25 執行 · 收錄日期：2026-10-02 -->
+<!-- 來源：依 Oracle Java SE 21 API 文件（java.util.stream 套件說明與 Stream、IntStream、Collectors，java.util.Collection）、Java SE 25 API 文件（java.util.stream.Gatherers）、dev.java Stream 教學（Parallelizing Streams）、Oracle Java 教學（Parallelism）、JEP 485、Java 語言規格 SE 21 第 11.2.3、15.27.2 節新寫；範例與練習題自編（平行流裡多條執行緒同時 add 進 ArrayList 的一例改寫自 dev.java，清單建流後再修改、parallel().map().toArray() 兩例取自套件說明，課文已標明），程式碼以 Java 21 實際編譯執行，Java 24 起的寫法以 Java 25 執行 · 收錄日期：2026-10-02 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把一條 Stream 拆成來源、中間操作、終端操作三段，說明「沒有終端操作就不執行」與「一條流只能用一次」</li><li>用 <code>filter</code>、<code>map</code>、<code>flatMap</code>、<code>sorted</code>、<code>limit</code> 這些中間操作，配上 <code>collect</code>、<code>reduce</code>、<code>anyMatch</code>、<code>toList()</code> 這些終端操作，讀懂一段 Stream 會輸出什麼</li><li>用 <code>Collectors</code> 依分行分組加總、計數、分成兩組、串成字串，知道 <code>toMap</code> 鍵重複會丟例外</li><li>知道基本型別流省掉裝箱、平行流的代價，並判斷什麼時候一般迴圈比較好</li></ul></div>
 
 <section>
 <p class="era">先看整條管線長什麼樣子</p>
 <h3 class="head">一條流的三段：來源、中間操作、終端操作</h3>
-<p>上一課〈Lambda 與函式介面〉把「一段行為」變成可以傳的參數；Stream API（Java 8 起）就是一整套收這種參數的方法，讓「篩選、轉換、加總」這類迴圈改寫成一條由方法串起來的<strong>管線</strong>（pipeline）。套件說明：一條管線「由一個來源（例如集合、陣列、產生器函式或 I/O 通道），接著零個或多個中間操作，例如 <code>Stream.filter</code> 或 <code>Stream.map</code>，再加上一個終端操作，例如 <code>Stream.forEach</code> 或 <code>Stream.reduce</code>」組成（A stream pipeline consists of a source (such as a Collection, an array, a generator function, or an I/O channel); followed by zero or more intermediate operations such as Stream.filter or Stream.map; and a terminal operation such as Stream.forEach or Stream.reduce.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></p>
-<p>這兩課的例子都用同一份交易清單（<code>record</code> 是精簡資料類別，見〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉）：</p>
+<p>上一課〈Lambda 與函式介面〉把「一段行為」變成可以傳的參數；Stream API（Java 8 起）就是一整套收這種參數的方法，讓「篩選、轉換、加總」這類迴圈改寫成一條由方法串起來的<strong>管線</strong>（pipeline）。這裡的「流」是 <code>java.<wbr>util.<wbr>stream</code> 套件的 <code>Stream</code>，跟〈檔案與資料流〉講的 <code>InputStream</code> 那種讀寫位元組的流是兩回事，只是名字像。套件說明：一條管線「由一個來源（例如集合、陣列、產生器函式或 I/O 通道），接著零個或多個中間操作，例如 <code>Stream.filter</code> 或 <code>Stream.map</code>，再加上一個終端操作，例如 <code>Stream.forEach</code> 或 <code>Stream.reduce</code>」組成（A stream pipeline consists of a source (such as a Collection, an array, a generator function, or an I/O channel); followed by zero or more intermediate operations such as Stream.filter or Stream.map; and a terminal operation such as Stream.forEach or Stream.reduce.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> <strong>中間操作</strong>（intermediate operation）是中間的每一段加工，每段都回傳一條新的流；<strong>終端操作</strong>（terminal operation）是最後一步，產生結果，也是它讓整條管線開始跑（下一段的惰性求值會細講）。</p>
+<p>這一課的例子都用這份交易清單（<code>record</code> 是精簡資料類別，見〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉）：</p>
 <pre><code>record Tx(String id, String branch, long amount) {}
 
 List&lt;Tx&gt; txs = List.of(
@@ -118,8 +118,8 @@ System.out.println(result);
 // filter ccc
 // map ccc
 // [BB, CCC]</code></pre>
-<p>兩件事要看出來：第一，「還沒有終端操作」最先印，前面串好的 <code>filter</code>、<code>map</code> 一行都沒跑；第二，不是「全部 filter 完再全部 map」，而是一筆一筆走完整條管線。套件說明說，惰性讓篩選、轉換、加總可以「合併成走一次資料」（can be fused into a single pass on the data）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></p>
-<p>惰性也讓<strong>短路</strong>（short-circuiting，答案確定就提早停下）成為可能。<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 都是短路操作；找第一筆五萬以上的交易，看到 T3 就停了：</p>
+<p>兩件事要看出來：第一，「還沒有終端操作」最先印，前面串好的 <code>filter</code>、<code>map</code> 一行都沒跑；第二，Java 21 實跑的結果不是「全部 filter 完再全部 map」，而是一筆一筆走完整條管線。套件說明沒有規定這個先後，它說的是惰性讓篩選、轉換、加總「可以合併成走一次資料」（can be fused into a single pass on the data），JDK 的循序流實作就是這樣做的。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></p>
+<p>惰性也讓<strong>短路</strong>（short-circuiting，答案確定就提早停下）成為可能。<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 都是短路操作；找第一筆五萬以上的交易，Java 21 實跑看到 T3 就停了：</p>
 <pre><code>Optional&lt;Tx&gt; firstLarge = txs.stream()
         .peek(tx -&gt; System.out.println("看過 " + tx.id()))
         .filter(tx -&gt; tx.amount() &gt;= 50_000)
@@ -145,31 +145,31 @@ System.out.println("完");</code></pre>
   <p class="dexp"><code>peek</code> 是中間操作，後面沒有終端操作，整條管線不會執行，A、B 都不會印出。Java 不會因為沒用到回傳值而編譯錯誤。</p>
 </div>
 <div class="drill">
-  <p class="dq">這段程式依序印出什麼？</p>
+  <p class="dq">這段程式在 Java 21 實跑，依序印出什麼？</p>
 <pre><code>Stream.of("a", "bb")
         .filter(x -&gt; { System.out.println("filter " + x); return x.length() &gt; 1; })
         .map(x -&gt; { System.out.println("map " + x); return x; })
         .toList();</code></pre>
   <ul class="dopts"><li>filter a、filter bb、map a、map bb</li><li>filter a、map a、filter bb、map bb</li><li data-ok>filter a、filter bb、map bb</li><li>map a、map bb、filter a、filter bb</li></ul>
-  <p class="dexp">元素一筆一筆走完整條管線：a 在 filter 被擋下，不會進 map；bb 通過 filter 後馬上進 map。不是全部篩完才全部轉換。</p>
+  <p class="dexp">JDK 的循序流實作讓元素一筆一筆走完整條管線：a 在 filter 被擋下，不會進 map；bb 通過 filter 後馬上進 map，不是全部篩完才全部轉換。文件只說可以合併成走一次資料、沒有規定先後，這是 Java 21 實跑的結果；但不管怎麼排，被擋下的 a 都不會進 map。</p>
 </div>
 <div class="drill">
-  <p class="dq">這段程式印出什麼？</p>
+  <p class="dq">這段程式在 Java 21 實跑，印出什麼？</p>
 <pre><code>Optional&lt;Integer&gt; first = Stream.of(1, 2, 3, 4, 5)
         .peek(x -&gt; System.out.print(x + " "))
         .filter(x -&gt; x &gt; 2)
         .findFirst();
 System.out.println("→ " + first.get());</code></pre>
   <ul class="dopts"><li>1 2 3 4 5 → 3</li><li>3 → 3</li><li>1 2 3 4 5 → 5</li><li data-ok>1 2 3 → 3</li></ul>
-  <p class="dexp"><code>findFirst</code> 是短路的終端操作，找到第一個大於 2 的元素（3）就停，4、5 不會流進 peek。</p>
+  <p class="dexp"><code>findFirst</code> 是短路的終端操作；JDK 的循序流實作找到第一個大於 2 的元素（3）就停，4、5 不會流進 peek。文件沒有規定一定要停在這裡，這是 Java 21 實跑的結果；不管停在哪裡，<code>findFirst</code> 拿到的一定是 3。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>Stream&lt;Tx&gt; once = txs.<wbr>stream(); once.<wbr>count(); once.<wbr>count();</code> 第二次 <code>count()</code> 會怎樣？</p>
+  <p class="dq"><code>Stream&lt;Tx&gt; once = txs.<wbr>stream(); once.<wbr>count(); once.<wbr>count();</code> 在 Java 21 實跑，第二次 <code>count()</code> 會怎樣？</p>
   <ul class="dopts"><li data-ok>丟出 IllegalStateException</li><li>照樣回傳 6，流可以重複使用</li><li>回傳 0，因為元素在第一次就被讀完了</li><li>編譯錯誤</li></ul>
   <p class="dexp">終端操作執行後，管線就被消耗掉了；再用同一個流，JDK 的實作丟出 <code>IllegalStateException: stream has already been operated upon or closed</code>。編譯器看不出這件事，所以能編譯。</p>
 </div>
 <div class="drill">
-  <p class="dq">這段程式第三行會怎樣？</p>
+  <p class="dq">這段程式在 Java 21 實跑，第三行會怎樣？</p>
 <pre><code>Stream&lt;Tx&gt; s = txs.stream();
 Stream&lt;Tx&gt; large = s.filter(tx -&gt; tx.amount() &gt;= 50_000);
 Stream&lt;Tx&gt; small = s.filter(tx -&gt; tx.amount() &lt; 50_000);</code></pre>
@@ -191,13 +191,13 @@ System.out.println(sl.collect(Collectors.joining(" ")));</code></pre>
   <p class="dexp">建立流的時候還沒開始走訪；清單是在終端操作 <code>collect</code> 開始之前被修改的，所以修改會反映進結果。套件說明說，JDK 集合產生的流都是這樣。執行途中才改來源，才會出問題。</p>
 </div>
 <div class="drill">
-  <p class="dq">這段程式印出什麼？</p>
+  <p class="dq">這段程式在 Java 21 實跑，印出什麼？</p>
 <pre><code>boolean found = Stream.of(5, 20, 7)
         .peek(x -&gt; System.out.print(x + " "))
         .anyMatch(x -&gt; x &gt; 10);
 System.out.println(found);</code></pre>
   <ul class="dopts"><li data-ok>5 20 true</li><li>5 20 7 true</li><li>20 true</li><li>5 20 7 false</li></ul>
-  <p class="dexp"><code>anyMatch</code> 是短路操作，「可能不會對所有元素評估條件」。看到 20 就確定答案是 true，7 不會流過來。</p>
+  <p class="dexp"><code>anyMatch</code> 是短路操作，文件說它「如果不需要，可能不會對所有元素評估條件」（May not evaluate the predicate on all elements if not necessary for determining the result.）。JDK 的循序流實作看到 20 就確定答案是 true、停下來，7 不會流過來；文件寫的是「可能」，所以 5 20 7 true 也合乎規格，這題是 Java 21 實跑的結果。</p>
 </div>
 </section>
 
@@ -549,7 +549,7 @@ System.out.println(stats.getCount() + " " + stats.getMin() + " " + stats.getMax(
 <p class="era">多核心不是免費的</p>
 <h3 class="head">平行流：parallelStream 的代價與注意事項</h3>
 <p>把 <code>stream()</code> 換成 <code>parallelStream()</code>，或在管線中呼叫 <code>parallel()</code>，就會平行執行。套件說明：JDK 的流實作「除非明確要求平行，否則都建立循序的流」（The stream implementations in the JDK create serial streams unless parallelism is explicitly requested.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> 但 <code>Collection.parallelStream()</code> 回傳的是「可能平行的」流，文件也允許它回傳循序的流（It is allowable for this method to return a sequential stream.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Collection.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>誰在跑：</strong>dev.java 說平行流建立在 Fork/Join 框架上，工作由一個叫「共用 Fork/Join 池」（Common Fork/Join Pool）的執行緒池分頭處理。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 實跑印出處理元素的執行緒名稱（把結尾編號換成 N），呼叫端自己的 main 執行緒也會一起做：</p>
+<p><strong>誰在跑：</strong>dev.java 說平行流建立在 Fork/Join 框架（Java 7 加入，把一件大工作切成小塊分給多條執行緒做、再把結果合併起來）上，工作由一個叫「共用 Fork/Join 池」（Common Fork/Join Pool）的執行緒池分頭處理。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 實跑印出處理元素的執行緒名稱（把結尾編號換成 N），呼叫端自己的 main 執行緒也會一起做：</p>
 <pre><code>Set&lt;String&gt; threadNames = IntStream.range(0, 1_000)
         .parallel()
         .mapToObj(i -&gt; Thread.currentThread().getName().replaceAll("\\d+$", "N"))
@@ -557,7 +557,7 @@ System.out.println(stats.getCount() + " " + stats.getMin() + " " + stats.getMax(
 System.out.println(threadNames);   // [ForkJoinPool.commonPool-worker-N, main]</code></pre>
 <p>這個池是整個 JVM 共用的；它預設有多少條執行緒、為什麼不能拿來跑會阻塞的 I/O，見〈Java 並行快答：執行緒池、鎖與並行集合〉的 <code>CompletableFuture</code> 一段，那裡講的是同一個池。</p>
 <p><strong>不一定比較快：</strong>Oracle 的教學說「平行不會自動比循序快，雖然在資料夠多、核心夠多時可能會」（parallelism is not automatically faster than performing operations serially, although it can be if you have enough data and processor cores）。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/collections/streams/parallelism.html" target="_blank" rel="noopener">出處</a> dev.java 列的代價：資料要先切開（<code>ArrayList</code> 好切，<code>LinkedList</code> 要一路走到中間才切得開）、切完的部分結果要再合併（合併數字加總很便宜，合併 HashMap 比較貴），以及平行會多用 CPU 與執行緒；它的建議是「不要猜，量測你的程式碼的效能」（Rule #4 Do not guess; measure the performance of your code.）。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a></p>
-<p><strong>副作用不要寫在 lambda 裡：</strong>套件說明：「傳給流操作的行為參數裡有副作用，一般是不鼓勵的」（Side-effects in behavioral parameters to stream operations are, in general, discouraged），並示範把 <code>forEach(<wbr>s -> results.<wbr>add(<wbr>s))</code> 改成直接 <code>toList()</code>，理由是平行執行時 <code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」（the non-thread-safety of ArrayList would cause incorrect results）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> 實跑一百萬個數字：</p>
+<p><strong>副作用不要寫在 lambda 裡：</strong>套件說明把傳給 <code>filter</code>、<code>map</code> 這些操作、描述「要做什麼」的參數叫<strong>行為參數</strong>（behavioral parameters，通常就是 lambda），並說：「傳給流操作的行為參數裡有副作用，一般是不鼓勵的」（Side-effects in behavioral parameters to stream operations are, in general, discouraged），並示範把 <code>forEach(<wbr>s -> results.<wbr>add(<wbr>s))</code> 改成直接 <code>toList()</code>，理由是平行執行時 <code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」（the non-thread-safety of ArrayList would cause incorrect results）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> dev.java 用一百萬個數字示範同一件事，下面改寫它的例子實跑：<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a></p>
 <pre><code>List&lt;Integer&gt; unsafe = new ArrayList&lt;&gt;();
 IntStream.range(0, 1_000_000).parallel().forEach(unsafe::add);   // 錯誤示範：多條執行緒同時改 ArrayList
 System.out.println("unsafe.size() = " + unsafe.size());
@@ -614,7 +614,7 @@ System.out.println("safe.size() = " + safe.size());   // safe.size() = 1000000</
 <p>不是每個迴圈都該改。下面幾種情況，一般迴圈通常比較直接（這是寫法上的建議，不是規定）：</p>
 <ul class="plainlist">
 <li><strong>每一步都要丟受檢例外</strong>，例如逐筆讀檔、寫資料庫。<code>Function</code>、<code>Predicate</code> 這些介面的方法沒宣告 <code>throws</code>，lambda 裡丟不出受檢例外（JLS 的規定見〈Lambda 與函式介面〉）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a>，硬塞進去就得在每個 lambda 裡包 <code>try</code>／<code>catch</code>。</li>
-<li><strong>迴圈要一邊走一邊改好幾個區域變數</strong>，例如同時累計金額、筆數、上一筆的時間。lambda 只能讀 effectively final 的區域變數。<a class="fixsrc" href="https://docs.<wbr>oracle.<wbr>com/javase/specs/jls/se21/html/jls-15.<wbr>html#jls-15.27.2" target="_blank" rel="noopener">出處</a></li>
+<li><strong>迴圈要一邊走一邊改好幾個區域變數</strong>，例如同時累計金額、筆數、上一筆的時間。lambda 只能讀 effectively final 的區域變數。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></li>
 <li><strong>需要依前一筆決定下一步、或中途視情況 <code>break</code>、<code>continue</code> 好幾種方向</strong>。Stream 的行為參數最好是無狀態的，套件說明說結果不該依賴「管線執行期間可能改變的任何狀態」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>要用到索引去讀相鄰元素</strong>，例如比較第 i 筆和第 i+1 筆。</li>
 </ul>
@@ -633,7 +633,7 @@ for (Tx tx : txs) {
     if (tx.branch().equals("大安")) total += tx.amount();
 }</code></pre>
   <ul class="dopts"><li>txs.<wbr>stream().<wbr>mapToLong(<wbr>Tx::amount).<wbr>filter(<wbr>a -&gt; a &gt; 0).<wbr>sum()</li><li data-ok>txs.<wbr>stream().<wbr>filter(<wbr>tx -&gt; tx.<wbr>branch().<wbr>equals(<wbr>"大安")).<wbr>mapToLong(<wbr>Tx::amount).<wbr>sum()</li><li>txs.<wbr>stream().<wbr>filter(<wbr>tx -&gt; tx.<wbr>branch().<wbr>equals(<wbr>"大安")).<wbr>count()</li><li>txs.<wbr>stream().<wbr>map(<wbr>Tx::branch).<wbr>filter(<wbr>"大安"::equals).<wbr>count()</li></ul>
-  <p class="dexp"><code>if</code> 對應 <code>filter</code>、<code>total +=</code> 對應 <code>mapToLong(...).sum()</code>。兩個 <code>count()</code> 的版本算的是筆數；第一個沒篩分行，加的是全部金額。</p>
+  <p class="dexp"><code>if</code> 對應 <code>filter</code>、<code>total +=</code> 對應 <code>mapToLong(...).sum()</code>。兩個 <code>count()</code> 的版本算的是筆數；先 <code>mapToLong</code> 再篩 <code>a &gt; 0</code> 的版本沒篩分行，加的是全部金額。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一種情況，一般迴圈通常比 Stream 直接？</p>
@@ -652,4 +652,4 @@ for (Tx tx : txs) {
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>一條流＝來源＋零個或多個中間操作＋一個終端操作；流不存資料、不修改來源。</li><li>中間操作是惰性的：沒有終端操作就一行都不跑；元素一筆一筆走完整條管線；<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 會短路。一條流只能用一次，重用會丟 <code>IllegalStateException</code>。</li><li><code>peek</code> 只用來除錯，<code>count()</code> 等操作可能讓它根本不執行；要做的事不要寫在 <code>peek</code> 或其他行為參數的副作用裡。</li><li><code>toList()</code>（Java 16 起）回傳不可修改的清單；要能修改就 <code>collect(<wbr>Collectors.<wbr>toCollection(<wbr>ArrayList::new))</code>。空的流：<code>anyMatch</code> 是 false、<code>allMatch</code> 是 true，<code>findFirst</code>、<code>max</code>、<code>average</code> 回傳空的 Optional。</li><li><code>groupingBy</code>＋<code>counting</code>（結果是 <code>Long</code>）／<code>summingLong</code>／<code>mapping</code> 做分組統計；<code>partitioningBy</code> 一定有 true、false 兩個鍵；<code>toMap</code> 鍵重複丟 <code>IllegalStateException</code>，要給合併函式。</li><li>數字運算先 <code>mapToInt</code>／<code>mapToLong</code> 轉成基本型別流，省掉裝箱；<code>range</code> 不含結尾、<code>rangeClosed</code> 含結尾。</li><li>平行流用的是整個 JVM 共用的 Fork/Join 池，不保證變快，先量再用；結果交給終端操作產生，不要在 lambda 裡改外面的集合。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>一條流＝來源＋零個或多個中間操作＋一個終端操作；流不存資料、不修改來源。</li><li>中間操作是惰性的：沒有終端操作就一行都不跑；元素一筆一筆走完整條管線；<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 會短路。一條流只能用一次，文件說重用時實作「可能」丟 <code>IllegalStateException</code>，Java 21 實跑確實會丟。</li><li><code>peek</code> 只用來除錯，<code>count()</code> 等操作可能讓它根本不執行；要做的事不要寫在 <code>peek</code> 或其他行為參數的副作用裡。</li><li><code>toList()</code>（Java 16 起）回傳不可修改的清單；要能修改就 <code>collect(<wbr>Collectors.<wbr>toCollection(<wbr>ArrayList::new))</code>。空的流：<code>anyMatch</code> 是 false、<code>allMatch</code> 是 true，<code>findFirst</code>、<code>max</code>、<code>average</code> 回傳空的 Optional。</li><li><code>groupingBy</code>＋<code>counting</code>（結果是 <code>Long</code>）／<code>summingLong</code>／<code>mapping</code> 做分組統計；<code>partitioningBy</code> 一定有 true、false 兩個鍵；<code>toMap</code> 鍵重複丟 <code>IllegalStateException</code>，要給合併函式。</li><li>數字運算先 <code>mapToInt</code>／<code>mapToLong</code> 轉成基本型別流，省掉裝箱；<code>range</code> 不含結尾、<code>rangeClosed</code> 含結尾。</li><li>平行流用的是整個 JVM 共用的 Fork/Join 池，不保證變快，先量再用；結果交給終端操作產生，不要在 lambda 裡改外面的集合。</li></ul></div>
