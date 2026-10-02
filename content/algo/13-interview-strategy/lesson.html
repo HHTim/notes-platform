@@ -1,0 +1,444 @@
+<!-- 來源：依 MIT OpenCourseWare 6.006（Spring 2020）第 1 講講義、Java 語言規格 SE 25 第 4.2 與 15.18.2 節、Java SE 25 API 文件（java.lang.Math）新寫；解題流程與自我檢查清單是建議做法、不是官方規定；題型對照表整理本模組前十二課；程式碼與練習題全部自編並以 Java 21 實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>照「問清楚、暴力解、找瓶頸、寫程式、自己跑、講複雜度」六步解一道程式題，每一步知道要說什麼</li><li>看到題目的特徵，就想到該用哪個資料結構或手法、回哪一課複習</li><li>從輸入大小反推可以接受的複雜度，在動手之前就先排除太慢的寫法</li><li>用一張自我檢查清單抓邊界、溢位、空輸入、重複元素，並照四週計畫把前十二課的題目刷過一輪</li></ul></div>
+
+<section>
+<p class="era">會解題，也要讓人看懂你怎麼解</p>
+<h3 class="head">解題流程：六個步驟</h3>
+<p>MIT 6.006 第一堂課開宗明義：這門課要教的是「解決計算問題，並且讓別人明白你的解法是正確而且有效率的」（The goal of this class is to teach you to solve computation problems, and to communicate that your solutions are correct and efficient.）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a> 面試的程式題也是兩件事都要：寫對，並且把想法說出來。下面的六步是常見的做法，不是每場面試都一樣；有的面試官會直接跳到某一步，跟著對方的節奏調整就好。</p>
+<figure>
+<svg viewBox="0 0 760 320" role="img" aria-label="解題流程六步：問清楚、暴力解、找瓶頸、寫程式、自己跑、講複雜度。前三步在上排由左到右，後三步在下排由右到左；自己跑發現錯誤時，虛線箭頭回到寫程式">
+<defs><marker id="is-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="40" y="40" width="210" height="64" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="145.0" y="67" font-size="15" text-anchor="middle" fill="var(--gold-deep)">1 問清楚</text><text x="145.0" y="88" font-size="12.5" text-anchor="middle">輸入範圍、邊界、回傳什麼</text><rect x="275" y="40" width="210" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="380.0" y="67" font-size="15" text-anchor="middle" fill="var(--gold-deep)">2 暴力解</text><text x="380.0" y="88" font-size="12.5" text-anchor="middle">先講會對的寫法與複雜度</text><rect x="510" y="40" width="210" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="615.0" y="67" font-size="15" text-anchor="middle" fill="var(--gold-deep)">3 找瓶頸</text><text x="615.0" y="88" font-size="12.5" text-anchor="middle">換資料結構或手法</text><rect x="510" y="170" width="210" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="615.0" y="197" font-size="15" text-anchor="middle" fill="var(--gold-deep)">4 寫程式</text><text x="615.0" y="218" font-size="12.5" text-anchor="middle">邊寫邊說在做什麼</text><rect x="275" y="170" width="210" height="64" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380.0" y="197" font-size="15" text-anchor="middle" fill="var(--gold-deep)">5 自己跑</text><text x="380.0" y="218" font-size="12.5" text-anchor="middle">用小例子與邊界走一遍</text><rect x="40" y="170" width="210" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="145.0" y="197" font-size="15" text-anchor="middle" fill="var(--gold-deep)">6 講複雜度</text><text x="145.0" y="218" font-size="12.5" text-anchor="middle">時間、空間、假設</text><line x1="250" y1="72" x2="273" y2="72" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#is-m1)"/><line x1="485" y1="72" x2="508" y2="72" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#is-m1)"/><line x1="615" y1="104" x2="615" y2="168" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#is-m1)"/><line x1="508" y1="202" x2="487" y2="202" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#is-m1)"/><line x1="273" y1="202" x2="252" y2="202" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#is-m1)"/><path d="M380 236 Q470 270 560 236" fill="none" stroke="var(--slate)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#is-m1)"/><text x="470" y="284" font-size="12" text-anchor="middle" fill="var(--slate-deep)">跑出錯就回去改</text><text x="40" y="306" font-size="12" opacity=".6">古銅框是最常被跳過的兩步：一開始沒問清楚、寫完沒自己跑</text>
+</svg>
+<figcaption>六步依序走；第 5 步跑出錯，就回到第 4 步改，改完再跑一次。</figcaption>
+</figure>
+<ol class="plainlist">
+<li><strong>問清楚。</strong>先用自己的話把題目說一遍，再問：輸入有多大（n 最大多少）、值的範圍（會不會有負數、會不會超過 <code>int</code>）、可不可能是空的、有沒有重複、找不到答案時回傳什麼。MIT 講義提醒「輸入的大小常叫做 n，但不一定」（Size of input is often called ‘n’, but not always!）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a>，兩個輸入就分開叫 n 和 m（〈複雜度：程式跑多快、吃多少記憶體〉的寫法）。</li>
+<li><strong>先講暴力解。</strong>想得到的最直接寫法，哪怕是 O(n²)，先說出來並講出它的複雜度。這證明你至少能解，也給後面的優化一個比較的基準。MIT 講義的「怎麼解演算法問題」（How to Solve an Algorithms Problem）把方法分成兩條路：化成已知的問題（用學過的資料結構或演算法），或自己設計，第一個列的就是暴力法（Brute Force）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><strong>找瓶頸，再優化。</strong>指出暴力解慢在哪一行（通常是內層迴圈在「找東西」），再想哪個資料結構能把那個「找」變快。下一段的對照表就是在做這件事。</li>
+<li><strong>寫程式。</strong>變數取有意義的名字，邊寫邊說這一段在做什麼。先寫主流程，細節（例如輸入檢查）可以先說「這裡要處理空陣列」再補。</li>
+<li><strong>自己跑一遍。</strong>寫完不要直接說「好了」，拿一個小例子照程式一行一行走，再拿邊界例子（空的、一個元素、全部一樣）走一次。跑出錯就回去改。</li>
+<li><strong>講複雜度。</strong>照〈複雜度：程式跑多快、吃多少記憶體〉的順序：n 是什麼、時間、空間、是最壞還是平均或攤銷，最後提還能怎麼取捨。</li>
+</ol>
+<p>拿 LeetCode 第 1 題 Two Sum 的情境走一次：在陣列裡找兩個數加起來等於目標，回傳它們的索引。問清楚之後（有沒有一定有答案？同一個元素能不能用兩次？），先講暴力解：每一對都試，O(n²)。瓶頸是內層迴圈在「找補數」，換成 <code>HashMap</code> 一次查到，平均 O(n)（細節見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉）。兩種寫法放在一起，再用邊界例子跑：</p>
+<pre><code>import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+public class TwoSumFlow {
+    // 第一步：暴力解。每一對都試，O(n²) 時間、O(1) 額外空間
+    static int[] brute(int[] nums, int target) {
+        for (int i = 0; i &lt; nums.length; i++)
+            for (int j = i + 1; j &lt; nums.length; j++)
+                if (nums[i] + nums[j] == target) return new int[] {i, j};
+        return new int[0];                                // 沒有答案：回傳空陣列（先跟面試官講好）
+    }
+
+    // 第二步：優化。邊走邊記「值 → 索引」，先查補數再放，O(n) 平均時間、O(n) 額外空間
+    static int[] fast(int[] nums, int target) {
+        Map&lt;Integer, Integer&gt; seen = new HashMap&lt;&gt;();
+        for (int i = 0; i &lt; nums.length; i++) {
+            Integer j = seen.get(target - nums[i]);
+            if (j != null) return new int[] {j, i};
+            seen.put(nums[i], i);                          // 先查再放：同一個元素不會用兩次
+        }
+        return new int[0];
+    }
+
+    public static void main(String[] args) {
+        int[][] inputs = {{2, 7, 11, 15}, {3, 3}, {3, 2, 4}, {}, {5}, {-1, -2, -3}};
+        int[] targets = {9, 6, 6, 1, 5, -5};
+        for (int k = 0; k &lt; inputs.length; k++) {
+            int[] a = brute(inputs[k], targets[k]);
+            int[] b = fast(inputs[k], targets[k]);
+            System.out.println(Arrays.toString(inputs[k]) + " 目標 " + targets[k]
+                    + " → 暴力 " + Arrays.toString(a) + "，雜湊 " + Arrays.toString(b));
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[2, 7, 11, 15] 目標 9 → 暴力 [0, 1]，雜湊 [0, 1]
+[3, 3] 目標 6 → 暴力 [0, 1]，雜湊 [0, 1]
+[3, 2, 4] 目標 6 → 暴力 [1, 2]，雜湊 [1, 2]
+[] 目標 1 → 暴力 []，雜湊 []
+[5] 目標 5 → 暴力 []，雜湊 []
+[-1, -2, -3] 目標 -5 → 暴力 [1, 2]，雜湊 [1, 2]</code></pre>
+<p>這幾個測試各有用意：<code>[3, 3]</code> 測重複元素；<code>[3, 2, 4]</code> 目標 6 測「同一個元素不能用兩次」（3 + 3 不算，因為只有一個 3）；空陣列和只有一個元素測邊界；負數測值的範圍。暴力解留著當對照，兩種寫法答案一致，優化版才算可信。</p>
+<p class="formula">問清楚 → 暴力解 → 找瓶頸 → 寫程式 → 自己跑 → 講複雜度；先求對、再求快、最後說清楚</p>
+
+<div class="drill">
+  <p class="dq">拿到題目之後，照這課的流程，第一件事做什麼？</p>
+  <ul class="dopts"><li>直接寫出最快的解法，展現實力</li><li data-ok>用自己的話重述題目，問清楚範圍與邊界</li><li>先講這題的時間與空間複雜度</li><li>先把測試案例寫成程式碼</li></ul>
+  <p class="dexp">沒問清楚就寫，常常寫到一半才發現有負數、有重複或可能是空的。先確認規格，後面每一步才有依據。</p>
+</div>
+<div class="drill">
+  <p class="dq">講完 O(n²) 的暴力解之後，下一步通常是？</p>
+  <ul class="dopts"><li>直接開始寫暴力解，寫完就交</li><li>說明 O(n²) 已經是最好的</li><li data-ok>指出慢在哪一行，想用哪個資料結構把那一步變快</li><li>換一種程式語言重寫</li></ul>
+  <p class="dexp">優化要從瓶頸下手：Two Sum 慢在內層迴圈「找補數」，換成 HashMap 一次查到。〈複雜度：程式跑多快、吃多少記憶體〉的規則也是先找最貴的那一段。</p>
+</div>
+<div class="drill">
+  <p class="dq">Two Sum 用 <code>HashMap</code> 時「先查補數、再把自己放進去」。如果反過來先放再查，<code>[3, 2, 4]</code> 目標 6 可能出什麼錯？</p>
+  <ul class="dopts"><li data-ok>回傳 [0, 0]：3 查到了自己</li><li>永遠找不到答案，回傳空陣列</li><li>HashMap 會丟出 ConcurrentModificationException</li><li>回傳 [1, 2]，跟先查再放的結果一樣</li></ul>
+  <p class="dexp">3 先被放進去，接著查 6 − 3 = 3 就查到自己，回傳 [0, 0]，同一個元素被用兩次。先查再放，表裡只有「前面的」元素。這是〈雜湊表：HashMap 怎麼做到幾乎一步找到〉的查補數手法。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式寫完之後，最該先拿哪一組例子自己跑一遍？</p>
+  <ul class="dopts"><li>一百萬筆隨機資料，看會不會超時</li><li>題目給的範例就夠了，不用再跑別的</li><li>只跑自己覺得會出錯的那個例子</li><li data-ok>小的正常例子，加上空的、一個、重複</li></ul>
+  <p class="dexp">小例子手算得出答案，邊界例子最常出錯。一百萬筆的資料面試時沒辦法手動驗證。</p>
+</div>
+<div class="drill">
+  <p class="dq">講複雜度時，照〈複雜度：程式跑多快、吃多少記憶體〉的順序，第一句該說什麼？</p>
+  <ul class="dopts"><li>「這是 O(n)」，直接講結論</li><li data-ok>先講 n 是什麼</li><li>「這已經是最佳解，不能更快」</li><li>「空間不重要，只講時間」</li></ul>
+  <p class="dexp">不先說 n 是什麼，O(n) 沒有意義；兩個輸入時要分開寫成 n、m。接著才講時間、空間與是哪一種（最壞、平均、攤銷）。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先認題型，再挑工具</p>
+<h3 class="head">看到題目的特徵，該想到什麼</h3>
+<p>MIT 講義說解題的第一條路是「化成一個你已經會的問題（用資料結構或演算法）」（Reduce to a problem you already know (use data structure or algorithm)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a> 下面這張表把本模組各課的招式整理成「看到什麼就想到什麼」。這是常見的對應，不是保證：同一題常有好幾種解法，表裡寫的是最先值得試的那一個。</p>
+<div class="tablewrap"><table><thead><tr><th>題目的特徵</th><th>先想到</th><th>回哪一課</th></tr></thead><tbody>
+<tr><td>暴力解太慢，想知道該快到什麼程度</td><td>從 n 的上限反推可接受的複雜度（下一段）</td><td>〈複雜度：程式跑多快、吃多少記憶體〉</td></tr>
+<tr><td>要很快知道「有沒有出現過」「出現幾次」、找補數、分組</td><td><code>HashMap</code>／<code>HashSet</code></td><td>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉</td></tr>
+<tr><td>原地修改陣列、反轉、判斷迴文</td><td>左右兩個索引往中間走、write 索引</td><td>〈陣列與字串〉</td></tr>
+<tr><td>只有小寫英文字母的字元計數</td><td><code>int[26]</code></td><td>〈陣列與字串〉</td></tr>
+<tr><td>串列找中點、判斷有沒有環、倒數第 k 個</td><td>快慢指標、虛擬頭節點</td><td>〈鏈結串列〉</td></tr>
+<tr><td>括號配對、退格、「最近一個還沒配到的」</td><td>堆疊</td><td>〈堆疊與佇列〉</td></tr>
+<tr><td>每個位置的「下一個更大（或更小）」</td><td>單調堆疊</td><td>〈堆疊與佇列〉</td></tr>
+<tr><td>列出所有組合、排列、子集、擺法</td><td>回溯（選擇、遞迴、撤銷選擇）</td><td>〈遞迴與回溯〉</td></tr>
+<tr><td>在排好序的資料裡找某個值、或找第一個符合條件的位置</td><td>二分搜尋</td><td>〈排序與二分搜尋〉</td></tr>
+<tr><td>區間合併、要先把資料整理成有順序才好處理</td><td>先排序</td><td>〈排序與二分搜尋〉</td></tr>
+<tr><td>排好序的陣列找兩個數的和</td><td>雙指標（左右往中間走）</td><td>〈雙指標、滑動視窗與前綴和〉</td></tr>
+<tr><td>連續的子陣列或子字串：最長、最短、和為多少</td><td>滑動視窗；有負數時改用前綴和</td><td>〈雙指標、滑動視窗與前綴和〉</td></tr>
+<tr><td>樹的深度、路徑、左右子樹合起來的答案</td><td>遞迴（先想空樹回傳什麼）</td><td>〈樹與二元搜尋樹〉</td></tr>
+<tr><td>鍵要有順序、要找「不超過 x 的最大鍵」</td><td><code>TreeMap</code></td><td>〈樹與二元搜尋樹〉</td></tr>
+<tr><td>前 k 大、前 k 小，或一直要拿目前最大／最小的</td><td>堆積（<code>PriorityQueue</code>）</td><td>〈堆積與優先佇列〉</td></tr>
+<tr><td>每一步代價都一樣的最短路徑、最少步數</td><td>廣度優先搜尋（BFS），用佇列</td><td>〈圖：BFS、DFS 與拓樸排序〉</td></tr>
+<tr><td>格子圖上的島嶼、連通區域</td><td>DFS 或 BFS 走訪</td><td>〈圖：BFS、DFS 與拓樸排序〉</td></tr>
+<tr><td>先修課、相依順序、判斷有沒有循環相依</td><td>拓樸排序</td><td>〈圖：BFS、DFS 與拓樸排序〉</td></tr>
+<tr><td>求最多、最少或方法數，而且子問題會重複出現</td><td>動態規劃（先寫遞迴加備忘錄）</td><td>〈動態規劃入門〉</td></tr>
+</tbody></table></div>
+<p>表的用法：讀完題目，先圈出題目裡的關鍵字（「排好序」「連續」「所有」「最少步數」「前 k 個」），對到表上的特徵；對不到就回到暴力解，看它慢在哪裡，再問「哪個資料結構能讓這一步變快」。</p>
+
+<div class="drill">
+  <p class="dq">陣列<strong>已經由小到大排好</strong>，要找兩個數加起來等於目標，而且只能用 O(1) 額外空間。先想到哪一招？</p>
+  <ul class="dopts"><li data-ok>雙指標，左右往中間走</li><li>HashMap 查補數，邊走邊記</li><li>回溯，列出所有兩兩組合</li><li>堆積，每次拿出最小的兩個</li></ul>
+  <p class="dexp">排好序加上 O(1) 空間，就是雙指標：和太小左邊往右、太大右邊往左。HashMap 也能解但要 O(n) 空間。見〈雙指標、滑動視窗與前綴和〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列<strong>沒有排序</strong>，要找兩個數加起來等於目標，回傳兩個<strong>原本的索引</strong>。平均最快的做法是？</p>
+  <ul class="dopts"><li>先排序，再用雙指標找</li><li>兩層迴圈，每一對都試一次</li><li data-ok>HashMap 邊走邊查補數</li><li>二分搜尋，對每個數找它的補數</li></ul>
+  <p class="dexp">HashMap 平均 O(n)。先排序會打亂原本的索引，還要 O(n log n)；兩層迴圈是 O(n²)。見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">找字串裡「不含重複字元的最長連續子字串」。先想到哪一招？</p>
+  <ul class="dopts"><li>回溯，列出所有子字串再挑</li><li>單調堆疊，記下每個字元的位置</li><li>拓樸排序，依字元先後排好</li><li data-ok>滑動視窗，遇到重複就收左端</li></ul>
+  <p class="dexp">「連續」加上「最長」是滑動視窗的典型特徵。列出所有子字串是 O(n²) 個以上，太慢。見〈雙指標、滑動視窗與前綴和〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列裡<strong>有負數</strong>，要數「和剛好等於 k 的連續子陣列有幾個」。為什麼不適合用滑動視窗？</p>
+  <ul class="dopts"><li data-ok>負數讓「擴張就變大」不成立，該改用前綴和</li><li>滑動視窗只能用在字串，不能用在數字陣列</li><li>滑動視窗的時間其實是 O(n²)，太慢</li><li>其實滑動視窗可以，這題沒有問題</li></ul>
+  <p class="dexp">滑動視窗靠「擴張和變大、收縮和變小」決定方向，負數會破壞這個性質。前綴和把「區間和」變成兩個前綴相減，再用 HashMap 數補數。見〈雙指標、滑動視窗與前綴和〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">資料一筆一筆串流進來、總量非常大，要隨時回答「目前第 k 大的是誰」（k 很小）。最適合的是？</p>
+  <ul class="dopts"><li>每來一筆就把全部資料重新排序</li><li data-ok>大小為 k 的最小堆積</li><li>用 HashSet 存全部資料，查的時候再找</li><li>用堆疊存最近 k 筆，頂端就是答案</li></ul>
+  <p class="dexp">堆積只保留 k 筆，每筆進來 O(log k)。每次重新排序要 O(n log n)，資料越多越慢。見〈堆積與優先佇列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">迷宮的每一步代價都一樣，要求從起點到終點的<strong>最少步數</strong>。先想到哪一招？</p>
+  <ul class="dopts"><li>DFS，一路走到底再退回來</li><li>回溯，列出所有路徑再挑最短</li><li data-ok>BFS，用佇列一層層往外</li><li>動態規劃，從終點往回填表</li></ul>
+  <p class="dexp">BFS 一層一層擴張，第一次碰到終點時走的就是最少步數。DFS 先碰到的路不一定最短；列出所有路徑是指數級。見〈圖：BFS、DFS 與拓樸排序〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">有一堆課程，某些課要先修完別的課才能上。要排出一個修課順序，或判斷根本排不出來（循環相依）。這是？</p>
+  <ul class="dopts"><li>二分搜尋</li><li>滑動視窗</li><li>單調堆疊</li><li data-ok>拓樸排序</li></ul>
+  <p class="dexp">「誰要在誰之前」就是有向圖的相依關係，拓樸排序排得出順序，排不完就代表有循環。見〈圖：BFS、DFS 與拓樸排序〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">二維格子裡 1 是陸地、0 是海，要數有幾座島（上下左右相連的陸地算一座）。做法是？</p>
+  <ul class="dopts"><li data-ok>DFS 或 BFS 把整座島標成走過，計數加 1</li><li>對每一列做二分搜尋，找出陸地的邊界</li><li>把格子攤平成一列再排序，數連續的 1</li><li>用兩個堆疊做佇列，依序處理每一格</li></ul>
+  <p class="dexp">島就是格子圖上的連通區域，走訪一次標記一座。走鄰居前先檢查出界（〈陣列與字串〉的二維陣列手法）。見〈圖：BFS、DFS 與拓樸排序〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">要列出一組數字<strong>所有可能的排列</strong>。先想到哪一招？</p>
+  <ul class="dopts"><li data-ok>回溯，加 used 陣列</li><li>動態規劃，填一張排列數的表</li><li>堆積，每次拿最小的數排下去</li><li>前綴和，算出每個位置的總和</li></ul>
+  <p class="dexp">「所有」排列就是回溯；答案本身就有 n! 個，沒辦法更快。見〈遞迴與回溯〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">爬 n 階樓梯，每次可以爬 1 或 2 階，問有幾種爬法。這題的特徵與做法是？</p>
+  <ul class="dopts"><li>列出所有爬法再數，用回溯最快</li><li>單調堆疊，記下每一階的高度</li><li data-ok>方法數＋重複子問題：動態規劃</li><li>BFS，找從地面到頂端的最短路徑</li></ul>
+  <p class="dexp">到第 i 階的方法數＝到 i − 1 階的加到 i − 2 階的，跟費氏數列同一個長相。天真遞迴是指數級，存起來就是線性。見〈遞迴與回溯〉的備忘錄與〈動態規劃入門〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">判斷一個只含括號的字串是否正確配對。用什麼？</p>
+  <ul class="dopts"><li>佇列，讀到右括號就跟最早的比</li><li>HashSet，記下出現過的括號</li><li data-ok>堆疊，右括號跟頂端比</li><li>二分搜尋，找對應的另一半</li></ul>
+  <p class="dexp">右括號要配「最近一個還沒配到的左括號」，正好是堆疊頂端。見〈堆疊與佇列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">對每一天的溫度，算出要再等幾天才會更熱。O(n) 的做法是？</p>
+  <ul class="dopts"><li>每一天往後一天一天找</li><li data-ok>單調堆疊放索引</li><li>先排序溫度，再二分搜尋</li><li>回溯，列出每一天之後的所有組合</li></ul>
+  <p class="dexp">每個索引進出堆疊各一次，O(n)；往後找最壞 O(n²)；排序會打亂日期順序。見〈堆疊與佇列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">只拿到鏈結串列的 head，不知道長度，要走一次就找到中間的節點。用什麼？</p>
+  <ul class="dopts"><li>二分搜尋，找中間的位置</li><li>先轉成陣列再取中間的那一格</li><li data-ok>快慢指標</li><li>堆疊，全部推進去再彈出一半</li></ul>
+  <p class="dexp">fast 走到底時 slow 剛好在中點，O(n) 時間、O(1) 額外空間。轉成陣列要 O(n) 額外空間。見〈鏈結串列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">要知道陣列裡有沒有重複的數，平均最快的做法是？</p>
+  <ul class="dopts"><li data-ok>放進 HashSet，add 回傳 false</li><li>兩層迴圈，每兩個數都拿出來比一次</li><li>對每一個數，在陣列裡做二分搜尋</li><li>單調堆疊，彈出時檢查兩數是否相等</li></ul>
+  <p class="dexp">HashSet 平均 O(n)；兩兩比是 O(n²)；先排序再看相鄰是 O(n log n)。見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">要存一堆交易的時間戳記，常常要問「不晚於某時間的最近一筆是哪一筆」。選哪個 Java 類別？</p>
+  <ul class="dopts"><li>HashMap</li><li>ArrayDeque</li><li data-ok>TreeMap</li><li>PriorityQueue</li></ul>
+  <p class="dexp">TreeMap 的鍵有順序，可以找「不超過 x 的最大鍵」，O(log n)。HashMap 不保證順序，找不到「最接近的」。見〈樹與二元搜尋樹〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">要一層一層印出二元樹的節點（同一層印在同一行）。用什麼？</p>
+  <ul class="dopts"><li data-ok>佇列，每層先記大小</li><li>堆疊，每層的節點推進去再彈出</li><li>HashMap，用深度當鍵</li><li>二分搜尋，找每一層的起點</li></ul>
+  <p class="dexp">層序走訪就是樹上的 BFS，用佇列；先記 size，才知道這一層有幾個。見〈樹與二元搜尋樹〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">在<strong>排好序</strong>的一百萬筆資料裡找某個值。最快的做法與複雜度是？</p>
+  <ul class="dopts"><li>從頭一筆一筆找，O(n)</li><li>放進 HashSet 再查，O(1)</li><li>回溯</li><li data-ok>二分搜尋，O(log n)，大約 20 步</li></ul>
+  <p class="dexp">每次砍一半，2²⁰ 約一百萬，20 步內找到。放進 HashSet 光是放就要 O(n)。見〈排序與二分搜尋〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">給一堆時間區間，要把重疊的合併。通常第一步是？</p>
+  <ul class="dopts"><li>放進堆疊</li><li data-ok>依起點排序，再從左到右一個一個合併</li><li>用 HashMap 記每個時間點</li><li>回溯列出所有合併方式</li></ul>
+  <p class="dexp">排好序之後，會重疊的區間一定相鄰，掃一遍就合併完，總共 O(n log n)。見〈排序與二分搜尋〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">要找陣列裡出現次數最多的前 k 個數。常見的組合是？</p>
+  <ul class="dopts"><li>只用堆疊，依次數推進去再彈出</li><li>只用二分搜尋，在排好序的陣列裡找</li><li data-ok>先 HashMap 計數，再用堆積挑前 k 名</li><li>回溯，列出所有大小為 k 的組合</li></ul>
+  <p class="dexp">兩步各用一個工具：計數是〈雜湊表：HashMap 怎麼做到幾乎一步找到〉，挑前 k 名是〈堆積與優先佇列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">做一個 LRU 快取（容量滿了丟掉最久沒用的），get 與 put 都要平均 O(1)。Java 裡最省事的做法是？</p>
+  <ul class="dopts"><li>ArrayList，每次用過就移到最後面</li><li>TreeMap，依使用時間當鍵排序</li><li>PriorityQueue，依使用時間排先後</li><li data-ok>LinkedHashMap（存取順序）</li></ul>
+  <p class="dexp">HashMap 負責 O(1) 找到，雙向串列負責 O(1) 移到最前與刪掉最舊；LinkedHashMap 內部就是這樣。ArrayList 移動是 O(n)。見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉與〈鏈結串列〉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">看 n 就知道要多快</p>
+<h3 class="head">從輸入大小反推可以接受的複雜度</h3>
+<p>〈複雜度：程式跑多快、吃多少記憶體〉用 MIT 講義的假設估算時間：「一秒做十億個基本動作」，講義的原文是「以 1 GHz 單核心機器、每個時脈做一個運算為準」（Time estimate below based on one operation per cycle on a 1 GHz single-core machine）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a> 實際寫程式時，大 O 裡的「一步」通常是好幾個基本動作（讀陣列、比較、加法、呼叫方法），所以下面<strong>保守一點，用一秒 10⁸ 步</strong>來估。這是估算用的假設，不是規則：不同機器、不同語言、不同常數，實際時間差好幾倍都有可能。</p>
+<div class="tablewrap"><table><thead><tr><th>n 的上限大約</th><th>可以接受的複雜度</th><th>估算</th><th>常見對應</th></tr></thead><tbody>
+<tr><td>10 左右</td><td>O(n!)、O(n · n!)</td><td>10! = 3,628,800</td><td>列出所有排列（〈遞迴與回溯〉）</td></tr>
+<tr><td>20 左右</td><td>O(2ⁿ)、O(n · 2ⁿ)</td><td>2²⁰ ≈ 10⁶，乘上 20 ≈ 2 × 10⁷</td><td>列出所有子集</td></tr>
+<tr><td>500 左右</td><td>O(n³)</td><td>500³ ≈ 1.25 × 10⁸</td><td>三層迴圈</td></tr>
+<tr><td>5,000 左右</td><td>O(n²)</td><td>5,000² = 2.5 × 10⁷</td><td>兩層迴圈、二維的動態規劃表</td></tr>
+<tr><td>10⁵ 到 10⁶</td><td>O(n log n)</td><td>10⁶ × 20 = 2 × 10⁷</td><td>排序、堆積、每步二分搜尋</td></tr>
+<tr><td>10⁷ 以上</td><td>O(n) 或 O(log n)</td><td>10⁷ 步約 0.1 秒</td><td>掃一遍、雜湊表、雙指標</td></tr>
+</tbody></table></div>
+<p>用法舉例：題目說 n 最多 10⁵。O(n²) 是 10¹⁰ 步，照一秒 10⁸ 步要 100 秒，就算照一秒 10⁹ 步也要 10 秒，太慢；O(n log n) 約 1.7 × 10⁶ 步，0.02 秒內。所以還沒寫，就知道兩層迴圈不行，要往排序、堆積、雜湊表、雙指標這些方向想。反過來，n 最多 20 時，看到「所有子集」也不用怕 2ⁿ。</p>
+<p class="formula">先看 n：10 左右可以 n!、20 左右可以 2ⁿ、5,000 左右可以 n²、10⁵ 以上要 n log n 以內</p>
+
+<div class="drill">
+  <p class="dq">題目寫 n 最多 10⁵。照一秒約 10⁸ 步估算，下面哪一個複雜度<strong>最慢但還能接受</strong>？</p>
+  <ul class="dopts"><li data-ok>O(n log n)</li><li>O(n²)</li><li>O(n³)</li><li>O(2ⁿ)</li></ul>
+  <p class="dexp">n log n 約 1.7 × 10⁶ 步，很快；n² 是 10¹⁰ 步，要 100 秒左右。所以兩層迴圈不行，n log n 以內才可以。</p>
+</div>
+<div class="drill">
+  <p class="dq">題目寫 n 最多 20，要求列出所有子集。2ⁿ 的寫法可以嗎？</p>
+  <ul class="dopts"><li>不行，2ⁿ 是指數級，一定太慢</li><li data-ok>可以，2²⁰ 約一百萬</li><li>不行，要先想出 O(n) 的做法</li><li>只有 n 小於 10 時才可以</li></ul>
+  <p class="dexp">指數級在 n 很小時完全沒問題；而且答案本身就有 2ⁿ 個子集，不可能更少。重點是看 n 的上限，不是一看到指數就放棄。見〈遞迴與回溯〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">照〈複雜度：程式跑多快、吃多少記憶體〉「一秒十億步」的估算，n = 10⁶ 時 O(n²) 大約要跑多久？</p>
+  <ul class="dopts"><li>約 1 毫秒</li><li>約 1 秒</li><li data-ok>約 17 分鐘</li><li>約 1 年</li></ul>
+  <p class="dexp">n² = 10¹² 步，除以每秒 10⁹ 步是 1,000 秒，約 16.7 分鐘。跟〈複雜度〉那一課的練習同一個算法。</p>
+</div>
+<div class="drill">
+  <p class="dq">題目的 n 最多 5,000，你想到的寫法是兩層迴圈 O(n²)。合理的判斷是？</p>
+  <ul class="dopts"><li data-ok>2,500 萬步左右，可以接受，先寫出來</li><li>一定太慢，必須想到 O(n)</li><li>要先改成遞迴才會快</li><li>n 不重要，只看程式碼長短</li></ul>
+  <p class="dexp">5,000² = 2.5 × 10⁷，照一秒 10⁸ 步不到一秒。估算告訴你什麼時候「夠快就好」，不用硬想更難的解法。</p>
+</div>
+</section>
+
+<section>
+<p class="era">寫完之前，自己先當一次面試官</p>
+<h3 class="head">常見錯誤與自我檢查清單</h3>
+<p>多數翻車不是演算法想錯，而是邊界沒顧到。寫完程式、說「好了」之前，照這張清單看一遍：</p>
+<div class="tablewrap"><table><thead><tr><th>檢查什麼</th><th>要問自己</th><th>常見的寫法</th></tr></thead><tbody>
+<tr><th>空輸入</th><td>陣列長度 0、字串是 <code>""</code>、串列 <code>head</code> 是 <code>null</code>、樹是空的，程式會不會出錯？</td><td>開頭先處理；或確認迴圈條件在長度 0 時一次都不跑</td></tr>
+<tr><th>只有一個元素</th><td>要兩個元素才成立的邏輯（兩兩比、中點、相鄰）還對嗎？</td><td>拿長度 1、2 各跑一次</td></tr>
+<tr><th>重複元素</th><td>有相同的值時，答案還唯一嗎？會不會把同一個元素用兩次？</td><td>Two Sum 先查再放；排序後跳過重複</td></tr>
+<tr><th>負數與 0</th><td>演算法有沒有偷偷假設「都是正數」？</td><td>有負數時滑動視窗改前綴和</td></tr>
+<tr><th>溢位</th><td>加總、相乘、兩數相加取中點，會不會超過 <code>int</code>？</td><td>加總用 <code>long</code>；中點寫 <code>left + (right - left) / 2</code></td></tr>
+<tr><th>索引邊界</th><td>迴圈用 <code>&lt;</code> 還是 <code>&lt;=</code>？<code>i + 1</code>、<code>i - 1</code> 會不會出界？</td><td>拿最後一格手動跑一次</td></tr>
+<tr><th>遞迴</th><td>有沒有終止條件、會不會太深？</td><td>見〈遞迴與回溯〉</td></tr>
+<tr><th>改到輸入</th><td>題目准不准改傳進來的陣列？存答案時有沒有複製？</td><td><code>new ArrayList&lt;&gt;(path)</code></td></tr>
+</tbody></table></div>
+<h4>溢位：Java 不會提醒你</h4>
+<p>Java 語言規格寫 <code>int</code> 的範圍是「-2147483648 到 2147483647（含）」（For int, from -2147483648 to 2147483647, inclusive）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.1" target="_blank" rel="noopener">出處</a>，而且「整數運算子不會以任何方式表示溢位」（The integer operators do not indicate overflow or underflow in any way.）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a>。加法溢位時，結果是數學上的和只留下低位元，「正負號會跟真正的和不一樣」（If overflow occurs, then the sign of the result is not the same as the sign of the mathematical sum of the two operand values.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.2" target="_blank" rel="noopener">出處</a> 想讓溢位直接報錯，可以用 <code>Math.addExact</code>：「回傳兩數的和，如果結果超出 int 就丟出例外」（Returns the sum of its arguments, throwing an exception if the result overflows an int.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class Overflow {
+    public static void main(String[] args) {
+        int max = Integer.MAX_VALUE;
+        System.out.println(max);              // 2147483647
+        System.out.println(max + 1);          // 溢位：不會報錯，直接繞成負數
+
+        int left = 2_000_000_000, right = 2_100_000_000;
+        System.out.println((left + right) / 2);           // 相加先溢位，中點算錯
+        System.out.println(left + (right - left) / 2);    // 先減再加，不會溢位
+
+        int[] big = {1_500_000_000, 1_500_000_000};
+        int sumInt = 0;
+        long sumLong = 0;
+        for (int x : big) {
+            sumInt += x;
+            sumLong += x;
+        }
+        System.out.println(sumInt + " / " + sumLong);     // int 加總錯了，long 才對
+
+        try {
+            Math.addExact(max, 1);                        // 想讓溢位直接報錯
+        } catch (ArithmeticException e) {
+            System.out.println("addExact：" + e.getMessage());
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>2147483647
+-2147483648
+-97483648
+2050000000
+-1294967296 / 3000000000
+addExact：integer overflow</code></pre>
+<p>兩個二十億相加，數學上是正的，印出來卻是負的，程式照樣往下跑。<code>int</code> 大約只到 21 億，交易金額加總、兩個大數相乘、二分搜尋算中點，都是常見的出事地點（中點的寫法〈陣列與字串〉也提過）。</p>
+<p class="formula">寫完先跑：空的、一個、兩個、重複、負數、最大值；加總用 long，中點寫 left + (right − left) / 2</p>
+
+<div class="drill">
+  <p class="dq"><code>System.out.println(Integer.MAX_VALUE + 1);</code> 印出什麼？</p>
+  <ul class="dopts"><li>2147483648</li><li>丟出 ArithmeticException</li><li data-ok>-2147483648</li><li>0</li></ul>
+  <p class="dexp">整數運算子不會表示溢位，結果只留低位元，繞成最小的負數。要報錯得用 Math.addExact。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>left</code> 是二十億、<code>right</code> 是二十一億（都是 <code>int</code>）。<code>(left + right) / 2</code> 的結果是？</p>
+  <ul class="dopts"><li>2050000000</li><li data-ok>一個負數，因為相加時先溢位了</li><li>丟出例外</li><li>編譯錯誤</li></ul>
+  <p class="dexp">兩數相加超過 int 上限先繞成負數，再除以 2 還是負數（實跑是 -97483648）。寫成 left + (right - left) / 2 就是正確的 2050000000。</p>
+</div>
+<div class="drill">
+  <p class="dq">要把十萬筆交易金額（每筆最多十億，<code>int</code>）加總。總和的變數該用什麼型別？</p>
+  <ul class="dopts"><li data-ok>long</li><li>int，因為每一筆都放得進 int</li><li>short</li><li>char</li></ul>
+  <p class="dexp">每一筆放得進 int，不代表加總放得進：兩筆十億多就超過 21 億。long 的上限約 9.2 × 10¹⁸。</p>
+</div>
+<div class="drill">
+  <p class="dq">用快慢指標找串列中點，程式寫完後最需要特別拿來跑的輸入是？</p>
+  <ul class="dopts"><li>一百個節點的普通串列</li><li>節點值全部都不一樣的串列</li><li data-ok>空串列、一個節點、兩個節點</li><li>值已經由小到大排好序的串列</li></ul>
+  <p class="dexp">fast.next.next 這類寫法最容易在很短的串列上出現 NullPointerException。〈鏈結串列〉的清單就是空、一個、兩個、動到頭、動到尾。</p>
+</div>
+<div class="drill">
+  <p class="dq">回溯把答案存成 <code>result.add(path)</code>，最後印出一堆空清單。對照檢查清單，這屬於哪一項？</p>
+  <ul class="dopts"><li>溢位</li><li>空輸入</li><li>索引邊界</li><li data-ok>存答案時沒有複製</li></ul>
+  <p class="dexp">result 存的是同一個 path 的參考值，path 最後被撤銷成空的。要寫 new ArrayList&lt;&gt;(path)。見〈遞迴與回溯〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">用遞迴走一棵可能退化成一條長鏈、有一百萬個節點的樹，最該擔心什麼？</p>
+  <ul class="dopts"><li>加總時的整數溢位</li><li data-ok>遞迴太深，StackOverflowError</li><li>HashMap 碰撞變成 O(n)</li><li>樹裡有重複的值</li></ul>
+  <p class="dexp">遞迴的深度等於樹高，退化成鏈時就是一百萬層，呼叫堆疊放不下。可以改成迴圈或自己用 ArrayDeque 當堆疊。見〈遞迴與回溯〉與〈樹與二元搜尋樹〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式裡需要一個堆疊，下面哪個寫法符合 Java 文件的建議？</p>
+  <ul class="dopts"><li>new Stack&lt;&gt;()</li><li>new Vector&lt;&gt;()</li><li data-ok>Deque 宣告、new ArrayDeque&lt;&gt;()</li><li>new LinkedList&lt;&gt;()，因為可以放 null</li></ul>
+  <p class="dexp">Deque 與 Stack 兩份文件都建議用 Deque 的實作取代 Stack；ArrayDeque 不收 null，正好避開 null 被當成「空了」的混淆。見〈堆疊與佇列〉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">照課序，一週刷一段</p>
+<h3 class="head">四週刷題計畫</h3>
+<p>照本模組的課序排，每週一段、約十題，先易後難。每題先自己做二十到三十分鐘，做不出來再回到那一課複習，隔幾天再重做一次。題目敘述請到題目頁看。</p>
+<div class="tablewrap"><table><thead><tr><th>週</th><th>題號與題名</th><th>回哪一課</th><th>難度</th></tr></thead><tbody>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/two-sum/" target="_blank" rel="noopener">1. Two Sum</a></td><td>〈複雜度：程式跑多快、吃多少記憶體〉〈雜湊表：HashMap 怎麼做到幾乎一步找到〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/contains-duplicate/" target="_blank" rel="noopener">217. Contains Duplicate</a></td><td>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/move-zeroes/" target="_blank" rel="noopener">283. Move Zeroes</a></td><td>〈陣列與字串〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/valid-anagram/" target="_blank" rel="noopener">242. Valid Anagram</a></td><td>〈陣列與字串〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/reverse-linked-list/" target="_blank" rel="noopener">206. Reverse Linked List</a></td><td>〈鏈結串列〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/merge-two-sorted-lists/" target="_blank" rel="noopener">21. Merge Two Sorted Lists</a></td><td>〈鏈結串列〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/linked-list-cycle/" target="_blank" rel="noopener">141. Linked List Cycle</a></td><td>〈鏈結串列〉</td><td>Easy</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/rotate-array/" target="_blank" rel="noopener">189. Rotate Array</a></td><td>〈陣列與字串〉</td><td>Medium</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/group-anagrams/" target="_blank" rel="noopener">49. Group Anagrams</a></td><td>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉</td><td>Medium</td></tr>
+<tr><td>第一週</td><td><a href="https://leetcode.com/problems/longest-consecutive-sequence/" target="_blank" rel="noopener">128. Longest Consecutive Sequence</a></td><td>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/valid-parentheses/" target="_blank" rel="noopener">20. Valid Parentheses</a></td><td>〈堆疊與佇列〉</td><td>Easy</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/binary-search/" target="_blank" rel="noopener">704. Binary Search</a></td><td>〈排序與二分搜尋〉</td><td>Easy</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/search-insert-position/" target="_blank" rel="noopener">35. Search Insert Position</a></td><td>〈排序與二分搜尋〉</td><td>Easy</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/min-stack/" target="_blank" rel="noopener">155. Min Stack</a></td><td>〈堆疊與佇列〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/daily-temperatures/" target="_blank" rel="noopener">739. Daily Temperatures</a></td><td>〈堆疊與佇列〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/subsets/" target="_blank" rel="noopener">78. Subsets</a></td><td>〈遞迴與回溯〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/permutations/" target="_blank" rel="noopener">46. Permutations</a></td><td>〈遞迴與回溯〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/combination-sum/" target="_blank" rel="noopener">39. Combination Sum</a></td><td>〈遞迴與回溯〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/merge-intervals/" target="_blank" rel="noopener">56. Merge Intervals</a></td><td>〈排序與二分搜尋〉</td><td>Medium</td></tr>
+<tr><td>第二週</td><td><a href="https://leetcode.com/problems/search-in-rotated-sorted-array/" target="_blank" rel="noopener">33. Search in Rotated Sorted Array</a></td><td>〈排序與二分搜尋〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/maximum-depth-of-binary-tree/" target="_blank" rel="noopener">104. Maximum Depth of Binary Tree</a></td><td>〈樹與二元搜尋樹〉</td><td>Easy</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/kth-largest-element-in-a-stream/" target="_blank" rel="noopener">703. Kth Largest Element in a Stream</a></td><td>〈堆積與優先佇列〉</td><td>Easy</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" target="_blank" rel="noopener">167. Two Sum II - Input Array Is Sorted</a></td><td>〈雙指標、滑動視窗與前綴和〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/" target="_blank" rel="noopener">3. Longest Substring Without Repeating Characters</a></td><td>〈雙指標、滑動視窗與前綴和〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/subarray-sum-equals-k/" target="_blank" rel="noopener">560. Subarray Sum Equals K</a></td><td>〈雙指標、滑動視窗與前綴和〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/3sum/" target="_blank" rel="noopener">15. 3Sum</a></td><td>〈雙指標、滑動視窗與前綴和〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/binary-tree-level-order-traversal/" target="_blank" rel="noopener">102. Binary Tree Level Order Traversal</a></td><td>〈樹與二元搜尋樹〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/validate-binary-search-tree/" target="_blank" rel="noopener">98. Validate Binary Search Tree</a></td><td>〈樹與二元搜尋樹〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/kth-largest-element-in-an-array/" target="_blank" rel="noopener">215. Kth Largest Element in an Array</a></td><td>〈堆積與優先佇列〉</td><td>Medium</td></tr>
+<tr><td>第三週</td><td><a href="https://leetcode.com/problems/top-k-frequent-elements/" target="_blank" rel="noopener">347. Top K Frequent Elements</a></td><td>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉〈堆積與優先佇列〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/climbing-stairs/" target="_blank" rel="noopener">70. Climbing Stairs</a></td><td>〈動態規劃入門〉</td><td>Easy</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/number-of-islands/" target="_blank" rel="noopener">200. Number of Islands</a></td><td>〈圖：BFS、DFS 與拓樸排序〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/rotting-oranges/" target="_blank" rel="noopener">994. Rotting Oranges</a></td><td>〈圖：BFS、DFS 與拓樸排序〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/course-schedule/" target="_blank" rel="noopener">207. Course Schedule</a></td><td>〈圖：BFS、DFS 與拓樸排序〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/house-robber/" target="_blank" rel="noopener">198. House Robber</a></td><td>〈動態規劃入門〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/coin-change/" target="_blank" rel="noopener">322. Coin Change</a></td><td>〈動態規劃入門〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/longest-increasing-subsequence/" target="_blank" rel="noopener">300. Longest Increasing Subsequence</a></td><td>〈動態規劃入門〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/longest-common-subsequence/" target="_blank" rel="noopener">1143. Longest Common Subsequence</a></td><td>〈動態規劃入門〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/lru-cache/" target="_blank" rel="noopener">146. LRU Cache</a></td><td>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉〈鏈結串列〉</td><td>Medium</td></tr>
+<tr><td>第四週</td><td><a href="https://leetcode.com/problems/merge-k-sorted-lists/" target="_blank" rel="noopener">23. Merge k Sorted Lists</a></td><td>〈鏈結串列〉〈堆積與優先佇列〉</td><td>Hard</td></tr>
+</tbody></table></div>
+<p>第四週的最後兩題是綜合題：一題要同時用到兩課的資料結構。每做完一題，練習用這課的六步把它講一遍，講得出來才算真的會。</p>
+</section>
+
+<section>
+<p class="era">跨課混在一起考</p>
+<h3 class="head">綜合練習</h3>
+<p>前面各段的練習已經混了各課的觀念，下面再加幾題需要同時想到兩課的題目。每題的解析都寫明回哪一課。</p>
+<div class="drill">
+  <p class="dq">兩個<strong>排好序</strong>的鏈結串列要合併成一個排好序的串列，O(1) 額外空間。關鍵手法是？</p>
+  <ul class="dopts"><li>全部倒進陣列，排序後再串回去</li><li data-ok>虛擬頭節點加 tail，接上較小的</li><li>用 HashMap 記下每個值出現幾次</li><li>回溯，試所有接法挑排好序的那一個</li></ul>
+  <p class="dexp">兩邊各一個指標往前比，O(m + n) 時間、O(1) 額外空間；虛擬頭節點讓第一個節點不用特別處理。倒進陣列要額外空間。見〈鏈結串列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">k 個排好序的串列要合併，總共 N 個節點。比「兩兩依序合併」更好的做法是？</p>
+  <ul class="dopts"><li>全部節點放進 HashSet 再取出</li><li>每次掃過 k 個串列的頭找最小的</li><li>用堆疊把每一個串列都反轉</li><li data-ok>k 個頭放進最小堆積</li></ul>
+  <p class="dexp">堆積裡永遠只有 k 個，每次拿出與放回各 O(log k)，總共 O(N log k)。每次掃 k 個頭是 O(N · k)。見〈鏈結串列〉與〈堆積與優先佇列〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個遞迴解法超時，你發現同一組參數被算了很多次。最直接的改法是？</p>
+  <ul class="dopts"><li>改用 Stack 類別，讓呼叫變快</li><li>把遞迴改成兩個執行緒同時跑</li><li>加大 JVM 堆疊，讓遞迴可以更深</li><li data-ok>加備忘錄，算過的存起來</li></ul>
+  <p class="dexp">重複的子問題存起來，每組參數只算一次，天真費氏從指數級降成 O(n) 就是這招。見〈遞迴與回溯〉與〈動態規劃入門〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">面試官問：「你的解法用 HashMap，複雜度是多少？」最完整的回答是？</p>
+  <ul class="dopts"><li>「O(1)，因為 HashMap 是常數時間」</li><li>「O(n)，HashMap 是常數，空間不用講」</li><li data-ok>先講 n，再講平均時間 O(n)、空間 O(n)，並提最壞的前提</li><li>「跟暴力解一樣，都是 O(n²)」</li></ul>
+  <p class="dexp">先講 n、再講時間與空間、說清楚是平均，並提最壞的前提。見〈複雜度：程式跑多快、吃多少記憶體〉與〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">用佇列做 BFS 時，Java 該選哪個類別當佇列？</p>
+  <ul class="dopts"><li data-ok>ArrayDeque，用 offer 與 poll</li><li>Stack，用 push 與 pop</li><li>PriorityQueue</li><li>TreeMap</li></ul>
+  <p class="dexp">ArrayDeque 文件說它當佇列用時可能比 LinkedList 快；Stack 是後進先出，會把 BFS 變成往深處鑽；PriorityQueue 依大小出隊，不是先進先出。見〈堆疊與佇列〉與〈圖：BFS、DFS 與拓樸排序〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">二元搜尋樹依序插入 1、2、3……n，搜尋的時間變成多少？為什麼？</p>
+  <ul class="dopts"><li>O(log n)，二元搜尋樹永遠是 log n</li><li>O(1)</li><li data-ok>O(n)，樹退化成一條鏈，高度等於 n</li><li>O(n²)</li></ul>
+  <p class="dexp">二元搜尋樹的操作是 O(h)，依序插入每個新節點都接在右邊，h = n。要保證 O(log n) 就用平衡樹，例如 TreeMap 的紅黑樹。見〈樹與二元搜尋樹〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">對已排序陣列做二分搜尋，算中點時寫 <code>(lo + hi) / 2</code>。陣列很大時可能出什麼事？</p>
+  <ul class="dopts"><li>沒事，陣列索引不可能大到溢位</li><li data-ok>lo + hi 溢位變負數</li><li>編譯器會自動把它改成 long 計算</li><li>二分搜尋會退化成 O(n)</li></ul>
+  <p class="dexp">兩個大索引相加會溢位。寫成 lo + (hi - lo) / 2 就不會。見這課的溢位一段與〈陣列與字串〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">要在一份很長的交易紀錄裡，找出「總金額剛好是 k 的連續一段」有幾段，金額有正有負（退款是負的）。做法與複雜度是？</p>
+  <ul class="dopts"><li>滑動視窗，左右兩端往右推，O(n)</li><li>兩層迴圈列出每一段，O(n²)，n 大也沒問題</li><li data-ok>前綴和加 HashMap，O(n)</li><li>先排序再用雙指標，O(n log n)</li></ul>
+  <p class="dexp">有負數就不能用滑動視窗；排序會打亂「連續」。前綴和把區間和變成兩個前綴相減，HashMap 一次查到。見〈雙指標、滑動視窗與前綴和〉與〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+</div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>解題六步：問清楚（範圍、邊界、回傳什麼）→ 暴力解與複雜度 → 找瓶頸優化 → 寫程式 → 自己用小例子與邊界跑 → 講複雜度。這是建議做法，跟著面試官的節奏調整。</li><li>認題型：找有沒有、找補數用雜湊表；排好序找兩數用雙指標；連續子陣列用滑動視窗、有負數用前綴和；前 k 個用堆積；最少步數用 BFS；相依順序用拓樸排序；所有組合用回溯；最佳值且子問題重複用動態規劃。</li><li>看 n 反推：照一秒約 10⁸ 步保守估算，10 左右可以 n!、20 左右可以 2ⁿ、5,000 左右可以 n²、10⁵ 以上要 n log n 以內。這是估算，不是規則。</li><li>自我檢查：空輸入、一個元素、重複元素、負數、溢位、索引邊界、遞迴深度、存答案要複製。</li><li>Java 的 <code>int</code> 只到 2147483647，溢位不報錯；加總用 <code>long</code>、中點寫 <code>left + (right - left) / 2</code>、要報錯用 <code>Math.addExact</code>。</li><li>四週計畫照課序刷約四十題，每題做完用六步講一遍。</li></ul></div>
