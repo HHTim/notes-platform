@@ -599,8 +599,7 @@ public class PlainService {
 另開執行緒
     例外：IllegalStateException；transfer_record 1 筆 [另一條執行緒寫的]、audit_log 0 筆
 自己 new 出來的物件
-    例外：IllegalStateException；transfer_record 1 筆 [轉帳 1000]、audit_log 0 筆
-套件可見的交易方法：在交易中（PitfallService.packageVisible）</code></pre>
+    例外：IllegalStateException；transfer_record 1 筆 [轉帳 1000]、audit_log 0 筆</code></pre>
 <p>另開執行緒那個情境最容易看錯：留下的是「另一條執行緒寫的」，主執行緒那筆其實有還原。主執行緒的交易照規矩運作，新執行緒卻完全在交易外。</p>
 <p class="formula">代理攔不到（自我呼叫、private、自己 new）就沒有交易；攔到了但例外被吞、受檢例外、換執行緒，就不會還原</p>
 <p class="muted">面試集〈Spring 面試快答：IoC、Bean、AOP 與交易〉有失效情境的速答版，列法跟這裡不完全相同，可以兩邊對照著看。</p>
@@ -786,7 +785,7 @@ public class Notifier {
 </div>
 <div class="drill">
   <p class="dq">JPA 專案（JpaTransactionManager 預設設定）裡，內層用 <code>Propagation.NESTED</code> 會怎樣？</p>
-  <ul class="dopts"><li>跟 JDBC 一樣設儲存點</li><li>自動改成 REQUIRES_NEW</li><li data-ok>丟出 NestedTransactionNotSupportedException</li><li>自動改成 REQUIRED</li></ul>
+  <ul class="dopts"><li>跟 JDBC 一樣設儲存點</li><li>自動改成 REQUIRES_NEW</li><li data-ok>丟出例外：預設不支援巢狀交易</li><li>自動改成 REQUIRED</li></ul>
   <p class="dexp">JpaTransactionManager 的 nestedTransactionAllowed 預設 false，因為儲存點只管得到 JDBC 連線，管不到 EntityManager 快取的物件。實跑就是這個例外。</p>
 </div>
 </section>
