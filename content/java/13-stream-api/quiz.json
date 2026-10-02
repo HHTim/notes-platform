@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "txs.stream().filter(tx -&gt; tx.amount() &gt; 0).map(Tx::id); 這一行寫完、後面什麼都沒接，filter 裡的條件會被執行幾次？",
+   "opts": [
+    "0 次，沒有終端操作，管線不會執行",
+    "每筆交易各一次",
+    "只執行第一筆",
+    "編譯錯誤，一定要接終端操作"
+   ],
+   "exp": "中間操作一律是惰性的，終端操作執行前不會走訪來源。Java 也不會因為沒有終端操作而編譯錯誤，這種程式碼只是什麼都沒做。"
+  },
+  {
+   "q": "Stream.of(\"a\", \"bb\", \"ccc\").filter(s -&gt; s.length() &gt; 1) .map(String::toUpperCase) .toList() 執行時，處理順序比較接近哪一種？",
+   "opts": [
+    "一筆一筆走完整條管線：a 被擋下，bb 篩過就轉大寫，再輪到 ccc",
+    "先把三筆全部 filter 完，再把通過的全部 map",
+    "先全部 map 成大寫，再 filter",
+    "三筆同時平行處理"
+   ],
+   "exp": "惰性讓篩選與轉換合併成走一次資料，每個元素依序經過 filter、map。流預設是循序的，不會自己平行。"
+  },
+  {
+   "q": "同一個 Stream 物件先呼叫 count()，再呼叫一次 count()，會怎樣？",
+   "opts": [
+    "第二次丟出 IllegalStateException",
+    "兩次都回傳同樣的筆數",
+    "第二次回傳 0",
+    "編譯錯誤"
+   ],
+   "exp": "終端操作執行後，這條管線就被消耗了；JDK 偵測到重複使用會丟 IllegalStateException。要再算一次就重新呼叫 txs.stream()。"
+  },
+  {
+   "q": "用本課的 txs（同一家分行有好幾筆）依分行計算交易筆數，txs.stream() .collect(…) 的括號裡放哪個收集器，能執行成功並得到 Map&lt;String, Long&gt;？",
+   "opts": [
+    "Collectors.groupingBy(Tx::branch, Collectors.counting())",
+    "Collectors.toMap(Tx::branch, tx -&gt; 1L)",
+    "Collectors.partitioningBy(Tx::branch, Collectors.counting())",
+    "Collectors.groupingBy(Tx::branch, Collectors.toList())"
+   ],
+   "exp": "groupingBy 加下游收集器 counting()，結果型別是 Long。兩個參數的 toMap 遇到重複的分行會丟 IllegalStateException；partitioningBy 要的是是非條件，傳 Tx::branch 編不過；下游用 toList() 得到的是 Map&lt;String, List&lt;Tx&gt;&gt;。"
+  },
+  {
+   "q": "用兩個參數的 Collectors.toMap(Tx::branch, Tx::amount) 收集交易，同一家分行有兩筆交易時會怎樣？",
+   "opts": [
+    "丟出 IllegalStateException",
+    "保留後面那一筆的金額",
+    "保留前面那一筆的金額",
+    "自動把兩筆金額加起來"
+   ],
+   "exp": "Collectors.toMap 的文件：取出的鍵重複時，收集時丟 IllegalStateException。要加總就用三個參數的版本，傳 Long::sum 當合併函式。"
+  },
+  {
+   "q": "Collectors.partitioningBy(tx -&gt; tx.amount() &gt; 1_000_000) 套在一份沒有任何大額交易的清單上，結果的 Map 有哪些鍵？",
+   "opts": [
+    "true 與 false 都有，true 對到空清單",
+    "只有 false",
+    "只有 true",
+    "沒有任何鍵"
+   ],
+   "exp": "文件：partitioningBy 回傳的 Map 一定同時有 false 與 true 兩個鍵，沒有元素的那組是空清單。"
+  },
+  {
+   "q": "List&lt;String&gt; ids = txs.stream() .map(Tx::id) .toList(); 之後呼叫 ids.add(\"T9\") 會怎樣？",
+   "opts": [
+    "丟出 UnsupportedOperationException",
+    "成功加入，ids 多一筆",
+    "成功加入，但 txs 也會多一筆",
+    "編譯錯誤"
+   ],
+   "exp": "Stream.toList()（Java 16 起）回傳不可修改的清單。要能修改就用 collect(Collectors.toCollection(ArrayList::new))。"
+  },
+  {
+   "q": "Stream.&lt;Tx&gt;empty() .allMatch(tx -&gt; tx.amount() &gt; 0) 與 Stream.&lt;Tx&gt;empty() .anyMatch(tx -&gt; tx.amount() &gt; 0) 分別回傳什麼？",
+   "opts": [
+    "true 與 false",
+    "false 與 false",
+    "true 與 true",
+    "false 與 true"
+   ],
+   "exp": "空的流：allMatch 回傳 true（沒有元素違反條件），anyMatch 回傳 false（沒有元素符合），兩者都不評估條件。"
+  },
+  {
+   "q": "要算交易金額的平均，下面哪個寫法回傳型別是 OptionalDouble？",
+   "opts": [
+    "txs.stream() .mapToLong(Tx::amount) .average()",
+    "txs.stream() .map(Tx::amount) .average()",
+    "txs.stream() .mapToLong(Tx::amount) .sum() / txs.size()",
+    "txs.stream().count()"
+   ],
+   "exp": "average() 是基本型別流（LongStream）的方法，空的流會得到空的 OptionalDouble。Stream&lt;Long&gt; 沒有 average()；sum 除以筆數是 long 的整數除法，而且清單是空的時候會除以零。"
+  },
+  {
+   "q": "在平行流的 forEach 裡呼叫一般 ArrayList 的 add 收集結果，主要的問題是什麼？",
+   "opts": [
+    "ArrayList 不是執行緒安全的，筆數可能變少，也可能丟出例外",
+    "只是順序會亂，筆數一定正確",
+    "平行流不能呼叫 forEach",
+    "沒有問題，parallelStream 會自動加鎖"
+   ],
+   "exp": "套件說明：行為參數有副作用一般不鼓勵，平行時 ArrayList 不是執行緒安全的，會造成錯誤的結果。把收集交給終端操作，例如 toList()。"
+  }
+ ]
+}
