@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "@SpringBootApplication 等於哪三個註解的組合？",
+   "opts": [
+    "@SpringBootConfiguration、@EnableAutoConfiguration、@ComponentScan",
+    "@Configuration、@EnableWebMvc、@ComponentScan",
+    "@SpringBootConfiguration、@EnableAutoConfiguration、@EnableTransactionManagement，所以 Spring Boot 專案的交易不用另外打開",
+    "@Component、@Bean、@Autowired"
+   ],
+   "exp": "官方文件逐一列出這三個；第三個是 @SpringBootConfiguration，它是 @Configuration 的替代品，整合測試能自動找到它。"
+  },
+  {
+   "q": "Spring Boot 3 與 4 從哪裡找出自動組態的候選類別？",
+   "opts": [
+    "jar 裡的 META-INF/spring/​org.​springframework.​boot.​autoconfigure.​AutoConfiguration.​imports 檔",
+    "META-INF/spring.factories 的 EnableAutoConfiguration 鍵，每個起始相依都在這裡登記自己的自動組態類別",
+    "元件掃描所有標了 @AutoConfiguration 的類別",
+    "application.yaml 的 spring.autoconfigure.include"
+   ],
+   "exp": "spring.factories 是 Boot 2 的做法，3.0 遷移指南寫已移除；自動組態也不能被元件掃描到，只能透過 imports 檔載入。"
+  },
+  {
+   "q": "函式庫的自動組態在 @Bean 方法上加 @ConditionalOnMissingBean，專案自己又定義了同型別的 Bean。結果是？",
+   "opts": [
+    "用專案自己定義的，自動組態的那個 @Bean 不建立",
+    "兩個都建立，注入時因為有兩個同型別的候選而報錯，要加 @Primary 指定用哪一個",
+    "用自動組態的，專案定義的被忽略",
+    "啟動失敗"
+   ],
+   "exp": "@ConditionalOnMissingBean 讓使用者可以覆寫預設值；條件報告會在 Negative matches 寫 found beans of type ……。"
+  },
+  {
+   "q": "想知道某個自動組態為什麼沒生效，最直接的做法是？",
+   "opts": [
+    "用 --debug 啟動，看條件報告的 Negative matches，每一條都寫了是哪個條件不通過",
+    "看 pom.xml 有沒有那個相依",
+    "把所有自動組態都 exclude，再一個一個加回來，看加到哪一個時那個 Bean 出現，就知道是哪個組態負責",
+    "看 /actuator/health"
+   ],
+   "exp": "--debug 會印出 CONDITIONS EVALUATION REPORT；應用程式已經在跑時可以改用 conditions 端點。"
+  },
+  {
+   "q": "同一個鍵在 application.yaml、application-uat.yaml（uat 已啟用）、作業系統環境變數、命令列參數都有值，最後用哪一個？",
+   "opts": [
+    "命令列參數",
+    "作業系統環境變數，因為它是部署平台給的值，Spring Boot 規定平台設定一定蓋過程式自己帶的參數",
+    "application-uat.yaml",
+    "application.yaml"
+   ],
+   "exp": "後面的來源蓋前面：設定檔 < 環境變數 < Java 系統屬性 < 命令列；profile 版設定檔蓋過基本版。"
+  },
+  {
+   "q": "@ConfigurationProperties(prefix = \"bank.fx\") 的 baseUrl，用作業系統環境變數設定時該寫成？",
+   "opts": [
+    "BANK_FX_BASEURL",
+    "bank.fx.baseUrl",
+    "BANK.FX.BASE-URL，環境變數要保留原本的點與連字號，只是改成大寫",
+    "bankFxBaseUrl"
+   ],
+   "exp": "寬鬆綁定的環境變數寫法：全大寫、點換底線、去掉連字號。"
+  },
+  {
+   "q": "剛加了 Actuator、沒改任何設定，下面哪一句正確？",
+   "opts": [
+    "只有 health 端點透過 HTTP 暴露，而且預設只回總狀態不顯示細節",
+    "所有端點都透過 HTTP 暴露",
+    "health、info、metrics 三個端點都透過 HTTP 暴露，其他需要權限的端點才要另外設定 include",
+    "沒有任何端點暴露，要先設定 include"
+   ],
+   "exp": "官方文件：預設只有 health 透過 HTTP 與 JMX 暴露；show-details 預設是 never。"
+  },
+  {
+   "q": "一個健康指標回 DOWN、其他都 UP，/actuator/health 的 HTTP 回應碼是？",
+   "opts": [
+    "503",
+    "200，因為大部分的健康指標都是 UP，整體狀態取多數決",
+    "500",
+    "404"
+   ],
+   "exp": "整體狀態變成 DOWN；預設 DOWN 與 OUT_OF_SERVICE 對應 503，其他（包括 UP）是 200。"
+  },
+  {
+   "q": "核心帳務系統的健康檢查應該放進哪個探針？",
+   "opts": [
+    "不放存活探針；就緒探針要不要放由開發者權衡，放了它一掛所有實例會同時不收流量",
+    "放進存活探針，失敗時讓 K8s 重啟就好",
+    "兩個都放，越多檢查越安全；核心帳務一掛，K8s 重啟容器就會自動重新連線，問題自然解決",
+    "兩個都不能放，Spring Boot 不允許自訂探針內容"
+   ],
+   "exp": "官方文件：存活探針不應依賴外部系統，否則可能連鎖重啟；就緒探針要不要檢查外部系統必須審慎決定，Spring Boot 預設不加。"
+  },
+  {
+   "q": "Spring Boot 4 與 3 在 K8s 探針上的差別是？",
+   "opts": [
+    "Boot 4 起存活與就緒探針預設啟用；Boot 3 只有在 K8s 環境執行時才自動啟用",
+    "Boot 4 移除了探針，改用 Micrometer",
+    "Boot 3 預設啟用，Boot 4 為了安全改成要手動設定 probes.enabled=true 才打開",
+    "沒有差別"
+   ],
+   "exp": "Boot 4.0 遷移指南：probes are now enabled by default；Boot 3.5 文件：只有在 Kubernetes 環境執行時才自動啟用。"
+  }
+ ]
+}

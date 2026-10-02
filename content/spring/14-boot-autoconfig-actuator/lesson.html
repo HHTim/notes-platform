@@ -1,0 +1,768 @@
+<!-- 來源：依 https://docs.spring.io/spring-boot/reference/ 新寫（Spring Boot 4.1.1 參考文件：using/auto-configuration、using/using-the-springbootapplication-annotation、features/developing-auto-configuration、features/external-config、features/profiles、actuator/endpoints、actuator/metrics；Spring Boot 4.0 與 3.0 遷移指南 https://github.com/spring-projects/spring-boot/wiki ；範例程式全部自編，以 Spring Boot 4.1.1、Java 21 實際執行，條件報告與 Actuator 回應都是實跑結果的節錄） · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>拆開 @SpringBootApplication，說明自動組態怎麼從 AutoConfiguration.imports 找候選、靠 @Conditional 家族決定生效，並自己寫一個會「退開」的自動組態</li><li>用 --debug 的條件報告與 /actuator/conditions 查出某個組態為什麼生效或沒生效</li><li>說出外部化設定的優先順序（命令列、系統屬性、環境變數、設定檔），用 Profile 切換環境</li><li>決定 Actuator 要暴露哪些端點，把健康檢查接到 K8s 的存活與就緒探針，並用 Micrometer 加一個自訂指標</li></ul></div>
+
+<section>
+<p class="era">一個註解，三件事</p>
+<h3 class="head">自動組態是什麼</h3>
+<p>〈Spring 入門與 IoC、DI〉講過三種設定 Bean 的方式：元件掃描、Java 組態、XML。用 Spring Boot 時，你沒有寫任何組態，Web 伺服器、JSON 轉換器、連線池卻都準備好了，這就是<strong>自動組態</strong>（auto-configuration）。Spring Boot 參考文件的定義：自動組態「依照你加進來的 jar 相依，嘗試自動設定你的 Spring 應用程式」，例如「classpath 上有 HSQLDB，而你沒有手動設定任何資料庫連線的 Bean，Spring Boot 就自動組態一個記憶體內的資料庫」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a> classpath（類別路徑）就是 JVM 找類別的地方，你在 pom.xml 加的相依都會出現在這裡。</p>
+<p>它是靠啟動類別上那個註解打開的。參考文件：「單一個 <code>@SpringBootApplication</code> 註解可以用來啟用這三項功能」——<code>@EnableAutoConfiguration</code>「啟用 Spring Boot 的自動組態機制」、<code>@ComponentScan</code>「在應用程式所在的套件上啟用 <code>@Component</code> 掃描」、<code>@SpringBootConfiguration</code>「啟用在內容裡註冊額外 Bean 或匯入額外組態類別」，是「Spring 標準 <code>@Configuration</code> 的替代品，有助於整合測試中的組態偵測」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/using-the-springbootapplication-annotation.html" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="@SpringBootApplication 等於三個註解：@SpringBootConfiguration 讓這個類別可以定義 Bean，@EnableAutoConfiguration 打開自動組態，@ComponentScan 掃描啟動類別所在套件與子套件">
+  <defs><marker id="sb-01-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="250" y="20" width="260" height="50" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="380" y="50" font-size="15" text-anchor="middle">@SpringBootApplication</text>
+  <rect x="20" y="130" width="220" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="130" y="159" font-size="13.5" text-anchor="middle">@SpringBootConfiguration</text>
+  <text x="130" y="177" font-size="11.5" text-anchor="middle" opacity=".75">可以在這裡定義 @Bean</text>
+  <line x1="380" y1="70" x2="130" y2="128" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-01-arrow)"/>
+  <rect x="270" y="130" width="220" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="380" y="159" font-size="13.5" text-anchor="middle">@EnableAutoConfiguration</text>
+  <text x="380" y="177" font-size="11.5" text-anchor="middle" opacity=".75">打開自動組態</text>
+  <line x1="380" y1="70" x2="380" y2="128" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-01-arrow)"/>
+  <rect x="520" y="130" width="220" height="64" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="630" y="159" font-size="13.5" text-anchor="middle">@ComponentScan</text>
+  <text x="630" y="177" font-size="11.5" text-anchor="middle" opacity=".75">掃描啟動類別所在的套件</text>
+  <line x1="380" y1="70" x2="630" y2="128" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-01-arrow)"/>
+</svg>
+<figcaption>@SpringBootApplication 是三個註解的組合。啟動類別放在最外層套件，元件掃描才掃得到所有子套件。</figcaption>
+</figure>
+<pre><code>package com.example.bootdemo;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class BootdemoApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(BootdemoApplication.class, args);
+	}
+
+}</code></pre>
+<p>兩條使用規則：「你只該加一個 <code>@SpringBootApplication</code> 或 <code>@EnableAutoConfiguration</code>」；以及<strong>自動組態是可以被你取代的</strong>：「自動組態是非侵入式的。任何時候你都可以開始定義自己的組態，取代自動組態的特定部分。例如加了自己的 <code>DataSource</code> Bean，預設的內嵌資料庫支援就會退開（backs away）。」<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">本課範例用 Spring Boot 4.1.1（撰寫時的最新穩定版，內含 Spring Framework 7.0）、Java 21 實際執行。跟 Boot 3 有差的地方會標出來，最明顯的是 Boot 4 把程式拆成很多小模組，起始相依改名（例如 Web 改叫 <code>spring-boot-starter-webmvc</code>），套件名稱也改成 <code>org.springframework.boot.&lt;模組&gt;</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq"><code>@SpringBootApplication</code> 包含哪三個註解？</p>
+  <ul class="dopts"><li>@Configuration、@EnableWebMvc、@ComponentScan</li><li data-ok>@SpringBootConfiguration、@EnableAutoConfiguration、@ComponentScan</li><li>@SpringBootConfiguration、@EnableAutoConfiguration、@EnableTransactionManagement</li><li>@Component、@Bean、@Autowired</li></ul>
+  <p class="dexp">參考文件逐一列出這三個。第三個常被說成 @Configuration，正確是 @SpringBootConfiguration，它是 @Configuration 的替代品，多出來的好處是整合測試能自動找到它。</p>
+</div>
+<div class="drill">
+  <p class="dq">啟動類別在 <code>com.bank.app</code>，有一個 <code>@Service</code> 放在 <code>com.bank.shared</code>。這個 Service 會被掃描到嗎？</p>
+  <ul class="dopts"><li data-ok>不會，@ComponentScan 預設掃的是啟動類別所在的套件與它的子套件</li><li>會，元件掃描整個 classpath</li><li>會，只要加了 @Service</li><li>會，Spring Boot 會掃描整個 com.bank 開頭的所有套件，只是要等第一次被注入時才建立</li></ul>
+  <p class="dexp">參考文件：@ComponentScan「在應用程式所在的套件上」啟用掃描。com.bank.shared 不是 com.bank.app 的子套件，要嘛搬家，要嘛自己指定掃描範圍。</p>
+</div>
+<div class="drill">
+  <p class="dq">classpath 上有 H2，你又自己定義了一個連到 MySQL 的 <code>DataSource</code> Bean。結果是？</p>
+  <ul class="dopts"><li>兩個都建立，啟動時報錯說有兩個 DataSource，要再加 @Primary 指定用哪一個才能啟動</li><li>用自動組態的 H2，你的被忽略</li><li data-ok>用你定義的；自動組態看到你已經有 DataSource，就退開</li><li>隨機挑一個</li></ul>
+  <p class="dexp">參考文件：自動組態是非侵入式的，加了自己的 DataSource Bean，預設的內嵌資料庫支援就會退開。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個專案裡，<code>@SpringBootApplication</code> 或 <code>@EnableAutoConfiguration</code> 應該出現幾次？</p>
+  <ul class="dopts"><li data-ok>只有一個，加在主要的組態類別上</li><li>每個 @Configuration 類別都加一次</li><li>每個模組加一次</li><li>不限，多加也無妨</li></ul>
+  <p class="dexp">參考文件：You should only ever add one @SpringBootApplication or @EnableAutoConfiguration annotation。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 Spring Boot 3 升到 4，下面哪一個是 Boot 4 才有的變化？</p>
+  <ul class="dopts"><li>自動組態改用 AutoConfiguration.imports 檔，不再讀 spring.factories 的 EnableAutoConfiguration 鍵</li><li>javax 套件改成 jakarta</li><li>最低需要 Java 17</li><li data-ok>拆成多個小模組，例如 Web 的起始相依改名為 spring-boot-starter-webmvc</li></ul>
+  <p class="dexp">imports 檔、jakarta、Java 17 都是 Boot 3.0 就有的變化。Boot 4 的遷移指南把 spring-boot-starter-web 列為由 spring-boot-starter-webmvc 取代。</p>
+</div>
+</section>
+
+<section>
+<p class="era">候選名單，加上一關一關的條件</p>
+<h3 class="head">自動組態的機制：imports 檔與 @Conditional 家族</h3>
+<p><strong>候選從哪來。</strong>參考文件：「Spring Boot 會檢查你發布的 jar 裡有沒有 <code>META-INF/<wbr>spring/<wbr>org.<wbr>springframework.<wbr>boot.<wbr>autoconfigure.<wbr>AutoConfiguration.<wbr>imports</code> 檔」，檔案裡「一行一個組態類別的名稱」。而且自動組態「只能透過被列在 imports 檔裡載入」，要放在專屬的套件，「絕不能成為元件掃描的目標」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" target="_blank" rel="noopener">出處</a> Spring Boot 2 時代是寫在 <code>spring.factories</code> 的 <code>EnableAutoConfiguration</code> 鍵底下，3.0 遷移指南寫這個方式「已被移除，改用 imports 檔」。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide" target="_blank" rel="noopener">出處</a></p>
+<p><strong>要不要生效看條件。</strong>參考文件：「你幾乎一定會在自動組態類別上加一個以上的 <code>@Conditional</code> 註解」。常用的幾個：<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>條件</th><th>白話</th><th>常見用途</th></tr></thead><tbody>
+<tr><th><code>@ConditionalOnClass</code>／<code>OnMissingClass</code></th><td>classpath 上有（沒有）某個類別</td><td>加了某個函式庫才設定它</td></tr>
+<tr><th><code>@ConditionalOnBean</code>／<code>OnMissingBean</code></th><td>容器裡有（沒有）某種 Bean</td><td>使用者沒自己定義，才給預設的</td></tr>
+<tr><th><code>@ConditionalOnProperty</code></th><td>某個設定值存在、等於某個值</td><td>用開關打開或關閉功能</td></tr>
+<tr><th><code>@ConditionalOnWebApplication</code>／<code>OnNotWebApplication</code></th><td>是不是 Web 應用程式</td><td>只在 Web 環境設定 DispatcherServlet</td></tr>
+</tbody></table></div>
+<p>幾個細節：<code>@ConditionalOnProperty</code> 預設「任何存在、而且不等於 false 的值都算符合」，可以用 <code>havingValue</code> 與 <code>matchIfMissing</code> 做更細的判斷；<code>@ConditionalOnMissingBean</code> 是「讓開發者在不滿意你的預設值時可以覆寫」的常見做法；而因為 Bean 條件是依「到目前為止處理過的 Bean 定義」判斷的，官方建議 <code>@ConditionalOnBean</code> 與 <code>@ConditionalOnMissingBean</code> 只用在自動組態類別上，因為自動組態「保證在所有使用者定義的 Bean 都加進來之後才載入」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="自動組態怎麼決定要不要生效：Spring Boot 讀 jar 裡 AutoConfiguration.imports 檔列出的候選類別，每個候選依序檢查條件：classpath 上有沒有某個類別、設定值是不是開著、容器裡是不是還沒有同型別的 Bean；全部通過才註冊 Bean，你自己定義了同型別的 Bean，自動組態就退開">
+  <defs><marker id="sb-02-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="30" width="180" height="74" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="110" y="64" font-size="13" text-anchor="middle">AutoConfiguration</text>
+  <text x="110" y="82" font-size="11.5" text-anchor="middle" opacity=".75">.imports 檔：候選名單</text>
+  <rect x="250" y="20" width="250" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="375" y="52" font-size="13" text-anchor="middle">@ConditionalOnClass</text>
+  <text x="375" y="70" font-size="11.5" text-anchor="middle" opacity=".75">classpath 有這個類別？</text>
+  <line x1="375" y1="90" x2="375" y2="110" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-02-arrow)"/>
+  <rect x="250" y="112" width="250" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="375" y="144" font-size="13" text-anchor="middle">@ConditionalOnProperty</text>
+  <text x="375" y="162" font-size="11.5" text-anchor="middle" opacity=".75">設定值開著？</text>
+  <line x1="375" y1="182" x2="375" y2="202" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-02-arrow)"/>
+  <rect x="250" y="204" width="250" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="375" y="236" font-size="13" text-anchor="middle">@ConditionalOnMissingBean</text>
+  <text x="375" y="254" font-size="11.5" text-anchor="middle" opacity=".75">你還沒定義同型別的 Bean？</text>
+  <line x1="200" y1="67" x2="248" y2="55" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-02-arrow)"/>
+  <rect x="560" y="200" width="180" height="70" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="650" y="232" font-size="14" text-anchor="middle">註冊 Bean</text>
+  <text x="650" y="250" font-size="11.5" text-anchor="middle" opacity=".75">自動組態生效</text>
+  <line x1="500" y1="239" x2="558" y2="236" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-02-arrow)"/>
+  <text x="520" y="40" font-size="12.5" fill="var(--danger)">任何一關不通過：</text>
+  <text x="520" y="60" font-size="12.5" fill="var(--danger)">這個自動組態整個（或那個 @Bean）跳過，</text>
+  <text x="520" y="80" font-size="12.5" fill="var(--danger)">--debug 的報告寫在 Negative matches</text>
+</svg>
+<figcaption>每個候選的自動組態都要過條件這幾關，全部通過才註冊 Bean。最後一關「你還沒定義同型別的 Bean」就是自動組態會退開的原因。</figcaption>
+</figure>
+<p><strong>自己寫一個看看。</strong>假設行內有一個「匯率查詢」函式庫，希望別的專案加了相依就自動有一個 <code>FxRateClient</code> 可以注入，但專案可以自己覆寫、也可以用設定關掉：</p>
+<pre><code>package com.example.fxstarter;
+
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+
+@AutoConfiguration
+@ConditionalOnClass(FxRateClient.class)                     // classpath 上有這個類別才考慮
+@ConditionalOnProperty(prefix = "bank.fx", name = "enabled",
+        havingValue = "true", matchIfMissing = true)        // bank.fx.enabled=false 就整個關掉
+@EnableConfigurationProperties(FxProperties.class)
+public class FxAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean                              // 使用者自己定義了，就退開
+    public FxRateClient fxRateClient(FxProperties properties) {
+        return new FxRateClient(properties.baseUrl());
+    }
+}</code></pre>
+<pre><code># src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+com.example.fxstarter.FxAutoConfiguration</code></pre>
+<p>這個類別放在 <code>com.example.fxstarter</code>，不在啟動類別的套件底下，元件掃描掃不到它，只靠 imports 檔載入，符合官方的要求。應用程式這邊另外寫一個只有 <code>custom</code> Profile 才生效的組態，自己定義 <code>FxRateClient</code>：</p>
+<pre><code>package com.example.bootdemo;
+
+import com.example.fxstarter.FxRateClient;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+
+@Configuration
+@Profile("custom")                                          // 只有 custom 這個 Profile 啟用時才生效
+public class CustomFxConfig {
+    @Bean
+    public FxRateClient fxRateClient() {
+        return new FxRateClient("https://fx.internal.bank");
+    }
+}</code></pre>
+<p>啟動時印出拿到的 <code>FxRateClient</code>（印出的程式在下一段），三種啟動方式：</p>
+<pre><code>$ java -jar bootdemo.jar --spring.profiles.active=custom
+啟用的 Profile：[custom]
+bank.greeting = 來自 application.yaml
+FxRateClient：FxRateClient(https://fx.internal.bank)
+
+$ java -jar bootdemo.jar --bank.fx.enabled=false
+啟用的 Profile：[]
+bank.greeting = 來自 application.yaml
+FxRateClient：沒有這個 Bean
+
+$ BANK_FX_BASEURL=https://fx.uat.bank java -jar bootdemo.jar
+啟用的 Profile：[]
+bank.greeting = 來自 application.yaml
+FxRateClient：FxRateClient(https://fx.uat.bank)</code></pre>
+<p>自己定義了，自動組態就退開，用的是自己的；<code>bank.fx.enabled=false</code> 時整個自動組態不生效；設定值可以從環境變數來，<code>BANK_FX_BASEURL</code> 綁到 <code>bank.fx.base-url</code>，這是下一段要講的寬鬆綁定。</p>
+
+<div class="drill">
+  <p class="dq">Spring Boot 3 與 4 從哪裡找出所有自動組態的候選？</p>
+  <ul class="dopts"><li data-ok>jar 裡的 META-INF/spring/​org.​springframework.​boot.​autoconfigure.​AutoConfiguration.​imports 檔</li><li>元件掃描所有標了 @AutoConfiguration 的類別</li><li>META-INF/spring.factories 的 EnableAutoConfiguration 鍵，每個起始相依都在裡面登記自己的自動組態類別，啟動時一次讀進來</li><li>application.properties 的 spring.autoconfigure.include</li></ul>
+  <p class="dexp">spring.factories 是 Boot 2 的做法，3.0 已移除這個用途。自動組態也不能靠元件掃描找到，參考文件要求只能透過 imports 檔載入。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼自動組態類別要放在專屬套件、不能被元件掃描到？</p>
+  <ul class="dopts"><li>因為元件掃描比較慢</li><li data-ok>因為參考文件規定自動組態只能透過 imports 檔載入；被掃到就會被當成一般組態，失去排序與條件判斷的時機</li><li>因為 @AutoConfiguration 不能和 @Component 一起用，同時被掃描到時會在啟動時直接報錯，整個應用程式起不來</li><li>沒有理由，只是命名習慣</li></ul>
+  <p class="dexp">官方原文：Auto-configurations must be loaded only by being named in the imports file……they are never the target of component scanning。被當成一般組態載入時，@ConditionalOnMissingBean 這類條件可能在使用者的 Bean 還沒登記前就判斷，結果就不對了。</p>
+</div>
+<div class="drill">
+  <p class="dq">函式庫的自動組態在 <code>@Bean</code> 方法上加 <code>@ConditionalOnMissingBean</code>，主要是為了什麼？</p>
+  <ul class="dopts"><li>讓那個 Bean 變成單例</li><li>讓那個 Bean 延後建立</li><li>確保 classpath 上有那個類別，沒有的話這個 @Bean 方法就不會被呼叫，也不會因為找不到類別而啟動失敗</li><li data-ok>使用者自己定義了同型別的 Bean 時，自動組態就不再建立，讓使用者能覆寫預設值</li></ul>
+  <p class="dexp">參考文件：@ConditionalOnMissingBean 常用來 allow developers to override auto-configuration。實跑 custom Profile 時拿到的就是自己定義的那一個。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>FxAutoConfiguration</code> 的 <code>@ConditionalOnProperty</code> 寫了 <code>havingValue = "true", matchIfMissing = true</code>。<strong>完全沒有設定</strong> <code>bank.fx.enabled</code> 時，結果是？</p>
+  <ul class="dopts"><li data-ok>符合，自動組態生效</li><li>不符合，因為找不到這個設定</li><li>啟動失敗，要求一定要設定</li><li>看環境變數決定</li></ul>
+  <p class="dexp">matchIfMissing = true 表示沒設定時當作符合，所以預設就打開；第一次執行的結果就是有 FxRateClient。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個自動組態，設定 <code>bank.fx.enabled=yes</code> 啟動，會有 <code>FxRateClient</code> 嗎？</p>
+  <ul class="dopts"><li data-ok>沒有，havingValue 指定要等於 "true"，yes 不符合</li><li>有，yes 也是真的意思</li><li>有，@ConditionalOnProperty 預設任何存在、不等於 false 的值都算符合</li><li>啟動失敗，yes 不是合法的布林值</li></ul>
+  <p class="dexp">「任何不是 false 的值都符合」是沒寫 havingValue 時的預設；這裡指定了 havingValue = "true"，實跑 yes 時印出「沒有這個 Bean」。</p>
+</div>
+<div class="drill">
+  <p class="dq">啟用 <code>custom</code> Profile（自己定義了 FxRateClient），同時設定 <code>bank.fx.enabled=false</code>，會拿到哪一個？</p>
+  <ul class="dopts"><li>沒有任何 FxRateClient</li><li data-ok>自己定義的那個（https://fx.internal.bank）</li><li>自動組態的那個（https://fx.example.com）</li><li>兩個都有：自己定義的跟自動組態的各一個，注入時因為有兩個候選而報錯</li></ul>
+  <p class="dexp">bank.fx.enabled 只關掉自動組態；CustomFxConfig 是你自己的組態，不看這個開關。實跑印出 https://fx.internal.bank。</p>
+</div>
+<div class="drill">
+  <p class="dq">某個自動組態只在專案是 Web 應用程式時才該生效，用哪個條件？</p>
+  <ul class="dopts"><li>@ConditionalOnBean</li><li>@ConditionalOnProperty</li><li data-ok>@ConditionalOnWebApplication</li><li>@Profile("web")，再用 spring.profiles.active=web 在 Web 專案裡打開</li></ul>
+  <p class="dexp">@ConditionalOnWebApplication 判斷是不是 Web 應用程式。條件報告裡 DispatcherServletAutoConfiguration 沒生效的原因就是 not a servlet web application。</p>
+</div>
+<div class="drill">
+  <p class="dq">官方為什麼建議 <code>@ConditionalOnMissingBean</code> 只用在自動組態類別上，不要用在自己的一般組態？</p>
+  <ul class="dopts"><li>因為一般組態不支援條件註解</li><li>因為它很慢</li><li>因為它只能判斷介面，一般組態裡的 @Bean 常常回傳實作類別，判斷會失準</li><li data-ok>因為它依「到目前為止處理過的 Bean 定義」判斷，只有自動組態保證在使用者的 Bean 都登記完才載入</li></ul>
+  <p class="dexp">參考文件：these conditions are evaluated based on what has been processed so far……auto-configuration classes are guaranteed to load after any user-defined bean definitions have been added。</p>
+</div>
+<div class="drill">
+  <p class="dq">函式庫的 <code>@Bean</code> 方法回傳型別是 <code>FxRateClient</code>，加了 <code>@ConditionalOnMissingBean</code> 但沒寫 value。它判斷的是哪種 Bean 不存在？</p>
+  <ul class="dopts"><li data-ok>FxRateClient 型別的 Bean 不存在，預設看方法的回傳型別</li><li>任何 Bean 都不存在</li><li>同名的 Bean 不存在，也就是名叫 fxRateClient 的 Bean，不管它是什麼型別</li><li>同一個套件的 Bean 不存在</li></ul>
+  <p class="dexp">參考文件：When placed on a @Bean method, the target type defaults to the return type of the method。條件報告裡也寫 types: com.example.fxstarter.FxRateClient。</p>
+</div>
+</section>
+
+<section>
+<p class="era">到底哪些組態生效了</p>
+<h3 class="head">看條件報告：--debug 與 /actuator/conditions</h3>
+<p>參考文件：「如果要知道目前套用了哪些自動組態、為什麼，用 <code>--debug</code> 參數啟動應用程式。這會打開一些核心記錄器的除錯日誌，並在主控台印出條件報告」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a> 報告分四段：Positive matches（生效的）、Negative matches（沒生效的，附原因）、Exclusions（被排除的）、Unconditional classes（沒有條件、一定載入的）。實跑節錄（這次啟動時把 <code>spring.main.web-application-type</code> 設成 none，不開 Web 伺服器）：</p>
+<pre><code>============================
+CONDITIONS EVALUATION REPORT
+============================
+
+
+（中略）
+   FxAutoConfiguration matched:
+      - @ConditionalOnClass found required class 'com.example.fxstarter.FxRateClient' (OnClassCondition)
+      - @ConditionalOnProperty (bank.fx.enabled=true) matched (OnPropertyCondition)
+
+   FxAutoConfiguration#fxRateClient matched:
+      - @ConditionalOnMissingBean (types: com.example.fxstarter.FxRateClient; SearchStrategy: all) did not find any beans (OnBeanCondition)
+
+（中略）
+Negative matches:
+-----------------
+
+（中略）
+   DispatcherServletAutoConfiguration:
+      Did not match:
+         - not a servlet web application (OnWebApplicationCondition)
+      Matched:
+         - @ConditionalOnClass found required class 'org.springframework.web.servlet.DispatcherServlet' (OnClassCondition)
+（中略）
+Exclusions:
+-----------
+
+    None</code></pre>
+<p>每一行都寫了是哪個條件、找到什麼。換兩種啟動方式，同一個自動組態就跑到 Negative matches，原因寫得清清楚楚：</p>
+<pre><code># --spring.profiles.active=custom（自己定義了 FxRateClient）
+Negative matches:
+   FxAutoConfiguration#fxRateClient:
+      Did not match:
+         - @ConditionalOnMissingBean (types: com.example.fxstarter.FxRateClient; SearchStrategy: all) found beans of type 'com.example.fxstarter.FxRateClient' fxRateClient (OnBeanCondition)
+
+# --bank.fx.enabled=false
+Negative matches:
+   FxAutoConfiguration:
+      Did not match:
+         - @ConditionalOnProperty (bank.fx.enabled=true) found different value in property 'enabled' (OnPropertyCondition)
+      Matched:
+         - @ConditionalOnClass found required class 'com.example.fxstarter.FxRateClient' (OnClassCondition)</code></pre>
+<p>不想要某個自動組態，可以用 <code>@SpringBootApplication(exclude = …)</code>，類別不在 classpath 上時改用 <code>excludeName</code> 寫完整類別名，或用設定值 <code>spring.autoconfigure.exclude</code>；文件也提醒，自動組態類別裡「唯一算公開 API 的只有類別名稱」，拿來排除用，裡面的巢狀組態與 Bean 方法不要直接用。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a> 應用程式已經在跑、不能重開時，可以把 Actuator 的 <code>conditions</code> 端點打開，用 HTTP 看同一份報告（端點怎麼打開見後面）。</p>
+
+<div class="drill">
+  <p class="dq">想知道為什麼 Spring Boot 幫你設定了（或沒設定）某個 Bean，最直接的方法是？</p>
+  <ul class="dopts"><li>把所有自動組態都排除，再一個一個加回來，看加到哪一個時那個 Bean 出現</li><li data-ok>用 --debug 啟動，看主控台印出的條件報告</li><li>看 pom.xml</li><li>讀 Spring Boot 原始碼</li></ul>
+  <p class="dexp">參考文件推薦的就是 --debug：它會印出條件報告，每個自動組態生效或不生效、是哪個條件決定的都有寫。</p>
+</div>
+<div class="drill">
+  <p class="dq">條件報告裡出現這段，代表什麼？<br><code>FxAutoConfiguration#fxRateClient: Did not match: @ConditionalOnMissingBean ... found beans of type 'FxRateClient'</code></p>
+  <ul class="dopts"><li>classpath 上沒有 FxRateClient</li><li>bank.fx.enabled 是 false</li><li data-ok>容器裡已經有 FxRateClient，自動組態的那個 @Bean 沒建立</li><li>FxAutoConfiguration 整個類別都沒載入，因為 imports 檔裡找不到它的名字</li></ul>
+  <p class="dexp">#fxRateClient 指的是那個 @Bean 方法；找到同型別的 Bean，所以它退開。類別本身是有載入的，Positive matches 裡還有 FxAutoConfiguration matched。</p>
+</div>
+<div class="drill">
+  <p class="dq">條件報告分成哪幾段？</p>
+  <ul class="dopts"><li data-ok>Positive matches、Negative matches、Exclusions、Unconditional classes</li><li>Errors、Warnings、Info</li><li>Beans、Properties、Profiles、Endpoints，分別列出容器裡的 Bean、設定值、啟用的環境與 Actuator 端點</li><li>Loaded、Skipped</li></ul>
+  <p class="dexp">實跑的報告就是這四段：生效的、沒生效的（附原因）、被排除的、沒有條件一定載入的。</p>
+</div>
+<div class="drill">
+  <p class="dq">要關掉某個自動組態，但那個類別根本不在 classpath 上（拿不到 .class），該怎麼寫？</p>
+  <ul class="dopts"><li>@SpringBootApplication(exclude = 那個類別.class)</li><li data-ok>用 excludeName 寫完整類別名，或設定 spring.autoconfigure.exclude</li><li>刪掉 imports 檔</li><li>在那個自動組態類別上加 @Profile("off")，再確保 off 這個 Profile 不會被啟用</li></ul>
+  <p class="dexp">exclude 要能引用到類別；引用不到就用 excludeName 字串，或設定值。參考文件三種都列了。</p>
+</div>
+<div class="drill">
+  <p class="dq">實跑報告裡 <code>DispatcherServletAutoConfiguration</code> 出現在 Negative matches，原因是？</p>
+  <ul class="dopts"><li>classpath 上沒有 DispatcherServlet</li><li>使用者自己定義了 DispatcherServlet，自動組態看到已經有同型別的 Bean，所以整個類別跳過不載入</li><li data-ok>這次啟動把 Web 應用程式類型設成 none，「不是 servlet Web 應用程式」這個條件不通過</li><li>它被 exclude 了</li></ul>
+  <p class="dexp">報告寫 Did not match: not a servlet web application，同時 Matched: found required class DispatcherServlet。類別在，但 Web 條件不通過。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個已經在 UAT 跑著、不能重開的服務，想查它的條件報告，可以用什麼？</p>
+  <ul class="dopts"><li data-ok>打開 Actuator 的 conditions 端點，用 HTTP 讀同一份報告</li><li>只能重開加 --debug，條件報告只在啟動時算一次，跑起來之後就查不到了</li><li>/actuator/health</li><li>看 application.yaml</li></ul>
+  <p class="dexp">conditions 端點提供的就是條件評估結果；它預設不暴露，要用 management.endpoints.web.exposure.include 打開，而且要注意權限。</p>
+</div>
+</section>
+
+<section>
+<p class="era">同一個 jar，到不同環境換不同設定</p>
+<h3 class="head">外部化設定與 Profile</h3>
+<p>同一個 jar 要部署到開發、UAT、正式環境，連線網址、帳號、功能開關都不一樣。Spring Boot 讓設定可以從很多地方來，而且排好了優先順序。參考文件：「後面的屬性來源可以覆寫前面定義的值」，清單由低到高包含：預設屬性、<code>@PropertySource</code>、設定檔（application.properties 這類）、作業系統環境變數、Java 系統屬性……最後是命令列參數；設定檔本身又分四層，由低到高是「jar 內的 application」「jar 內的 application-{profile}」「jar 外的 application」「jar 外的 application-{profile}」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/external-config.html" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 400" role="img" aria-label="外部化設定的優先順序，由上而下越來越低：命令列參數、Java 系統屬性、作業系統環境變數、jar 外的 profile 設定檔、jar 外的設定檔、jar 內的 profile 設定檔、jar 內的設定檔，最底是 @PropertySource 與預設屬性；同一個鍵出現在好幾處時，上面的蓋過下面的">
+  <defs><marker id="sb-03-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="140" y="20" width="330" height="36" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="305" y="43" font-size="13.5" text-anchor="middle">命令列參數</text>
+  <text x="490" y="43" font-size="12.5" class="mono" fill="var(--slate-deep)">--bank.greeting=…</text>
+  <rect x="140" y="64" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="87" font-size="13.5" text-anchor="middle">Java 系統屬性</text>
+  <text x="490" y="87" font-size="12.5" class="mono" fill="var(--slate-deep)">-Dbank.greeting=…</text>
+  <rect x="140" y="108" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="131" font-size="13.5" text-anchor="middle">作業系統環境變數</text>
+  <text x="490" y="131" font-size="12.5" class="mono" fill="var(--slate-deep)">BANK_GREETING=…</text>
+  <rect x="140" y="152" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="175" font-size="13.5" text-anchor="middle">jar 外的 application-{profile}</text>
+  <rect x="140" y="196" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="219" font-size="13.5" text-anchor="middle">jar 外的 application</text>
+  <rect x="140" y="240" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="263" font-size="13.5" text-anchor="middle">jar 內的 application-{profile}</text>
+  <text x="490" y="263" font-size="12.5" class="mono" fill="var(--slate-deep)">application-uat.yaml</text>
+  <rect x="140" y="284" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="307" font-size="13.5" text-anchor="middle">jar 內的 application</text>
+  <text x="490" y="307" font-size="12.5" class="mono" fill="var(--slate-deep)">application.yaml</text>
+  <rect x="140" y="328" width="330" height="36" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="305" y="351" font-size="13.5" text-anchor="middle">@PropertySource、預設屬性</text>
+  <line x1="100" y1="370" x2="100" y2="24" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-03-arrow)"/>
+  <text x="90" y="200" font-size="13" text-anchor="end">越上面</text>
+  <text x="90" y="220" font-size="13" text-anchor="end">越優先</text>
+  <text x="140" y="390" font-size="12" opacity=".75">節錄常用的幾層；完整清單（含 SPRING_APPLICATION_JSON、測試用屬性等）見官方文件</text>
+</svg>
+<figcaption>常用的幾層，越上面越優先。同一個鍵在好幾處都有值時，上面那一層贏。</figcaption>
+</figure>
+<p>用一個 <code>bank.greeting</code> 實際試：<code>application.yaml</code> 與 <code>application-uat.yaml</code> 各給一個值，再從環境變數、命令列蓋過去。印出的程式：</p>
+<pre><code>@Component
+public class Startup implements ApplicationRunner {
+    private final ObjectProvider&lt;FxRateClient&gt; fx;
+    private final Environment env;
+    private final String greeting;
+
+    public Startup(ObjectProvider&lt;FxRateClient&gt; fx, Environment env, @Value("${bank.greeting}") String greeting) {
+        this.fx = fx; this.env = env; this.greeting = greeting;
+    }
+
+    @Override
+    public void run(ApplicationArguments args) {
+        System.out.println("啟用的 Profile：" + Arrays.toString(env.getActiveProfiles()));
+        System.out.println("bank.greeting = " + greeting);
+        FxRateClient client = fx.getIfAvailable();
+        System.out.println("FxRateClient：" + (client == null ? "沒有這個 Bean" : client.describe()));
+    }
+}</code></pre>
+<pre><code>$ java -jar bootdemo.jar
+啟用的 Profile：[]
+bank.greeting = 來自 application.yaml
+FxRateClient：FxRateClient(https://fx.example.com)
+
+$ java -jar bootdemo.jar --spring.profiles.active=uat
+啟用的 Profile：[uat]
+bank.greeting = 來自 application-uat.yaml
+FxRateClient：FxRateClient(https://fx.example.com)
+
+$ BANK_GREETING=來自環境變數 java -jar bootdemo.jar --spring.profiles.active=uat
+啟用的 Profile：[uat]
+bank.greeting = 來自環境變數
+FxRateClient：FxRateClient(https://fx.example.com)
+
+$ BANK_GREETING=來自環境變數 java -jar bootdemo.jar --spring.profiles.active=uat --bank.greeting=來自命令列
+啟用的 Profile：[uat]
+bank.greeting = 來自命令列
+FxRateClient：FxRateClient(https://fx.example.com)</code></pre>
+<p>四次一路往上蓋：Profile 設定檔蓋過基本設定檔、環境變數蓋過設定檔、命令列蓋過環境變數。Java 系統屬性也試過：同時給環境變數與 <code>-Dbank.greeting=sysprop</code>，結果是 sysprop，系統屬性比環境變數優先，跟文件的順序一致。</p>
+<p><strong>環境變數怎麼對到設定鍵。</strong>大部分作業系統不允許環境變數名稱有點，文件說可以用底線代替，例如 <code>SPRING_CONFIG_NAME</code> 代替 <code>spring.config.name</code>；綁定到 <code>@ConfigurationProperties</code> 時還有「寬鬆綁定」（relaxed binding），例如 <code>my.main-project.person.first-name</code> 用環境變數寫成 <code>MY_MAINPROJECT_PERSON_FIRSTNAME</code>：全大寫、點換成底線、去掉連字號。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/external-config.html" target="_blank" rel="noopener">出處</a> 前一段的 <code>BANK_FX_BASEURL</code> 綁到 <code>bank.fx.base-url</code> 就是這條規則。</p>
+<p><strong>Profile</strong> 是「把應用程式設定的一部分分開，只在某些環境可用」的方法，任何 <code>@Component</code>、<code>@Configuration</code>、<code>@ConfigurationProperties</code> 都可以標 <code>@Profile</code> 限制什麼時候載入，用 <code>spring.profiles.active</code> 指定啟用哪些。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/profiles.html" target="_blank" rel="noopener">出處</a> 啟用之後，<code>application-{profile}.yaml</code> 會被讀進來、蓋過基本設定。<code>spring.profiles.active</code> 本身也是一個設定，可以從命令列或環境變數 <code>SPRING_PROFILES_ACTIVE</code> 給（實跑過，一樣啟用 uat）。</p>
+<p>想知道某個值最後是從哪來的，用 Actuator 的 <code>env</code> 端點；文件也說「env 與 configprops 端點可以用來判斷某個屬性為什麼是這個值」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/external-config.html" target="_blank" rel="noopener">出處</a> 用 uat Profile 加環境變數啟動，查 <code>bank.greeting</code>。env 端點預設會把值遮成 <code>******</code>，要 <code>show-values</code> 設成 never 以外的值才看得到<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a>，這次示範加了 <code>--management.<wbr>endpoint.<wbr>env.<wbr>show-values=always</code>（回應節錄並重新排版）：</p>
+<pre><code>$ curl -i http://127.0.0.1:18091/actuator/env/bank.greeting
+HTTP/1.1 200
+property.source = systemEnvironment
+property.value  = 來自環境變數
+propertySources（由上而下的優先順序）：
+  server.ports
+  commandLineArgs
+  servletConfigInitParams
+  servletContextInitParams
+  systemProperties
+  systemEnvironment  ← 來自環境變數
+  random
+  Config resource 'class path resource [application-uat.yaml]' via location 'optional:classpath:/'  ← 來自 application-uat.yaml
+  Config resource 'class path resource [application.yaml]' via location 'optional:classpath:/'  ← 來自 application.yaml
+  applicationInfo
+  Management Server</code></pre>
+<p>三個來源都有值，列在最上面、優先的 <code>systemEnvironment</code> 贏了。</p>
+<p class="muted">實跑時曾把中文直接寫在 <code>application.properties</code>，讀出來變成亂碼。參考文件在講 <code>spring.config.import</code> 時寫到「properties 檔預設用 ISO-8859-1 字元集匯入」（By default, properties files are imported using the ISO-8859-1 charset）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/external-config.html" target="_blank" rel="noopener">出處</a> 本課範例改用 YAML，中文就正常了；設定值要放中文時，留意檔案格式與字元集。</p>
+
+<div class="drill">
+  <p class="dq">同一個鍵，<code>application.yaml</code>、<code>application-uat.yaml</code>（uat 已啟用）、環境變數都有值，最後用哪一個？</p>
+  <ul class="dopts"><li>application.yaml</li><li>application-uat.yaml</li><li data-ok>環境變數</li><li>啟動失敗，值衝突</li></ul>
+  <p class="dexp">作業系統環境變數比設定檔優先。實跑第三次就是這個情況，印出「來自環境變數」。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，再加上命令列參數 <code>--bank.greeting=來自命令列</code>，用哪一個？</p>
+  <ul class="dopts"><li data-ok>命令列參數</li><li>環境變數，因為它最接近作業系統</li><li>application-uat.yaml</li><li>application.yaml</li></ul>
+  <p class="dexp">命令列參數在一般執行時是最優先的（測試用的屬性另外再上面）。文件也說 command line properties always take precedence over file-based property sources。</p>
+</div>
+<div class="drill">
+  <p class="dq">同時給環境變數 <code>BANK_GREETING=env</code> 與 Java 系統屬性 <code>-Dbank.greeting=sysprop</code>，用哪一個？</p>
+  <ul class="dopts"><li>env，作業系統環境變數是所有來源裡最優先的，連命令列參數都蓋不過</li><li data-ok>sysprop，Java 系統屬性比作業系統環境變數優先</li><li>兩個串在一起</li><li>看哪個先設定</li></ul>
+  <p class="dexp">文件清單中 Java System properties 排在 OS environment variables 後面，後面的蓋前面。實跑印出 sysprop。</p>
+</div>
+<div class="drill">
+  <p class="dq">jar 裡有 <code>application.yaml</code>，部署時在 jar 旁邊再放一個 <code>application.yaml</code>，同一個鍵兩邊都有，用哪個？</p>
+  <ul class="dopts"><li>jar 裡的，因為它是跟程式一起打包、測過的正式設定，jar 外的檔案只能補上 jar 裡沒有的鍵</li><li>啟動失敗</li><li>兩個隨機</li><li data-ok>jar 外的，jar 外的設定檔比 jar 內的優先</li></ul>
+  <p class="dexp">設定檔四層由低到高：jar 內、jar 內 profile、jar 外、jar 外 profile。這讓維運不用重新打包就能改設定。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>@ConfigurationProperties(prefix = "bank.fx")</code> 的 <code>baseUrl</code> 欄位，用環境變數設定時名稱該怎麼寫？</p>
+  <ul class="dopts"><li data-ok>BANK_FX_BASEURL</li><li>bank.fx.baseUrl</li><li>BANK.FX.BASE-URL</li><li>bankFxBaseUrl</li></ul>
+  <p class="dexp">寬鬆綁定的環境變數寫法：全大寫、點換底線、去掉連字號。實跑 BANK_FX_BASEURL=https://fx.uat.bank 時，FxRateClient 拿到的就是這個網址。</p>
+</div>
+<div class="drill">
+  <p class="dq">不改任何檔案、也不改啟動指令，只能設環境變數，要怎麼啟用 uat Profile？</p>
+  <ul class="dopts"><li>做不到，只能用命令列參數</li><li>設 PROFILE=uat</li><li data-ok>設 SPRING_PROFILES_ACTIVE=uat</li><li>設 SPRING_PROFILE=uat，Spring Boot 會把單數的 PROFILE 自動對到 spring.profiles.active</li></ul>
+  <p class="dexp">spring.profiles.active 也是一般的設定，可以從環境變數給，名稱照「點換底線、全大寫」就是 SPRING_PROFILES_ACTIVE。實跑過，啟用的 Profile 是 [uat]。</p>
+</div>
+<div class="drill">
+  <p class="dq">某個 <code>@Configuration</code> 只想在 <code>prod</code> 環境載入，最直接的寫法是？</p>
+  <ul class="dopts"><li>@ConditionalOnClass(Prod.class)</li><li data-ok>在類別上加 @Profile("prod")</li><li>把它移到別的套件</li><li>在 application-prod.yaml 裡寫類別名稱</li></ul>
+  <p class="dexp">參考文件：任何 @Component、@Configuration、@ConfigurationProperties 都可以用 @Profile 限制什麼時候載入。本課的 CustomFxConfig 就是 @Profile("custom")。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個位置（例如 jar 裡）同時有 <code>application.properties</code> 和 <code>application.yaml</code>，同一個鍵兩邊都有值，用哪一個？</p>
+  <ul class="dopts"><li data-ok>application.properties 的</li><li>application.yaml 的，YAML 比較新</li><li>啟動失敗，同一個位置不能有兩種格式</li><li>看檔案的修改時間，比較新的那個贏</li></ul>
+  <p class="dexp">參考文件：If you have configuration files with both .properties and YAML format in the same location, .properties takes precedence。文件也建議整個應用程式只用一種格式。</p>
+</div>
+<div class="drill">
+  <p class="dq">UAT 上某個設定值跟你預期的不一樣，想知道它是從哪個來源來的，用哪個 Actuator 端點？</p>
+  <ul class="dopts"><li>health</li><li>metrics</li><li>conditions</li><li data-ok>env（或 configprops）</li></ul>
+  <p class="dexp">env/某個鍵 會列出每個屬性來源的值，以及最後採用的是哪一個。實跑時顯示 property.source = systemEnvironment。</p>
+</div>
+</section>
+
+<section>
+<p class="era">打開窗口之前，先想清楚誰能看</p>
+<h3 class="head">Actuator 端點與暴露設定</h3>
+<p>Actuator 是 Spring Boot 的「上線用功能」：加了 <code>spring-boot-starter-actuator</code>，就有一組端點（endpoint，提供監控資訊的網址）可以查健康狀態、設定、指標。打開之前要記住兩件事。參考文件：「預設只有 health 端點透過 HTTP 與 JMX 暴露。因為端點可能含有敏感資訊，你應該仔細考慮何時暴露它們」；用 <code>management.<wbr>endpoints.<wbr>web.<wbr>exposure.<wbr>include</code>／<code>exclude</code> 調整，<code>exclude</code> 優先於 <code>include</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
+<p>預設設定啟動，什麼都不改（回應節錄並重新排版）：</p>
+<pre><code>$ curl -i http://127.0.0.1:18091/actuator
+HTTP/1.1 200
+（_links 只有：self、health-path、health）
+
+$ curl -i http://127.0.0.1:18091/actuator/health
+HTTP/1.1 200
+{
+  "groups": [
+    "liveness",
+    "readiness"
+  ],
+  "status": "UP"
+}
+
+$ curl -i http://127.0.0.1:18091/actuator/env
+HTTP/1.1 404
+{
+  "status": 404,
+  "error": "Not Found",
+  "path": "/actuator/env"
+}
+
+$ curl -i http://127.0.0.1:18091/actuator/health/liveness
+HTTP/1.1 200
+{
+  "status": "UP"
+}
+
+$ curl -i http://127.0.0.1:18091/actuator/health/readiness
+HTTP/1.1 200
+{
+  "status": "UP"
+}</code></pre>
+<p>只看得到 health，<code>env</code> 是 404。health 也只回一個總狀態：細節要靠 <code>management.<wbr>endpoint.<wbr>health.<wbr>show-details</code>，它可以是 <code>never</code>、<code>when-authorized</code>、<code>always</code>，「預設值是 never」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 加上這兩個設定再啟動（實務上 <code>always</code> 與 <code>env</code> 只該開在受保護的管理網路，或配合 Spring Security）：</p>
+<pre><code>--management.endpoints.web.exposure.include=health,info,env,conditions,metrics
+--management.endpoint.health.show-details=always
+--management.endpoint.env.show-values=always</code></pre>
+<p>並寫一個自訂的健康指標，檢查核心帳務系統通不通（示範用設定值假裝結果）：</p>
+<pre><code>package com.example.bootdemo;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CoreBankingHealthIndicator implements HealthIndicator {
+    private final boolean up;
+
+    public CoreBankingHealthIndicator(@Value("${bank.core.up:true}") boolean up) { this.up = up; }
+
+    @Override
+    public Health health() {
+        // 實務上這裡會去 ping 核心帳務系統；示範用一個設定值假裝結果
+        return up ? Health.up().withDetail("core", "reachable").build()
+                  : Health.down().withDetail("core", "timeout").build();
+    }
+}</code></pre>
+<pre><code>$ curl -i http://127.0.0.1:18091/actuator
+HTTP/1.1 200
+（_links 有：self、conditions、env-toMatch、env、info、health-path、health、metrics、metrics-requiredMetricName）
+
+$ curl -i http://127.0.0.1:18091/actuator/health
+HTTP/1.1 200
+{
+  "components": {
+    "coreBanking": {
+      "details": {
+        "core": "reachable"
+      },
+      "status": "UP"
+    },
+    "diskSpace": {
+      "details": "（中略）",
+      "status": "UP"
+    },
+    "livenessState": {
+      "status": "UP"
+    },
+    "ping": {
+      "status": "UP"
+    },
+    "readinessState": {
+      "status": "UP"
+    },
+    "ssl": {
+      "details": "（中略）",
+      "status": "UP"
+    }
+  },
+  "groups": [
+    "liveness",
+    "readiness"
+  ],
+  "status": "UP"
+}</code></pre>
+<p>自訂指標出現在 <code>coreBanking</code> 這個名稱底下，參考文件：健康指標的識別名稱是「Bean 名稱去掉 HealthIndicator 字尾」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> Boot 4 的 <code>HealthIndicator</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>health.<wbr>contributor</code> 套件，Boot 3 是 <code>org.<wbr>springframework.<wbr>boot.<wbr>actuate.<wbr>health</code>，升級時要改 import。</p>
+<p>整體狀態怎麼對到 HTTP 回應碼：「預設 OUT_OF_SERVICE 與 DOWN 對應到 503，其他沒對應的狀態，包括 UP，對應到 200」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 把核心帳務設成不通再查：</p>
+<pre><code># bank.core.up=false，只開 show-details
+$ curl -i http://127.0.0.1:18091/actuator/health
+HTTP/1.1 503
+{
+  "components": {
+    "coreBanking": {
+      "details": {
+        "core": "timeout"
+      },
+      "status": "DOWN"
+    },
+    "diskSpace": {
+      "status": "UP"
+    },
+    "livenessState": {
+      "status": "UP"
+    },
+    "ping": {
+      "status": "UP"
+    },
+    "readinessState": {
+      "status": "UP"
+    },
+    "ssl": {
+      "status": "UP"
+    }
+  },
+  "groups": [
+    "liveness",
+    "readiness"
+  ],
+  "status": "DOWN"
+}
+
+$ curl -i http://127.0.0.1:18091/actuator/health/liveness
+HTTP/1.1 200
+{
+  "status": "UP"
+}
+
+$ curl -i http://127.0.0.1:18091/actuator/health/readiness
+HTTP/1.1 200
+{
+  "status": "UP"
+}</code></pre>
+
+<div class="drill">
+  <p class="dq">剛加了 Actuator、什麼設定都沒改，透過 HTTP 能看到哪些端點？</p>
+  <ul class="dopts"><li>全部端點</li><li>health、info、metrics</li><li data-ok>只有 health</li><li>一個都沒有，要先打開</li></ul>
+  <p class="dexp">參考文件：By default, only the health endpoint is exposed over HTTP and JMX。實跑時 /actuator 只列出 health，/actuator/env 是 404。</p>
+</div>
+<div class="drill">
+  <p class="dq">設定 <code>exposure.include=*</code> 同時 <code>exposure.exclude=env</code>，<code>/actuator/env</code> 會怎樣？</p>
+  <ul class="dopts"><li>200，因為 include 寫了 *，所有端點都打開，exclude 只在沒寫 include 時才有作用</li><li data-ok>404，exclude 優先於 include</li><li>啟動失敗，設定衝突</li><li>403</li></ul>
+  <p class="dexp">參考文件：The exclude property takes precedence over the include property。實跑時 env 回 404，其他端點（例如 beans）正常。</p>
+</div>
+<div class="drill">
+  <p class="dq">沒改設定時，<code>/actuator/health</code> 會顯示每個健康指標的細節嗎？</p>
+  <ul class="dopts"><li>會，全部顯示</li><li>只有登入的使用者看得到</li><li data-ok>不會，show-details 預設是 never，只回總狀態</li><li>只顯示失敗的那些健康指標的細節，正常的只回 UP，方便快速找出問題</li></ul>
+  <p class="dexp">預設值是 never。實跑預設設定時，health 只回 status 與 groups。</p>
+</div>
+<div class="drill">
+  <p class="dq">核心帳務的健康指標回 DOWN，其他都 UP。<code>/actuator/health</code> 的 HTTP 回應碼是？</p>
+  <ul class="dopts"><li data-ok>503</li><li>200，因為大部分是 UP</li><li>500</li><li>404</li></ul>
+  <p class="dexp">整體狀態取最嚴重的，變成 DOWN；DOWN 預設對應 503。實跑結果就是 HTTP/1.1 503。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個健康指標的 Bean 叫 <code>coreBankingHealthIndicator</code>，它在 health 回應裡的名稱是？</p>
+  <ul class="dopts"><li>coreBankingHealthIndicator</li><li data-ok>coreBanking</li><li>CoreBanking</li><li>health</li></ul>
+  <p class="dexp">參考文件：the name of the bean without the HealthIndicator suffix。設定健康群組時也要用這個名稱。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼 <code>env</code> 這類端點不該直接對外暴露？</p>
+  <ul class="dopts"><li>因為它會讓應用程式變慢</li><li>因為它會修改設定</li><li data-ok>因為它可能含敏感資訊，例如連線設定與各來源的值</li><li>因為它只能在開發環境用，正式環境的 Spring Boot 會自動停用它，暴露了也拿不到資料</li></ul>
+  <p class="dexp">參考文件：Since Endpoints may contain sensitive information, you should carefully consider when to expose them。本課示範時還把值的遮蔽關掉了，正式環境不能這樣做。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 Spring Boot 3 升到 4，自訂的 <code>HealthIndicator</code> 最可能要改什麼？</p>
+  <ul class="dopts"><li>回傳型別從 Health 改成 boolean，Boot 4 不再支援 withDetail 這類細節，只回傳通或不通</li><li>要改成實作 Runnable</li><li>不用改任何東西</li><li data-ok>import 的套件改成 org.springframework.boot.health.contributor</li></ul>
+  <p class="dexp">Boot 4 模組化後，每個模組有自己的 org.springframework.boot.&lt;模組&gt; 套件；本課範例的 import 就是 org.springframework.boot.health.contributor。</p>
+</div>
+</section>
+
+<section>
+<p class="era">讓 K8s 知道該重啟，還是先別送流量</p>
+<h3 class="head">健康檢查與 K8s 的存活、就緒探針</h3>
+<p>K8s 會定期呼叫兩種探針：<strong>存活探針</strong>（liveness）失敗就重啟容器，<strong>就緒探針</strong>（readiness）失敗就先不把流量送給這個 Pod。各探針的參數與啟動探針怎麼設，見面試集〈容器與部署面試題：映像分層、K8s 部署策略與探針〉。Spring Boot 這邊：Actuator 把應用程式的存活與就緒狀態做成兩個健康指標，「也以健康群組的方式各自暴露成 HTTP 探針：<code>/actuator/health/liveness</code> 與 <code>/actuator/health/readiness</code>」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> Boot 4 起這兩個探針「預設啟用」，health 端點預設就列出 liveness 與 readiness 群組，不需要的話用 <code>management.<wbr>endpoint.<wbr>health.<wbr>probes.<wbr>enabled</code> 關掉。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> Boot 3 時不一樣：3.5 的文件寫這兩個群組「只有在 Kubernetes 環境執行時才自動啟用」（automatically enabled only if the application runs in a Kubernetes environment），其他環境要自己用同一個設定打開。<a class="fixsrc" href="https://docs.spring.io/spring-boot/3.5/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 290" role="img" aria-label="Kubernetes 的 kubelet 定期呼叫兩個探針：/actuator/health/liveness 失敗就重啟容器，所以只放 livenessState，不放外部系統；/actuator/health/readiness 失敗就把 Pod 從 Service 的流量名單拿掉，可以視情況放入核心系統這類檢查">
+  <defs><marker id="sb-04-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="110" width="130" height="60" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="85" y="137" font-size="14" text-anchor="middle">kubelet</text>
+  <text x="85" y="155" font-size="11.5" text-anchor="middle" opacity=".75">定期呼叫</text>
+  <rect x="230" y="30" width="250" height="80" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="355" y="67" font-size="13" text-anchor="middle">/actuator/health/liveness</text>
+  <text x="355" y="85" font-size="11.5" text-anchor="middle" opacity=".75">預設只含 livenessState</text>
+  <rect x="230" y="170" width="250" height="80" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="355" y="207" font-size="13" text-anchor="middle">/actuator/health/readiness</text>
+  <text x="355" y="225" font-size="11.5" text-anchor="middle" opacity=".75">預設只含 readinessState</text>
+  <line x1="150" y1="130" x2="228" y2="75" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-04-arrow)"/>
+  <line x1="150" y1="150" x2="228" y2="205" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-04-arrow)"/>
+  <rect x="540" y="30" width="200" height="80" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="640" y="67" font-size="13.5" text-anchor="middle">失敗：重啟容器</text>
+  <text x="640" y="85" font-size="11.5" text-anchor="middle" opacity=".75">不要放資料庫、外部 API</text>
+  <rect x="540" y="170" width="200" height="80" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="640" y="207" font-size="13.5" text-anchor="middle">失敗：不送流量</text>
+  <text x="640" y="225" font-size="11.5" text-anchor="middle" opacity=".75">外部系統要不要放，自己判斷</text>
+  <line x1="480" y1="70" x2="538" y2="70" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-04-arrow)"/>
+  <line x1="480" y1="210" x2="538" y2="210" stroke="currentColor" stroke-width="1.6" marker-end="url(#sb-04-arrow)"/>
+  <text x="230" y="278" font-size="12" opacity=".8">回應碼：UP 是 200，DOWN 與 OUT_OF_SERVICE 是 503</text>
+</svg>
+<figcaption>兩個探針各自是一個健康群組。存活失敗會被重啟，所以只放「自己壞掉了」的判斷；就緒失敗只是暫時不收流量。</figcaption>
+</figure>
+<p><strong>外部系統要不要放進探針？</strong>參考文件講得很重：「存活探針不應依賴外部系統的健康檢查」，因為外部系統（資料庫、Web API、外部快取）一掛，「Kubernetes 可能重啟所有應用程式實例，造成連鎖故障」；就緒探針要不要檢查外部系統，「必須由開發者審慎決定」，所以「Spring Boot 不會在就緒探針加入任何額外的健康檢查」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 上一段的實跑正好示範這個預設：核心帳務 DOWN 時，整體 health 是 503，但 liveness 與 readiness 都還是 200。</p>
+<p>如果判斷「核心帳務不通時，這個服務接了流量也做不了事，寧可讓前面的負載平衡改送別台」，就把它加進就緒群組（探針也是健康群組，群組的功能都能用）：</p>
+<pre><code>--management.endpoint.health.group.readiness.include=readinessState,coreBanking</code></pre>
+<pre><code># 再加上 management.endpoint.health.group.readiness.include=readinessState,coreBanking
+$ curl -i http://127.0.0.1:18091/actuator/health/liveness
+HTTP/1.1 200
+{
+  "status": "UP"
+}
+
+$ curl -i http://127.0.0.1:18091/actuator/health/readiness
+HTTP/1.1 503
+{
+  "status": "DOWN"
+}</code></pre>
+<p>就緒變成 503（K8s 不送流量），存活還是 200（不會被重啟）。注意文件的提醒：如果所有實例都不就緒，<code>ClusterIP</code> 或 <code>NodePort</code> 類型的 Service 會直接不接受連線；所有實例共用的外部系統放進就緒探針，等於它一掛整個服務下線，這是要權衡的取捨。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">Spring Boot 4 的專案，沒做任何設定，<code>/actuator/health/liveness</code> 存在嗎？</p>
+  <ul class="dopts"><li data-ok>存在，Boot 4 起存活與就緒探針預設啟用</li><li>不存在，要部署到 K8s 上才有</li><li>不存在，要設 probes.enabled=true</li><li>存在，但只有 POST 能用</li></ul>
+  <p class="dexp">Boot 4.0 遷移指南：The liveness and readiness probes are now enabled by default。實跑時本機（不在 K8s）就有這兩個端點。Boot 3 才需要在 K8s 上或手動打開。</p>
+</div>
+<div class="drill">
+  <p class="dq">預設設定下 <code>/actuator/health</code> 回 <code>"groups": ["liveness", "readiness"]</code>，這代表什麼？</p>
+  <ul class="dopts"><li data-ok>存活與就緒兩個健康群組已經啟用，可以用 /actuator/health/liveness 與 /readiness 查</li><li>應用程式正在 K8s 上執行</li><li>有兩個健康指標失敗了</li><li>要自己再寫兩個 HealthIndicator</li></ul>
+  <p class="dexp">groups 列的是有哪些健康群組。Boot 4 起探針預設啟用，所以本機（不在 K8s）也有這兩個群組。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼不該把資料庫的健康檢查放進<strong>存活</strong>探針？</p>
+  <ul class="dopts"><li>因為存活探針不能呼叫資料庫</li><li>因為資料庫檢查太慢，探針的逾時只有 1 秒，查資料庫一定逾時，所以容器會一直被判定失敗</li><li data-ok>因為資料庫一掛，所有實例的存活都失敗，K8s 會把它們全部重啟，造成連鎖故障；重啟也修不好資料庫</li><li>因為存活探針只能回 200</li></ul>
+  <p class="dexp">參考文件：The "liveness" probe should not depend on health checks for external systems……Kubernetes might restart all application instances and create cascading failures。</p>
+</div>
+<div class="drill">
+  <p class="dq">核心帳務的健康指標 DOWN，沒有設定任何健康群組。存活與就緒探針各回什麼？</p>
+  <ul class="dopts"><li>都是 503</li><li>存活 503、就緒 200，因為整體 health 已經 DOWN，存活群組會跟著整體狀態走</li><li>存活 200、就緒 503</li><li data-ok>都是 200，Spring Boot 預設不把其他指標加進這兩個群組</li></ul>
+  <p class="dexp">實跑結果：整體 health 503，但 liveness 與 readiness 都 200。預設群組只含 livenessState、readinessState。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>coreBanking</code> 加進 readiness 群組後，核心帳務 DOWN。K8s 會怎麼處理這個 Pod？</p>
+  <ul class="dopts"><li>重啟它</li><li data-ok>暫時不送流量給它，但不重啟</li><li>刪掉它</li><li>什麼都不做，因為存活還是 200，K8s 只看存活探針決定 Pod 能不能用</li></ul>
+  <p class="dexp">就緒 503 → 從 Service 的流量名單拿掉；存活還是 200 → 不重啟。核心帳務恢復後，就緒變回 200，流量自動回來。</p>
+</div>
+<div class="drill">
+  <p class="dq">所有實例共用的核心帳務系統放進就緒探針，最需要想清楚的後果是？</p>
+  <ul class="dopts"><li>啟動會變慢</li><li data-ok>它一掛，所有實例同時不就緒，整個服務對外完全收不到流量</li><li>日誌會變多，因為每次探針失敗都會在每個實例印出一大段例外堆疊</li><li>記憶體會增加</li></ul>
+  <p class="dexp">參考文件提醒：所有實例都不就緒時，ClusterIP 或 NodePort 的 Service 不接受任何連線。要嘛接受整個下線，要嘛不放進探針、改在呼叫端用斷路器處理。</p>
+</div>
+<div class="drill">
+  <p class="dq">存活與就緒探針在 Spring Boot 裡是用什麼機制做的？</p>
+  <ul class="dopts"><li>兩個獨立的 Servlet</li><li>Spring Security 的過濾器，在請求進到 Controller 之前就直接回應探針，所以不受健康指標影響</li><li data-ok>health 端點的健康群組，所以可以用 group.&lt;名稱&gt;.include 調整內容</li><li>JMX</li></ul>
+  <p class="dexp">參考文件：Actuator configures the "liveness" and "readiness" probes as Health Groups。所以本課才能用 group.readiness.include 加進 coreBanking。</p>
+</div>
+</section>
+
+<section>
+<p class="era">健康之外，還要知道跑得好不好</p>
+<h3 class="head">指標端點與 Micrometer</h3>
+<p>健康檢查只回答「活著沒」，指標（metrics）回答「跑得怎樣」：每秒幾個請求、記憶體用了多少、連線池剩幾條。參考文件：「Spring Boot Actuator 為 Micrometer 提供相依管理與自動組態」，Micrometer 是「支援多種監控系統的應用程式指標門面」（an application metrics facade），Prometheus、Datadog、OTLP 等都支援；Spring Boot 會自動組態一個組合式的 <code>MeterRegistry</code>，classpath 上有 <code>micrometer-registry-{系統}</code> 就幫你接上那個系統。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a> 門面（facade）的意思是：程式只寫一套 Micrometer 的 API，要送到哪個監控系統換相依就好，跟 SLF4J 之於日誌一樣。</p>
+<p>自訂指標的做法是注入 <code>MeterRegistry</code> 自己註冊。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a> 加一個「轉帳請求次數」的計數器，呼叫三次之後查 <code>metrics</code> 端點：</p>
+<pre><code>@RestController
+public class TransferController {
+    private final Counter transfers;
+
+    public TransferController(MeterRegistry registry) {
+        this.transfers = Counter.builder("bank.transfers")          // 自訂指標：轉帳次數
+                .description("轉帳請求次數")
+                .register(registry);
+    }
+
+    @PostMapping("/transfers")
+    public String transfer() {
+        transfers.increment();
+        return "ok";
+    }
+}</code></pre>
+<pre><code>$ curl -i http://127.0.0.1:18091/actuator/metrics/bank.transfers
+HTTP/1.1 200
+{
+  "availableTags": [],
+  "description": "轉帳請求次數",
+  "measurements": [
+    {
+      "statistic": "COUNT",
+      "value": 3.0
+    }
+  ],
+  "name": "bank.transfers"
+}</code></pre>
+<p>查某個指標用 <code>/actuator/metrics/指標名稱</code>，名稱要用程式裡的名字（例如 <code>jvm.memory.max</code>），不是送到 Prometheus 之後被改成的 <code>jvm_memory_max</code>；後面可以加 <code>tag=鍵:值</code> 往下篩，例如 <code>/<wbr>actuator/<wbr>metrics/<wbr>jvm.<wbr>memory.<wbr>max?tag=area:nonheap</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a> Prometheus 怎麼來抓、追蹤怎麼串，見面試集〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。</p>
+
+<div class="drill">
+  <p class="dq">Micrometer 在 Spring Boot 指標裡扮演什麼角色？</p>
+  <ul class="dopts"><li>一個監控系統，跟 Prometheus 一樣存資料</li><li>Spring Boot 的日誌框架，把指標寫成日誌檔，再由監控系統去讀檔案解析</li><li data-ok>指標的門面：程式寫一套 API，接哪個監控系統靠換 micrometer-registry 相依</li><li>K8s 的探針</li></ul>
+  <p class="dexp">參考文件：Micrometer, an application metrics facade that supports numerous monitoring systems。它本身不是監控後端。</p>
+</div>
+<div class="drill">
+  <p class="dq">想在 Prometheus 裡看到某個指標叫 <code>jvm_memory_max</code>，用 Actuator 的 metrics 端點查時，網址該寫？</p>
+  <ul class="dopts"><li>/actuator/metrics/jvm_memory_max</li><li data-ok>/actuator/metrics/jvm.memory.max</li><li>/actuator/prometheus/jvm_memory_max</li><li>/actuator/metrics?name=JVM_MEMORY_MAX</li></ul>
+  <p class="dexp">參考文件：用程式裡的名稱當選擇器，不是送到監控系統之後依命名慣例改過的名稱。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式裡加了一個名為 <code>bank.transfers</code> 的計數器，呼叫 3 次 <code>POST /transfers</code> 之後，<code>/actuator/metrics/bank.transfers</code> 的 COUNT 是？</p>
+  <ul class="dopts"><li>0，計數器要重啟才會更新</li><li>1</li><li data-ok>3</li><li>404，自訂指標不會出現在端點</li></ul>
+  <p class="dexp">實跑結果：COUNT 3.0。透過注入的 MeterRegistry 註冊的指標，metrics 端點都看得到（前提是 metrics 端點有暴露）。</p>
+</div>
+<div class="drill">
+  <p class="dq">只想看堆積（heap）那部分的 JVM 記憶體用量，網址怎麼寫？</p>
+  <ul class="dopts"><li>/actuator/metrics/jvm.memory.used.heap</li><li>/actuator/health/heap</li><li>/actuator/env/jvm.memory.used，env 端點會把 JVM 的即時記憶體用量列成設定值</li><li data-ok>/actuator/metrics/jvm.memory.used?tag=area:heap</li></ul>
+  <p class="dexp">在指標名稱後面加 tag=鍵:值 往下篩。本課實跑過這個網址，回應裡列出 G1 的各個記憶體區。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>@SpringBootApplication = @SpringBootConfiguration + @EnableAutoConfiguration + @ComponentScan（掃啟動類別所在套件與子套件）；整個專案只放一個。</li><li>自動組態的候選列在 jar 裡的 AutoConfiguration.​imports（Boot 2 是 spring.factories，3.0 起移除），不能被元件掃描；每個候選要過 @ConditionalOnClass、OnProperty、OnMissingBean 等條件，你自己定義了同型別的 Bean，自動組態就退開。</li><li>--debug 印出條件報告：Positive matches、Negative matches（附原因）、Exclusions、Unconditional classes；不要的用 exclude、excludeName 或 spring.​autoconfigure.​exclude；在跑的服務用 conditions 端點。</li><li>外部化設定越後面越優先：設定檔 &lt; 環境變數 &lt; Java 系統屬性 &lt; 命令列；設定檔 jar 外 &gt; jar 內、profile 版 &gt; 基本版；環境變數用全大寫加底線（BANK_FX_BASEURL）；值從哪來用 env 端點查。</li><li>Actuator 預設只暴露 health，exclude 優先於 include，端點可能含敏感資訊；show-details 預設 never；DOWN 與 OUT_OF_SERVICE 回 503；健康指標名稱是 Bean 名稱去掉 HealthIndicator。</li><li>Boot 4 起存活、就緒探針預設啟用（/​actuator/​health/​liveness、/readiness），它們是健康群組；存活不放外部系統，就緒要不要放自己權衡，用 group.​readiness.​include 加入。</li><li>指標靠 Micrometer（指標門面），注入 MeterRegistry 註冊自訂指標，用 /​actuator/​metrics/​名稱?tag=鍵:值 查。</li></ul></div>
