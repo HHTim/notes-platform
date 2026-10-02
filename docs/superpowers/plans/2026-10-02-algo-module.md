@@ -14,15 +14,15 @@
 | `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | 同上 | ✅ 10-02 上線 |
 | `03-hash-table` | ✅ `e858aa1`＋`ef879b1`（52 題、4 張圖、42 出處；mins 60） | ✅ 10-02 審完：無錯誤級，123 題正解都唯一；必修：原始碼行號連錯、樹化沒白話、「第 3 個走 3 步」、Floyd 歸屬、「文件建議」；跨課三處已上線課主控先修（`086c6c4`）；清單 `.superpowers/audit/algo/findings-03-04.md`；修正交給 `fix-algo-0304` | 修正已交（03／04：`0db0f04`；05／06：`5f927d2`）；範圍複審 ✅（小尾巴主控修） | ✅ 10-02 上線 |
 | `04-linked-list` | ✅ `b584646`（51 題、9 張圖、9 出處；mins 50） | 同上 | ✅ 10-02 上線 |
-| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | 修正已交（03／04：`0db0f04`；05／06：`5f927d2`）；範圍複審中 | |
-| `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | | |
+| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | 修正已交（03／04：`0db0f04`；05／06：`5f927d2`）；範圍複審 ✅ | ✅ 10-02 上線 |
+| `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | ✅ 10-02 上線 |
 | `07-sorting-binary-search` | ✅ `628dd36`（61 題、8 張圖、36 出處；mins 75） | 審查中（`review-algo-a`，07＋08） | | |
 | `08-two-pointers-window` | ✅ `d5a4101`（51 題、6 張圖、7 出處；mins 50） | 同上 | | |
 | `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | 審查中（`review-algo-d`，11＋12） | | |
 | `12-dynamic-programming` | ✅ `1a1db96`（56 題、5 張圖、15 出處；mins 60） | 同上 | | |
-| `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | 審查中（`review-algo-c`，接在 05／06 複審後） | | |
+| `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | ✅ 10-02 審完：無錯誤級；必修 LinkedHashMap 方向講反、「排序後重疊區間一定相鄰」不成立；33 題沒有對應的課；用詞統一；清單 `.superpowers/audit/algo/findings-13.md`；修正交給 `fix-algo-13` | | |
 
 流程照多益文法：寫課 → 獨立審查 → 交回原寫課代理修正 → 原審查者範圍複審 → 主控修小尾巴、註冊、推。兩課審好就先上線。同時跑的代理約四到五個。
 
