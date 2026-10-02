@@ -39,7 +39,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 +----+-------------+-------+------------+------+---------------+---------------+---------+-------+------+----------+-----------------------+
 |  1 | SIMPLE      | tx    | NULL       | ref  | idx_acct_date | idx_acct_date | 40      | const |  100 |   100.00 | Using index condition |
 +----+-------------+-------+------------+------+---------------+---------------+---------+-------+------+----------+-----------------------+</code></pre>
-<p>第一個只給日期，<code>type</code> 是 <code>ALL</code>：全表掃描，估計要看 199,374 列（<code>rows</code> 是估計值，實際是 20 萬）；第二個用到了索引，估計只要看 100 列。差了兩千倍。</p>
+<p>第一個只給日期，<code>type</code> 是 <code>ALL</code>：全表掃描，估計要看 199,374 列（<code>rows</code> 是估計值，實際是 20 萬；這個估計值每次建表可能略有不同）；第二個用到了索引，估計只要看 100 列。差了兩千倍。</p>
 <p>索引不是越多越好。手冊提醒：替每個可能用到的欄位都建索引很誘人，但「不必要的索引浪費空間，也浪費 MySQL 決定要用哪個索引的時間。索引也會增加 INSERT、UPDATE、DELETE 的成本，因為每個索引都要跟著更新」（unnecessary indexes waste space and waste time for MySQL to determine which indexes to use. Indexes also add to the cost of inserts, updates, and deletes because each index must be updated.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimization-indexes.html" target="_blank" rel="noopener">出處</a> 查得快、寫得慢，是索引的基本取捨。</p>
 
 <div class="drill">
@@ -49,7 +49,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 </div>
 <div class="drill">
   <p class="dq">EXPLAIN 的 <code>type</code> 欄出現 <code>ALL</code>，代表什麼？</p>
-  <ul class="dopts"><li>用到了表上所有的索引</li><li>查詢結果會回傳所有欄位</li><li data-ok>全表掃描，每一列都要看</li><li>查詢一定會回傳整張表</li></ul>
+  <ul class="dopts"><li>用到了表上所有的索引</li><li>查詢結果會回傳所有欄位</li><li>查詢一定會回傳整張表</li><li data-ok>全表掃描，每一列都要看</li></ul>
   <p class="dexp">ALL 是存取方式：把整張表讀過一遍。跟 SELECT * 選了幾個欄位、最後回傳幾列無關（WHERE 還是會篩掉大部分）。</p>
 </div>
 <div class="drill">
@@ -59,7 +59,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 </div>
 <div class="drill">
   <p class="dq">上面 <code>WHERE tx_date = '2026-03-01'</code> 的 EXPLAIN，<code>rows</code> 是 199374，但表裡其實有 200,000 列。為什麼不一樣？</p>
-  <ul class="dopts"><li data-ok>rows 是依統計資訊估的，不是實際數</li><li>有 626 列已經被刪掉、還沒清掉</li><li>EXPLAIN 只檢查了前 199374 列</li><li>那 626 列的交易日期是 NULL</li></ul>
+  <ul class="dopts"><li data-ok>rows 是依統計資訊估的，不是實際數</li><li>少掉的幾百列已被刪掉、還沒清掉</li><li>EXPLAIN 只檢查了前面的一部分列</li><li>少掉的那幾百列，交易日期是 NULL</li></ul>
   <p class="dexp">手冊說對 InnoDB 而言 rows 是估計值，不一定準。要看實際列數用 EXPLAIN ANALYZE（最後一段）。</p>
 </div>
 <div class="drill">
@@ -83,22 +83,24 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 <figure>
 <svg viewBox="0 0 760 358" role="img" aria-label="B+ 樹示意：最上面是根節點，往下是中間節點，最下面一排葉節點依帳號與日期排序、一頁接一頁串起來，每筆索引記錄後面帶著主鍵 id。查詢從根往下走到葉節點，再沿著葉節點往右讀">
   <defs><marker id="ix-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="ix-a1s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--slate)"/></marker></defs>
-  <rect x="300" y="30" width="160" height="40" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380.0" y="24" font-size="11" text-anchor="middle" fill="var(--slate-deep)">根（一頁）</text><text x="380.0" y="54.0" font-size="12" text-anchor="middle" class="mono">0000000700 | 0000001400</text>
-  <rect x="40" y="120" width="160" height="48" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="120.0" y="114" font-size="11" text-anchor="middle" fill="var(--slate-deep)">中間節點</text><text x="120.0" y="140.0" font-size="12" text-anchor="middle" class="mono">0000000000 …</text><text x="120.0" y="156.0" font-size="12" text-anchor="middle" class="mono">… 0000000699</text>
-  <rect x="300" y="120" width="160" height="48" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="380.0" y="114" font-size="11" text-anchor="middle" fill="var(--slate-deep)">中間節點</text><text x="380.0" y="140.0" font-size="12" text-anchor="middle" class="mono">0000000700 …</text><text x="380.0" y="156.0" font-size="12" text-anchor="middle" class="mono">… 0000001399</text>
-  <rect x="560" y="120" width="160" height="48" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="640.0" y="114" font-size="11" text-anchor="middle" fill="var(--slate-deep)">中間節點</text><text x="640.0" y="140.0" font-size="12" text-anchor="middle" class="mono">0000001400 …</text><text x="640.0" y="156.0" font-size="12" text-anchor="middle" class="mono">… 0000001999</text>
-  <line x1="330" y1="70" x2="120" y2="118" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
-  <line x1="380" y1="70" x2="380" y2="118" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
-  <line x1="430" y1="70" x2="640" y2="118" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
-  <rect x="20" y="220" width="220" height="78" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="130.0" y="214" font-size="11" text-anchor="middle" fill="var(--slate-deep)">葉節點</text><text x="130.0" y="243.5" font-size="11" text-anchor="middle" class="mono">0000001234 2025-02-16 #13234</text><text x="130.0" y="263.0" font-size="11" text-anchor="middle" class="mono">0000001234 2025-02-16 #29234</text><text x="130.0" y="282.5" font-size="11" text-anchor="middle" class="mono">…</text>
+  <rect x="270" y="30" width="220" height="40" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380.0" y="24" font-size="11" text-anchor="middle" fill="var(--slate-deep)">根（一頁）</text><text x="380.0" y="54.0" font-size="12" text-anchor="middle" class="mono">0000000700 | 0000001400</text>
+  <rect x="40" y="110" width="160" height="62" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="120.0" y="125" font-size="11" text-anchor="middle" fill="var(--slate-deep)">中間節點</text><text x="120.0" y="143.0" font-size="12" text-anchor="middle" class="mono">0000000000 …</text><text x="120.0" y="161.0" font-size="12" text-anchor="middle" class="mono">… 0000000699</text>
+  <rect x="300" y="110" width="160" height="62" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="380.0" y="125" font-size="11" text-anchor="middle" fill="var(--slate-deep)">中間節點</text><text x="380.0" y="143.0" font-size="12" text-anchor="middle" class="mono">0000000700 …</text><text x="380.0" y="161.0" font-size="12" text-anchor="middle" class="mono">… 0000001399</text>
+  <rect x="560" y="110" width="160" height="62" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="640.0" y="125" font-size="11" text-anchor="middle" fill="var(--slate-deep)">中間節點</text><text x="640.0" y="143.0" font-size="12" text-anchor="middle" class="mono">0000001400 …</text><text x="640.0" y="161.0" font-size="12" text-anchor="middle" class="mono">… 0000001999</text>
+  <line x1="320" y1="70" x2="120" y2="108" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
+  <line x1="380" y1="70" x2="380" y2="108" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
+  <line x1="440" y1="70" x2="640" y2="108" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
+  <line x1="80" y1="172" x2="70" y2="194" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity=".6"/><line x1="160" y1="172" x2="170" y2="194" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity=".6"/><text x="120" y="194" font-size="14" text-anchor="middle">…</text>
+  <line x1="600" y1="172" x2="590" y2="194" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity=".6"/><line x1="680" y1="172" x2="690" y2="194" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity=".6"/><text x="640" y="194" font-size="14" text-anchor="middle">…</text>
+  <line x1="350" y1="172" x2="140" y2="218" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
+  <line x1="380" y1="172" x2="380" y2="218" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
+  <line x1="410" y1="172" x2="620" y2="218" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
+  <rect x="20" y="220" width="220" height="78" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="40" y="214" font-size="11" text-anchor="middle" fill="var(--slate-deep)">葉節點</text><text x="130.0" y="243.5" font-size="11" text-anchor="middle" class="mono">0000001234 2025-02-16 #13234</text><text x="130.0" y="263.0" font-size="11" text-anchor="middle" class="mono">0000001234 2025-02-16 #29234</text><text x="130.0" y="282.5" font-size="11" text-anchor="middle" class="mono">…</text>
   <rect x="270" y="220" width="220" height="78" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380.0" y="243.5" font-size="11" text-anchor="middle" class="mono">0000001234 2026-03-23 #3234</text><text x="380.0" y="263.0" font-size="11" text-anchor="middle" class="mono">0000001234 2026-03-23 #19234</text><text x="380.0" y="282.5" font-size="11" text-anchor="middle" class="mono">…</text>
   <rect x="520" y="220" width="220" height="78" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="630.0" y="243.5" font-size="11" text-anchor="middle" class="mono">0000001235 2025-02-15 #3235</text><text x="630.0" y="263.0" font-size="11" text-anchor="middle" class="mono">0000001235 2025-02-15 #19235</text><text x="630.0" y="282.5" font-size="11" text-anchor="middle" class="mono">…</text>
   <line x1="240" y1="259" x2="268" y2="259" stroke="var(--slate)" stroke-width="1.4" marker-end="url(#ix-a1s)"/>
   <line x1="490" y1="259" x2="518" y2="259" stroke="var(--slate)" stroke-width="1.4" marker-end="url(#ix-a1s)"/>
   <line x1="742" y1="259" x2="756" y2="259" stroke="var(--slate)" stroke-width="1.4" marker-end="url(#ix-a1s)"/>
-  <line x1="380" y1="168" x2="380" y2="218" stroke="currentColor" stroke-width="1.4" marker-end="url(#ix-a1)"/>
-  <text x="150" y="200" font-size="14" text-anchor="middle">…</text>
-  <text x="630" y="200" font-size="14" text-anchor="middle">…</text>
   <text x="380" y="324" font-size="12" text-anchor="middle">葉節點依（帳號, 日期）排好，一頁接一頁；每筆後面帶著主鍵 id（#）</text>
   <text x="380" y="344" font-size="12" text-anchor="middle" fill="var(--slate-deep)">找帳號 0000001234 的 2026 年交易：從根一路往下走到葉節點，再往右讀到條件不符為止</text>
 </svg>
@@ -115,7 +117,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 | idx_acct_date | n_leaf_pages |        449 |
 | idx_acct_date | size         |        545 |
 +---------------+--------------+------------+</code></pre>
-<p>20 萬列的主鍵索引只有 942 個葉節點頁（一頁平均放兩百多列），二級索引 449 頁。上層節點只存分界值和指向下一層的指標，一頁能放的數量以「幾百到上千」計，所以兩三層就能管到幾百、幾千個葉節點；換成二元搜尋樹，20 萬筆至少要 18 層（2¹⁸ ≈ 26 萬）。這就是「又矮又胖」：每多一層，能管的資料就乘上幾百倍，幾億筆也只要三、四層。（每頁能放幾個是用頁大小與欄位長度粗估的，實際看列格式。）</p>
+<p>20 萬列的主鍵索引只有 942 個葉節點頁（一頁平均放兩百多列），二級索引 449 頁。上層節點只存分界值和指向下一層的指標，一頁能放的數量以「幾百到上千」計，所以兩三層就能管到幾百、幾千個葉節點；換成二元搜尋樹，20 萬筆至少要 18 層（2¹⁸ ≈ 26 萬）。這就是「又矮又胖」：每多一層，能管的資料就乘上幾百倍，所以樹很矮（粗估幾億筆約三、四層）。（每頁能放幾個是用頁大小與欄位長度粗估的，實際看列格式。）</p>
 <p>為什麼不用雜湊？雜湊索引只能等號比對，手冊列的限制包括不能用在 <code>&lt;</code>、<code>&gt;</code> 這類範圍比較、不能幫 <code>ORDER BY</code>，而且只能用整個鍵去查（Only whole keys can be used to search for a row.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a> 交易明細最常查「某段日期」，雜湊做不到。</p>
 
 <div class="drill">
@@ -180,7 +182,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 </svg>
 <figcaption>走二級索引查整列要找兩棵樹：先在 idx_acct_date 找到符合的 id，再拿每個 id 到叢集索引取整列。葉節點的值是範例表的實際資料。</figcaption>
 </figure>
-<p>所以 <code>WHERE account_no = '0000001234'</code> 找到 100 個 id 之後，還要回叢集索引找 100 次。EXPLAIN 的 Extra 寫的 <code>Using index condition</code>，是手冊說的「先讀索引記錄、測試過，才決定要不要讀整列」（Tables are read by accessing index tuples and testing them first to determine whether to read full table rows.）：能用索引欄位判斷的條件先在索引裡判斷，不符合的就不回表，這叫索引條件下推（Index Condition Pushdown）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-extra-information" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-condition-pushdown-optimization.html" target="_blank" rel="noopener">ICP</a></p>
+<p>所以 <code>WHERE account_no = '0000001234'</code> 找到 100 個 id 之後，還要回叢集索引找 100 次。EXPLAIN 的 Extra 寫的 <code>Using index condition</code>，是手冊說的「先讀索引記錄、測試過，才決定要不要讀整列」（Tables are read by accessing index tuples and testing them first to determine whether to read full table rows.）：能用索引欄位判斷的條件先在索引裡判斷，不符合的就不回表，這叫索引條件下推（Index Condition Pushdown）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-extra-information" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-condition-pushdown-optimization.html" target="_blank" rel="noopener">出處</a></p>
 <p>兩個實務結論，手冊都寫了：</p>
 <ul class="plainlist">
 <li><strong>主鍵要短。</strong>每個二級索引都帶著主鍵，「主鍵很長的話，二級索引會用掉更多空間，所以短的主鍵比較有利」（If the primary key is long, the secondary indexes use more space, so it is advantageous to have a short primary key.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a> 範例表用 8 位元組的 BIGINT，<code>key_len</code> 是 8。</li>
@@ -278,7 +280,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 <tr><td><code>tx_date = '2026-03-01'</code>（SELECT *）</td><td>ALL</td><td>NULL</td><td>199374</td><td>沒有第一欄，不是最左前綴</td></tr>
 <tr><td><code>account_no IN ('0000001234', '0000001235')</code></td><td>range</td><td>40</td><td>200</td><td>IN 也能用第一欄，查兩段</td></tr>
 </tbody></table></div>
-<p><code>key_len</code> 告訴你用了幾欄。手冊：「key_len 的值讓你判斷 MySQL 實際用了複合索引的幾個部分」（The value of key_len enables you to determine how many parts of a multiple-part key MySQL actually uses.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a> 這張表的字元集是 utf8mb4（一個字最多 4 位元組），<code>CHAR(10)</code> 佔 10 × 4 ＝ 40；<code>DATE</code> 佔 3 位元組<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/storage-requirements.html" target="_blank" rel="noopener">出處</a>，所以 40 是只用到帳號、43 是帳號加日期。兩欄都宣告 <code>NOT NULL</code>；可以是 NULL 的欄位，手冊說 key_len 還要多 1。</p>
+<p><code>key_len</code> 告訴你用了幾欄。手冊：「key_len 的值讓你判斷 MySQL 實際用了複合索引的幾個部分」（The value of key_len enables you to determine how many parts of a multiple-part key MySQL actually uses.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a> 這張表的字元集是 utf8mb4（一個字最多 4 位元組），<code>CHAR(10)</code> 佔 10 × 4 ＝ 40；<code>DATE</code> 佔 3 位元組<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/storage-requirements.html" target="_blank" rel="noopener">出處</a>，所以 40 是只用到帳號、43 是帳號加日期。兩欄都宣告 <code>NOT NULL</code>；可以是 NULL 的欄位會再多 1（實跑：把帳號改成可為 NULL 的 <code>CHAR(10)</code>，key_len 變成 41）。</p>
 <h4>範圍條件之後的欄位用不到</h4>
 <p>複合索引遇到範圍條件就停下來。手冊：只要比較運算子是 <code>=</code>、<code>&lt;=&gt;</code> 或 <code>IS NULL</code>，最佳化器就會繼續用下一欄；「如果運算子是 &gt;、&lt;、&gt;=、&lt;=、!=、&lt;&gt;、BETWEEN 或 LIKE，最佳化器用它，但不再考慮後面的欄位」（the optimizer uses it but considers no more key parts）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/range-optimization.html" target="_blank" rel="noopener">出處</a> 所以如果索引是 (account_no, tx_date, channel)，<code>account_no = ? AND tx_date &gt; ? AND channel = 'ATM'</code> 只會用前兩欄定位，channel 只能在讀出來之後再篩。建複合索引時，<strong>等號的欄位放前面、範圍的欄位放後面</strong>。</p>
 <h4>例外：跳躍掃描（skip scan）</h4>
@@ -295,7 +297,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE account_no = '0000001234';
 </div>
 <div class="drill">
   <p class="dq">索引是 <code>(a, b, c)</code>，條件是 <code>a = 1 AND c = 3</code>。實際能用索引定位的是哪幾欄？</p>
-  <ul class="dopts"><li>a、b、c 三欄</li><li>a 和 c</li><li data-ok>只有 a</li><li>都用不到</li></ul>
+  <ul class="dopts"><li>a、b、c 三欄</li><li>a 和 c</li><li>都用不到</li><li data-ok>只有 a</li></ul>
   <p class="dexp">缺了 b，c 就不在連續的前綴裡，只能用 a 定位，c 在讀出索引記錄後再篩。EXPLAIN 的 key_len 只會算到 a。</p>
 </div>
 <div class="drill">
@@ -394,7 +396,7 @@ mysql&gt; EXPLAIN SELECT * FROM tx WHERE YEAR(tx_date) = 2026;
 <h4>三、前導萬用字元</h4>
 <p>手冊：<code>LIKE</code> 的參數是「不以萬用字元開頭的常數字串」時才能用索引（if the argument to LIKE is a constant string that does not start with a wildcard character）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a> 開頭固定，就像電話簿知道姓氏開頭；開頭是 <code>%</code>，就不知道從哪裡翻起。要查「帳號結尾是 1234」這種需求，常見做法是另外存一個反轉的欄位或末四碼欄位來建索引（設計建議）。</p>
 <h4>四、OR 混到沒索引的欄位</h4>
-<p>手冊：要用索引，「WHERE 的每一個 AND 群組都要用到索引的前綴」（a prefix of the index must be used in every AND group）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a> <code>account_no = ? OR amount &gt; ?</code> 的右半邊沒有索引，為了找出「金額大的」還是得掃全表，那乾脆整張掃。兩邊各自都有索引時，最佳化器可能用 <strong>Index Merge</strong>（index_merge）：分別掃兩個索引、再把結果合起來（The Index Merge access method retrieves rows with multiple range scans and merges their results into one.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-merge-optimization.html" target="_blank" rel="noopener">出處</a> 實跑時先加 <code>idx_amount</code> 再看同一句，type 變成 <code>index_merge</code>、Extra 是 <code>Using sort_union(idx_acct_date,idx_amount)</code>。</p>
+<p>手冊：要用索引，「WHERE 的每一個 AND 群組都要用到索引的前綴」（a prefix of the index must be used in every AND group）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-btree-hash.html" target="_blank" rel="noopener">出處</a> <code>account_no = ? OR amount &gt; ?</code> 的右半邊沒有索引，為了找出「金額大的」還是得掃全表，那乾脆整張掃。兩邊各自都有索引時，最佳化器可能用 <strong>Index Merge</strong>（index_merge）：分別掃兩個索引、再把結果合起來（The Index Merge access method retrieves rows with multiple range scans and merges their results into one.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/index-merge-optimization.html" target="_blank" rel="noopener">出處</a> 實跑時先加 <code>idx_amount</code> 再看同一句，type 變成 <code>index_merge</code>、Extra 是 <code>Using sort_union(idx_acct_date,idx_amount); Using where</code>。</p>
 <h4>五、要讀的列太多：選擇性</h4>
 <p><code>!=</code>、<code>NOT IN</code> 常落在這裡，但它其實不是「失效」，是最佳化器判斷不划算。手冊：「查詢要讀大部分的列時，循序讀比透過索引快」（When a query needs to access most of the rows, reading sequentially is faster than working through an index.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a> 走索引的每一列都要回表、在叢集索引裡跳來跳去；全表掃描是照順序一頁一頁讀。用 <code>channel</code> 實測：替它建索引，再用 <code>EXPLAIN ANALYZE</code>（真的執行一次，附實際時間）比較走索引與強制不走索引：</p>
 <pre><code>mysql&gt; ALTER TABLE tx ADD INDEX idx_channel (channel);
@@ -421,7 +423,7 @@ mysql&gt; EXPLAIN ANALYZE SELECT COUNT(memo) FROM tx IGNORE INDEX (idx_channel) 
 
 <div class="drill">
   <p class="dq">範例表上，<code>WHERE YEAR(tx_date) = 2026</code> 的 type 是什麼？</p>
-  <ul class="dopts"><li>range</li><li>ref</li><li data-ok>ALL</li><li>const</li></ul>
+  <ul class="dopts"><li>range</li><li>ref</li><li>const</li><li data-ok>ALL</li></ul>
   <p class="dexp">索引排的是日期原值，不是 YEAR() 的結果；而且沒有第一欄 account_no。實跑 ALL、估 199374 列。</p>
 </div>
 <div class="drill">
@@ -461,12 +463,12 @@ mysql&gt; EXPLAIN ANALYZE SELECT COUNT(memo) FROM tx IGNORE INDEX (idx_channel) 
 </div>
 <div class="drill">
   <p class="dq">範例表上，<code>WHERE account_no = '0000001234' ORDER BY amount</code> 的 Extra 出現什麼？</p>
-  <ul class="dopts"><li>Using where; Using index</li><li data-ok>Using index condition; Using filesort</li><li>Using where; Backward index scan</li><li>Using where; Using temporary</li></ul>
+  <ul class="dopts"><li>Using index condition; Backward index scan</li><li data-ok>Using index condition; Using filesort</li><li>Using where; Backward index scan</li><li>Using where; Using temporary; Using filesort</li></ul>
   <p class="dexp">索引照帳號、日期排，不照金額，所以要另外排序（filesort）。改成 ORDER BY tx_date 就不用。</p>
 </div>
 <div class="drill">
   <p class="dq">範例表上，<code>WHERE account_no = '0000001234' ORDER BY tx_date DESC LIMIT 5</code> 需要額外排序嗎？</p>
-  <ul class="dopts"><li>需要，DESC 一定要另外 filesort</li><li>需要，有 LIMIT 就會觸發排序</li><li data-ok>不需要，倒著讀索引就是由新到舊</li><li>不需要，因為結果只有 5 列</li></ul>
+  <ul class="dopts"><li>需要，DESC 一定要另外 filesort</li><li>需要，有 LIMIT 就會觸發排序</li><li>不需要，因為結果只有 5 列</li><li data-ok>不需要，倒著讀索引就是由新到舊</li></ul>
   <p class="dexp">帳號固定時，索引裡的日期已經排好，倒著讀就是降冪；實跑 Extra 是 Using where; Backward index scan，沒有 filesort。</p>
 </div>
 </section>
@@ -474,28 +476,17 @@ mysql&gt; EXPLAIN ANALYZE SELECT COUNT(memo) FROM tx IGNORE INDEX (idx_channel) 
 <section>
 <p class="era">看懂最佳化器打算怎麼做</p>
 <h3 class="head">EXPLAIN 逐欄看</h3>
-<p>EXPLAIN 每一列代表查詢裡的一張表（這課都只有一張，所以只有一列）。各欄的意思照手冊：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a></p>
+<p>EXPLAIN 每一列代表查詢裡的一張表（這課都只有一張，所以只有一列）。最常看的幾欄，意思照手冊（id、select_type、table、partitions、ref 在多表與子查詢時才有變化，這裡略過）：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>欄位</th><th>意思</th><th>先看什麼</th></tr></thead><tbody>
-<tr><th>id、select_type</th><td>第幾個 SELECT、哪一種（SIMPLE 是沒有子查詢與 UNION 的單純查詢）</td><td>有子查詢時才有變化</td></tr>
-<tr><th>table、partitions</th><td>哪張表、哪些分割區（沒分割是 NULL）</td><td></td></tr>
 <tr><th>type</th><td>存取方式（手冊叫 join type）</td><td><strong>最重要</strong>，見下表</td></tr>
 <tr><th>possible_keys</th><td>「MySQL 可以選來找列的索引」；NULL 表示沒有相關的索引</td><td>NULL 時檢查 WHERE 的欄位要不要建索引</td></tr>
 <tr><th>key</th><td>實際選用的索引</td><td>NULL 就是沒用索引</td></tr>
 <tr><th>key_len</th><td>用到的索引長度（位元組）</td><td>判斷複合索引用了幾欄</td></tr>
-<tr><th>ref</th><td>拿什麼跟索引比：const 是常數，也可能是別張表的欄位</td><td></td></tr>
 <tr><th>rows</th><td>「MySQL 認為必須檢查的列數」，對 InnoDB「是估計值，不一定準確」</td><td>越小越好；要實際數字用 EXPLAIN ANALYZE</td></tr>
 <tr><th>filtered</th><td>估計有多少百分比的列會通過條件，100 表示沒篩掉</td><td>rows × filtered ÷ 100 ≈ 留下幾列</td></tr>
 <tr><th>Extra</th><td>額外資訊</td><td>Using index（好）；Using filesort、Using temporary（警訊）</td></tr>
 </tbody></table></div>
-<p>type 由好到差，範例表都跑得出來：</p>
-<div class="tablewrap"><table><thead><tr><th>type</th><th>意思</th><th>範例表上的例子</th></tr></thead><tbody>
-<tr><td>const</td><td>主鍵或唯一索引的全部欄位跟常數比，最多一列</td><td><code>WHERE id = 12345</code></td></tr>
-<tr><td>eq_ref</td><td>JOIN 時，前一張表的每一列在這張表只對到一列（主鍵或 UNIQUE NOT NULL）</td><td>（這課只有一張表）</td></tr>
-<tr><td>ref</td><td>非唯一索引或最左前綴的等號查找，可能多列</td><td><code>WHERE account_no = '0000001234'</code></td></tr>
-<tr><td>range</td><td>用索引讀一段或幾段範圍：BETWEEN、&gt;、IN、LIKE 'x%'</td><td>帳號＋日期範圍、IN 兩個帳號</td></tr>
-<tr><td>index</td><td>整棵索引掃一遍（通常是覆蓋索引）</td><td><code>GROUP BY account_no</code> 只要帳號</td></tr>
-<tr><td>ALL</td><td>全表掃描</td><td>只給日期、YEAR()、數字比字串、前導 %</td></tr>
-</tbody></table></div>
+<p>type 由好到差大致是 const（主鍵或唯一索引對常數，最多一列）、eq_ref（JOIN 時每列只對到一列）、ref（非唯一索引的等號查找）、range（索引上的一段或幾段範圍）、index（整棵索引掃一遍）、ALL（全表掃描），前面各段都跑過例子。</p>
 <p>各型的定義在手冊的 EXPLAIN Join Types 一節，手冊對 ALL 的評語是它不是第一張表時「通常非常糟」，一般可以加索引避開。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-join-types" target="_blank" rel="noopener">出處</a> Extra 方面，手冊直接說「要讓查詢盡量快，就留意 Using filesort 與 Using temporary」（If you want to make your queries as fast as possible, look out for Extra column values of Using filesort and Using temporary）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-extra-information" target="_blank" rel="noopener">出處</a></p>
 <h4>EXPLAIN ANALYZE：真的跑一次</h4>
 <p>EXPLAIN 是「打算怎麼做」加估計值；<code>EXPLAIN ANALYZE</code> 真的執行查詢，附上實際時間與列數，輸出一律是樹狀格式（TREE，手冊說它「描述得比傳統格式更精確」，而且「EXPLAIN ANALYZE 一定用它」）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain.html" target="_blank" rel="noopener">出處</a></p>
@@ -532,7 +523,7 @@ mysql&gt; EXPLAIN ANALYZE SELECT COUNT(memo) FROM tx IGNORE INDEX (idx_channel) 
 </div>
 <div class="drill">
   <p class="dq">EXPLAIN ANALYZE 裡 <code>(cost=23.2 rows=51) (actual time=0.157..0.348 rows=51 loops=1)</code>，「0.348」是什麼？</p>
-  <ul class="dopts"><li>估計的執行成本</li><li>第一列出來的時間</li><li data-ok>全部完成的時間</li><li>總共讀了幾頁資料</li></ul>
+  <ul class="dopts"><li>估計的執行成本</li><li>第一列出來的時間</li><li>總共讀了幾頁資料</li><li data-ok>全部完成的時間</li></ul>
   <p class="dexp">actual time 的兩個數字是「第一列出來的時間..全部完成的時間」，單位毫秒。cost 是估計成本，不是時間。</p>
 </div>
 </section>
@@ -565,16 +556,16 @@ SELECT COUNT(*) FROM tx WHERE memo LIKE '%999%';</code></pre>
 <tr><th>已經被其他複合索引的最左前綴涵蓋的欄位</th><td>有 (account_no, tx_date) 時，另外建 (account_no) 是重複的</td></tr>
 </tbody></table></div>
 <p>表格第三列出自手冊〈How MySQL Uses Indexes〉，同一段也說報表要處理大部分甚至全部列時索引同樣不重要<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a>；第二、四列是「索引增加寫入成本」的直接推論<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimization-indexes.html" target="_blank" rel="noopener">出處</a>；第五列是最左前綴的推論。建不建，最後還是用 EXPLAIN 與實際量測決定。</p>
-<p class="muted">交易隔離、鎖跟索引也有關係：鎖是加在索引記錄上的，WHERE 用不到索引時會鎖住更多列，見下一課〈交易隔離層級與鎖〉。面試速查版見〈資料庫面試題：索引、交易隔離與鎖〉。</p>
+<p class="muted">交易隔離、鎖跟索引也有關係：鎖是加在索引記錄上的，WHERE 用不到索引時會鎖住更多列，見〈交易隔離層級與鎖〉。面試速查版見〈資料庫面試題：索引、交易隔離與鎖〉。</p>
 
 <div class="drill">
   <p class="dq">MySQL 8.4 剛裝好、什麼都沒設定時，慢查詢日誌是開還是關？long_query_time 是幾秒？</p>
-  <ul class="dopts"><li>開，1 秒</li><li>開，10 秒</li><li data-ok>關，10 秒</li><li>關，0 秒</li></ul>
+  <ul class="dopts"><li>開，1 秒</li><li>開，10 秒</li><li>關，0 秒</li><li data-ok>關，10 秒</li></ul>
   <p class="dexp">手冊：By default, the slow query log is disabled；long_query_time 預設 10。實跑 SELECT @@slow_query_log, @@long_query_time 也是 0 與 10。</p>
 </div>
 <div class="drill">
   <p class="dq">慢查詢日誌裡一筆紀錄 <code>Rows_examined: 200000</code>、<code>Rows_sent: 1</code>。最值得懷疑的是什麼？</p>
-  <ul class="dopts"><li>用戶端的網路連線太慢</li><li>回傳給用戶端的資料太多</li><li data-ok>為了 1 列掃了 20 萬列</li><li>這筆查詢等鎖等了太久</li></ul>
+  <ul class="dopts"><li>用戶端的網路連線太慢</li><li>回傳給用戶端的資料太多</li><li>這筆查詢等鎖等了太久</li><li data-ok>為了 1 列掃了 20 萬列</li></ul>
   <p class="dexp">檢查的列數遠大於回傳的列數，是全表掃描的典型跡象。鎖等待看的是 Lock_time。</p>
 </div>
 <div class="drill">
@@ -584,7 +575,7 @@ SELECT COUNT(*) FROM tx WHERE memo LIKE '%999%';</code></pre>
 </div>
 <div class="drill">
   <p class="dq">已經有索引 <code>(account_no, tx_date)</code>，同事想再建一個 <code>(account_no)</code>。你怎麼看？</p>
-  <ul class="dopts"><li>應該建，單欄索引一定比較快</li><li>應該建，不然帳號條件用不到索引</li><li data-ok>多半不必，它已是現有索引的最左前綴</li><li>應該把原本的複合索引刪掉</li></ul>
+  <ul class="dopts"><li>應該建，單欄索引一定比較快</li><li>應該建，不然帳號條件用不到索引</li><li>應該把原本的複合索引刪掉</li><li data-ok>多半不必，它已是現有索引的最左前綴</li></ul>
   <p class="dexp">WHERE account_no = ? 用現有索引的第一欄就行（實跑 ref、key_len 40）。重複的索引多佔空間、多一份寫入。</p>
 </div>
 <div class="drill">
@@ -594,4 +585,4 @@ SELECT COUNT(*) FROM tx WHERE memo LIKE '%999%';</code></pre>
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>沒有索引就只能全表掃描（EXPLAIN 的 type: ALL）。索引查得快、但每個索引都增加寫入成本與空間。</li><li>InnoDB 的索引是 B-tree（B+ 樹）：一頁 16KB、一個節點幾百個孩子，所以又矮又胖，幾億筆也只要三、四層；資料只在葉節點、葉節點串成一串，範圍查詢沿著葉節點讀。</li><li>資料列住在叢集索引（主鍵）的葉節點；二級索引的記錄是「索引欄位＋主鍵」，查其他欄位要拿主鍵回叢集索引，叫回表。主鍵要短，每張表都要有主鍵。</li><li>複合索引照最左前綴用：從第一欄開始、連續往右；WHERE 裡的書寫順序無所謂；遇到範圍條件，後面的欄位就不再用來定位。key_len 看用了幾欄。</li><li>查詢的欄位全在索引裡（含主鍵）就是覆蓋索引，Extra 顯示 Using index，不必回表。</li><li>索引失效：對欄位套函式、字串欄位比數字、LIKE '%x'、OR 的另一邊沒索引；要讀大部分列時最佳化器會選全表，這是選擇性問題。ORDER BY 跟索引順序不同會出現 Using filesort。</li><li>EXPLAIN 盯 type、key、key_len、rows、Extra；EXPLAIN ANALYZE 真的執行、給實際時間。慢查詢日誌預設關、門檻 10 秒，看 Rows_examined 跟 Rows_sent 的差距。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>沒有索引就只能全表掃描（EXPLAIN 的 type: ALL）。索引查得快、但每個索引都增加寫入成本與空間。</li><li>InnoDB 的索引是 B-tree（B+ 樹）：一頁 16KB、一個節點能有幾百個孩子，所以樹很矮（粗估幾億筆約三、四層）；資料只在葉節點、葉節點串成一串，範圍查詢沿著葉節點讀。</li><li>資料列住在叢集索引（主鍵）的葉節點；二級索引的記錄是「索引欄位＋主鍵」，查其他欄位要拿主鍵回叢集索引，叫回表。主鍵要短，每張表都要有主鍵。</li><li>複合索引照最左前綴用：從第一欄開始、連續往右；WHERE 裡的書寫順序無所謂；遇到範圍條件，後面的欄位就不再用來定位。key_len 看用了幾欄。</li><li>查詢的欄位全在索引裡（含主鍵）就是覆蓋索引，Extra 顯示 Using index，不必回表。</li><li>索引失效：對欄位套函式、字串欄位比數字、LIKE '%x'、OR 的另一邊沒索引；要讀大部分列時最佳化器會選全表，這是選擇性問題。ORDER BY 跟索引順序不同會出現 Using filesort。</li><li>EXPLAIN 盯 type、key、key_len、rows、Extra；EXPLAIN ANALYZE 真的執行、給實際時間。慢查詢日誌預設關、門檻 10 秒，看 Rows_examined 跟 Rows_sent 的差距。</li></ul></div>

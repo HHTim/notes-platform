@@ -189,14 +189,14 @@ COMMIT;</code></pre>
   <text x="320.0" y="261" font-size="11.5" text-anchor="middle" class="mono">（自動提交）</text>
   <line x1="520.0" y1="110" x2="520.0" y2="76" stroke="currentColor" stroke-opacity=".5"/>
   <circle cx="520.0" cy="110" r="4" fill="currentColor"/>
-  <rect x="469" y="48" width="102" height="28" rx="5" fill="var(--surface)" stroke="currentColor"/>
+  <rect x="455" y="48" width="130" height="28" rx="5" fill="var(--surface)" stroke="currentColor"/>
   <text x="520.0" y="67" font-size="11.5" text-anchor="middle" class="mono">同一句一般 SELECT</text>
   <text x="520.0" y="42" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">3（快照）</text>
   <line x1="720.0" y1="110" x2="720.0" y2="76" stroke="currentColor" stroke-opacity=".5"/>
   <circle cx="720.0" cy="110" r="4" fill="var(--danger)"/>
-  <rect x="633" y="48" width="117" height="28" rx="5" fill="var(--sunk)" stroke="var(--danger)"/>
-  <text x="691.6" y="67" font-size="11.5" text-anchor="middle" class="mono">同一句加 FOR SHARE</text>
-  <text x="691.6" y="42" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">4（讀最新）</text>
+  <rect x="618" y="48" width="134" height="28" rx="5" fill="var(--sunk)" stroke="var(--danger)"/>
+  <text x="685" y="67" font-size="11.5" text-anchor="middle" class="mono">同一句加 FOR SHARE</text>
+  <text x="685" y="42" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">4（讀最新）</text>
   <text x="380" y="340" font-size="12" text-anchor="middle" fill="var(--slate-deep)">REPEATABLE READ 的一般 SELECT 讀快照，看不到 B 新增的列</text>
   <text x="380" y="360" font-size="12" text-anchor="middle" fill="var(--slate-deep)">鎖定讀讀的是最新版本；READ COMMITTED 下第二次一般 SELECT 就是 4</text>
 </svg>
@@ -210,18 +210,13 @@ COMMIT;</code></pre>
 </div>
 <div class="drill">
   <p class="dq">同一筆交易裡兩次 <code>SELECT balance FROM account WHERE id = 1</code>，第一次 10000、第二次 7000，中間另一筆交易扣款並提交了。這叫什麼？</p>
-  <ul class="dopts"><li>髒讀</li><li>死結</li><li>幻讀</li><li data-ok>不可重複讀</li></ul>
+  <ul class="dopts"><li>髒讀（讀到未提交）</li><li>死結（互相等鎖）</li><li>幻讀（多了新列）</li><li data-ok>不可重複讀</li></ul>
   <p class="dexp">同一列的值在同一筆交易裡被別人改掉（而且對方已提交），是不可重複讀。</p>
 </div>
 <div class="drill">
   <p class="dq">同一筆交易裡兩次 <code>SELECT COUNT(*) … WHERE balance &gt;= 8000</code>，第一次 3、第二次 4，中間另一筆交易新增了一個帳戶並提交。這叫什麼？</p>
   <ul class="dopts"><li>髒讀</li><li>不可重複讀</li><li>寫入偏差</li><li data-ok>幻讀</li></ul>
   <p class="dexp">符合條件的那一組列變多了，是幻讀。重點是「列的集合」變了，而不是某一列的值變了。</p>
-</div>
-<div class="drill">
-  <p class="dq">在上面的髒讀示範中，A 第三次（第 4 秒）讀到多少？</p>
-  <ul class="dopts"><li>7000</li><li>4000</li><li>讀不到，被鎖住</li><li data-ok>10000</li></ul>
-  <p class="dexp">B 在第 3 秒還原了，餘額回到 10000。實跑三次是 10000、7000、10000。</p>
 </div>
 <div class="drill">
   <p class="dq">把髒讀示範的 A 改成 READ COMMITTED，其他不變，A 三次分別讀到什麼？</p>
@@ -232,11 +227,6 @@ COMMIT;</code></pre>
   <p class="dq">不可重複讀的示範改成 REPEATABLE READ，A 第二次讀到多少？</p>
   <ul class="dopts"><li>7000</li><li data-ok>10000</li><li>3000</li><li>要等 B 的鎖</li></ul>
   <p class="dexp">REPEATABLE READ 的一般 SELECT 讀的是第一次讀取時建立的快照，所以還是 10000；也不會等鎖，因為一般 SELECT 不加鎖。</p>
-</div>
-<div class="drill">
-  <p class="dq">幻讀示範在 REPEATABLE READ 下，A 的第二次一般 SELECT 數出幾個？</p>
-  <ul class="dopts"><li>4</li><li data-ok>3</li><li>0</li><li>報錯</li></ul>
-  <p class="dexp">一般 SELECT 讀快照，看不到 B 在快照之後插入的那一列。實跑 3、3，加 FOR SHARE 那次才是 4。</p>
 </div>
 <div class="drill">
   <p class="dq">三種讀異常裡，哪一種的關鍵是「別人<strong>新增或刪除</strong>了符合條件的列」？</p>
@@ -258,18 +248,13 @@ COMMIT;</code></pre>
 <p>InnoDB 那一欄照 MySQL 手冊：REPEATABLE READ 是預設，「同一筆交易裡的一致性讀，讀的是第一次讀取時建立的快照」（Consistent reads within the same transaction read the snapshot established by the first read.）；READ COMMITTED「每一次一致性讀，即使在同一筆交易裡，都建立並讀取自己的新快照」（Each consistent read, even within the same transaction, sets and reads its own fresh snapshot.）；READ UNCOMMITTED 的 SELECT「可能用到某一列較早的版本……這也叫髒讀」；SERIALIZABLE「跟 REPEATABLE READ 很像，但 autocommit 關閉時，InnoDB 把所有一般 SELECT 隱含轉成 SELECT … FOR SHARE」（InnoDB implicitly converts all plain SELECT statements to SELECT ... FOR SHARE if autocommit is disabled.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a></p>
 <p>兩個資料庫的預設不一樣：MySQL InnoDB 預設 REPEATABLE READ；PostgreSQL 預設 READ COMMITTED，而且它的 REPEATABLE READ 不會出現幻讀（表上那格寫 Allowed, but not in PG）。同一段程式從 MySQL 搬到 PostgreSQL，行為可能不同，見〈資料庫面試題：索引、交易隔離與鎖〉的對照表。</p>
 <h4>InnoDB 的 REPEATABLE READ 擋得住幻讀嗎</h4>
-<p>要分兩種讀。<strong>一般 SELECT</strong>（快照讀）讀的是交易開始時的快照，別人新增的列看不到，上面示範數出 3、3。<strong>鎖定讀</strong>（FOR SHARE、FOR UPDATE）與 UPDATE、DELETE 讀的是最新版本，並用 Next-Key 鎖把掃過的範圍鎖住，別人插不進來（第六段示範）。但如果在別人插入<strong>之後</strong>才做鎖定讀，就會看到那一列，所以示範第三次是 4。手冊也特別提醒：快照只適用於 SELECT，不一定適用於 DML；交易若「更新或刪除了別的交易已提交的列，那些變更就會變成對目前交易可見」（If a transaction does update or delete rows committed by a different transaction, those changes do become visible to the current transaction.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></p>
+<p>要分兩種讀。<strong>一般 SELECT</strong>（快照讀）讀的是交易開始時的快照，別人新增的列看不到，上面示範數出 3、3。<strong>鎖定讀</strong>（FOR SHARE、FOR UPDATE）與 UPDATE、DELETE 讀的是最新版本，並用 Next-Key 鎖把掃過的範圍鎖住，別人插不進來（下面 Next-Key 鎖那一段的示範）。但如果在別人插入<strong>之後</strong>才做鎖定讀，就會看到那一列，所以示範第三次是 4。手冊也特別提醒：快照只適用於 SELECT，不一定適用於 DML；交易若「更新或刪除了別的交易已提交的列，那些變更就會變成對目前交易可見」（If a transaction does update or delete rows committed by a different transaction, those changes do become visible to the current transaction.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></p>
 <p>設定方式：<code>SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;</code> 只影響目前連線之後的交易；用 <code>SET GLOBAL</code> 影響之後新開的連線；也可以寫在設定檔的 <code>transaction-isolation</code>。Spring 的 <code>@Transactional(isolation = …)</code> 則是在交易開始前，透過 JDBC 替那條連線設定隔離層級。</p>
 
 <div class="drill">
   <p class="dq">哪一個隔離層級<strong>只</strong>擋住髒讀，不可重複讀和幻讀都可能發生？</p>
   <ul class="dopts"><li>READ UNCOMMITTED</li><li data-ok>READ COMMITTED</li><li>REPEATABLE READ</li><li>SERIALIZABLE</li></ul>
   <p class="dexp">READ COMMITTED 只讀已提交的資料，但每次讀都拿新快照，所以同一列重讀可能不同，符合條件的列也可能變多。</p>
-</div>
-<div class="drill">
-  <p class="dq">PostgreSQL 的預設隔離層級是哪一個？</p>
-  <ul class="dopts"><li>READ UNCOMMITTED</li><li>REPEATABLE READ</li><li>SERIALIZABLE</li><li data-ok>READ COMMITTED</li></ul>
-  <p class="dexp">PostgreSQL 預設 READ COMMITTED，跟 MySQL InnoDB 的 REPEATABLE READ 不同；搬資料庫時要注意。</p>
 </div>
 <div class="drill">
   <p class="dq">InnoDB 在 READ COMMITTED 下，同一筆交易裡的兩次一般 SELECT 讀的是什麼？</p>
@@ -320,7 +305,7 @@ COMMIT;</code></pre>
 <div class="drill">
   <p class="dq">交易 B 正在改帳戶 1、還沒提交。交易 A（REPEATABLE READ）下一般的 <code>SELECT balance … WHERE id = 1</code>，會怎樣？</p>
   <ul class="dopts"><li data-ok>不用等，從舊版本讀到改之前的值</li><li>等 B 提交或還原之後才會回傳</li><li>讀到 B 改到一半、還沒提交的新值</li><li>直接報錯，因為那一列已經被鎖住</li></ul>
-  <p class="dexp">一致性讀不加鎖，也不理會別人的鎖，透過 undo log 拿到舊版本。實跑的不可重複讀示範裡 A 讀帳戶 1 也沒有等待。</p>
+  <p class="dexp">一致性讀不加鎖，也不理會別人的鎖，透過 undo log 拿到舊版本。實跑的髒讀示範改成 READ COMMITTED 那次就是這樣：B 改了帳戶 1 還沒提交，A 三次讀都馬上回 10000，沒有等待。</p>
 </div>
 <div class="drill">
   <p class="dq">InnoDB 把一列「改之前的內容」存在哪裡？</p>
@@ -336,16 +321,6 @@ COMMIT;</code></pre>
   <p class="dq">某個報表程式開了交易之後跑了兩小時都沒提交（只做 SELECT）。對資料庫最可能的影響是什麼？</p>
   <ul class="dopts"><li>沒有影響，只讀的交易不佔任何資源</li><li>其他交易全都不能讀這張表</li><li data-ok>undo log 清不掉，越積越多</li><li>它讀到的資料會隨時間越來越新</li></ul>
   <p class="dexp">手冊建議連只做一致性讀的交易也要定期提交，否則 undo log 無法丟棄、還原區段長得太大。它也不會擋住別人讀。</p>
-</div>
-<div class="drill">
-  <p class="dq">下面哪一個是「鎖定讀」，讀的是最新版本、會加鎖？</p>
-  <ul class="dopts"><li><code>SELECT * FROM account WHERE id = 1</code></li><li><code>SELECT COUNT(*) FROM account WHERE balance &gt; 0</code></li><li data-ok><code>SELECT * FROM account WHERE id = 1 FOR UPDATE</code></li><li><code>EXPLAIN SELECT * FROM account WHERE id = 1</code></li></ul>
-  <p class="dexp">加了 FOR UPDATE 或 FOR SHARE 才是鎖定讀；一般 SELECT 在 READ COMMITTED 與 REPEATABLE READ 都是不加鎖的一致性讀。</p>
-</div>
-<div class="drill">
-  <p class="dq">MVCC 主要解決什麼問題？</p>
-  <ul class="dopts"><li>讓兩筆交易可以同時改同一列</li><li>讓資料不必寫進磁碟</li><li>避免死結</li><li data-ok>讓讀的交易不必等寫的交易放鎖</li></ul>
-  <p class="dexp">讀舊版本、寫新版本，讀寫互不擋。兩筆交易同時改同一列還是要排隊（下一段的排他鎖），死結也照樣可能發生。</p>
 </div>
 </section>
 
@@ -368,7 +343,7 @@ UPDATE account SET balance = balance - 3000            UPDATE account SET balanc
 COMMIT;                                                COMMIT;
                                                        SELECT balance FROM account WHERE id = 1;</code></pre>
 <figure>
-<svg viewBox="0 0 760 380" role="img" aria-label="SELECT FOR UPDATE 的時間軸：交易 A 在 0 秒鎖住帳戶 1 讀到 10000；交易 B 在 1 秒也要 FOR UPDATE，開始等待；A 在 3 秒扣 3000 並提交；B 在 3 秒拿到鎖讀到 7000，再扣 4000，最後 3000">
+<svg viewBox="0 0 760 380" role="img" aria-label="SELECT FOR UPDATE 的時間軸：交易 A 在 0 秒鎖住帳戶 1 讀到 10000；交易 B 在 1 秒也要 FOR UPDATE，開始等待；A 在 3 秒扣 3000 並提交；B 在 3 秒拿到鎖讀到 7000，接著扣 4000 並提交，最後 3000">
   <defs><marker id="tx-5-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
   <line x1="120.0" y1="292" x2="740.0" y2="292" stroke="currentColor" stroke-opacity=".5" marker-end="url(#tx-5-a)"/>
   <line x1="120.0" y1="288" x2="120.0" y2="296" stroke="currentColor" stroke-opacity=".5"/>
@@ -401,17 +376,13 @@ COMMIT;                                                COMMIT;
   <rect x="519" y="30" width="102" height="46" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/>
   <text x="570.0" y="49" font-size="11.5" text-anchor="middle" class="mono">UPDATE −3000</text>
   <text x="570.0" y="67" font-size="11.5" text-anchor="middle" class="mono">COMMIT</text>
-  <line x1="585.0" y1="210" x2="585.0" y2="224" stroke="currentColor" stroke-opacity=".5"/>
-  <circle cx="585.0" cy="210" r="4" fill="var(--slate)"/>
-  <rect x="552" y="224" width="66" height="46" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/>
-  <text x="585.0" y="243" font-size="11.5" text-anchor="middle" class="mono">拿到鎖</text>
-  <text x="585.0" y="261" font-size="11.5" text-anchor="middle" class="mono">讀到 7000</text>
-  <line x1="705.0" y1="210" x2="705.0" y2="224" stroke="currentColor" stroke-opacity=".5"/>
-  <circle cx="705.0" cy="210" r="4" fill="var(--slate)"/>
-  <rect x="648" y="224" width="102" height="46" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/>
-  <text x="698.8000000000001" y="243" font-size="11.5" text-anchor="middle" class="mono">UPDATE −4000</text>
-  <text x="698.8000000000001" y="261" font-size="11.5" text-anchor="middle" class="mono">COMMIT</text>
-  <text x="698.8000000000001" y="285" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">最後 3000</text>
+  <line x1="570.0" y1="210" x2="570.0" y2="222" stroke="currentColor" stroke-opacity=".5"/>
+  <circle cx="570.0" cy="210" r="4" fill="var(--slate)"/>
+  <rect x="505" y="222" width="130" height="62" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="570.0" y="240" font-size="11.5" text-anchor="middle" class="mono">拿到鎖，讀到 7000</text>
+  <text x="570.0" y="257" font-size="11.5" text-anchor="middle" class="mono">UPDATE −4000</text>
+  <text x="570.0" y="274" font-size="11.5" text-anchor="middle" class="mono">COMMIT</text>
+  <text x="695" y="258" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">最後 3000</text>
   <text x="380" y="340" font-size="12" text-anchor="middle" fill="var(--slate-deep)">B 的 SELECT ... FOR UPDATE 等了 2 秒（實跑 2.00 sec），拿到的是 A 提交後的 7000</text>
   <text x="380" y="360" font-size="12" text-anchor="middle" fill="var(--slate-deep)">兩筆都扣到，3000 正確</text>
 </svg>
@@ -449,11 +420,6 @@ ERROR 1205 (HY000) at line 4: Lock wait timeout exceeded; try restarting transac
   <p class="dq">交易 A 持有某一列的共享鎖（S）。交易 B 要對這一列 UPDATE（要排他鎖 X），會怎樣？</p>
   <ul class="dopts"><li>直接更新，S 不擋寫</li><li data-ok>要等 A 放掉共享鎖</li><li>A 的共享鎖自動升級成 X</li><li>B 改成更新前的版本</li></ul>
   <p class="dexp">X 跟 S 不相容。FOR SHARE 的用途就是「我讀的期間別人不准改」。</p>
-</div>
-<div class="drill">
-  <p class="dq">上面 FOR UPDATE 的示範，B 的 <code>SELECT … FOR UPDATE</code> 讀到多少？</p>
-  <ul class="dopts"><li>10000</li><li>6000</li><li data-ok>7000</li><li>3000</li></ul>
-  <p class="dexp">B 等到 A 提交才拿到鎖，鎖定讀讀的是最新已提交的值，也就是 A 扣完的 7000。實跑 1 row in set (2.00 sec)，值 7000。</p>
 </div>
 <div class="drill">
   <p class="dq">autocommit 開著、沒有 START TRANSACTION，單獨下一句 <code>SELECT … FOR UPDATE</code>，鎖會維持多久？</p>
@@ -555,7 +521,7 @@ COMMIT;</code></pre>
 </figure>
 <h4>什麼時候只鎖記錄、不鎖間隙</h4>
 <p>手冊：「用唯一索引搜尋唯一一列時，不需要間隙鎖」（Gap locking is not needed for statements that lock rows using a unique index to search for a unique row.），只鎖那一筆。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a> 上一段的 <code>WHERE id = 1 FOR UPDATE</code> 就是這樣，data_locks 只有 <code>X,REC_NOT_GAP</code>。另外，READ COMMITTED 下鎖定讀、UPDATE、DELETE「只鎖索引記錄，不鎖它前面的間隙，因此允許在被鎖住的記錄旁邊自由插入新的記錄」（InnoDB locks only index records, not the gaps before them, and thus permits the free insertion of new records next to locked records.）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>，等待變少，但會出現幻讀。</p>
-<p class="muted">鎖加在索引上，所以 WHERE 用不到索引時，InnoDB 只能邊掃邊鎖，鎖住的列會多很多。手冊減少死結的建議裡也有「替 FOR UPDATE 與 UPDATE … WHERE 用到的欄位建好索引」。</p>
+<p class="muted">鎖加在索引上，所以 WHERE 用不到索引時，InnoDB 只能邊掃邊鎖，鎖住的列會多很多。手冊減少死結的建議裡也有一條：替表建好合適的索引，讓查詢掃過較少的索引記錄、加較少的鎖（Add well-chosen indexes to your tables so that your queries scan fewer index records and set fewer locks.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">間隙鎖唯一的目的是什麼？</p>
@@ -713,7 +679,7 @@ UPDATE account SET balance = 7000,                  DO SLEEP(2);
 </svg>
 <figcaption>實跑結果：A 的 UPDATE 是 Rows matched: 1；B 的是 Rows matched: 0，最後是 balance 7000、version 2。B 的程式看到 0 列，就重新讀出 7000 再扣 4000。</figcaption>
 </figure>
-<p>JPA 的 <code>@Version</code> 做的就是這件事：更新時自動帶上版本條件，影響 0 列就丟 <code>OptimisticLockException</code>。多台機器、多個資料庫之間要搶同一份資源時，資料庫的鎖管不到，見〈分散式鎖與 Redis〉；那一課也說，只有一個資料庫時，FOR UPDATE 或版本號常比自己架分散式鎖更穩。</p>
+<p>JPA 的 <code>@Version</code> 做的就是這件事。Jakarta Persistence 文件：它宣告實體的版本欄位，「用來偵測樂觀鎖失敗」（which is used to detect optimistic lock failures），讀出之後、更新之前資料庫裡的版本變了就算失敗<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/version" target="_blank" rel="noopener">出處</a>，這時丟 <code>OptimisticLockException</code>（Thrown by the persistence provider when an optimistic locking conflict occurs.）<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/optimisticlockexception" target="_blank" rel="noopener">出處</a>。經過 Spring 的例外轉換後，你接到的是 <code>JpaOptimisticLockingFailureException</code>，它是 <code>ObjectOptimisticLockingFailureException</code> 的子類別（JPA-specific subclass of ObjectOptimisticLockingFailureException. Converts JPA's OptimisticLockException.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/orm/jpa/JpaOptimisticLockingFailureException.html" target="_blank" rel="noopener">出處</a>多台機器、多個資料庫之間要搶同一份資源時，資料庫的鎖管不到，見〈分散式鎖與 Redis〉；那一課也說，只有一個資料庫時，FOR UPDATE 或版本號常比自己架分散式鎖更穩。</p>
 
 <div class="drill">
   <p class="dq">遺失更新的示範中，帳戶 1 原本 10000，A 扣 3000、B 扣 4000。最後實跑的餘額是多少？</p>
@@ -768,7 +734,7 @@ COMMIT;                                                COMMIT;
 -- 連線 A 收到：
 ERROR 1213 (40001) at line 4: Deadlock found when trying to get lock; try restarting transaction</code></pre>
 <figure>
-<svg viewBox="0 0 760 380" role="img" aria-label="死結的時間軸：交易 A 在 0 秒鎖住帳戶 1；交易 B 在 1 秒鎖住帳戶 2，接著要鎖帳戶 1 開始等待；A 在 2 秒要鎖帳戶 2，也開始等待；InnoDB 偵測到死結，還原 A，B 拿到帳戶 1 的鎖並提交">
+<svg viewBox="0 0 760 380" role="img" aria-label="死結的時間軸：交易 A 在 0 秒鎖住帳戶 1；交易 B 在 1 秒鎖住帳戶 2，緊接著要鎖帳戶 1，開始等待；A 在 2 秒要鎖帳戶 2，形成死結；InnoDB 立刻還原 A，B 在 2 秒拿到帳戶 1 的鎖並提交">
   <defs><marker id="tx-6-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
   <line x1="120.0" y1="292" x2="740.0" y2="292" stroke="currentColor" stroke-opacity=".5" marker-end="url(#tx-6-a)"/>
   <line x1="120.0" y1="288" x2="120.0" y2="296" stroke="currentColor" stroke-opacity=".5"/>
@@ -783,8 +749,8 @@ ERROR 1213 (40001) at line 4: Deadlock found when trying to get lock; try restar
   <text x="40" y="214" font-size="13" text-anchor="middle" font-weight="700">交易 B</text>
   <line x1="120.0" y1="110" x2="720.0" y2="110" stroke="currentColor" stroke-opacity=".2" stroke-width="6"/>
   <line x1="120.0" y1="210" x2="720.0" y2="210" stroke="currentColor" stroke-opacity=".2" stroke-width="6"/>
-  <line x1="470.0" y1="210" x2="610.0" y2="210" stroke="var(--danger)" stroke-width="3" stroke-dasharray="6 4"/>
-  <text x="540.0" y="200" font-size="11" text-anchor="middle" fill="var(--danger)">等待鎖</text>
+  <line x1="320.0" y1="210" x2="520.0" y2="210" stroke="var(--danger)" stroke-width="3" stroke-dasharray="6 4"/>
+  <text x="440.0" y="230" font-size="11" text-anchor="middle" fill="var(--danger)">B 等待鎖 1</text>
   <line x1="120.0" y1="110" x2="120.0" y2="76" stroke="currentColor" stroke-opacity=".5"/>
   <circle cx="120.0" cy="110" r="4" fill="var(--gold)"/>
   <rect x="80" y="48" width="95" height="28" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/>
@@ -795,20 +761,19 @@ ERROR 1213 (40001) at line 4: Deadlock found when trying to get lock; try restar
   <rect x="272" y="224" width="95" height="28" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/>
   <text x="320.0" y="243" font-size="11.5" text-anchor="middle" class="mono">UPDATE id=2</text>
   <text x="320.0" y="267" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">鎖住 2</text>
-  <line x1="470.0" y1="210" x2="470.0" y2="224" stroke="currentColor" stroke-opacity=".5"/>
-  <circle cx="470.0" cy="210" r="4" fill="currentColor"/>
-  <rect x="422" y="224" width="95" height="28" rx="5" fill="var(--surface)" stroke="currentColor"/>
-  <text x="470.0" y="243" font-size="11.5" text-anchor="middle" class="mono">UPDATE id=1</text>
+  <line x1="330.0" y1="210" x2="330.0" y2="180" stroke="currentColor" stroke-opacity=".5"/>
+  <rect x="332" y="152" width="95" height="28" rx="5" fill="var(--surface)" stroke="currentColor"/>
+  <text x="379.5" y="171" font-size="11.5" text-anchor="middle" class="mono">UPDATE id=1</text>
   <line x1="520.0" y1="110" x2="520.0" y2="76" stroke="currentColor" stroke-opacity=".5"/>
   <circle cx="520.0" cy="110" r="4" fill="var(--danger)"/>
   <rect x="472" y="48" width="95" height="28" rx="5" fill="var(--sunk)" stroke="var(--danger)"/>
   <text x="520.0" y="67" font-size="11.5" text-anchor="middle" class="mono">UPDATE id=2</text>
   <text x="520.0" y="42" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" font-weight="700">ERROR 1213 還原</text>
-  <line x1="640.0" y1="210" x2="640.0" y2="224" stroke="currentColor" stroke-opacity=".5"/>
-  <circle cx="640.0" cy="210" r="4" fill="var(--slate)"/>
-  <rect x="610" y="224" width="60" height="46" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/>
-  <text x="640.0" y="243" font-size="11.5" text-anchor="middle" class="mono">拿到 1</text>
-  <text x="640.0" y="261" font-size="11.5" text-anchor="middle" class="mono">COMMIT</text>
+  <line x1="525.0" y1="210" x2="525.0" y2="240" stroke="currentColor" stroke-opacity=".5"/>
+  <circle cx="525.0" cy="210" r="4" fill="var(--slate)"/>
+  <rect x="495" y="240" width="60" height="46" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="525.0" y="259" font-size="11.5" text-anchor="middle" class="mono">拿到 1</text>
+  <text x="525.0" y="277" font-size="11.5" text-anchor="middle" class="mono">COMMIT</text>
   <text x="380" y="340" font-size="12" text-anchor="middle" fill="var(--slate-deep)">A 等 B 手上的 2、B 等 A 手上的 1，誰也等不到；InnoDB 立刻偵測並還原其中一筆</text>
   <text x="380" y="360" font-size="12" text-anchor="middle" fill="var(--slate-deep)">這次還原的是 A（ERROR 1213），B 等了約 1 秒後完成</text>
 </svg>
@@ -871,7 +836,7 @@ RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X
 <section>
 <p class="era">改結構時，表還能用嗎</p>
 <h3 class="head">點到為止：Online DDL</h3>
-<p>正式環境替大表加欄位、加索引，最怕的是把表鎖住、交易全部卡住。MySQL 的 Online DDL 讓多數 <code>ALTER TABLE</code> 能用「即時」（INSTANT，只改中繼資料）或「就地」（INPLACE，不複製整張表）的方式做，同時允許其他連線讀寫。手冊建議明寫 <code>LOCK=NONE</code>（允許讀寫）或 <code>LOCK=SHARED</code>（只允許讀），「要求的並行程度做不到時，語句會立刻停止」（The operation halts immediately if the requested level of concurrency is not available.），就不會不小心把表鎖住。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a> 在帳戶表實跑：</p>
+<p>正式環境替大表加欄位、加索引，最怕把表鎖住、交易全部卡住。Online DDL 讓多數 <code>ALTER TABLE</code> 用「即時」（INSTANT，只改中繼資料）或「就地」（INPLACE，不複製整張表）的方式做，同時允許其他連線讀寫；明寫 <code>LOCK=NONE</code> 時，「要求的並行程度做不到，語句會立刻停止」（The operation halts immediately if the requested level of concurrency is not available.），不會默默鎖表。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a> 下面四行實跑：加欄位 INSTANT、加二級索引 INPLACE 都成功；改欄位型別兩種都被拒，要複製整張表、至少 LOCK=SHARED（期間不能寫）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html" target="_blank" rel="noopener">出處</a> 就算線上做，提交新的表定義時仍要短暫拿排他中繼資料鎖，手冊說線上 DDL「可能要等持有這張表中繼資料鎖的並行交易提交或還原」（an online DDL operation may have to wait for concurrent transactions that hold metadata locks on the table to commit or rollback.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-performance.html" target="_blank" rel="noopener">出處</a> 前面有長交易沒結束時，ALTER 會一直等，見〈資料庫面試題：索引、交易隔離與鎖〉那題。（錯誤訊息裡的腳本行號已省略。）</p>
 <pre><code>mysql&gt; ALTER TABLE account ADD COLUMN branch VARCHAR(10), ALGORITHM=INSTANT;
 Query OK, 0 rows affected (0.01 sec)
 
@@ -883,7 +848,6 @@ ERROR 1846 (0A000): ALGORITHM=INPLACE is not supported. Reason: Cannot change co
 
 mysql&gt; ALTER TABLE account MODIFY COLUMN balance DECIMAL(14,2) NOT NULL, LOCK=NONE;
 ERROR 1846 (0A000): LOCK=NONE is not supported. Reason: Cannot change column type INPLACE. Try LOCK=SHARED.</code></pre>
-<p>加欄位可以 INSTANT；加二級索引可以 INPLACE，手冊的表寫它「允許並行 DML」、不重建表；改欄位型別兩種都不行，要複製整張表，而且至少要 LOCK=SHARED（期間不能寫）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html" target="_blank" rel="noopener">出處</a> 明寫 LOCK=NONE 的好處就在最後兩行：做不到時當場報錯，而不是默默鎖表。（錯誤訊息裡原本有 <code>at line 3</code> 這類腳本行號，這裡省略。）另外要知道：就算是 INPLACE，語句開始與結束時仍要短暫拿一下這張表的中繼資料鎖，前面有長交易沒結束時，ALTER 會一直等，見〈資料庫面試題：索引、交易隔離與鎖〉那題。</p>
 
 <div class="drill">
   <p class="dq">替一張大表加一個可為 NULL 的新欄位，MySQL 8.4 通常可以用哪種方式，不必重建整張表？</p>
@@ -891,19 +855,9 @@ ERROR 1846 (0A000): LOCK=NONE is not supported. Reason: Cannot change column typ
   <p class="dexp">加欄位通常只改中繼資料，實跑 ALGORITHM=INSTANT 成功、0.01 秒。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>ALTER TABLE … ADD INDEX …, ALGORITHM=INPLACE, LOCK=NONE</code> 執行期間，其他連線能不能繼續 INSERT、UPDATE？</p>
-  <ul class="dopts"><li data-ok>能，加二級索引允許並行 DML</li><li>不能，建索引一定會鎖住整張表</li><li>只能讀，建索引期間不能寫</li><li>要看這個索引有幾個欄位</li></ul>
-  <p class="dexp">手冊的表：建立二級索引 In Place 是 Yes、Permits Concurrent DML 是 Yes。LOCK=NONE 就是要求讀寫都不擋。</p>
-</div>
-<div class="drill">
   <p class="dq">在 ALTER TABLE 明寫 <code>LOCK=NONE</code>，如果這個操作其實做不到不鎖表，會怎樣？</p>
   <ul class="dopts"><li>自動改成鎖整張表，照樣執行</li><li data-ok>語句立刻停止並報錯，不會開始執行</li><li>先執行一半再停下來</li><li>忽略 LOCK=NONE，照預設方式做</li></ul>
   <p class="dexp">手冊：The operation halts immediately if the requested level of concurrency is not available。實跑改欄位型別就是 ERROR 1846，建議改用 LOCK=SHARED。</p>
-</div>
-<div class="drill">
-  <p class="dq">把 <code>balance</code> 從 DECIMAL(12,2) 改成 DECIMAL(14,2)，實跑結果說明了什麼？</p>
-  <ul class="dopts"><li>改型別可以 INPLACE，完全不鎖表</li><li>改型別在 MySQL 8.4 完全不支援</li><li data-ok>要複製整張表，期間至少擋住寫入</li><li>只要改成 ALGORITHM=INSTANT 就行</li></ul>
-  <p class="dexp">INPLACE 被拒（Try ALGORITHM=COPY）、LOCK=NONE 也被拒（Try LOCK=SHARED）。大表改型別要排在離峰時間，或用線上搬表工具。</p>
 </div>
 </section>
 
