@@ -1,0 +1,711 @@
+<!-- 來源：依 Resilience4j 官方文件（resilience4j.readme.io 的 CircuitBreaker、Retry、Bulkhead、RateLimiter、TimeLimiter、Spring Boot 2&amp;3 Getting Started 各頁；文件站標示 v2.2.0）、resilience4j v2.4.0 發佈說明與 resilience4j-spring-boot4 說明檔、Spring Boot 4.0 遷移指南與 resilience4j v2.4.0 原始碼（IntervalFunction、CommonRetryConfigurationProperties、CommonCircuitBreakerConfigurationProperties、CircuitBreakersHealthIndicator、TimeLimiterConfig）、Azure 架構中心 Circuit Breaker／Retry／Bulkhead 模式、Google SRE 書〈Addressing Cascading Failures〉、Java SE 21 API 文件 CompletableFuture 新寫；範例程式全部自編，以 Spring Boot 4.1.1（Spring Framework 7.0.9）、resilience4j-spring-boot4 2.4.0、Java 21 實際執行，課文輸出照實跑結果 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看著斷路器的事件紀錄，說出 CLOSED、OPEN、HALF_OPEN 在哪一次呼叫切換、為什麼是那一次，並算出失敗率與慢呼叫比例</li><li>寫對降級回呼的方法簽名，知道回呼什麼時候會被叫到、自我呼叫為什麼讓註解全部失效</li><li>設定指數退避加抖動的重試，算出每次等多久，並避開「重試去敲已經跳開的斷路器」這個疊用陷阱</li><li>分清隔艙、限流、逾時各擋住什麼，並從 Actuator 的 health、metrics、prometheus 端點讀出斷路器的狀態</li></ul></div>
+
+<section>
+<p class="era">一個下游變慢，整串一起倒</p>
+<h3 class="head">為什麼要韌性模式，以及這課的實驗環境</h3>
+<p>〈Maven、微服務與全域例外〉講過：拆成微服務不等於故障自動隔離，要另外做逾時、重試上限、斷路器與降級。Google 的 SRE 書把不做的後果叫<strong>連鎖故障</strong>（cascading failure）：「因為正回饋而隨時間擴大的故障」，系統的一部分出事，「讓其他部分出事的機率跟著升高」（A cascading failure is a failure that grows over time as a result of positive feedback. It can occur when a portion of an overall system fails, increasing the probability that other portions of the system fail.）。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="連鎖故障：核心帳務變慢，餘額服務的執行緒都卡在等它回覆；網銀前台呼叫餘額服務也跟著等，最後三層一起變慢或逾時">
+<defs><marker id="rs-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+<rect x="30" y="60" width="180" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="120" y="90" font-size="14" text-anchor="middle">網銀前台</text><text x="120" y="112" font-size="12" text-anchor="middle" opacity=".7">等餘額服務回覆</text>
+<rect x="290" y="60" width="180" height="70" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380" y="90" font-size="14" text-anchor="middle">餘額服務</text><text x="380" y="112" font-size="12" text-anchor="middle" opacity=".7">執行緒全卡在等下游</text>
+<rect x="550" y="60" width="180" height="70" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="640" y="90" font-size="14" text-anchor="middle">核心帳務</text><text x="640" y="112" font-size="12" text-anchor="middle" fill="var(--danger)">變慢：每筆 10 秒</text>
+<line x1="212" y1="95" x2="286" y2="95" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#rs-m1)"/><line x1="472" y1="95" x2="546" y2="95" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#rs-m1)"/>
+<text x="380" y="170" font-size="12.5" text-anchor="middle">③ 卡住的請求越積越多，餘額服務自己也回不了</text><text x="640" y="170" font-size="12.5" text-anchor="middle">① 源頭只有一個</text><text x="120" y="170" font-size="12.5" text-anchor="middle">④ 前台跟著卡住</text>
+<text x="30" y="215" font-size="12.5" fill="var(--gold-deep)">斷路器：下游一直失敗就先別呼叫；逾時：每次呼叫有終點；隔艙：卡住的只占自己那一格名額</text>
+<text x="30" y="238" font-size="12" opacity=".6">② 呼叫端沒有逾時、沒有斷路器時，下游的慢會原封不動傳上來</text>
+</svg>
+<figcaption>連鎖故障：源頭只是一個下游變慢，沒有保護的呼叫端會把「慢」一層一層往上傳。</figcaption>
+</figure>
+<p>這課用 Resilience4j 把這幾種保護一個一個開起來看。各參數的完整對照表與面試答法在〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉，斷路器三態的通用定義在〈系統設計：秒殺與限流〉；這課不重抄表格，改用實驗把每個參數的效果印出來。</p>
+
+<h4>實驗環境</h4>
+<p>專案用 Spring Boot 4.1.1（Spring Framework 7.0.9）、Java 21 與 <code>resilience4j-spring-boot4</code> 2.4.0。Resilience4j 從 2.4.0 起才有 Spring Boot 4 的模組，發佈說明寫「新增對 Spring Boot 4／Spring Cloud 5 的支援」（Add support for Spring Boot 4 / Spring Cloud 5）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/releases/tag/v2.4.0" target="_blank" rel="noopener">出處</a>；這個模組的說明檔把詳細用法指向 Spring Boot 2&amp;3 那份使用指南（For detailed documentation look at our Usage Guide）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/README.adoc" target="_blank" rel="noopener">出處</a>，所以下面引的設定文件都出自那一頁。那一頁寫模組「預期執行時已經有 actuator 與 aop 兩個 starter」（The module expects that org.springframework.boot:spring-boot-starter-actuator and org.springframework.boot:spring-boot-starter-aop are already provided at runtime.）<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a>；Spring Boot 4 把 AOP 的 starter 改名為 <code>spring-boot-starter-aspectj</code>，Web MVC 與 RestClient 也各有自己的 starter（遷移指南的對照表：AspectJ spring-boot-starter-aspectj、Spring Web MVC spring-boot-starter-webmvc、Spring’s Imperative RestClient and RestTemplate spring-boot-starter-restclient）<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a>。實驗的 <code>pom.xml</code>：</p>
+<pre><code>&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-webmvc&lt;/artifactId&gt;&lt;/dependency&gt;
+&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-restclient&lt;/artifactId&gt;&lt;/dependency&gt;
+&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-actuator&lt;/artifactId&gt;&lt;/dependency&gt;
+&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-aspectj&lt;/artifactId&gt;&lt;/dependency&gt;
+&lt;dependency&gt;&lt;groupId&gt;io.github.resilience4j&lt;/groupId&gt;&lt;artifactId&gt;resilience4j-spring-boot4&lt;/artifactId&gt;&lt;version&gt;2.4.0&lt;/version&gt;&lt;/dependency&gt;
+&lt;dependency&gt;&lt;groupId&gt;io.micrometer&lt;/groupId&gt;&lt;artifactId&gt;micrometer-registry-prometheus&lt;/artifactId&gt;&lt;/dependency&gt;</code></pre>
+<p>下游是同一個程式裡一支故意會壞的「核心帳務」API，用一個開關決定它正常、回 500、回 400 或變慢；呼叫端用 <code>RestClient</code> 真的走 HTTP 去打它（4xx 會丟 <code>HttpClientErrorException</code>，5xx 丟 <code>HttpServerErrorException</code>）：</p>
+<pre><code>@RestController
+public class Downstream {
+    static volatile String mode = "OK";
+    static volatile long delayMs = 0;
+
+    @GetMapping("/core/balance")
+    ResponseEntity&lt;String&gt; balance() throws InterruptedException {
+        // （實驗程式在這裡印「下游收到第 n 次請求」）
+        if (delayMs &gt; 0) Thread.sleep(delayMs);
+        return switch (mode) {
+            case "FAIL" -&gt; ResponseEntity.status(500).body("core down");
+            case "BAD" -&gt; ResponseEntity.status(400).body("bad account");
+            default -&gt; ResponseEntity.ok("1000");
+        };
+    }
+}</code></pre>
+<p>下面每段的輸出都是這個專案實跑印出來的。每行開頭是從實驗開始算起的毫秒數，每次跑會差幾毫秒，順序與次數不變。</p>
+<p class="formula">連鎖故障＝一處出事讓別處更容易出事；韌性模式的工作，是讓下游的壞停在下游</p>
+
+<div class="drill">
+  <p class="dq">核心帳務每筆變成要 10 秒，餘額服務呼叫它時沒有設任何逾時與斷路器。最先撐不住的通常是什麼？</p>
+  <ul class="dopts"><li data-ok>餘額服務的執行緒，全卡在等回覆</li><li>核心帳務的資料庫，因為寫入變多</li><li>網銀前台的瀏覽器，因為畫面太大</li><li>沒有東西會撐不住，只是每筆慢一點</li></ul>
+  <p class="dexp">每個等待中的請求都占著一條執行緒。下游慢了，呼叫端的執行緒越積越多，自己也回不了新請求，接著再往上傳，就是連鎖故障。慢不會「只是慢一點」，它會占住資源。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 Spring Boot 4 用 Resilience4j 的註解，下面哪一個相依套件不加也可以？</p>
+  <ul class="dopts"><li>spring-boot-starter-aspectj</li><li>spring-boot-starter-actuator</li><li>resilience4j-spring-boot4</li><li data-ok>micrometer-registry-prometheus</li></ul>
+  <p class="dexp">使用指南寫這個模組預期執行時已經有 actuator 與 aop 兩個 starter，aop 那個在 Spring Boot 4 叫 spring-boot-starter-aspectj。Prometheus 那個只有要從 /actuator/prometheus 拿指標時才需要。</p>
+</div>
+<div class="drill">
+  <p class="dq">實驗裡的下游回 HTTP 400。<code>RestClient</code> 的 <code>retrieve()</code> 會丟出哪一類例外？</p>
+  <ul class="dopts"><li>HttpServerErrorException</li><li data-ok>HttpClientErrorException</li><li>CallNotPermittedException</li><li>不丟例外，回傳 null</li></ul>
+  <p class="dexp">4xx 是用戶端錯誤，丟 HttpClientErrorException；5xx 才是 HttpServerErrorException。CallNotPermittedException 是斷路器擋下呼叫時丟的，跟 HTTP 無關。後面重試要靠這個差別決定「哪些錯值得再試」。</p>
+</div>
+</section>
+
+<section>
+<p class="era">記帳、跳開、試探、恢復</p>
+<h3 class="head">斷路器：從實驗紀錄看三態怎麼切換</h3>
+<p>Resilience4j 文件：斷路器是「有限狀態機，有三個正常狀態 CLOSED、OPEN、HALF_OPEN」，並「用滑動視窗儲存並彙總呼叫結果」（The CircuitBreaker is implemented via a finite state machine with three normal states: CLOSED, OPEN and HALF_OPEN … The CircuitBreaker uses a sliding window to store and aggregate the outcome of calls.）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a> 實驗把參數調得很小，才看得到每一步：</p>
+<pre><code>resilience4j.circuitbreaker:
+  instances:
+    core:
+      registerHealthIndicator: true
+      slidingWindowType: COUNT_BASED          # 看最近 N 次
+      slidingWindowSize: 5                    # N = 5
+      minimumNumberOfCalls: 5                 # 記滿 5 次才開始算失敗率
+      failureRateThreshold: 50                # 失敗率 ≥ 50% 就跳開
+      waitDurationInOpenState: 2s             # 跳開後等 2 秒才試探
+      permittedNumberOfCallsInHalfOpenState: 2  # 試探時放 2 次</code></pre>
+<p>被保護的方法加 <code>@CircuitBreaker</code>，名字對到上面的 <code>core</code>；兩個降級回呼（fallback）下一段細講：</p>
+<pre><code>@Service
+public class BalanceService {
+    private final CoreClient core;
+    BalanceService(CoreClient core) { this.core = core; }
+
+    @CircuitBreaker(name = "core", fallbackMethod = "balanceFallback")
+    public String balance(String account) {
+        return core.balance();
+    }
+    // 斷路器擋下來（OPEN、或半開名額用完）時：回快取
+    private String balanceFallback(String account, CallNotPermittedException e) {
+        return "快取餘額";
+    }
+    // 其他例外（例如下游回 500）：回「暫時查不到」
+    private String balanceFallback(String account, Exception e) {
+        return "暫時查不到（" + e.getClass().getSimpleName() + "）";
+    }
+}</code></pre>
+<p>實驗：前兩次下游正常，第 3 次起回 500；跳開後再叫兩次；等 2.1 秒、下游恢復，再叫兩次。每次呼叫後印出 <code>getMetrics()</code> 的數字，狀態變化由 <code>getEventPublisher().onStateTransition(...)</code> 印出：</p>
+<pre><code>   62 ms  下游收到第 1 次請求（OK）
+   81 ms  第 1 次呼叫 → 1000
+         狀態 CLOSED，記了 1 次，失敗 0 次，失敗率 -1.0%，被擋 0 次
+   85 ms  下游收到第 2 次請求（OK）
+   87 ms  第 2 次呼叫 → 1000
+         狀態 CLOSED，記了 2 次，失敗 0 次，失敗率 -1.0%，被擋 0 次
+   89 ms  下游收到第 3 次請求（FAIL）
+   95 ms  第 3 次呼叫 → 暫時查不到（InternalServerError）
+         狀態 CLOSED，記了 3 次，失敗 1 次，失敗率 -1.0%，被擋 0 次
+   98 ms  下游收到第 4 次請求（FAIL）
+   99 ms  第 4 次呼叫 → 暫時查不到（InternalServerError）
+         狀態 CLOSED，記了 4 次，失敗 2 次，失敗率 -1.0%，被擋 0 次
+  102 ms  下游收到第 5 次請求（FAIL）
+  104 ms  【core】狀態 CLOSED → OPEN
+  105 ms  第 5 次呼叫 → 暫時查不到（InternalServerError）
+         狀態 OPEN，記了 5 次，失敗 3 次，失敗率 60.0%，被擋 0 次
+  105 ms  第 6 次呼叫 → 快取餘額
+         狀態 OPEN，記了 5 次，失敗 3 次，失敗率 60.0%，被擋 1 次
+  106 ms  第 7 次呼叫 → 快取餘額
+         狀態 OPEN，記了 5 次，失敗 3 次，失敗率 60.0%，被擋 2 次
+  106 ms  等 2.1 秒（waitDurationInOpenState 是 2 秒），下游也恢復了
+ 2210 ms  【core】狀態 OPEN → HALF_OPEN
+ 2213 ms  下游收到第 6 次請求（OK）
+ 2214 ms  第 8 次呼叫 → 1000
+         狀態 HALF_OPEN，記了 1 次，失敗 0 次，失敗率 -1.0%，被擋 0 次
+ 2216 ms  下游收到第 7 次請求（OK）
+ 2218 ms  【core】狀態 HALF_OPEN → CLOSED
+ 2218 ms  第 9 次呼叫 → 1000
+         狀態 CLOSED，記了 0 次，失敗 0 次，失敗率 -1.0%，被擋 0 次</code></pre>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="斷路器實驗的九次呼叫：第 1、2 次成功，第 3 到 5 次失敗，第 5 次記滿 5 次、失敗率 60% 達門檻，轉成 OPEN；第 6、7 次被擋、下游沒收到；等 2 秒後第 8 次呼叫時轉成 HALF_OPEN，第 8、9 次成功，轉回 CLOSED">
+<defs><marker id="rs-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+<text x="20" y="34" font-size="13">狀態</text>
+<rect x="100" y="16" width="280" height="28" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="240" y="35" font-size="12.5" text-anchor="middle" class="mono">CLOSED</text>
+<rect x="380" y="16" width="112" height="28" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="436" y="35" font-size="12.5" text-anchor="middle" class="mono">OPEN</text>
+<rect x="548" y="16" width="112" height="28" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="604" y="35" font-size="12.5" text-anchor="middle" class="mono">HALF_OPEN</text>
+<rect x="660" y="16" width="80" height="28" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="700" y="35" font-size="12.5" text-anchor="middle" class="mono">CLOSED</text>
+<text x="20" y="85" font-size="13">呼叫</text>
+<rect x="100" y="62" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="128" y="87" font-size="14" text-anchor="middle">✓</text>
+<rect x="156" y="62" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="184" y="87" font-size="14" text-anchor="middle">✓</text>
+<rect x="212" y="62" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="240" y="87" font-size="14" text-anchor="middle" fill="var(--danger)">✗</text>
+<rect x="268" y="62" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="296" y="87" font-size="14" text-anchor="middle" fill="var(--danger)">✗</text>
+<rect x="324" y="62" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="352" y="87" font-size="14" text-anchor="middle" fill="var(--danger)">✗</text>
+<rect x="380" y="62" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="4 3"/><text x="408" y="87" font-size="13" text-anchor="middle" opacity=".6">擋</text>
+<rect x="436" y="62" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="4 3"/><text x="464" y="87" font-size="13" text-anchor="middle" opacity=".6">擋</text>
+<rect x="548" y="62" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="576" y="87" font-size="14" text-anchor="middle">✓</text>
+<rect x="604" y="62" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="632" y="87" font-size="14" text-anchor="middle">✓</text>
+<text x="128" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><text x="184" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><text x="240" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><text x="296" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><text x="352" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><text x="408" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><text x="464" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><text x="576" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">8</text><text x="632" y="118" font-size="12" text-anchor="middle" class="mono" opacity=".6">9</text>
+<text x="520" y="87" font-size="12" text-anchor="middle" opacity=".7">等 2 秒</text>
+<text x="20" y="160" font-size="13">失敗率</text>
+<text x="128" y="160" font-size="12" text-anchor="middle" class="mono">-1</text><text x="184" y="160" font-size="12" text-anchor="middle" class="mono">-1</text><text x="240" y="160" font-size="12" text-anchor="middle" class="mono">-1</text><text x="296" y="160" font-size="12" text-anchor="middle" class="mono">-1</text><text x="352" y="160" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">60%</text><text x="576" y="160" font-size="12" text-anchor="middle" class="mono">-1</text><text x="632" y="160" font-size="12" text-anchor="middle" class="mono">-1</text>
+<path d="M352 172 L352 196" stroke="var(--gold-deep)" stroke-width="1.5" marker-end="url(#rs-m2)"/><text x="352" y="214" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">記滿 5 次，3/5 = 60% ≥ 50%</text>
+<path d="M436 172 L436 236" stroke="currentColor" stroke-opacity=".5" stroke-width="1.5" marker-end="url(#rs-m2)"/><text x="436" y="254" font-size="12.5" text-anchor="middle">直接進回呼，下游沒收到</text>
+<path d="M604 172 L604 196" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#rs-m2)"/><text x="604" y="214" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">半開放行 2 次，都成功</text>
+<text x="20" y="292" font-size="12" opacity=".6">失敗率 -1 表示「還不能算」：記不滿 minimumNumberOfCalls 時，就算全失敗也不跳開</text>
+<text x="20" y="314" font-size="12" opacity=".6">虛線格＝被斷路器擋下（CallNotPermittedException）；古銅格＝跳開的那一次</text>
+</svg>
+<figcaption>九次呼叫對照狀態：第 5 次記滿才算出 60%，當場跳開；被擋的兩次下游完全沒收到；半開的兩次試探都成功就回到 CLOSED。</figcaption>
+</figure>
+<p>逐段對照文件：</p>
+<ul class="plainlist">
+<li><strong>第 1〜4 次，失敗率是 -1。</strong>失敗率「要記錄到最少呼叫數之後才能計算」，文件的例子是最少 10 次時「只評估了 9 次，就算 9 次全失敗也不會跳開」（If only 9 calls have been evaluated the CircuitBreaker will not trip open even if all 9 calls have failed.）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a> 實驗的第 4 次已經 2 敗 2 成、剛好 50%，但才記 4 次，不算。</li>
+<li><strong>第 5 次跳開。</strong>「失敗率大於或等於門檻時，從 CLOSED 變成 OPEN」（The state of the CircuitBreaker changes from CLOSED to OPEN when the failure rate is equal or greater than a configurable threshold.）。5 次裡 3 次失敗是 60%，大於 50%。注意第 5 次本身是正常打到下游、失敗之後才跳開的，所以它拿到的是 500 那條回呼。</li>
+<li><strong>第 6、7 次被擋。</strong>「OPEN 時用 <code>CallNotPermittedException</code> 拒絕呼叫」（The CircuitBreaker rejects calls with a CallNotPermittedException when it is OPEN.）。下游的請求計數停在 5，這兩次根本沒送出去，這就是斷路器替下游減壓的方式。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a></li>
+<li><strong>OPEN → HALF_OPEN 發生在第 8 次呼叫的那一刻</strong>（2210 毫秒），不是剛好滿 2 秒時。<code>automaticTransitionFromOpenToHalfOpenEnabled</code> 預設 false，文件：這時「就算過了 <code>waitDurationInOpenState</code>，也要有呼叫進來才會轉成 HALF_OPEN」（if set to false the transition to HALF_OPEN only happens if a call is made, even after waitDurationInOpenState is passed.）；設成 true 會多一條執行緒定時去轉。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a></li>
+<li><strong>半開放行 2 次，都成功就回 CLOSED</strong>，而且「記了 0 次」：回到 CLOSED 時滑動視窗重新開始記。半開時「其餘的呼叫照樣用 <code>CallNotPermittedException</code> 拒絕，直到放行的呼叫都完成」；放行的跑完後，「失敗率或慢呼叫比例仍大於等於門檻就退回 OPEN；都低於門檻就回 CLOSED」（If the failure rate or slow call rate is then equal or greater than the configured threshold, the state changes back to OPEN. If the failure rate and slow call rate is below the threshold, the state changes back to CLOSED.）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>下游沒好時的半開長這樣（同樣的設定，先連續失敗 5 次跳開，等 2.1 秒後下游還是回 500）：</p>
+<pre><code>  126 ms  【core】狀態 CLOSED → OPEN
+  126 ms  連續 5 次失敗後：
+         狀態 OPEN，記了 5 次，失敗 5 次，失敗率 100.0%，被擋 0 次
+ 2227 ms  等 2.1 秒，下游還沒好
+ 2229 ms  【core】狀態 OPEN → HALF_OPEN
+ 2232 ms  第 6 次呼叫 → 暫時查不到（InternalServerError）
+         狀態 HALF_OPEN，記了 1 次，失敗 1 次，失敗率 -1.0%，被擋 0 次
+ 2234 ms  【core】狀態 HALF_OPEN → OPEN
+ 2234 ms  第 7 次呼叫 → 暫時查不到（InternalServerError）
+         狀態 OPEN，記了 2 次，失敗 2 次，失敗率 100.0%，被擋 0 次</code></pre>
+<p>第 6 次失敗後還沒退回 OPEN：半開放行 2 次，第 1 次跑完時失敗率還是 -1；第 2 次也失敗，2 次全敗才退回 OPEN。這跟 Azure 架構中心的通用描述不同，Azure 寫的是半開時「任何一個請求失敗，就認定故障還在，退回 OPEN」（If any request fails, the circuit breaker assumes that the fault is still present, so it reverts to the Open state.）<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a>；Resilience4j 看的是放行那幾次的比例。</p>
+<p class="muted">計數型視窗看「最近 N 次」，時間型（<code>TIME_BASED</code>）看「最近 N 秒」，文件說兩種都把結果先彙總好，所以讀取快照是 O(1)。視窗大小也不是同時呼叫的上限：「20 條執行緒同時要求執行時，只要狀態是 CLOSED，全部都會放行，就算滑動視窗大小是 15」，要限制同時在跑的數量得用隔艙。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">CLOSED 記帳（記滿最少次數才算）→ 失敗率 ≥ 門檻跳 OPEN（直接擋）→ 等滿時間、下一次呼叫時轉 HALF_OPEN → 放行那幾次的比例決定回 CLOSED 或退回 OPEN</p>
+
+<div class="drill">
+  <p class="dq">實驗的設定是 <code>minimumNumberOfCalls: 5</code>、門檻 50%。第 4 次呼叫後已經 2 次失敗、2 次成功，為什麼還是 CLOSED？</p>
+  <ul class="dopts"><li>因為 50% 要「大於」門檻才會跳開</li><li>因為最近一次是失敗，要等成功才算</li><li data-ok>只記了 4 次，還沒到最少呼叫數</li><li>因為失敗是 500，不算在失敗率裡</li></ul>
+  <p class="dexp">失敗率要記到 minimumNumberOfCalls 才計算，之前一律是 -1。門檻的規則是「大於或等於」，所以如果最少次數是 4，50% 就會跳開。預設所有例外都算失敗，500 也算。</p>
+</div>
+<div class="drill">
+  <p class="dq">同樣的設定（視窗 5、最少 5 次、門檻 50%），依序是 成功、失敗、成功、失敗、成功。第 5 次呼叫後斷路器是什麼狀態？</p>
+  <ul class="dopts"><li>OPEN，因為已經有 2 次失敗</li><li>HALF_OPEN，因為成功與失敗交錯出現</li><li>還不能判斷，失敗率是 -1</li><li data-ok>CLOSED，失敗率 40% 低於門檻</li></ul>
+  <p class="dexp">記滿 5 次，2 次失敗是 40%，小於 50%，維持 CLOSED。HALF_OPEN 只會從 OPEN 等滿時間後進入，不會從 CLOSED 直接進去。</p>
+</div>
+<div class="drill">
+  <p class="dq">斷路器跳開後的第 6、7 次呼叫，下游收到幾次請求？</p>
+  <ul class="dopts"><li>2 次，斷路器只是把結果換成回呼</li><li>1 次，第 6 次送出去試探</li><li data-ok>0 次，在斷路器這層就被擋下</li><li>4 次，被擋的呼叫會自動重送兩次</li></ul>
+  <p class="dexp">實驗裡下游的計數停在 5，跳開之後要到第 8 次（半開）才收到第 6 次請求。OPEN 時呼叫在斷路器這一層就被 CallNotPermittedException 擋下，根本不會送出去。</p>
+</div>
+<div class="drill">
+  <p class="dq">第 5 次呼叫打到下游、拿到 500，斷路器也在這次跳開。這一次呼叫拿到的回呼結果是哪一個？</p>
+  <ul class="dopts"><li>快取餘額（CallNotPermittedException 那條）</li><li data-ok>暫時查不到（InternalServerError）</li><li>拿不到回呼，跳開那次的例外直接丟給呼叫端</li><li>1000，跳開的那一次會改回上一次的成功值</li></ul>
+  <p class="dexp">第 5 次是真的送到下游、拿到 500 之後才記帳、才跳開，所以傳給回呼的例外是 InternalServerError，對到參數型別是 Exception 的那一個。要等第 6 次才會拿到 CallNotPermittedException、走「快取餘額」。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>waitDurationInOpenState</code> 是 2 秒，沒有開 <code>automaticTransitionFromOpenToHalfOpenEnabled</code>。跳開後 10 秒內都沒有任何呼叫，第 10 秒時斷路器是什麼狀態？</p>
+  <ul class="dopts"><li data-ok>還是 OPEN，要有呼叫進來才轉</li><li>HALF_OPEN，2 秒一到就自己轉過去</li><li>CLOSED，閒置太久會自動重置</li><li>DISABLED，沒有呼叫就停用</li></ul>
+  <p class="dexp">這個開關預設 false，文件寫此時「就算過了 waitDurationInOpenState，也要有呼叫進來才會轉成 HALF_OPEN」。實驗裡的轉換時間點 2210 毫秒，正是第 8 次呼叫進來的那一刻。</p>
+</div>
+<div class="drill">
+  <p class="dq">半開放行 2 次（<code>permittedNumberOfCallsInHalfOpenState: 2</code>），第 1 次失敗、第 2 次成功。之後斷路器會怎樣？</p>
+  <ul class="dopts"><li>回 CLOSED，因為最後一次成功了</li><li>維持 HALF_OPEN，再放行 2 次</li><li>第 1 次失敗時就立刻退回 OPEN</li><li data-ok>退回 OPEN，失敗率 50% 達到門檻</li></ul>
+  <p class="dexp">放行的兩次跑完才計算：1 敗 1 成是 50%，「大於或等於」門檻 50%，退回 OPEN（實跑這個順序，第 2 次成功拿到 1000 之後狀態就變 OPEN）。第 1 次失敗時失敗率還是 -1，不會立刻退回；「任一失敗就退回」是 Azure 的通用描述，不是 Resilience4j 的算法。</p>
+</div>
+<div class="drill">
+  <p class="dq">半開放行 2 次，這兩次都還在等下游回覆時，第 3 個呼叫進來了。它會怎樣？</p>
+  <ul class="dopts"><li>也放行，半開時放行數量只是建議值</li><li>排隊等前兩次跑完，再補送出去</li><li>直接把斷路器退回 OPEN，重新計時</li><li data-ok>被擋下，跟 OPEN 時一樣</li></ul>
+  <p class="dexp">文件：半開時放行設定的數量，其餘的呼叫照樣用 CallNotPermittedException 拒絕，直到放行的呼叫都完成。所以這個呼叫會走「快取餘額」那條回呼。</p>
+</div>
+<div class="drill">
+  <p class="dq">半開的兩次都成功，回到 CLOSED。這時 <code>getMetrics().<wbr>getNumberOfBufferedCalls()</code> 是多少？</p>
+  <ul class="dopts"><li>7，從頭累計</li><li>5，保留跳開前的視窗</li><li>2，保留半開的那兩次</li><li data-ok>0，視窗重記</li></ul>
+  <p class="dexp">實驗最後一行印「記了 0 次」：回到 CLOSED 時滑動視窗從頭開始記，跳開前的 3 次失敗不會再拖累新的判斷。</p>
+</div>
+<div class="drill">
+  <p class="dq">斷路器設 <code>slidingWindowSize: 15</code>，正處於 CLOSED。這時 20 條執行緒同時呼叫，會放行幾條？</p>
+  <ul class="dopts"><li>15 條，視窗大小就是同時呼叫的上限</li><li>10 條，另一半等前面完成</li><li data-ok>20 條全部放行，視窗不管並行</li><li>0 條，超過視窗大小就跳開</li></ul>
+  <p class="dexp">文件的例子：CLOSED 時 20 條執行緒同時要求執行，就算視窗大小是 15 也全部放行。視窗只管「記最近幾次的結果」，要限制同時在跑的數量得用隔艙。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>slidingWindowType</code> 改成 <code>TIME_BASED</code>、<code>slidingWindowSize: 10</code>。失敗率改成怎麼算？</p>
+  <ul class="dopts"><li data-ok>看最近 10 秒內的所有呼叫</li><li>每 10 次呼叫結算一次，結算完清空</li><li>看最近 10 次呼叫，跟計數型一樣</li><li>看最近 10 分鐘，單位固定是分鐘</li></ul>
+  <p class="dexp">文件：計數型彙總最近 N 次呼叫，時間型彙總最近 N 秒的呼叫。兩種都是連續滑動的，不是滿一批就清空。</p>
+</div>
+</section>
+
+<section>
+<p class="era">沒失敗，但太慢</p>
+<h3 class="head">慢呼叫：成功了也會被算進去</h3>
+<p>下游沒有報錯、只是變慢，對呼叫端一樣傷。文件：斷路器在「慢呼叫的比例大於或等於門檻時」也會跳開，用意是「在外部系統真的沒有回應之前，先減輕它的負擔」（This helps to reduce the load on an external system before it is actually unresponsive.）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a> 兩個參數：<code>slowCallDurationThreshold</code> 定義多久算慢（預設 60 秒），<code>slowCallRateThreshold</code> 是慢呼叫比例的門檻（預設 100%，也就是全部都慢才跳）。</p>
+<pre><code>resilience4j.circuitbreaker:
+  instances:
+    coreSlow:
+      slidingWindowSize: 4
+      minimumNumberOfCalls: 4
+      slowCallDurationThreshold: 300ms        # 超過 300 毫秒算慢
+      slowCallRateThreshold: 50               # 慢的占一半以上就跳開</code></pre>
+<p>下游每筆睡 500 毫秒、照樣回 1000：</p>
+<pre><code>  575 ms  第 1 次 → 1000，狀態 CLOSED，慢呼叫 1 次，慢呼叫比例 -1.0%，失敗率 -1.0%
+ 1081 ms  第 2 次 → 1000，狀態 CLOSED，慢呼叫 2 次，慢呼叫比例 -1.0%，失敗率 -1.0%
+ 1590 ms  第 3 次 → 1000，狀態 CLOSED，慢呼叫 3 次，慢呼叫比例 -1.0%，失敗率 -1.0%
+ 2095 ms  【coreSlow】狀態 CLOSED → OPEN
+ 2095 ms  第 4 次 → 1000，狀態 OPEN，慢呼叫 4 次，慢呼叫比例 100.0%，失敗率 0.0%</code></pre>
+<p>四次都成功、失敗率 0%，斷路器還是跳開了，理由是慢呼叫比例 100%。<code>slowCallDurationThreshold</code> 要比呼叫的逾時短：逾時先到的話，那次呼叫已經被當成失敗切掉，永遠輪不到「慢」來判斷。</p>
+<p class="formula">慢呼叫：成功但超過 slowCallDurationThreshold 的也記一筆；比例 ≥ slowCallRateThreshold 一樣跳開</p>
+
+<div class="drill">
+  <p class="dq">上面的慢呼叫實驗，第 4 次呼叫拿到的結果是什麼？</p>
+  <ul class="dopts"><li data-ok>1000</li><li>CallNotPermittedException，因為斷路器跳開了</li><li>TimeoutException，超過 300 毫秒</li><li>空字串，慢呼叫的結果會被丟掉</li></ul>
+  <p class="dexp">第 4 次是正常打到下游、花了 500 毫秒成功回來，記帳之後才跳開，所以它自己拿到 1000。slowCallDurationThreshold 只是「記成慢」，不會切斷呼叫；切斷呼叫是逾時的工作。</p>
+</div>
+<div class="drill">
+  <p class="dq">只設 <code>slowCallDurationThreshold: 1s</code>、沒有設 <code>slowCallRateThreshold</code>。下游每筆 1.5 秒、視窗內一半慢一半快，斷路器會因為慢而跳開嗎？</p>
+  <ul class="dopts"><li>會，一半慢就超過預設的 50% 門檻</li><li data-ok>不會，預設要 100% 都慢</li><li>會，視窗裡只要出現一次慢呼叫就跳開</li><li>不會，慢呼叫功能預設是關掉的</li></ul>
+  <p class="dexp">slowCallRateThreshold 預設 100，慢呼叫比例要達到 100% 才跳開。50% 的慢呼叫比例不夠。慢呼叫一直都有在計算，只是門檻預設很高。</p>
+</div>
+<div class="drill">
+  <p class="dq">逾時設 2 秒，<code>slowCallDurationThreshold</code> 設 5 秒。下游開始每筆要 8 秒，慢呼叫比例會怎樣？</p>
+  <ul class="dopts"><li>一路升到 100%，觸發跳開</li><li>升到 50% 左右就停住不動</li><li data-ok>不會升，2 秒就逾時失敗了</li><li>變成負數，表示設定衝突</li></ul>
+  <p class="dexp">每次呼叫跑到 2 秒就逾時失敗，記帳記的是「失敗」，不會有任何呼叫活到 5 秒被記成慢。慢呼叫門檻要比逾時短才派得上用場。</p>
+</div>
+<div class="drill">
+  <p class="dq">文件說慢呼叫門檻的用意是什麼？</p>
+  <ul class="dopts"><li>讓慢的呼叫自動換一台重試</li><li>把慢的呼叫改成非同步執行</li><li>統計平均延遲，畫成報表給維運</li><li data-ok>在下游完全沒回應前先減輕負擔</li></ul>
+  <p class="dexp">原文 This helps to reduce the load on an external system before it is actually unresponsive。下游變慢往往是快撐不住的前兆，先跳開讓它喘口氣。</p>
+</div>
+</section>
+
+<section>
+<p class="era">誰算失敗，失敗了給什麼</p>
+<h3 class="head">記不記成失敗、降級回呼與自我呼叫</h3>
+<h4>哪些例外算失敗</h4>
+<p>文件：「預設所有例外都算失敗」；可以列 <code>recordExceptions</code> 指定哪些算失敗，「那麼其他例外都算成功，除非被忽略」；<code>ignoreExceptions</code> 列的「既不算失敗也不算成功」（By default all exceptions count as a failure. … Exceptions can also be ignored so that they neither count as a failure nor success.）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a> 實務上要想清楚：帳號打錯（400）、餘額不足這類「下游正確地拒絕了」的情況，記成失敗會讓斷路器把好端端的下游擋掉，通常該列進 <code>ignoreExceptions</code>（例子見上面那課面試題）。</p>
+
+<h4>降級回呼（fallback）</h4>
+<p>文件把回呼比成 try／catch：「設了回呼方法，每個例外都會轉給回呼方法的執行器，它找出最符合、能處理這個例外的回呼方法，類似 catch 區塊」，而且「回呼的執行跟斷路器目前的狀態無關」（The fallback is executed independently of the current state of the circuit breaker.）。簽名的規則：「回呼方法要放在同一個類別，方法簽名要一樣，只多一個目標例外參數」；有好幾個時，「呼叫最接近的那一個」（the method that has the most closest match will be invoked）。文件另外允許一種「全域回呼」：好幾個方法回傳型別相同時，可以共用一個只收例外參數的回呼（You can define one global fallback method with an exception parameter only if multiple methods has the same return type）；實跑 <code>String onlyEx(Exception e)</code> 確實接得到。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></p>
+<p>對照實驗輸出：CLOSED 時下游回 500，進的是參數為 <code>Exception</code> 的那個（暫時查不到）；OPEN 時被擋，例外是 <code>CallNotPermittedException</code>，兩個回呼都接得住，選比較接近的那個（快取餘額）。降級要回什麼是業務決定：Azure 的建議是應用程式可以「暫時降低功能、改用替代的操作」（an application might temporarily degrade its functionality, invoke an alternative operation）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a> 餘額這種會影響決策的資料，回快取時畫面上要標「資料時間」。</p>
+
+<h4>自我呼叫：註解整個沒作用</h4>
+<p>這些註解跟 <code>@Transactional</code> 一樣靠 AOP 代理（文件寫 starter 提供「自動設定的註解與 AOP 切面」）<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a>，所以〈Spring AOP 與交易控制〉講的自我呼叫一樣會讓它失效。同一個類別裡加一個方法，用 <code>this</code> 去叫有 <code>@CircuitBreaker</code> 的 <code>balance</code>：</p>
+<pre><code>// 同一個類別裡用 this 呼叫：不經過代理
+public String balanceViaThis(String account) { return this.balance(account); }</code></pre>
+<p>下游一直回 500，從外面呼叫 <code>balanceViaThis</code> 七次：</p>
+<pre><code>  105 ms  第 1 次 → 丟出 InternalServerError
+   …（第 2〜6 次相同）
+  125 ms  第 7 次 → 丟出 InternalServerError
+         狀態 CLOSED，記了 0 次，失敗 0 次，失敗率 -1.0%，被擋 0 次</code></pre>
+<p>斷路器一筆都沒記到，回呼也沒被叫，例外原封不動丟出來。要保護的呼叫得從別的 Bean 進來。</p>
+<p class="formula">預設全部例外算失敗；ignoreExceptions 不算成也不算敗；回呼像 catch：同類別、同簽名多一個例外參數、選最接近的；自我呼叫不經過代理，全部失效</p>
+
+<div class="drill">
+  <p class="dq">斷路器設了 <code>recordExceptions: [java.io.IOException]</code>，沒有設 <code>ignoreExceptions</code>。下游回 500 丟出 <code>HttpServerErrorException</code>（不是 IOException 的子類別），這次會被記成什麼？</p>
+  <ul class="dopts"><li>失敗，因為預設所有例外都算失敗</li><li>忽略，不算成功也不算失敗</li><li data-ok>成功</li><li>啟動時就報錯，設定互相衝突</li></ul>
+  <p class="dexp">文件：指定了 recordExceptions，「其他例外都算成功，除非被忽略」。這是常見的設定陷阱：只列了 IOException，500 就全被當成成功，斷路器永遠不跳。「預設全部算失敗」只在沒列 recordExceptions 時成立。</p>
+</div>
+<div class="drill">
+  <p class="dq">把「餘額不足」的業務例外列進斷路器的 <code>ignoreExceptions</code>。它發生時，對失敗率有什麼影響？</p>
+  <ul class="dopts"><li>算成功，讓失敗率下降</li><li data-ok>不算成功也不算失敗，不影響失敗率</li><li>算失敗，但權重只有一半</li><li>直接讓斷路器回到 CLOSED</li></ul>
+  <p class="dexp">文件：被忽略的例外 neither count as a failure nor success。下游正確拒絕了一筆交易，不該因此讓斷路器跳開，也不該把它算成成功去稀釋真正的失敗。</p>
+</div>
+<div class="drill">
+  <p class="dq">被保護的方法是 <code>String balance(String account)</code>。下面哪一個是合法的回呼方法簽名？</p>
+  <ul class="dopts"><li data-ok><code>String fallback(String account, Exception e)</code></li><li><code>Integer fallback(String account, Exception e)</code></li><li><code>void fallback(String account, Exception e)</code></li><li><code>String fallback(String account)</code></li></ul>
+  <p class="dexp">規則是「同一個類別、方法簽名一樣，只多一個目標例外參數」：回傳型別要一樣是 String，參數要先有 String account，再多一個例外。回傳 Integer、回傳 void、少了例外參數，實跑都找不到回呼（日誌印 No fallback method match found），原本的例外照樣丟出去。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個方法有兩個回呼：一個收 <code>CallNotPermittedException</code>、一個收 <code>Exception</code>。斷路器是 OPEN、呼叫被擋下，會進哪一個？</p>
+  <ul class="dopts"><li>收 Exception 的，因為它寫在後面</li><li data-ok>型別比較具體的那個（快取餘額）</li><li>兩個都會依序執行，先具體後一般</li><li>都不進，OPEN 時直接丟例外給呼叫端</li></ul>
+  <p class="dexp">兩個都接得住，選「最接近」的那個，跟 catch 一樣先找最具體的型別，和寫的先後無關。實驗第 6、7 次拿到「快取餘額」就是這樣來的。回呼跟斷路器狀態無關，OPEN 時一樣會走。</p>
+</div>
+<div class="drill">
+  <p class="dq">斷路器是 CLOSED，下游回了一次 500。設了 <code>fallbackMethod</code>，呼叫端會拿到什麼？</p>
+  <ul class="dopts"><li>原本的 HttpServerErrorException，CLOSED 時不走回呼</li><li>CallNotPermittedException</li><li>null，因為下游沒有回傳值</li><li data-ok>回呼方法的回傳值</li></ul>
+  <p class="dexp">文件：回呼的執行跟斷路器目前的狀態無關，每個例外都會轉給回呼。實驗第 3、4 次在 CLOSED 就拿到「暫時查不到」。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個類別的 <code>balanceViaThis()</code> 用 <code>this.balance()</code> 呼叫有 <code>@CircuitBreaker</code> 的方法，下游一直失敗。斷路器會怎樣？</p>
+  <ul class="dopts"><li>照常記帳，第 5 次跳開</li><li>照常記帳，但回呼不會執行</li><li>只記第一次，之後不記</li><li data-ok>一筆都不記，回呼也不執行</li></ul>
+  <p class="dexp">註解靠 AOP 代理，this 呼叫沒經過代理，斷路器根本不知道有這次呼叫。實驗裡七次失敗後還是「記了 0 次」，例外直接丟出來。</p>
+</div>
+<div class="drill">
+  <p class="dq">核心帳務掛了，查餘額改回快取。下面哪一個做法最妥當？</p>
+  <ul class="dopts"><li>回快取，但畫面不提，避免客戶擔心</li><li>回 0，提醒客戶目前無法查詢</li><li data-ok>回快取，並在畫面標出資料時間</li><li>不給回呼，讓錯誤頁面直接顯示</li></ul>
+  <p class="dexp">降級要回什麼是業務決定。回 0 會被誤會成真的沒錢；回快取不標時間，客戶可能拿舊數字做決定。標出資料時間，讓使用者知道這是哪個時候的數字。</p>
+</div>
+</section>
+
+<section>
+<p class="era">等一下再試，但別一起試</p>
+<h3 class="head">重試：指數退避、抖動與該不該重試</h3>
+<p>Azure 架構中心的建議：失敗「不是暫時性的」就取消並回報；是暫時性的才在等待後重試，「重試間隔可以逐步或指數增加」（The delay can be increased incrementally or exponentially）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/retry" target="_blank" rel="noopener">出處</a> Resilience4j 的 <code>maxAttempts</code>「包含第一次呼叫」（including the initial call as the first attempt），預設 3；<code>waitDuration</code> 預設 500 毫秒。<a class="fixsrc" href="https://resilience4j.readme.io/docs/retry" target="_blank" rel="noopener">出處</a></p>
+<pre><code>resilience4j.retry:
+  instances:
+    coreRetry:
+      maxAttempts: 4                          # 含第一次，共 4 次
+      waitDuration: 200ms
+      enableExponentialBackoff: true
+      exponentialBackoffMultiplier: 2         # 200、400、800……
+      retryExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+      ignoreExceptions:
+        - org.springframework.web.client.HttpClientErrorException</code></pre>
+<p>方法上加 <code>@Retry(name = "coreRetry")</code>，下游先一直回 500，再改回 400：</p>
+<pre><code>   76 ms  下游收到第 1 次請求（FAIL）
+   94 ms  【coreRetry】第 1 次重試，先等 200 ms
+  304 ms  下游收到第 2 次請求（FAIL）
+  306 ms  【coreRetry】第 2 次重試，先等 400 ms
+  708 ms  下游收到第 3 次請求（FAIL）
+  709 ms  【coreRetry】第 3 次重試，先等 800 ms
+ 1517 ms  下游收到第 4 次請求（FAIL）
+ 1519 ms  最後丟出 InternalServerError
+---- 下游回 400（帳號錯），列在 ignoreExceptions ----
+    1 ms  下游收到第 1 次請求（BAD）
+    3 ms  最後丟出 BadRequest</code></pre>
+<p>4 次嘗試是 1 次原始呼叫加 3 次重試，間隔 200、400、800 毫秒，每次乘 2。400 是帳號錯，再試幾次都不會對，列在 <code>ignoreExceptions</code> 就只打一次。SRE 書也這樣講：「不要重試永久性的錯誤或格式錯誤的請求，因為它們永遠不會成功」（Don't retry permanent errors or malformed requests in a client, because neither will ever succeed.）。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a></p>
+
+<h4>抖動：讓大家別在同一刻醒來</h4>
+<p>SRE 書：「排程重試時，永遠使用隨機化的指數退避」；如果重試沒有隨機分散，一點小擾動（例如網路短暫中斷）就可能讓大家的重試「排在同一時間，然後自己放大」（Always use randomized exponential backoff when scheduling retries. … If retries aren't randomly distributed over the retry window, a small perturbation (e.g., a network blip) can cause retry ripples to schedule at the same time, which can then amplify themselves.）。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a> 在 Resilience4j 是再加兩行：</p>
+<pre><code>    coreJitter:
+      maxAttempts: 4
+      waitDuration: 200ms
+      enableExponentialBackoff: true
+      exponentialBackoffMultiplier: 2
+      enableRandomizedWait: true
+      randomizedWaitFactor: 0.5               # 在基準值上下 50% 之間隨機</code></pre>
+<p>同一個設定連跑三輪，每輪等待時間都不一樣：</p>
+<pre><code>---- 第 1 輪 ----
+   81 ms  【coreJitter】第 1 次重試，先等 124 ms
+  213 ms  【coreJitter】第 2 次重試，先等 355 ms
+  581 ms  【coreJitter】第 3 次重試，先等 447 ms
+---- 第 2 輪 ----
+    4 ms  【coreJitter】第 1 次重試，先等 278 ms
+  294 ms  【coreJitter】第 2 次重試，先等 369 ms
+  669 ms  【coreJitter】第 3 次重試，先等 509 ms
+---- 第 3 輪 ----
+    3 ms  【coreJitter】第 1 次重試，先等 181 ms
+  198 ms  【coreJitter】第 2 次重試，先等 539 ms
+  743 ms  【coreJitter】第 3 次重試，先等 645 ms</code></pre>
+<p>原始碼的算法：先算出指數退避的基準值（200、400、800），再取「基準值減一半」到「基準值加一半」之間的隨機數（<code>final double min = current - delta; final double max = current + delta;</code>，<code>delta = randomizationFactor * current</code>）。<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-core/src/main/java/io/github/resilience4j/core/IntervalFunction.java#L239" target="_blank" rel="noopener">出處</a> 所以第 3 次重試落在 400〜1200 毫秒之間，三輪的 447、509、645 都在範圍內。指數一直乘上去會越等越久，Spring Boot 設定還有 <code>exponentialMaxWaitDuration</code> 可以封頂（原始碼註解：exponential max interval value）。<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-framework-common/src/main/java/io/github/resilience4j/common/retry/configuration/CommonRetryConfigurationProperties.java#L312" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="重試的時間線：固定指數退避在第一次之後約 0.2、0.6、1.4 秒重送；加了抖動的三輪，重送時間各不相同，散開在範圍內">
+<line x1="120" y1="250" x2="740" y2="250" stroke="currentColor" stroke-opacity=".5"/>
+<text x="120" y="270" font-size="12" text-anchor="middle" class="mono" opacity=".7">0</text><text x="275" y="270" font-size="12" text-anchor="middle" class="mono" opacity=".7">500</text><text x="430" y="270" font-size="12" text-anchor="middle" class="mono" opacity=".7">1000</text><text x="585" y="270" font-size="12" text-anchor="middle" class="mono" opacity=".7">1500</text><text x="740" y="270" font-size="12" text-anchor="middle" class="mono" opacity=".7">2000 ms</text>
+<text x="20" y="54" font-size="12.5">固定退避</text>
+<circle cx="144" cy="50" r="7" fill="var(--gold)"/><circle cx="214" cy="50" r="7" fill="var(--gold)"/><circle cx="339" cy="50" r="7" fill="var(--gold)"/><circle cx="590" cy="50" r="7" fill="var(--gold)"/>
+<text x="20" y="114" font-size="12.5">抖動第 1 輪</text>
+<circle cx="140" cy="110" r="7" fill="var(--slate)"/><circle cx="185" cy="110" r="7" fill="var(--slate)"/><circle cx="300" cy="110" r="7" fill="var(--slate)"/><circle cx="441" cy="110" r="7" fill="var(--slate)"/>
+<text x="20" y="164" font-size="12.5">抖動第 2 輪</text>
+<circle cx="121" cy="160" r="7" fill="var(--slate)"/><circle cx="211" cy="160" r="7" fill="var(--slate)"/><circle cx="327" cy="160" r="7" fill="var(--slate)"/><circle cx="488" cy="160" r="7" fill="var(--slate)"/>
+<text x="20" y="214" font-size="12.5">抖動第 3 輪</text>
+<circle cx="120" cy="210" r="7" fill="var(--slate)"/><circle cx="181" cy="210" r="7" fill="var(--slate)"/><circle cx="350" cy="210" r="7" fill="var(--slate)"/><circle cx="551" cy="210" r="7" fill="var(--slate)"/>
+<text x="20" y="292" font-size="12" opacity=".6">每個點是下游收到一次請求（實跑時間）。固定退避的每個用戶端都在同樣的時間點重送；抖動讓重送散開</text>
+</svg>
+<figcaption>同樣是 4 次嘗試：固定的指數退避，所有用戶端都在同一刻重送；加上抖動，每一輪的時間點都不一樣。</figcaption>
+</figure>
+
+<h4>重試會被乘上去</h4>
+<p>SRE 書提醒「避免在多個層級都重試」：前端、後端、JavaScript 三層各重試 3 次（各 4 次嘗試），「一個使用者動作可能在資料庫上產生 64 次嘗試（4³）」（a single user action may create 64 attempts (4^3) on the database.）；也建議「考慮設伺服器層級的重試預算」，例如一個行程每分鐘最多 60 次重試，超過就直接失敗。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a> 寫入類的操作還要冪等才能重試（Azure：不冪等的話「重試可能讓操作被執行不只一次」）<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/retry" target="_blank" rel="noopener">出處</a>，做法見〈系統設計：秒殺與限流〉。</p>
+<p class="formula">maxAttempts 含第一次；退避＝每次乘倍數；抖動＝在基準值上下隨機；永久性錯誤不重試；多層重試會相乘</p>
+
+<div class="drill">
+  <p class="dq"><code>maxAttempts: 4</code>、下游一直失敗。下游總共會收到幾次請求？</p>
+  <ul class="dopts"><li data-ok>4 次，含第一次呼叫</li><li>5 次，1 次原始加 4 次重試</li><li>3 次，第一次不算</li><li>無限次，直到成功為止</li></ul>
+  <p class="dexp">文件：maxAttempts 是 the maximum number of attempts (including the initial call as the first attempt)。實驗裡下游正好收到第 1 到第 4 次請求，事件只印了 3 次「重試」。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>waitDuration: 300ms</code>、開了指數退避、倍數 2、沒有抖動、<code>maxAttempts: 4</code>。三次重試前各等多久？</p>
+  <ul class="dopts"><li data-ok>300、600、1200 毫秒</li><li>300、300、300 毫秒</li><li>300、900、2700 毫秒</li><li>600、1200、2400 毫秒</li></ul>
+  <p class="dexp">從 waitDuration 開始，每次乘倍數 2：300、600、1200。實驗用 200 起跳，印出來是 200、400、800。300、900、2700 是倍數 3；600 起跳是把第一次也乘了 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">開了指數退避，但沒寫 <code>exponentialBackoffMultiplier</code>。倍數是多少？</p>
+  <ul class="dopts"><li>2，指數就是每次加倍</li><li data-ok>1.5，程式庫的預設值</li><li>1，等同沒有退避</li><li>啟動時報錯，倍數一定要寫</li></ul>
+  <p class="dexp">原始碼 IntervalFunction 的 DEFAULT_MULTIPLIER 是 1.5，設定只開 enableExponentialBackoff 時就用它。實跑 waitDuration 200 毫秒、不寫倍數，三次重試前等 200、300、450 毫秒。「指數」只表示每次乘同一個倍數，不一定是 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">指數退避基準值這一次是 800 毫秒、<code>randomizedWaitFactor: 0.5</code>。實際等待時間落在哪個範圍？</p>
+  <ul class="dopts"><li>800 到 1200 毫秒，只會往上加</li><li>0 到 800 毫秒，只會往下減</li><li data-ok>大約 400 到 1200 毫秒</li><li>固定 400 毫秒，因子直接相乘</li></ul>
+  <p class="dexp">原始碼：delta = 0.5 × 800 = 400，在 800 − 400 到 800 + 400 之間取隨機數。實驗三輪的第 3 次重試是 1024、445、940，都在這個範圍裡。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼 SRE 書說重試一定要加隨機？</p>
+  <ul class="dopts"><li>讓每次重試的等待總時間變短</li><li>隨機的間隔比較不容易被攻擊者猜到</li><li>讓重試次數依負載自動減少</li><li data-ok>避免大家同一刻重送，再把下游打倒</li></ul>
+  <p class="dexp">原文：重試沒有隨機分散時，一點小擾動就可能讓重試 schedule at the same time, which can then amplify themselves。抖動不保證總時間變短，也不改變次數。</p>
+</div>
+<div class="drill">
+  <p class="dq">實驗的 <code>coreRetry</code> 把 <code>HttpClientErrorException</code> 列在 <code>ignoreExceptions</code>。下游回 400 時，下游收到幾次請求？</p>
+  <ul class="dopts"><li data-ok>1 次</li><li>4 次，maxAttempts 管所有例外</li><li>2 次，被忽略的例外只重試一次</li><li>0 次，400 在送出前就被擋</li></ul>
+  <p class="dexp">被忽略的例外不觸發重試，實驗裡只看到「下游收到第 1 次請求（BAD）」就丟出 BadRequest。帳號錯再試幾次都不會對，SRE 書說這類永久性錯誤不要重試。</p>
+</div>
+<div class="drill">
+  <p class="dq">網銀前台、餘額服務、核心帳務的用戶端三層，各自設 <code>maxAttempts: 3</code>。最底層的資料庫一直失敗，一個使用者動作最多讓資料庫收到幾次請求？</p>
+  <ul class="dopts"><li>3 次</li><li data-ok>27 次</li><li>9 次</li><li>81 次</li></ul>
+  <p class="dexp">每層 3 次嘗試，三層相乘是 3 × 3 × 3 = 27。SRE 書的例子是三層各 4 次嘗試、4³ = 64。重試要決定只在哪一層做，或用重試預算封頂。</p>
+</div>
+<div class="drill">
+  <p class="dq">「入帳」API 呼叫逾時，不知道下游到底有沒有處理。直接重試可能造成什麼問題？</p>
+  <ul class="dopts"><li data-ok>同一筆入帳被處理兩次</li><li>重試的請求會被斷路器擋下</li><li>重試間隔太長，使用者等不及</li><li>下游會回 400，因為參數重複</li></ul>
+  <p class="dexp">逾時只代表沒等到回覆，下游可能已經處理成功。Azure：不冪等的操作重試可能讓它被執行不只一次。寫入要帶冪等鍵讓下游去重，才能安全重試。</p>
+</div>
+</section>
+
+<section>
+<p class="era">誰包誰，順序決定結果</p>
+<h3 class="head">重試疊上斷路器：順序與陷阱</h3>
+<p>同一個方法上疊好幾個註解時，文件寫的預設套用順序是「Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( Function ) ) ) ) )」，「所以 Retry 最後才套用」，也就是包在最外層。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 236" role="img" aria-label="註解的預設套用順序：最外層 Retry，裡面依序是 CircuitBreaker、RateLimiter、TimeLimiter、Bulkhead，最內層是你的方法">
+<rect x="20" y="20" width="720" height="190" rx="10" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="36" y="42" font-size="13" class="mono">Retry</text>
+<rect x="60" y="54" width="660" height="146" rx="10" fill="var(--surface)" stroke="currentColor"/><text x="76" y="76" font-size="13" class="mono">CircuitBreaker</text>
+<rect x="100" y="88" width="600" height="104" rx="10" fill="var(--surface)" stroke="currentColor" stroke-opacity=".7"/><text x="116" y="110" font-size="13" class="mono">RateLimiter</text>
+<rect x="140" y="120" width="540" height="64" rx="10" fill="var(--surface)" stroke="currentColor" stroke-opacity=".55"/><text x="156" y="142" font-size="13" class="mono">TimeLimiter</text>
+<rect x="290" y="128" width="370" height="48" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="306" y="157" font-size="13" class="mono">Bulkhead</text><rect x="420" y="136" width="220" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="530" y="157" font-size="13" text-anchor="middle">你的方法</text>
+<text x="20" y="228" font-size="12" opacity=".6">外層的每一次重試，都會再穿過裡面每一層一次；斷路器記到的是「每一次嘗試」，不是「每一次使用者呼叫」</text>
+</svg>
+<figcaption>預設順序：Retry 在最外層。重試幾次，斷路器就記幾筆；斷路器擋下時丟的例外，也會傳回外層的 Retry。</figcaption>
+</figure>
+<p>實驗：同一個方法加 <code>@Retry(name = "combo")</code>（3 次嘗試、間隔 100 毫秒）與 <code>@CircuitBreaker(name = "combo")</code>（視窗 4、最少 4 次、門檻 50%），下游一直回 500，使用者查三次：</p>
+<pre><code>---- 使用者第 1 次查餘額 ----
+  117 ms  下游收到第 1 次請求（FAIL）
+  141 ms  【combo】第 1 次重試，先等 100 ms
+  259 ms  下游收到第 2 次請求（FAIL）
+  261 ms  【combo】第 2 次重試，先等 100 ms
+  367 ms  下游收到第 3 次請求（FAIL）
+  370 ms  最後丟出 InternalServerError
+         狀態 CLOSED，記了 3 次，失敗 3 次，失敗率 -1.0%，被擋 0 次
+---- 使用者第 2 次查餘額 ----
+  372 ms  下游收到第 4 次請求（FAIL）
+  377 ms  【combo】狀態 CLOSED → OPEN
+  377 ms  【combo】第 1 次重試，先等 100 ms
+  480 ms  【combo】第 2 次重試，先等 100 ms
+  591 ms  最後丟出 CallNotPermittedException
+         狀態 OPEN，記了 4 次，失敗 4 次，失敗率 100.0%，被擋 2 次
+---- 使用者第 3 次查餘額 ----
+  591 ms  【combo】第 1 次重試，先等 100 ms
+  694 ms  【combo】第 2 次重試，先等 100 ms
+  804 ms  最後丟出 CallNotPermittedException
+         狀態 OPEN，記了 4 次，失敗 4 次，失敗率 100.0%，被擋 5 次
+  805 ms  下游一共收到 4 次請求</code></pre>
+<p>兩件事：使用者才查了 2 次，斷路器就記滿 4 筆、跳開了，因為每次重試都算一筆；跳開之後，Retry 還在對著 OPEN 的斷路器重試，<code>CallNotPermittedException</code> 也被當成「值得再試」，每次查詢白等 200 毫秒，被擋次數一路加到 5。Retry 預設「每個例外都重試」（<code>retryExceptionPredicate</code> 預設 throwable -&gt; true）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/retry" target="_blank" rel="noopener">出處</a> Azure 早就提醒過：重試的邏輯「應該對斷路器回傳的例外敏感，斷路器表示故障不是暫時性的時候就停止重試」（the retry logic should be sensitive to any exceptions that the circuit breaker returns and stop retry attempts if the circuit breaker indicates that a fault isn't transient.）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a></p>
+<p>修法：把 <code>CallNotPermittedException</code> 列進 Retry 的 <code>ignoreExceptions</code>（實例名 <code>combo2</code>，其他設定相同）：</p>
+<pre><code>    combo2:
+      maxAttempts: 3
+      waitDuration: 100ms
+      ignoreExceptions:
+        - io.github.resilience4j.circuitbreaker.CallNotPermittedException</code></pre>
+<pre><code>---- 使用者第 2 次查餘額 ----
+  338 ms  下游收到第 4 次請求（FAIL）
+  343 ms  【combo2】狀態 CLOSED → OPEN
+  343 ms  【combo2】第 1 次重試，先等 100 ms
+  447 ms  最後丟出 CallNotPermittedException
+         狀態 OPEN，記了 4 次，失敗 4 次，失敗率 100.0%，被擋 1 次
+---- 使用者第 3 次查餘額 ----
+  447 ms  最後丟出 CallNotPermittedException
+         狀態 OPEN，記了 4 次，失敗 4 次，失敗率 100.0%，被擋 2 次</code></pre>
+<p>第 1 次查詢的輸出跟上面一樣（3 次嘗試都打到下游），所以省略。第 2 次查詢裡，打到下游的那次失敗讓斷路器跳開，接著重試 1 次被擋、拿到 <code>CallNotPermittedException</code>，就不再試了；第 3 次查詢連重試都沒有，0 毫秒就回來。</p>
+<p>要改變誰包誰，文件說要用函式串接的寫法，或設定各自的 <code>…AspectOrder</code>。文件的例子是 <code>circuitBreakerAspectOrder: 1</code>、<code>retryAspectOrder: 2</code>，讓「斷路器在 Retry 做完之後才開始」（to make Circuit Breaker starts after Retry finish its work）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a> 照這組數字重跑 <code>combo</code>（下游一直失敗、使用者查三次）：</p>
+<pre><code>---- 使用者第 1 次查餘額 ----
+   63 ms  下游收到第 1 次請求（FAIL）
+   88 ms  【combo】第 1 次重試，先等 100 ms
+  198 ms  下游收到第 2 次請求（FAIL）
+  199 ms  【combo】第 2 次重試，先等 100 ms
+  304 ms  下游收到第 3 次請求（FAIL）
+  307 ms  最後丟出 InternalServerError
+         狀態 CLOSED，記了 1 次，失敗 1 次，失敗率 -1.0%，被擋 0 次
+   …（第 2、3 次查詢相同，記了 2 次、3 次）
+  741 ms  下游一共收到 9 次請求</code></pre>
+<p>下游收到 9 次，斷路器只記了 3 筆：數字小的那個包在外面，Retry 的 3 次嘗試做完，斷路器才記一筆。另外實測把兩個註解在方法上的上下位置對調，結果完全一樣，順序只看這兩個屬性。</p>
+<p class="formula">預設 Retry 包住 CircuitBreaker：每次嘗試都記一筆；跳開後要讓 Retry 忽略 CallNotPermittedException，不然它會一直去敲關著的門</p>
+
+<div class="drill">
+  <p class="dq">同一個方法加了 <code>@Retry</code>、<code>@CircuitBreaker</code>、<code>@Bulkhead</code>，都用預設順序。最外層是哪一個？</p>
+  <ul class="dopts"><li>CircuitBreaker，先判斷能不能呼叫</li><li>Bulkhead，先搶名額</li><li data-ok>Retry，最後套用、包在最外層</li><li>看註解寫在方法上的先後</li></ul>
+  <p class="dexp">文件：Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( Function ) ) ) ) )，Retry 最後套用、包在最外層。跟註解寫在方法上的先後無關，要改得用 …AspectOrder 屬性。</p>
+</div>
+<div class="drill">
+  <p class="dq">預設順序下，Retry 設 3 次嘗試，斷路器視窗與最少呼叫數都是 6。下游一直失敗，使用者查了 2 次，斷路器記了幾筆？</p>
+  <ul class="dopts"><li>2 筆，一次使用者呼叫記一筆</li><li>3 筆，只記最後一次嘗試</li><li>0 筆，Retry 在外層會先吞掉例外</li><li data-ok>6 筆</li></ul>
+  <p class="dexp">Retry 包在外面，每次嘗試都會穿過斷路器一次。2 次查詢 × 3 次嘗試 = 6 筆，剛好記滿，失敗率 100%，就跳開了。實驗裡查 2 次就跳開，也是這個原因。</p>
+</div>
+<div class="drill">
+  <p class="dq">斷路器已經 OPEN，Retry 沒有忽略任何例外、設 3 次嘗試、間隔 100 毫秒。使用者查一次，會發生什麼事？</p>
+  <ul class="dopts"><li>Retry 發現斷路器開著，直接放棄</li><li>斷路器放行一次給 Retry 試探</li><li>Retry 會等到斷路器半開才送出</li><li data-ok>被擋 3 次，白等約 200 毫秒才失敗</li></ul>
+  <p class="dexp">Retry 預設每個例外都重試，CallNotPermittedException 也是。實驗裡使用者第 3 次查詢重試了 2 次、從 591 毫秒拖到 804 毫秒，被擋次數從 2 加到 5，下游一次都沒收到。</p>
+</div>
+<div class="drill">
+  <p class="dq">要讓 Retry 遇到斷路器擋下時不要再試，最直接的設定是？</p>
+  <ul class="dopts"><li>把斷路器的 waitDurationInOpenState 調短</li><li data-ok>Retry 的 ignoreExceptions 加 CallNotPermittedException</li><li>斷路器的 ignoreExceptions 加 CallNotPermittedException</li><li>把 Retry 的 maxAttempts 改成 1</li></ul>
+  <p class="dexp">要改的是 Retry 對這個例外的反應。改成 maxAttempts 1 等於把重試整個關掉；斷路器自己的 ignoreExceptions 管的是「記不記成失敗」，跟要不要重試無關。</p>
+</div>
+<div class="drill">
+  <p class="dq">想讓斷路器包在 Retry 外面（重試全部做完，才算一筆），照文件該怎麼做？</p>
+  <ul class="dopts"><li data-ok>設 …AspectOrder，讓斷路器的數字比 Retry 小</li><li>把 @CircuitBreaker 寫在 @Retry 上面</li><li>在兩個註解上各加 @Order</li><li>做不到，順序寫死在程式庫裡</li></ul>
+  <p class="dexp">文件：要不同順序就用函式串接，或設定 …AspectOrder。照文件的例子 circuitBreakerAspectOrder: 1、retryAspectOrder: 2 實跑，數字小的斷路器包在外面，使用者查一次只記一筆。實測把註解在方法上的上下位置對調，結果不變。</p>
+</div>
+</section>
+
+<section>
+<p class="era">同時幾個、一段時間幾個</p>
+<h3 class="head">隔艙與限流：名額與速率</h3>
+<p>隔艙（bulkhead）的名字來自船體的分艙：Azure 寫「船身破了，只有受損的那一艙進水，船不會沉」（If the hull of a ship is compromised, only the damaged section fills with water, which prevents the ship from sinking.）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead" target="_blank" rel="noopener">出處</a> Resilience4j 的 <code>SemaphoreBulkhead</code> 限制「同時在跑的數量」：<code>maxConcurrentCalls</code>（預設 25）與 <code>maxWaitDuration</code>（預設 0，滿了時最多等多久）；另有 <code>FixedThreadPoolBulkhead</code>「用有界佇列與固定大小的執行緒池」。<a class="fixsrc" href="https://resilience4j.readme.io/docs/bulkhead" target="_blank" rel="noopener">出處</a></p>
+<pre><code>resilience4j.bulkhead:
+  instances:
+    coreBulk:
+      maxConcurrentCalls: 2
+      maxWaitDuration: 0</code></pre>
+<p>下游每筆 500 毫秒，4 條執行緒每隔 20 毫秒各叫一次：</p>
+<pre><code>   46 ms  呼叫 3 → BulkheadFullException
+   68 ms  下游收到第 1 次請求（OK）
+   68 ms  下游收到第 2 次請求（OK）
+   76 ms  呼叫 4 → BulkheadFullException
+  569 ms  下游第 1 次處理完
+  573 ms  下游第 2 次處理完
+  583 ms  呼叫 2 → 1000
+  583 ms  呼叫 1 → 1000</code></pre>
+<p>前兩個拿到名額，第 3、4 個在名額用完時進來，<code>maxWaitDuration</code> 是 0，當場丟 <code>BulkheadFullException</code>，連下游都沒碰到。每個下游各配一個隔艙，核心帳務卡住，最多只占兩條執行緒，其他功能照常。</p>
+<p><strong>限流器</strong>（RateLimiter）管的是速率：文件說它把時間切成一個個週期，「每個週期開始時，把可用的許可數設回 <code>limitForPeriod</code>」（At the start of each cycle, the RateLimiter sets the number of active permissions to RateLimiterConfig.limitForPeriod.）；<code>timeoutDuration</code> 是拿不到許可時最多等多久（預設 5 秒）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/ratelimiter" target="_blank" rel="noopener">出處</a></p>
+<pre><code>resilience4j.ratelimiter:
+  instances:
+    coreRl:
+      limitForPeriod: 3                       # 每個週期 3 個許可
+      limitRefreshPeriod: 1s                  # 週期 1 秒
+      timeoutDuration: 0                      # 拿不到就立刻失敗</code></pre>
+<pre><code>   92 ms  第 1 次 → 1000
+   96 ms  第 2 次 → 1000
+   99 ms  第 3 次 → 1000
+  100 ms  第 4 次 → RequestNotPermitted
+  100 ms  第 5 次 → RequestNotPermitted
+ 1104 ms  等 1 秒，進入下一個週期
+ 1113 ms  第 6 次 → 1000</code></pre>
+<p>呼叫一個接一個、每次都很快完成，所以隔艙不會擋；但限流器只看「這個週期用了幾個」，第 4、5 次照樣被擋。保護下游的配額（例如對方規定每秒最多 3 筆）用限流器；保護自己的執行緒用隔艙。Gateway 層的限流演算法與 429 回應見〈系統設計：秒殺與限流〉。</p>
+<p class="formula">隔艙＝同時在跑的上限（BulkheadFullException）；限流＝每個週期的許可數（RequestNotPermitted）；一個擋並行、一個擋速率</p>
+
+<div class="drill">
+  <p class="dq">隔艙 <code>maxConcurrentCalls: 2</code>、<code>maxWaitDuration: 0</code>，下游每筆 500 毫秒。4 個呼叫幾乎同時進來，結果是？</p>
+  <ul class="dopts"><li data-ok>2 個成功，2 個丟 BulkheadFullException</li><li>4 個都成功，只是後兩個晚 500 毫秒</li><li>2 個成功，2 個丟 RequestNotPermitted</li><li>1 個成功，其他 3 個被擋</li></ul>
+  <p class="dexp">名額 2 個、等待時間 0，第 3、4 個進來時名額用完，當場丟 BulkheadFullException。要排隊等就把 maxWaitDuration 設大於 0。RequestNotPermitted 是限流器丟的。</p>
+</div>
+<div class="drill">
+  <p class="dq">同樣的隔艙，如果 4 個呼叫是一個做完才叫下一個（每個 500 毫秒）。會有幾個被擋？</p>
+  <ul class="dopts"><li>2 個，名額只有 2</li><li>1 個，最後一個</li><li data-ok>0 個，同時只有一個在跑</li><li>3 個，只有第一個拿得到名額</li></ul>
+  <p class="dexp">隔艙限制的是「同時在跑」的數量。一次只有一個在跑，從來沒超過 2，全部放行。總共幾次、多快不是它管的。</p>
+</div>
+<div class="drill">
+  <p class="dq">限流器 <code>limitForPeriod: 3</code>、<code>limitRefreshPeriod: 1s</code>、<code>timeoutDuration: 0</code>。同一秒內連續叫 5 次（每次都很快完成），結果是？</p>
+  <ul class="dopts"><li>5 次都成功，因為每次都很快做完</li><li>前 3 次成功，後 2 次等下一秒自動送出</li><li data-ok>前 3 次成功，後 2 次被擋</li><li>全部失敗，超過上限就整批拒絕</li></ul>
+  <p class="dexp">限流器只看這個週期用掉幾個許可，跟每次多快做完無關。timeoutDuration 是 0，拿不到就立刻失敗；設大於 0 才會等下一個週期。實驗的第 4、5 次就是這樣被擋。</p>
+</div>
+<div class="drill">
+  <p class="dq">合作的徵信公司規定「每秒最多呼叫 10 次，超過就停權」。該用哪一個保護？</p>
+  <ul class="dopts"><li>隔艙，maxConcurrentCalls: 10</li><li>斷路器，failureRateThreshold: 10</li><li>重試，maxAttempts: 10</li><li data-ok>限流器，每秒 10 個許可</li></ul>
+  <p class="dexp">規定的是速率（每秒幾次），用限流器。隔艙限的是同時在跑的數量，呼叫很快時一秒可以遠超過 10 次；斷路器和重試都不管次數上限。</p>
+</div>
+<div class="drill">
+  <p class="dq">斷路器、隔艙、限流器擋下呼叫時，分別丟出哪個例外？</p>
+  <ul class="dopts"><li>都是 CallNotPermittedException</li><li>BulkheadFullException、CallNotPermittedException、RequestNotPermitted</li><li data-ok>CallNotPermittedException、BulkheadFullException、RequestNotPermitted</li><li>CallNotPermittedException、RequestNotPermitted、BulkheadFullException</li></ul>
+  <p class="dexp">實驗輸出：斷路器 OPEN 時是 CallNotPermittedException，隔艙滿了是 BulkheadFullException，限流器沒許可是 RequestNotPermitted。回呼方法可以各寫一個，對到不同的降級。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每次呼叫都要有終點</p>
+<h3 class="head">逾時：TimeLimiter 與真正停下來的地方</h3>
+<p>TimeLimiter 包的是 <code>CompletionStage</code> 或 <code>Future</code>，設逾時時間與「要不要對執行中的 future 呼叫 cancel」。<a class="fixsrc" href="https://resilience4j.readme.io/docs/timeout" target="_blank" rel="noopener">出處</a> 原始碼的預設是 1 秒、取消（<code>timeoutDuration = Duration.ofSeconds(1)</code>、<code>cancelRunningFuture = true</code>）。<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-timelimiter/src/main/java/io/github/resilience4j/timelimiter/TimeLimiterConfig.java#L14" target="_blank" rel="noopener">出處</a></p>
+<pre><code>resilience4j.timelimiter:
+  instances:
+    coreTl:
+      timeoutDuration: 500ms
+      cancelRunningFuture: true</code></pre>
+<pre><code>@TimeLimiter(name = "coreTl")
+public CompletableFuture&lt;String&gt; balanceAsync(String account) {
+    return CompletableFuture.supplyAsync(core::balance, pool);   // pool 是自己建的執行緒池
+}</code></pre>
+<p>下游這次每筆要 1.5 秒：</p>
+<pre><code>   47 ms  下游收到第 1 次請求（OK）
+  510 ms  呼叫端拿到 TimeoutException
+ 1549 ms  下游第 1 次處理完</code></pre>
+<p>呼叫端在 500 毫秒準時拿到 <code>TimeoutException</code>，但下游照樣做到 1.5 秒才完成，送出去的 HTTP 請求沒有被停下來。原因在 JDK 文件：<code>CompletableFuture</code>「對完成它的那段運算沒有直接的控制權，取消只是另一種例外完成」，<code>cancel</code> 的參數「沒有作用，因為這個實作不用中斷來控制處理」（this value has no effect in this implementation because interrupts are not used to control processing.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> 所以 TimeLimiter 保護的是「呼叫端別再等」；要讓連線真的斷掉、釋放 <code>pool</code> 裡那條執行緒，HTTP 用戶端自己要設連線逾時與讀取逾時。</p>
+<p>逾時設多長，SRE 書的說法是兩邊都有代價：「不設或設得極長，早就過去的短暫問題會一直占著伺服器資源」，太短則「比較花時間的請求會一直失敗」（Short deadlines can cause some more expensive requests to fail consistently.）。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a> 一般做法是看下游正常時的延遲分布（例如 99% 的請求多久內回來），再留一點餘裕。</p>
+<p class="formula">TimeLimiter 讓呼叫端準時放棄；底層的 HTTP 呼叫要靠用戶端自己的逾時才會真的停</p>
+
+<div class="drill">
+  <p class="dq">TimeLimiter 設 500 毫秒、<code>cancelRunningFuture: true</code>，下游要 1.5 秒。下游那邊會怎樣？</p>
+  <ul class="dopts"><li>500 毫秒時收到取消，停止處理</li><li data-ok>照樣做完，1.5 秒時處理完</li><li>500 毫秒時連線被切斷，下游丟例外</li><li>根本不會收到請求</li></ul>
+  <p class="dexp">實驗裡呼叫端 510 毫秒拿到 TimeoutException，下游 1549 毫秒照樣處理完。CompletableFuture 的 cancel 不中斷執行中的運算，送出去的 HTTP 請求不受影響。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>@TimeLimiter</code> 可以直接加在回傳 <code>String</code> 的同步方法上嗎？</p>
+  <ul class="dopts"><li data-ok>不行，同步方法一呼叫就丟例外</li><li>可以，它會自動改成在另一條執行緒執行</li><li>可以，但逾時時間會被忽略，照樣等完</li><li>可以，同步方法的逾時一律 1 秒</li></ul>
+  <p class="dexp">文件：TimeLimiter 裝飾 CompletionStage 或 Future 來限制執行時間。實跑在回傳 String 的方法上加 @TimeLimiter，一呼叫就丟 IllegalReturnTypeException，訊息寫 CompletionStage expected。同步呼叫要有終點，靠的是 HTTP 用戶端自己的連線逾時與讀取逾時。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼逾時不能「設長一點比較保險」？</p>
+  <ul class="dopts"><li>逾時太長，斷路器的失敗率會算錯</li><li data-ok>卡住的呼叫一直占著執行緒與連線</li><li>逾時太長，下游會拒絕新的連線</li><li>逾時太長，重試次數會自動變少</li></ul>
+  <p class="dexp">SRE 書：不設或設得極長，早就過去的問題會一直消耗資源。每個等待中的呼叫都占著資源，逾時越長，下游一慢，呼叫端被拖垮得越快。</p>
+</div>
+</section>
+
+<section>
+<p class="era">狀態要看得到</p>
+<h3 class="head">接上 Actuator：health、事件與指標</h3>
+<p>文件：斷路器、重試、限流器、隔艙、TimeLimiter 的指標「會自動發佈到 metrics 端點」；要在 Prometheus 端點看到，要加 <code>micrometer-registry-prometheus</code>。健康檢查預設關閉，要另外打開，理由是「斷路器 OPEN 時，應用程式的狀態會是 DOWN，這可能不是你要的」（Health Indicators are disabled, because the application status is DOWN, when a CircuitBreaker is OPEN. This might not be what you want to achieve.）。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a> 端點的暴露設定、liveness 與 readiness 兩組健康檢查怎麼來，見〈Spring Boot 自動組態與 Actuator〉。實驗的設定：</p>
+<pre><code>management:
+  endpoints.web.exposure.include: health,metrics,prometheus,circuitbreakers,circuitbreakerevents,retries,retryevents
+  endpoint.health.show-details: always
+  health.circuitbreakers.enabled: true
+# 斷路器實例上另外加 registerHealthIndicator: true（見前面 core 的設定）</code></pre>
+<p>讓 <code>core</code> 跳開後（連續 7 次失敗：5 次記帳、2 次被擋），打各端點：</p>
+<pre><code>===== GET /actuator/health（節錄）
+{"components":{"circuitBreakers":{"details":{"core":{"details":{"failureRate":"100.0%","failureRateThreshold":"50.0%","slowCallRate":"0.0%","slowCallRateThreshold":"100.0%","bufferedCalls":5,"slowCalls":0,"slowFailedCalls":0,"failedCalls":5,"notPermittedCalls":2,"state":"OPEN"},"status":"CIRCUIT_OPEN"}},"status":"UNKNOWN"}, …其他元件…},"status":"UP"}
+===== GET /actuator/metrics/resilience4j.circuitbreaker.calls?tag=name:core
+{"availableTags":[{"tag":"kind","values":["ignored","successful","failed"]}],"baseUnit":"seconds","description":"Total number of successful calls","measurements":[{"statistic":"COUNT","value":5.0},{"statistic":"TOTAL_TIME","value":0.131559751},{"statistic":"MAX","value":0.101188125}],"name":"resilience4j.circuitbreaker.calls"}
+===== GET /actuator/metrics/resilience4j.circuitbreaker.state?tag=name:core&amp;tag=state:open
+{"availableTags":[],"description":"The states of the circuit breaker","measurements":[{"statistic":"VALUE","value":1.0}],"name":"resilience4j.circuitbreaker.state"}
+===== GET /actuator/prometheus（只留 core 的幾行）
+resilience4j_circuitbreaker_calls_seconds_count{kind="failed",name="core"} 5
+resilience4j_circuitbreaker_calls_seconds_count{kind="ignored",name="core"} 0
+resilience4j_circuitbreaker_calls_seconds_count{kind="successful",name="core"} 0
+resilience4j_circuitbreaker_failure_rate{name="core"} 100.0
+resilience4j_circuitbreaker_not_permitted_calls_total{kind="not_permitted",name="core"} 2.0
+resilience4j_circuitbreaker_state{name="core",state="closed"} 0.0
+resilience4j_circuitbreaker_state{name="core",state="disabled"} 0.0
+resilience4j_circuitbreaker_state{name="core",state="forced_open"} 0.0
+resilience4j_circuitbreaker_state{name="core",state="half_open"} 0.0
+resilience4j_circuitbreaker_state{name="core",state="metrics_only"} 0.0
+resilience4j_circuitbreaker_state{name="core",state="open"} 1.0</code></pre>
+<p>幾個要看懂的地方：</p>
+<ul class="plainlist">
+<li><strong>health 還是 UP。</strong>文件那句說 OPEN 會讓狀態變 DOWN，但 2.4.0 實跑是 <code>CIRCUIT_OPEN</code>、整個應用程式仍是 UP。原始碼：OPEN 時「允許健康檢查失敗才給 DOWN，否則給 <code>CIRCUIT_OPEN</code>」（<code>allowHealthIndicatorToFail ? Health.down() : Health.status("CIRCUIT_OPEN")</code>）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/src/main/java/io/github/resilience4j/springboot/circuitbreaker/monitoring/health/CircuitBreakersHealthIndicator.java#L92" target="_blank" rel="noopener">出處</a>；設定類別的說明寫「預設情況下，斷路器的健康檢查永遠不會進入不健康的狀態」（By default, health indicators for circuit breakers will never go into an unhealthy state.）。<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-framework-common/src/main/java/io/github/resilience4j/common/circuitbreaker/configuration/CommonCircuitBreakerConfigurationProperties.java#L548" target="_blank" rel="noopener">出處</a></li>
+<li><strong>calls 這個指標的 COUNT 是 5</strong>，它只算真的執行過的呼叫（成功、失敗、忽略三種 kind）；被擋的 2 次另外記在 <code>not_permitted_calls</code>。</li>
+<li><strong>state 指標</strong>是每種狀態一條、當下那種是 1，告警規則寫「<code>state="open"</code> 等於 1 超過幾分鐘」就好。</li>
+</ul>
+<p>同一個實驗加上 <code>resilience4j.circuitbreaker.instances.core.allowHealthIndicatorToFail=true</code> 再跑一次，<code>/actuator/health</code> 就變成：</p>
+<pre><code>GET /actuator/health → 503 {"components":{"circuitBreakers":{"details":{"core":{"details":{"failureRate":"100.0%","failureRateThreshold":"50.0%","slowCallRate":"0.0%","slowCallRateThreshold":"100.0%","bufferedCalls":5,"slowCalls":0,"slowFailedCalls":0,"failedCalls":5,"notPermittedCalls":0,"state":"OPEN"},"status":"DOWN"}},"status":"DOWN"}, …},"status":"DOWN"}
+GET /actuator/health/liveness → 200 {"status":"UP"}
+GET /actuator/health/readiness → 200 {"status":"UP"}</code></pre>
+<p>總的 <code>/actuator/health</code> 變成 503，但 <code>/actuator/health/liveness</code> 與 <code>readiness</code> 還是 200、UP：實跑看得到，這兩組預設不含斷路器。所以 Kubernetes 的探針要接這兩個端點，不要接總的那個，更不要把斷路器加進存活探針：下游壞了不是重啟自己能解決的，一重啟反而全部實例一起重來。〈容器與部署面試題：映像分層、K8s 部署策略與探針〉引的 Spring Boot 文件說得很清楚，存活探針不應依賴外部系統的健康檢查。</p>
+<p class="muted"><code>/actuator/circuitbreakerevents/core</code> 會列出最近的事件（預設 100 筆，用 <code>eventConsumerBufferSize</code> 調整）。這次實跑看得到 5 筆 <code>ERROR</code>、1 筆 <code>FAILURE_RATE_EXCEEDED</code>、1 筆 <code>STATE_TRANSITION</code>（<code>CLOSED_TO_OPEN</code>）和 2 筆 <code>NOT_PERMITTED</code>，查事故時用來對時間線很方便。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">指標自動發佈；health 要另外開，2.4.0 預設 OPEN 只顯示 CIRCUIT_OPEN、整體仍 UP；開 allowHealthIndicatorToFail 才會 DOWN／503，別接進存活探針</p>
+
+<div class="drill">
+  <p class="dq">用 resilience4j-spring-boot4 2.4.0、開了 <code>health.circuitbreakers.enabled</code>，沒設 <code>allowHealthIndicatorToFail</code>。斷路器 OPEN 時，<code>/actuator/health</code> 最上層的 status 是？</p>
+  <ul class="dopts"><li>DOWN，因為有斷路器跳開</li><li>CIRCUIT_OPEN，直接沿用斷路器的狀態</li><li>OUT_OF_SERVICE</li><li data-ok>UP</li></ul>
+  <p class="dexp">實跑結果：core 是 CIRCUIT_OPEN、circuitBreakers 這一組是 UNKNOWN，最上層還是 UP，HTTP 200。原始碼只有 allowHealthIndicatorToFail 為 true 時才給 DOWN。文件那句「OPEN 時狀態是 DOWN」跟這版的行為不同。</p>
+</div>
+<div class="drill">
+  <p class="dq">打開 <code>allowHealthIndicatorToFail</code> 之後，斷路器 OPEN 時有人把 <code>/actuator/health</code> 接進 Kubernetes 的存活探針。下游核心帳務一掛，會發生什麼事？</p>
+  <ul class="dopts"><li>沒影響，存活探針只看 HTTP 200</li><li>只有一個 Pod 會被重啟</li><li>斷路器會被 Kubernetes 自動重置</li><li data-ok>health 回 503，所有實例可能被一起重啟</li></ul>
+  <p class="dexp">每個實例都在呼叫同一個壞掉的下游，斷路器都跳開，health 都回 503，存活探針就把它們全部重啟，重啟也修不好下游。存活探針不應依賴外部系統。</p>
+</div>
+<div class="drill">
+  <p class="dq">斷路器記了 5 次失敗、擋下 2 次。<code>resilience4j.circuitbreaker.calls</code> 加上 <code>tag=name:core</code> 的 COUNT 是多少？</p>
+  <ul class="dopts"><li>7，所有呼叫都算</li><li data-ok>5，只算真的執行過的</li><li>2，只算被擋的</li><li>0，OPEN 時不記指標</li></ul>
+  <p class="dexp">這個指標只算真的執行過的呼叫（kind 有 successful、failed、ignored）。被擋的另外記在 resilience4j_circuitbreaker_not_permitted_calls_total，實跑是 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">要寫一條 Prometheus 告警：「core 的斷路器跳開超過 5 分鐘就通知」。該看哪個指標？</p>
+  <ul class="dopts"><li data-ok>resilience4j_circuitbreaker_state 的 state="open" 等於 1</li><li>resilience4j_circuitbreaker_failure_rate 大於 50</li><li>resilience4j_circuitbreaker_calls_seconds_count 停止增加</li><li>resilience4j_circuitbreaker_not_permitted_calls_total 大於 0</li></ul>
+  <p class="dexp">state 指標每種狀態一條，當下那種是 1，最直接對應「跳開了」。失敗率超過門檻不代表還開著（可能已經回到 CLOSED 重新計算）；被擋次數大於 0 只說明曾經擋過。</p>
+</div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>連鎖故障：一處出事讓別處更容易出事；逾時、斷路器、隔艙、重試上限、降級，是讓下游的壞停在下游的幾道閘門。</li><li>斷路器：CLOSED 記帳，記滿 minimumNumberOfCalls 才算失敗率，≥ 門檻跳 OPEN；OPEN 直接丟 CallNotPermittedException、下游收不到；等滿 waitDurationInOpenState 後下一次呼叫轉 HALF_OPEN；放行那幾次跑完，用比例決定回 CLOSED 或退回 OPEN。慢呼叫比例達門檻一樣跳開。</li><li>預設所有例外都算失敗；列了 recordExceptions，沒列的都算成功；ignoreExceptions 不算成也不算敗。回呼像 catch：同類別、同簽名多一個例外參數、選最接近的，跟斷路器狀態無關。自我呼叫不經過代理，全部失效。</li><li>重試：maxAttempts 含第一次；指數退避每次乘倍數（預設 1.5）；抖動在基準值上下隨機；永久性錯誤列 ignoreExceptions；多層重試會相乘；寫入要冪等。</li><li>預設順序 Retry 包住 CircuitBreaker：每次嘗試都記一筆；Retry 要忽略 CallNotPermittedException，不然會對著 OPEN 的斷路器空轉。</li><li>隔艙擋「同時幾個」（BulkheadFullException），限流擋「一段時間幾個」（RequestNotPermitted）；TimeLimiter 讓呼叫端準時放棄，底層呼叫要靠 HTTP 用戶端自己的逾時才會停。</li><li>指標自動發佈到 metrics、prometheus；health 要另外開，2.4.0 預設 OPEN 只顯示 CIRCUIT_OPEN、整體 UP，開 allowHealthIndicatorToFail 才會 DOWN，別接進存活探針。</li></ul></div>
