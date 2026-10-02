@@ -36,7 +36,7 @@
 <section>
 <p class="era">誰會要求你改這段程式</p>
 <h3 class="head">單一職責原則：一個類別只為一群人負責</h3>
-<p>Martin 在〈SRP: The Single Responsibility Principle〉那篇文章裡的寫法是「一個類別不該有超過一個被修改的理由」（THERE SHOULD NEVER BE MORE THAN ONE REASON FOR A CLASS TO CHANGE.），並解釋「每一種職責都是一條會變動的軸」（each responsibility is an axis of change）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/srp.pdf" target="_blank" rel="noopener">出處</a> 常被引用的「A class should have only one reason to change」是同一個意思的另一種說法。</p>
+<p>Martin 在〈SRP: The Single Responsibility Principle〉那篇文章裡的寫法是「一個類別不該有超過一個被修改的理由」（THERE SHOULD NEVER BE MORE THAN ONE REASON FOR A CLASS TO CHANGE.），並解釋「每一種職責都是一條會變動的軸」（each responsibility is an axis of change）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/srp.pdf" target="_blank" rel="noopener">出處</a> 常見的英文轉述是「A class should have only one reason to change」，沒有出處；Martin 2014 年自己的寫法見下一段。</p>
 <p>「理由」很容易被誤解成「功能」或「做一件事」。Martin 2014 年在部落格上補充：單一職責原則說的是「每個軟體模組應該有一個、而且只有一個被修改的理由」（each software module should have one and only one reason to change），而「這個原則講的是人」（This principle is about people.）：修改的要求應該只來自「一群緊密相關、代表單一業務功能的人」（a single tightly coupled group of people representing a single narrowly defined business function）。<a class="fixsrc" href="https://blog.cleancoder.com/uncle-bob/2014/05/08/SingleReponsibilityPrinciple.html" target="_blank" rel="noopener">出處</a> 他的例子是一個員工類別同時有算薪水、存資料庫、出工時報表三個方法，分別由財務長、技術長、營運長的部門提出修改。</p>
 <p>換成銀行：一個 <code>Account</code> 同時負責算利息（財務部決定）、印對帳單（營運部決定）、存檔（資訊部決定），三個方法共用一個「四捨五入到元」的小工具：</p>
 <pre><code>class Account {
@@ -65,7 +65,7 @@
         return v.setScale(0, RoundingMode.HALF_UP);
     }
 }</code></pre>
-<p>某天財務部要求「利息一律無條件捨去」。工程師看到利息用的是 <code>toDollar</code>，就把那一行改成 <code>RoundingMode.DOWN</code>（範例檔裡的 <code>AccountAfterFinanceChange</code> 只差這一行）。實跑：</p>
+<p>某天財務部要求「利息一律無條件捨去」。工程師看到利息用的是 <code>toDollar</code>，就把那一行改成 <code>RoundingMode.DOWN</code>（範例檔裡的 <code>AccountAfterFinanceChange</code> 就是把捨入那一行改成 DOWN）。實跑：</p>
 <pre><code>改之前：利息 11 元；A-001 餘額 10501 元
 財務部改完：利息 10 元；A-001 餘額 10500 元</code></pre>
 <p>利息照財務部的意思從 11 變 10，但<strong>對帳單上的餘額也從 10501 變成 10500</strong>，營運部根本沒要求改。這就是 Martin 說的：改了財務部要的東西，卻弄壞營運部負責的東西。重構的方向是照「誰會要求改」拆開：</p>
@@ -791,7 +791,7 @@ final class Withdrawals {                              // 業務規則放在資�
 }</code></pre>
 <pre><code>提 300 成功，餘額 700
 提 5000 被拒：金額不合法</code></pre>
-<p>注意它跟上面的貧血版不一樣：record 不可變，沒有 setter 可以把餘額改成 -5000；結果用 sealed 介面表達，呼叫端的 switch 少處理一種會編譯失敗。兩派其實有交集：Fowler 在同一篇文章也說「領域模型不一定總是最好的工具」（Domain Models aren't always the best tool），他在《企業應用架構模式》裡把「每個請求寫成一個程序」的做法叫 Transaction Script，跟 Domain Model 並列為兩種組織業務邏輯的方式。<a class="fixsrc" href="https://martinfowler.com/eaaCatalog/transactionScript.html" target="_blank" rel="noopener">Transaction Script</a><a class="fixsrc" href="https://martinfowler.com/eaaCatalog/domainModel.html" target="_blank" rel="noopener">Domain Model</a> 實務上的判斷：規則多、彼此牽連、不變條件很重要（帳戶、額度、利率），偏向充血模型；資料只是在服務之間流動、規則簡單（查詢結果、API 回應），把資料寫成 record、邏輯放在服務或函式裡也很合理。真正要避免的是「看起來是物件、其實誰都能用 setter 亂改」的那一種。</p>
+<p>注意它跟上面的貧血版不一樣：record 不可變，沒有 setter 可以把餘額改成 -5000；結果用 sealed 介面表達，呼叫端的 switch 少處理一種會編譯失敗。兩派其實有交集：Fowler 在同一篇文章也說「領域模型不一定總是最好的工具」（Domain Models aren't always the best tool）<a class="fixsrc" href="https://martinfowler.com/bliki/AnemicDomainModel.html" target="_blank" rel="noopener">出處</a>，他在《企業應用架構模式》裡把「每個請求寫成一個程序」的做法叫 Transaction Script，跟 Domain Model 並列為兩種組織業務邏輯的方式。<a class="fixsrc" href="https://martinfowler.com/eaaCatalog/transactionScript.html" target="_blank" rel="noopener">Transaction Script</a><a class="fixsrc" href="https://martinfowler.com/eaaCatalog/domainModel.html" target="_blank" rel="noopener">Domain Model</a> 實務上的判斷：規則多、彼此牽連、不變條件很重要（帳戶、額度、利率），偏向充血模型；資料只是在服務之間流動、規則簡單（查詢結果、API 回應），把資料寫成 record、邏輯放在服務或函式裡也很合理。真正要避免的是「看起來是物件、其實誰都能用 setter 亂改」的那一種。</p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="規則放在哪裡的三種做法：貧血模型的 Account 只有 getter 與 setter，規則在 AccountService，任何人都能直接呼叫 setter 繞過規則；充血模型的 Account 自己有 withdraw，沒有 setter；資料導向是不可變的 record 加上分開的 Withdrawals 函式，回傳 sealed 結果">
   <text x="130" y="26" font-size="13" text-anchor="middle" font-weight="700">貧血模型</text>
@@ -1028,4 +1028,4 @@ class HonestTransfer {
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>SOLID 是五個讓程式在需求改變時好改的設計原則，不是編譯器會檢查的規定；每一條都有界線，硬套會變成過早抽象。</li><li>單一職責：一個類別只該因為一群人的需求而改（Martin：this principle is about people）；拆的依據是「誰會要求改」，不是方法數量。</li><li>開放封閉：新增功能靠擴充、不改舊程式，關鍵是抽象；只對你選定的那種變化封閉。</li><li>里氏替換：子型別放進父型別的位置要照常運作；前置條件不能變強、後置條件不能變弱。extends 寫得出來不代表語意上是子型別；違反它，呼叫端就會冒出 instanceof 判斷。</li><li>介面隔離：照使用端切介面，不逼別人實作用不到的方法；也不是一個方法一個介面。</li><li>依賴反轉：高層規則與低層細節都依賴抽象；依賴注入是實現它的技巧。穩定的具體類別（String、BigDecimal）可以直接依賴。</li><li>原則是目標，設計模式是遵循原則時一再出現的做法：Strategy 對應開放封閉、Abstract Factory 與依賴注入對應依賴反轉。</li><li>反模式：上帝類別（違反單一職責）、貧血模型（兩派，共同反對 setter 亂改）、過早抽象（Yagni、重複比錯的抽象便宜）、藏著外部相依的 static 工具、吞掉例外（補上情境、保留 cause）。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>SOLID 是五個讓程式在需求改變時好改的設計原則，不是編譯器會檢查的規定；每一條都有界線，硬套會變成過早抽象。原則是目標，設計模式是遵循原則時一再出現的做法：Strategy 對應開放封閉、Abstract Factory 與依賴注入對應依賴反轉。</li><li>單一職責：一個類別只該因為一群人的需求而改（Martin：this principle is about people）；拆的依據是「誰會要求改」，不是方法數量。</li><li>開放封閉：新增功能靠擴充、不改舊程式，關鍵是抽象；只對你選定的那種變化封閉。</li><li>里氏替換：子型別放進父型別的位置要照常運作；前置條件不能變強、後置條件不能變弱。extends 寫得出來不代表語意上是子型別；違反它，呼叫端就會冒出 instanceof 判斷。</li><li>介面隔離：照使用端切介面，不逼別人實作用不到的方法；也不是一個方法一個介面。</li><li>依賴反轉：高層規則與低層細節都依賴抽象；依賴注入是實現它的技巧。穩定的具體類別（String、BigDecimal）可以直接依賴。</li><li>反模式：上帝類別（違反單一職責）、貧血模型（兩派，共同反對 setter 亂改）、過早抽象（Yagni、重複比錯的抽象便宜）、藏著外部相依的 static 工具、吞掉例外（補上情境、保留 cause）。</li></ul></div>
