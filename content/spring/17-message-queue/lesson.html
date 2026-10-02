@@ -1,0 +1,788 @@
+<!-- 來源：依 Apache Kafka 4.3 文件 https://kafka.apache.org/43/ 與 RabbitMQ 4.3 文件 https://www.rabbitmq.com/docs 新寫（另參考 Spring for Apache Kafka 4.1、Spring AMQP 4.1、Spring Boot 4.1 參考文件，以及 microservices.io 的交易式 Outbox；程式全部自編，以 Spring Boot 4.1.1、Java 21 搭配 Docker 的 apache/kafka 4.3.1（KRaft 單節點）與 rabbitmq 4.3.6 實際執行） · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出什麼時候值得在兩個服務中間放一個訊息佇列，以及它帶來的三個代價</li><li>用主題、分區、位移、消費者群組描述 Kafka，用交換器、佇列、綁定描述 RabbitMQ，看得懂一則訊息會送到哪裡、被誰讀</li><li>分清至多一次、至少一次、剛好一次各要什麼前提，並在 Spring 裡用 <code>@KafkaListener</code> 加手動 ack 做到「處理完才確認」</li><li>寫出去重表讓消費者冪等，設定重試與死信，並寫出交易式 Outbox 的表、交易與轉送器</li></ul></div>
+
+<section>
+<p class="era">中間多一站，兩邊就不用互等</p>
+<h3 class="head">為什麼要佇列：解耦、緩衝尖峰、非同步</h3>
+<p>你把信丟進郵筒就可以走了，不用站在收件人門口等他開門。<strong>訊息佇列</strong>（message queue）就是程式之間的郵筒：送訊息的程式叫<strong>生產者</strong>（producer），收訊息的叫<strong>消費者</strong>（consumer），中間保管訊息的那台伺服器叫 <strong>broker</strong>（訊息代理）。面試集〈系統設計：訊息佇列與最終一致性〉已經講過什麼時候該用、代價是什麼；這課從那裡往下，把 Kafka 與 RabbitMQ 的模型、Spring 怎麼接、怎麼不丟不重，一步一步做出來。</p>
+<p>放一個 broker 在中間，換到三件事：</p>
+<ul class="plainlist">
+<li><strong>解耦</strong>：轉帳服務只管把「A 轉出 1000」這件事送出去，不需要知道有誰要收、收的人現在活著沒。Kafka 文件說，生產者與消費者「完全解耦、互不知道對方」，「生產者永遠不需要等消費者」（producers and consumers are fully decoupled and agnostic of each other… For example, producers never need to wait for consumers.）。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>緩衝尖峰</strong>（業界常叫「削峰」）：發薪日早上一口氣湧進十萬筆通知，佇列先收下來，消費者照自己的速度慢慢處理，不會被一次壓垮。</li>
+<li><strong>非同步</strong>：使用者按下轉帳，畫面先回「處理中」，寄通知、更新報表這些不急的事，在背後由別的服務接手。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 260" role="img" aria-label="上面是直接呼叫：轉帳服務呼叫通知服務，通知服務掛掉時轉帳也跟著失敗；下面是經過 broker：轉帳服務把訊息放進佇列就回應，通知服務之後再來拿，掛掉一陣子訊息也還在">
+  <defs><marker id="mq-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <text x="20" y="28" font-size="13" fill="var(--slate-deep)">直接呼叫：兩邊要同時活著</text>
+  <rect x="40" y="44" width="150" height="50" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="115" y="74" font-size="14" text-anchor="middle">轉帳服務</text>
+  <line x1="190" y1="69" x2="468" y2="69" stroke="currentColor" marker-end="url(#mq-1-arrow)"/>
+  <text x="330" y="60" font-size="12.5" text-anchor="middle">呼叫，等它回應</text>
+  <rect x="470" y="44" width="150" height="50" rx="8" fill="var(--surface)" stroke="currentColor" stroke-dasharray="5 4"/>
+  <text x="545" y="74" font-size="14" text-anchor="middle">通知服務（掛了）</text>
+  <text x="640" y="74" font-size="12.5" fill="var(--gold-deep)">轉帳也失敗</text>
+  <text x="20" y="140" font-size="13" fill="var(--slate-deep)">經過 broker：放進去就能走</text>
+  <rect x="40" y="156" width="150" height="50" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="115" y="186" font-size="14" text-anchor="middle">轉帳服務</text>
+  <line x1="190" y1="181" x2="258" y2="181" stroke="currentColor" marker-end="url(#mq-1-arrow)"/>
+  <rect x="260" y="161" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <rect x="300" y="161" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <rect x="340" y="161" width="40" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <rect x="380" y="161" width="40" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="340" y="226" font-size="12.5" text-anchor="middle">broker 保管的訊息</text>
+  <line x1="420" y1="181" x2="468" y2="181" stroke="currentColor" marker-end="url(#mq-1-arrow)"/>
+  <rect x="470" y="156" width="150" height="50" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="545" y="186" font-size="14" text-anchor="middle">通知服務</text>
+  <text x="640" y="178" font-size="12.5" fill="var(--slate-deep)">恢復後</text>
+  <text x="640" y="196" font-size="12.5" fill="var(--slate-deep)">再來拿</text>
+</svg>
+<figcaption>上面：通知服務一掛，轉帳跟著失敗。下面：訊息先放在 broker，通知服務晚一點恢復也不會漏。</figcaption>
+</figure>
+<p>代價跟面試集那課講的一樣，三份帳單：結果從「馬上」變成「稍後」、每個消費者都要能承受同一則訊息來兩次（後面的冪等）、多一套系統要監控。需要馬上拿到結果（例如查餘額），或兩件事本來就在同一個資料庫交易裡，直接呼叫或直接寫就好。</p>
+<p>這課用兩個 broker 示範。版本：Apache Kafka 4.3（Docker 映像 <code>apache/kafka</code>，KRaft 模式（Kafka 自己管叢集的中繼資料，不再需要 ZooKeeper）單節點）、RabbitMQ 4.3；Spring 這邊用 Spring Boot 4.1.1（Spring Framework 7.0.9），裡面帶的是 Spring for Apache Kafka 4.1.1、Kafka 用戶端 4.2.1 與 Spring AMQP 4.1.1（AMQP 是 RabbitMQ 使用的訊息協定），跟面試集那課引的 4.1 版文件同一版。</p>
+
+<div class="drill">
+  <p class="dq">下面哪個情境<strong>最不適合</strong>放訊息佇列？</p>
+  <ul class="dopts"><li>轉帳成功後寄 email 通知</li><li data-ok>使用者打開 App 要立刻看到自己的餘額</li><li>每天湧進大量交易紀錄，要慢慢寫進報表系統</li><li>一筆轉帳完成後，風控、通知、報表三個服務都要知道</li></ul>
+  <p class="dexp">查餘額要馬上拿到結果，經過佇列只會變慢、變複雜，直接查就好。寄通知、慢慢寫報表、讓多個服務各自知道，都是不需要馬上回應的事，適合佇列。</p>
+</div>
+<div class="drill">
+  <p class="dq">「發薪日早上通知量是平常的十倍，通知服務的處理速度不變」，佇列在這裡幫的是哪一件事？</p>
+  <ul class="dopts"><li data-ok>緩衝尖峰：多的先收著，再慢慢消化</li><li>解耦：讓轉帳服務不用知道通知服務的位址</li><li>讓每則通知只會送一次</li><li>讓通知處理得比較快</li></ul>
+  <p class="dexp">量突然變大、處理速度跟不上時，佇列先把多出來的存著，尖峰過了再追上。它不會讓處理變快，也不保證只送一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">引進訊息佇列之後，下面哪一件事<strong>不是</strong>它帶來的代價？</p>
+  <ul class="dopts"><li>結果從「馬上」變成「稍後」</li><li>消費者要能承受同一則訊息來兩次</li><li>多一套系統要監控</li><li data-ok>生產者得等消費者處理完</li></ul>
+  <p class="dexp">生產者送出就走，不用等消費者，這正是佇列的好處。前三個才是要付的代價。</p>
+</div>
+<div class="drill">
+  <p class="dq">生產者、消費者、broker 三個角色，哪一個負責<strong>保管</strong>還沒被處理的訊息？</p>
+  <ul class="dopts"><li data-ok>broker</li><li>生產者，它會一直留著直到消費者回覆</li><li>消費者，訊息一送出就存在消費者那邊等它處理</li><li>沒有人保管，送不到就丟掉</li></ul>
+  <p class="dexp">broker 是中間那台伺服器，訊息先放在它那裡。所以消費者暫時掛掉，訊息也不會不見。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉帳服務改成「扣款後丟訊息給通知服務」，下面哪個說法對？</p>
+  <ul class="dopts"><li>通知服務掛掉時，轉帳服務也一定會跟著失敗、要整筆重來</li><li data-ok>通知服務暫時掛掉，訊息會留在 broker 等它</li><li>轉帳服務要改成知道通知服務的 IP</li><li>通知一定在扣款的同一毫秒送到</li></ul>
+  <p class="dexp">這就是解耦：轉帳服務只跟 broker 打交道。代價是通知會「稍後」才到，不是同一瞬間。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一本只往後寫的帳本，切成好幾本</p>
+<h3 class="head">Kafka 的模型：主題、分區、位移、消費者群組</h3>
+<p>把 Kafka 想成銀行櫃檯的流水帳本：每發生一件事就往最後一行寫，寫上去就不改，誰想看都可以從某一行開始往下讀。Kafka 裡這本帳叫<strong>日誌</strong>（log），四個名詞都從這裡長出來：</p>
+<ul class="plainlist">
+<li><strong>主題</strong>（topic）：一類事件放一個主題，例如 <code>transfers</code>。文件說主題「像檔案系統裡的資料夾，事件是資料夾裡的檔案」，而且「跟傳統的訊息系統不同，事件被消費之後不會刪除」（unlike traditional messaging systems, events are not deleted after consumption），保留多久由主題的設定決定。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>分區</strong>（partition）：一個主題切成好幾本帳，放在不同的 broker 上，才能很多人同時寫、同時讀。新事件只會寫進其中一本。文件：「同一個 key 的事件會寫進同一個分區，而且 Kafka 保證任何消費者讀一個分區時，順序跟寫入時完全相同」（Events with the same event key… are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition’s events in exactly the same order as they were written.）。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>位移</strong>（offset）：每本帳的行號，從 0 開始。消費者讀到哪裡，就只是記一個數字：文件說消費者在每個分區的位置「只是一個整數，也就是下一則要讀的訊息的位移」（just a single integer, the offset of the next message to consume）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a> 一則訊息的位移寫上去就不會變（The offset for a message never changes.）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>消費者群組</strong>（consumer group）：一組一起分工的消費者，用同一個群組名稱。規則只有一條：每個分區「在任一時刻，只會被每個訂閱它的消費者群組裡的一個消費者消費」（each of which is consumed by exactly one consumer within each subscribing consumer group at any given time）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>從這條規則可以推出兩件事。第一，同一個群組裡的消費者比分區多，多出來的分不到分區，只能閒著；想加人加速，分區數要先估夠。第二，<strong>不同群組各讀各的</strong>，每個群組都有自己的位移，帳務群組讀完了，稽核群組照樣從頭讀到尾。因為訊息不會讀完就刪，消費者也可以「刻意倒回舊的位移重新讀」（A consumer can deliberately rewind back to an old offset and re-consume data.），例如程式有 bug，修好之後重跑一遍。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
+<p>用 Spring 實際跑一次。主題 <code>transfers</code> 切 3 個分區，送 6 筆轉帳事件，key 是帳號；群組 <code>ledger</code> 開兩個消費者，群組 <code>audit</code> 只開一個。Spring Boot 會在啟動時建立 <code>NewTopic</code> 型別的 Bean 描述的主題（To create a topic on startup, add a bean of type NewTopic.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/kafka.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>@Bean
+NewTopic transfers() {                                  // 主題 transfers，切成 3 個分區
+    return TopicBuilder.name("transfers").partitions(3).replicas(1).build();
+}
+
+// 送出：key 是帳號，同一個帳號一定進同一個分區
+SendResult&lt;String, String&gt; r = kafka.send("transfers", "A", "A 轉出 100").get();
+System.out.printf("送出 key=%s → 分區 %d、位移 %d%n", "A",
+        r.getRecordMetadata().partition(), r.getRecordMetadata().offset());
+
+// 群組 ledger 開兩個消費者（concurrency = 2），三個分區由兩人分
+@KafkaListener(id = "ledger", topics = "transfers", groupId = "ledger", concurrency = "2")
+void ledger(@Payload String value, @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset) { … }
+
+// 群組 audit 只有一個消費者：三個分區都歸它，而且跟 ledger 各讀各的
+@KafkaListener(id = "audit", topics = "transfers", groupId = "audit")
+void audit(…) { … }</code></pre>
+<p>執行結果（輸出照群組、分區排序）：</p>
+<pre><code>送出 key=A「A 轉出 100」→ 分區 1、位移 0
+送出 key=D「D 轉出 200」→ 分區 0、位移 0
+送出 key=F「F 轉出 300」→ 分區 2、位移 0
+送出 key=A「A 轉出 400」→ 分區 1、位移 1
+送出 key=D「D 轉出 500」→ 分區 0、位移 1
+送出 key=F「F 轉出 600」→ 分區 2、位移 1
+群組 audit  分區 0 位移 0「D 轉出 200」由 消費者 0 處理
+群組 audit  分區 0 位移 1「D 轉出 500」由 消費者 0 處理
+群組 audit  分區 1 位移 0「A 轉出 100」由 消費者 0 處理
+群組 audit  分區 1 位移 1「A 轉出 400」由 消費者 0 處理
+群組 audit  分區 2 位移 0「F 轉出 300」由 消費者 0 處理
+群組 audit  分區 2 位移 1「F 轉出 600」由 消費者 0 處理
+群組 ledger 分區 0 位移 0「D 轉出 200」由 消費者 0 處理
+群組 ledger 分區 0 位移 1「D 轉出 500」由 消費者 0 處理
+群組 ledger 分區 1 位移 0「A 轉出 100」由 消費者 0 處理
+群組 ledger 分區 1 位移 1「A 轉出 400」由 消費者 0 處理
+群組 ledger 分區 2 位移 0「F 轉出 300」由 消費者 1 處理
+群組 ledger 分區 2 位移 1「F 轉出 600」由 消費者 1 處理</code></pre>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="主題 transfers 有三個分區：分區 0 放 D 的兩筆，分區 1 放 A 的兩筆，分區 2 放 F 的兩筆，每個分區的位移各自從 0 開始。群組 ledger 的消費者 0 讀分區 0 和 1、消費者 1 讀分區 2；群組 audit 只有一個消費者，三個分區都讀">
+  <defs><marker id="mq-2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <text x="150" y="28" font-size="13" fill="var(--slate-deep)">主題 transfers（3 個分區）</text>
+  <text x="40" y="74" font-size="13">分區 0</text>
+  <rect x="100" y="50" width="96" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="148" y="75" font-size="13" text-anchor="middle" class="mono">D 200</text>
+  <rect x="196" y="50" width="96" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="244" y="75" font-size="13" text-anchor="middle" class="mono">D 500</text>
+  <text x="148" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">位移 0</text>
+  <text x="244" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">位移 1</text>
+  <text x="40" y="154" font-size="13">分區 1</text>
+  <rect x="100" y="130" width="96" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="148" y="155" font-size="13" text-anchor="middle" class="mono">A 100</text>
+  <rect x="196" y="130" width="96" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="244" y="155" font-size="13" text-anchor="middle" class="mono">A 400</text>
+  <text x="148" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">位移 0</text>
+  <text x="244" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">位移 1</text>
+  <text x="40" y="234" font-size="13">分區 2</text>
+  <rect x="100" y="210" width="96" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="148" y="235" font-size="13" text-anchor="middle" class="mono">F 300</text>
+  <rect x="196" y="210" width="96" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="244" y="235" font-size="13" text-anchor="middle" class="mono">F 600</text>
+  <text x="148" y="264" font-size="12" text-anchor="middle" class="mono" opacity=".6">位移 0</text>
+  <text x="244" y="264" font-size="12" text-anchor="middle" class="mono" opacity=".6">位移 1</text>
+  <text x="300" y="300" font-size="12.5" opacity=".75">新事件一律寫在分區的最右邊；同一個 key 一定進同一個分區</text>
+  <rect x="470" y="40" width="270" height="130" rx="10" fill="none" stroke="var(--gold)" stroke-dasharray="6 4"/>
+  <text x="480" y="60" font-size="13" fill="var(--gold-deep)">群組 ledger（兩個消費者）</text>
+  <rect x="490" y="72" width="230" height="36" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="605" y="95" font-size="13" text-anchor="middle">消費者 0：分區 0、1</text>
+  <rect x="490" y="118" width="230" height="36" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="605" y="141" font-size="13" text-anchor="middle">消費者 1：分區 2</text>
+  <rect x="470" y="190" width="270" height="86" rx="10" fill="none" stroke="var(--slate)" stroke-dasharray="6 4"/>
+  <text x="480" y="210" font-size="13" fill="var(--slate-deep)">群組 audit（一個消費者）</text>
+  <rect x="490" y="222" width="230" height="36" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="605" y="245" font-size="13" text-anchor="middle">消費者 0：分區 0、1、2</text>
+  <line x1="300" y1="70" x2="488" y2="90" stroke="var(--gold)" marker-end="url(#mq-2-arrow)"/>
+  <line x1="300" y1="150" x2="488" y2="95" stroke="var(--gold)" marker-end="url(#mq-2-arrow)"/>
+  <line x1="300" y1="230" x2="488" y2="136" stroke="var(--gold)" marker-end="url(#mq-2-arrow)"/>
+  <line x1="300" y1="236" x2="488" y2="240" stroke="var(--slate)" marker-end="url(#mq-2-arrow)"/>
+</svg>
+<figcaption>上面實跑的結果畫成圖。每個分區在一個群組裡只歸一個消費者；兩個群組各讀各的，audit 也讀到全部 6 筆。</figcaption>
+</figure>
+<p>注意三件事：A 的兩筆都在分區 1，所以 A 的轉出一定照順序處理；位移是「每個分區各自」從 0 開始，不是整個主題一起編號；三個分區、兩個消費者，所以有一個消費者分到兩個分區。哪個 key 落在哪個分區由 key 的雜湊決定，換了分區數就會變，所以分區數上線後最好不要改。</p>
+<p class="formula">主題切成分區，同一個 key 進同一個分區、分區內有序；每個分區在一個群組裡只歸一個消費者，不同群組各讀各的</p>
+
+<div class="drill">
+  <p class="dq">主題 <code>transfers</code> 有 3 個分區，群組 <code>ledger</code> 開了 5 個消費者。會怎樣？</p>
+  <ul class="dopts"><li data-ok>3 個消費者各分到一個分區，2 個閒著</li><li>5 個消費者平均分，每個分到 0.6 個分區</li><li>Kafka 自動把主題改成 5 個分區</li><li>5 個消費者都讀全部 3 個分區，每則訊息處理 5 次</li></ul>
+  <p class="dexp">每個分區在一個群組裡只歸一個消費者，所以最多 3 個人有事做。分區數不會自己變；要多人分工，得先把分區開夠。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實跑，<code>audit</code> 群組為什麼也讀到全部 6 筆，而不是跟 <code>ledger</code> 分著讀？</p>
+  <ul class="dopts"><li>因為 audit 先啟動</li><li data-ok>因為不同的群組各自有自己的位移，各讀各的</li><li>因為 Kafka 會把訊息複製一份給第二個群組，複製完原本那份才刪掉</li><li>因為 audit 只有一個消費者</li></ul>
+  <p class="dexp">分工只發生在同一個群組裡。群組之間互不影響，訊息也不會讀完就刪，所以每個群組都能從頭讀到尾。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉帳事件用帳號當 key 送出。要保證「同一個帳號的事件照發生順序處理」，靠的是什麼？</p>
+  <ul class="dopts"><li>Kafka 保證整個主題的所有事件全域有序</li><li>每個消費者處理前先把事件排序</li><li>把消費者數量設成跟帳號數一樣多</li><li data-ok>同 key 進同一分區，分區內照寫入順序讀</li></ul>
+  <p class="dexp">Kafka 只保證分區內有序，不保證跨分區。同一個帳號都進同一個分區，那個帳號的事件就有序；不同帳號之間的先後就沒有保證。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實跑裡，「D 轉出 500」的位移是 1。這個 1 是什麼意思？</p>
+  <ul class="dopts"><li>它是整個主題的第二則，三個分區一起編號</li><li>它被處理了 1 次</li><li>它的優先順序是 1</li><li data-ok>它是分區 0 的第二則（從 0 起算）</li></ul>
+  <p class="dexp">位移是每個分區各自的行號。分區 0 的第一則「D 轉出 200」是 0，第二則是 1；分區 1、2 也各自從 0 開始。</p>
+</div>
+<div class="drill">
+  <p class="dq">消費者在一個分區裡「讀到哪裡」，Kafka 用什麼記？</p>
+  <ul class="dopts"><li>每則訊息上一個「已讀」標記</li><li data-ok>一個整數：下一則要讀的位移</li><li>broker 把讀過的訊息刪掉，剩下的就是沒讀的</li><li>消費者自己記在記憶體，broker 不知道</li></ul>
+  <p class="dexp">文件：消費者在每個分區的位置只是一個整數，也就是下一則要讀的位移。所以記錄進度很便宜，要重讀也只是把數字調回去。</p>
+</div>
+<div class="drill">
+  <p class="dq">帳務程式有 bug，昨天處理的事件算錯了。修好之後，用 Kafka 可以怎麼補救？</p>
+  <ul class="dopts"><li>沒辦法，事件被消費之後就刪了</li><li>請生產者把昨天的事件全部重送一次</li><li data-ok>把消費者的位移倒回昨天的位置，重新讀一遍</li><li>把主題刪掉重建，Kafka 會自動從備份把昨天的事件還原回來</li></ul>
+  <p class="dexp">Kafka 的事件不會讀完就刪（保留期限內都在），消費者可以刻意倒回舊的位移重新消費。這也是它跟「讀完即刪」的佇列最大的差別。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 Kafka 主題的分區數，主要決定了什麼？</p>
+  <ul class="dopts"><li>訊息能保留多久</li><li>一則訊息最大可以多大</li><li>有幾個群組可以訂閱這個主題，超過就要排隊</li><li data-ok>同一群組最多幾個消費者能分工</li></ul>
+  <p class="dexp">每個分區在群組裡只歸一個消費者，分區數就是平行處理的上限。保留多久是另一個主題設定；群組要幾個都可以。</p>
+</div>
+<div class="drill">
+  <p class="dq">3 個分區、群組裡只有 1 個消費者，後來又啟動第 2 個消費者（同一個群組）。會發生什麼？</p>
+  <ul class="dopts"><li>第 2 個消費者閒著，因為分區已經被第 1 個拿走了</li><li data-ok>群組重新分配分區，兩個消費者分掉 3 個分區</li><li>兩個消費者都讀全部分區，訊息會處理兩次</li><li>第 2 個消費者啟動失敗</li></ul>
+  <p class="dexp">有人加入或離開群組，Kafka 會重新分配分區，讓每個分區仍然只歸一個人。這也是加消費者能分攤負載的原因（前提是分區夠多）。</p>
+</div>
+</section>
+
+<section>
+<p class="era">郵局依地址分信，讀完就拿走</p>
+<h3 class="head">RabbitMQ 的模型：交換器、佇列、綁定</h3>
+<p>RabbitMQ 像郵局。生產者不直接把信塞進某個信箱，而是交給郵局，郵局照規則分到各個信箱。文件：訊息「發布到交換器，交換器常被比喻成郵局或信箱；交換器再依照叫做綁定的規則，把訊息的副本分到佇列」（messages are published to exchanges, which are often compared to post offices or mailboxes. Exchanges then distribute message copies to queues using rules called bindings.）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>交換器</strong>（exchange）：收訊息、決定送去哪些佇列，本身不存訊息。</li>
+<li><strong>佇列</strong>（queue）：真正存訊息的地方，消費者從這裡拿。</li>
+<li><strong>綁定</strong>（binding）：「佇列 Q 要收交換器 E 的哪些訊息」的規則。訊息帶一個<strong>路由鍵</strong>（routing key，像信封上的地址），綁定上寫的條件拿來跟它比。</li>
+</ul>
+<p>交換器有幾種，差在怎麼比路由鍵：</p>
+<div class="tablewrap"><table><thead><tr><th>交換器</th><th>怎麼分</th><th>文件原句</th></tr></thead><tbody>
+<tr><th>direct</th><td>路由鍵跟綁定鍵完全相同才送</td><td>綁定鍵 K、訊息路由鍵 R，「K = R 時」送到那條佇列（the exchange routes it to the queue if K = R）</td></tr>
+<tr><th>fanout</th><td>綁定的佇列全部都送，不看路由鍵</td><td>送到「所有綁定的佇列，路由鍵會被忽略」（routes messages to all of the queues that are bound to it and the routing key is ignored）</td></tr>
+<tr><th>topic</th><td>路由鍵用點分成好幾個字，跟綁定的樣式比對</td><td>依「路由鍵與綁定時用的樣式是否相符」送到一條或多條佇列（based on matching between a message routing key and the pattern that was used to bind a queue）</td></tr>
+</tbody></table></div>
+<p>以上三句出自同一頁。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a> topic 交換器的樣式有兩個萬用字元：「* 剛好代表一個字，# 代表零個或多個字」（* (star) can substitute for exactly one word. # (hash) can substitute for zero or more words.）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/tutorial-five-java" target="_blank" rel="noopener">出處</a> 另外還有一個沒有名字的<strong>預設交換器</strong>：每條佇列建立時都自動用「佇列名稱」當路由鍵綁上去（every queue that is created is automatically bound to it with a routing key which is the same as the queue name），所以看起來像直接送進佇列，其實還是經過交換器。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
+<p>實跑一個 topic 交換器 <code>bank.events</code>，三條佇列各綁一個樣式。Spring 裡把交換器、佇列、綁定宣告成 Bean，Spring Boot 自動建立的 <code>RabbitAdmin</code> 會在連上 broker 時建好它們（any Queue that is defined as a bean is automatically used to declare a corresponding queue on the RabbitMQ instance）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>@Bean
+Declarables topology() {
+    TopicExchange events = new TopicExchange("bank.events");
+    Queue audit = new Queue("audit.all");
+    Queue notify = new Queue("notify.large");
+    Queue tw = new Queue("risk.tw");
+    return new Declarables(events, audit, notify, tw,
+            BindingBuilder.bind(audit).to(events).with("#"),                  // 全部都要
+            BindingBuilder.bind(notify).to(events).with("transfer.*.large"),  // 大額轉帳
+            BindingBuilder.bind(tw).to(events).with("*.tw.*"));               // 台灣的事件
+}
+
+// 送到交換器，不是送到佇列
+rabbit.convertAndSend("bank.events", "transfer.tw.large", "事件 transfer.tw.large");
+
+@RabbitListener(queues = {"audit.all", "notify.large", "risk.tw"})
+void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String queue) { … }</code></pre>
+<p>執行結果（收到的部分照佇列排序）：</p>
+<pre><code>送出 routing key = transfer.tw.large
+送出 routing key = transfer.jp.small
+送出 routing key = login.tw.web
+佇列 audit.all    收到「事件 login.tw.web」
+佇列 audit.all    收到「事件 transfer.jp.small」
+佇列 audit.all    收到「事件 transfer.tw.large」
+佇列 notify.large 收到「事件 transfer.tw.large」
+佇列 risk.tw      收到「事件 login.tw.web」
+佇列 risk.tw      收到「事件 transfer.tw.large」</code></pre>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="topic 交換器 bank.events 收到三則訊息，依綁定分到三條佇列：audit.all 綁 #，三則都收；notify.large 綁 transfer.*.large，只收 transfer.tw.large；risk.tw 綁 *.tw.*，收 transfer.tw.large 和 login.tw.web">
+  <defs><marker id="mq-3-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <text x="20" y="40" font-size="13" fill="var(--slate-deep)">送出的路由鍵</text>
+  <text x="20" y="90" font-size="13" class="mono">transfer.tw.large</text>
+  <text x="20" y="150" font-size="13" class="mono">transfer.jp.small</text>
+  <text x="20" y="210" font-size="13" class="mono">login.tw.web</text>
+  <line x1="160" y1="86" x2="228" y2="140" stroke="currentColor" marker-end="url(#mq-3-arrow)"/>
+  <line x1="160" y1="146" x2="228" y2="148" stroke="currentColor" marker-end="url(#mq-3-arrow)"/>
+  <line x1="160" y1="206" x2="228" y2="156" stroke="currentColor" marker-end="url(#mq-3-arrow)"/>
+  <rect x="230" y="110" width="140" height="76" rx="10" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="300" y="142" font-size="14" text-anchor="middle">bank.events</text>
+  <text x="300" y="164" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">topic 交換器</text>
+  <line x1="370" y1="135" x2="528" y2="70" stroke="currentColor" marker-end="url(#mq-3-arrow)"/>
+  <line x1="370" y1="148" x2="528" y2="150" stroke="currentColor" marker-end="url(#mq-3-arrow)"/>
+  <line x1="370" y1="161" x2="528" y2="230" stroke="currentColor" marker-end="url(#mq-3-arrow)"/>
+  <text x="430" y="88" font-size="12.5" class="mono" fill="var(--gold-deep)">#</text>
+  <text x="400" y="140" font-size="12.5" class="mono" fill="var(--gold-deep)">transfer.*.large</text>
+  <text x="430" y="218" font-size="12.5" class="mono" fill="var(--gold-deep)">*.tw.*</text>
+  <rect x="530" y="45" width="210" height="50" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="545" y="66" font-size="13" class="mono">audit.all</text>
+  <text x="545" y="86" font-size="12" fill="var(--slate-deep)">三則都收</text>
+  <rect x="530" y="125" width="210" height="50" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="545" y="146" font-size="13" class="mono">notify.large</text>
+  <text x="545" y="166" font-size="12" fill="var(--slate-deep)">只收 transfer.tw.large</text>
+  <rect x="530" y="205" width="210" height="50" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="545" y="226" font-size="13" class="mono">risk.tw</text>
+  <text x="545" y="246" font-size="12" fill="var(--slate-deep)">收 transfer.tw.large、login.tw.web</text>
+  <text x="20" y="285" font-size="12.5" opacity=".75">古銅字是綁定的樣式：# 代表零個或多個字，* 剛好代表一個字</text>
+</svg>
+<figcaption>一則 transfer.tw.large 同時符合三個樣式，三條佇列各收到一份副本。transfer.jp.small 只符合 #。</figcaption>
+</figure>
+<p><strong>讀完就刪。</strong>這是跟 Kafka 最大的不同：RabbitMQ 收到消費者的確認（ack）之後，「才會把訊息從佇列裡完全移除」（a broker will only completely remove a message from a queue when it receives a notification for that message）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a> 所以同一條佇列有好幾個消費者時，一則只給一個人，文件說通常是「輪流」分（Normally, active consumers connected to a queue receive messages from it in a round-robin fashion.）；<a class="fixsrc" href="https://www.rabbitmq.com/docs/consumers" target="_blank" rel="noopener">出處</a> 要讓好幾個服務都收到，就像上面那樣給每個服務一條自己的佇列。還有一種情況要小心：訊息沒有任何綁定符合時，會「被丟掉，或退回給生產者，看生產者送出時設了什麼屬性」（it is either dropped or returned to the publisher, depending on message attributes the publisher has set）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a> 那個屬性叫 mandatory，「預設是 false」，這時訊息會被丟掉（或轉給另外設定的備用交換器）（the publisher set the mandatory message property to false (this is the default), the message is discarded or republished to an alternate exchange, if any）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/publishers" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th></th><th>Kafka</th><th>RabbitMQ</th></tr></thead><tbody>
+<tr><th>訊息放在哪</th><td>主題的分區（日誌），讀完不刪，保留到期限</td><td>佇列，確認之後刪掉</td></tr>
+<tr><th>誰決定訊息去哪</th><td>生產者選主題；key 決定分區</td><td>交換器照綁定規則分到佇列</td></tr>
+<tr><th>多個服務都要收</th><td>各用一個消費者群組，各讀各的</td><td>各綁一條自己的佇列</td></tr>
+<tr><th>一個服務多台分工</th><td>同一個群組，分區分給不同消費者</td><td>同一條佇列，多個消費者輪流拿</td></tr>
+<tr><th>讀到哪裡</th><td>消費者的位移（一個整數）</td><td>broker 記每則訊息有沒有被確認</td></tr>
+</tbody></table></div>
+<p class="muted">Kafka 4.3 的設計文件另外介紹了共享群組（share group）：群組裡的消費者「合作消費」紀錄，「消費者數可以超過主題的分區數」，而且逐筆確認（The number of consumers in a share group can exceed the number of partitions in a topic.）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a> 這讓 Kafka 也能像佇列那樣用；本課只用一般的消費者群組。</p>
+
+<div class="drill">
+  <p class="dq">在 RabbitMQ，生產者的訊息<strong>第一站</strong>送到哪裡？</p>
+  <ul class="dopts"><li data-ok>交換器</li><li>直接送進消費者</li><li>直接送進佇列，交換器只在佇列滿的時候才會出來分流</li><li>綁定</li></ul>
+  <p class="dexp">訊息一律先到交換器，交換器再照綁定分到佇列。就算是「直接送到佇列」的寫法，其實也是經過預設交換器。</p>
+</div>
+<div class="drill">
+  <p class="dq">topic 交換器上，佇列用 <code>order.*</code> 綁定。下面哪一個路由鍵<strong>會</strong>送到這條佇列？</p>
+  <ul class="dopts"><li>order</li><li>order.tw.created</li><li data-ok>order.created</li><li>payment.created</li></ul>
+  <p class="dexp">* 剛好代表一個字。order.created 是 order 加一個字，符合。order 少了一個字、order.tw.created 多了一個字，都不符合；要比對任意多個字得用 order.#。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個 topic 交換器上，佇列用 <code>order.#</code> 綁定。下面哪一個路由鍵<strong>不會</strong>送到這條佇列？</p>
+  <ul class="dopts"><li>order</li><li>order.created</li><li>order.tw.created</li><li data-ok>payment.order</li></ul>
+  <p class="dexp"># 代表零個或多個字，所以 order、order.created、order.tw.created 都符合。payment.order 的第一個字不是 order，不符合。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉帳完成後，通知、風控、報表三個服務都要收到同一個事件，而且路由鍵不重要。最簡單用哪種交換器？</p>
+  <ul class="dopts"><li data-ok>fanout，三個服務各綁一條佇列</li><li>direct，三個服務共用一條佇列</li><li>不用交換器，生產者自己送三次，每次直接寫進一個服務的佇列</li><li>topic，三個服務共用一條佇列</li></ul>
+  <p class="dexp">fanout 把訊息複製給所有綁定的佇列，不看路由鍵。三個服務共用一條佇列的話，一則訊息只會被其中一個拿走，另外兩個收不到。</p>
+</div>
+<div class="drill">
+  <p class="dq">一條佇列開了 3 個消費者（同一個服務的 3 台）。佇列裡來了 1 則訊息，會怎樣？</p>
+  <ul class="dopts"><li>3 個消費者都收到一份</li><li data-ok>只有其中一個收到</li><li>3 個人要同時確認才算處理完</li><li>沒人收到，要先設定由誰負責</li></ul>
+  <p class="dexp">同一條佇列的消費者是輪流分著拿，一則只給一個。要每個服務都收到，是每個服務各有一條佇列，不是同一條開多個消費者。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實跑，如果再送一則路由鍵 <code>login.jp.web</code>，會進哪幾條佇列？</p>
+  <ul class="dopts"><li>audit.all 和 risk.tw</li><li>三條都進</li><li data-ok>只有 audit.all</li><li>哪一條都不進，訊息被丟掉</li></ul>
+  <p class="dexp"># 符合任何路由鍵，所以 audit.all 一定收到。*.tw.* 要第二個字是 tw，這裡是 jp；transfer.*.large 第一個字就不符合。</p>
+</div>
+<div class="drill">
+  <p class="dq">送到交換器的訊息，如果<strong>沒有任何一條綁定符合</strong>，預設會怎樣？</p>
+  <ul class="dopts"><li>broker 先存著，等之後有符合的佇列再補送過去</li><li>broker 自動建一條新的佇列來收</li><li data-ok>被丟掉，除非生產者設了要退回的屬性</li><li>送到死信佇列</li></ul>
+  <p class="dexp">文件：無法路由的訊息會被丟掉或退回給生產者，看送出時設的屬性。所以綁定寫錯，訊息會默默消失，這是 RabbitMQ 常見的除錯題。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先記進度還是先做事，決定了會丟還是會重複</p>
+<h3 class="head">送達保證：至多一次、至少一次、剛好一次</h3>
+<p>Kafka 文件列出三種可能的保證：「至多一次：訊息可能丟失，但絕不重送；至少一次：訊息絕不丟失，但可能重送；剛好一次：每則訊息只處理一次」（At most once—Messages may be lost but are never redelivered. At least once—Messages are never lost but may be redelivered. Exactly once—Each message is processed once and only once.）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a> 消費者這端決定是哪一種的，就是「記進度」和「做事」誰先：</p>
+<ul class="plainlist">
+<li><strong>先記位移、再處理</strong>：文件說這樣「有可能在存好位置之後、存好處理結果之前當機」，接手的程序從存好的位置開始，前面幾則就沒處理到，「對應到至多一次」。</li>
+<li><strong>先處理、再記位移</strong>：「有可能在處理完之後、存好位置之前當機」，接手的程序收到的前幾則「其實已經處理過了」，「對應到至少一次」。</li>
+</ul>
+<p>兩句都出自 Kafka 設計文件的同一段。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="兩條時間線。上面是至多一次：讀到訊息、先提交位移、當機，處理沒做到，重啟後從新位移開始，這則訊息丟了。下面是至少一次：讀到訊息、處理完、當機，位移沒提交，重啟後從舊位移再讀一次，這則訊息處理了兩次">
+  <defs><marker id="mq-4-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <text x="20" y="30" font-size="13" fill="var(--gold-deep)">至多一次：先記位移，再處理</text>
+  <line x1="20" y1="80" x2="740" y2="80" stroke="currentColor" stroke-opacity=".35" marker-end="url(#mq-4-arrow)"/>
+  <rect x="40" y="58" width="110" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/>
+  <text x="95" y="85" font-size="13" text-anchor="middle">讀到 t-1</text>
+  <rect x="180" y="58" width="130" height="44" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="245" y="85" font-size="13" text-anchor="middle">提交位移</text>
+  <text x="365" y="88" font-size="22" text-anchor="middle" fill="var(--gold-deep)">✕</text>
+  <text x="365" y="122" font-size="12.5" text-anchor="middle">當機</text>
+  <rect x="420" y="58" width="130" height="44" rx="6" fill="none" stroke="currentColor" stroke-dasharray="4 4" opacity=".6"/>
+  <text x="485" y="85" font-size="13" text-anchor="middle" opacity=".6">處理（沒做到）</text>
+  <text x="580" y="78" font-size="13" fill="var(--gold-deep)">重啟從下一則開始</text>
+  <text x="580" y="98" font-size="13" fill="var(--gold-deep)">→ t-1 丟了</text>
+  <text x="20" y="160" font-size="13" fill="var(--slate-deep)">至少一次：先處理，再記位移</text>
+  <line x1="20" y1="210" x2="740" y2="210" stroke="currentColor" stroke-opacity=".35" marker-end="url(#mq-4-arrow)"/>
+  <rect x="40" y="188" width="110" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/>
+  <text x="95" y="215" font-size="13" text-anchor="middle">讀到 t-1</text>
+  <rect x="180" y="188" width="130" height="44" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="245" y="215" font-size="13" text-anchor="middle">處理（扣款）</text>
+  <text x="365" y="218" font-size="22" text-anchor="middle" fill="var(--gold-deep)">✕</text>
+  <text x="365" y="252" font-size="12.5" text-anchor="middle">當機</text>
+  <rect x="420" y="188" width="130" height="44" rx="6" fill="none" stroke="currentColor" stroke-dasharray="4 4" opacity=".6"/>
+  <text x="485" y="215" font-size="13" text-anchor="middle" opacity=".6">提交位移（沒做到）</text>
+  <text x="580" y="208" font-size="13" fill="var(--slate-deep)">重啟從舊位移再讀</text>
+  <text x="580" y="228" font-size="13" fill="var(--slate-deep)">→ t-1 處理兩次</text>
+</svg>
+<figcaption>當機一定會發生在某兩步之間。先記位移，壞掉的是「丟」；先處理，壞掉的是「重複」。</figcaption>
+</figure>
+<p>銀行的帳寧可重複、不能丟（重複可以靠程式擋掉，丟了就是錢對不上），所以實務上幾乎都選<strong>至少一次</strong>，再讓消費者擋掉重複。生產者那端也一樣：送出後沒收到 broker 的回應，不知道到底寫進去沒有，只好重送。Kafka 的生產者設定 <code>enable.idempotence</code> 開著時，「生產者會確保每則訊息在串流裡只寫入一份」（the producer will ensure that exactly one copy of each message is written in the stream），而且「沒有衝突的設定時預設開啟」（Idempotence is enabled by default if no conflicting configurations are set.）。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/producer-configs/" target="_blank" rel="noopener">出處</a> 這只擋得住「生產者重送造成 Kafka 裡多一份」，擋不住「消費者處理兩次」。</p>
+<p><strong>剛好一次要什麼前提？</strong>文件提醒：「很多系統宣稱提供剛好一次，但務必細讀但書」（it is important to read the fine print）。Kafka 做得到的剛好一次有兩種前提：</p>
+<ul class="plainlist">
+<li><strong>從 Kafka 讀、寫回 Kafka</strong>：用交易式生產者，把「輸出的訊息」和「消費者的位移」寫進同一筆 Kafka 交易，下游消費者設 <code>isolation.level=read_committed</code>（只讀已提交的交易）。文件：位移存在內部主題裡，「所以可以把位移跟處理後的輸出放在同一筆交易寫進 Kafka」（we can write the offset to Kafka in the same transaction as the output topics receiving the processed data）。</li>
+<li><strong>寫到外部系統（例如資料庫）</strong>：Kafka 自己做不到，要「讓消費者把位移存在跟輸出同一個地方」（letting the consumer store its offset in the same place as its output），例如位移和扣款寫進同一筆資料庫交易；或者訊息本身有主鍵，重做只是覆寫同一筆（In many cases messages have a primary key and so the updates are idempotent）。</li>
+</ul>
+<p>以上引文都出自 Kafka 設計文件的送達語意一節。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a> 換句話說，寫進資料庫的「剛好一次」，實際做法就是「至少一次＋消費者冪等」，也就是本課後半要寫的去重表。RabbitMQ 這邊沒有剛好一次可選，用確認機制做到的是至少一次。</p>
+<p class="formula">先記位移再處理＝至多一次（會丟）；先處理再記位移＝至少一次（會重複）；剛好一次只在 Kafka 讀寫 Kafka 的交易內成立，寫資料庫靠至少一次加冪等</p>
+
+<div class="drill">
+  <p class="dq">消費者的寫法是「讀到訊息 → 先提交位移 → 再扣款」。在提交位移之後、扣款之前當機，結果是？</p>
+  <ul class="dopts"><li>這則訊息會被扣款兩次</li><li data-ok>沒扣到款，重啟後也不會再收到</li><li>Kafka 會偵測到漏做的扣款，自動補做一次</li><li>沒影響</li></ul>
+  <p class="dexp">位移已經往前了，重啟從下一則開始，這則就跳過了，這是至多一次的「丟」。要避免，就要先處理再提交位移。</p>
+</div>
+<div class="drill">
+  <p class="dq">消費者改成「讀到 → 先扣款 → 再提交位移」，在扣款之後、提交之前當機，結果是？</p>
+  <ul class="dopts"><li data-ok>重啟後再收到同一則，沒擋的話會扣兩次</li><li>這則訊息丟了</li><li>Kafka 會發現位移沒提交，把剛才的扣款復原</li><li>扣款會被寫成負數</li></ul>
+  <p class="dexp">位移沒提交，重啟從舊的位移開始，同一則再來一次。這是至少一次的「重複」，所以消費者要冪等。</p>
+</div>
+<div class="drill">
+  <p class="dq">生產者開了 <code>enable.idempotence</code>（Kafka 預設），下面哪個說法對？</p>
+  <ul class="dopts"><li>消費者一定只會處理每則訊息一次</li><li>從此不需要去重表</li><li>生產者送出後就不會重試</li><li data-ok>生產者重試不會讓日誌多一份</li></ul>
+  <p class="dexp">冪等生產者擋的是「生產者重試造成日誌裡重複」。消費者處理完、提交位移前當機，一樣會再收到同一則，消費端還是要自己去重。</p>
+</div>
+<div class="drill">
+  <p class="dq">服務從 Kafka 讀轉帳事件，扣款寫進資料庫。想做到「每筆只扣一次」，最實際的做法是？</p>
+  <ul class="dopts"><li data-ok>至少一次＋消費者用去重表或唯一鍵擋掉重複</li><li>把 Kafka 設成剛好一次模式，資料庫那邊就自動只寫一次</li><li>改成先提交位移再扣款</li><li>關掉生產者的重試</li></ul>
+  <p class="dexp">Kafka 的交易只管 Kafka 自己的讀寫，管不到外部資料庫。寫資料庫要嘛把位移跟扣款放同一筆資料庫交易，要嘛至少一次加冪等；先提交再扣款會變成會丟。</p>
+</div>
+<div class="drill">
+  <p class="dq">下游消費者要只讀「已提交的 Kafka 交易」寫出來的訊息，要設什麼？</p>
+  <ul class="dopts"><li>isolation.level=read_uncommitted</li><li>enable.auto.commit=true</li><li data-ok>isolation.level=read_committed</li><li>acks=all</li></ul>
+  <p class="dexp">isolation.level 預設是 read_uncommitted，會讀到被中止的交易裡的訊息；設成 read_committed 才只讀已提交的。acks 是生產者等幾個複本確認。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼銀行系統大多選「至少一次」而不是「至多一次」？</p>
+  <ul class="dopts"><li data-ok>重複擋得掉，丟了就對不上帳</li><li>因為至少一次比較快</li><li>因為至多一次 Kafka 不支援</li><li>因為至少一次保證不會重複</li></ul>
+  <p class="dexp">兩種都會出事，差在出的是哪種事。重複有辦法在消費端擋，訊息丟了卻沒人知道要補。至少一次正好「可能重複」，所以才要配冪等。</p>
+</div>
+</section>
+
+<section>
+<p class="era">處理完才說「收到了」</p>
+<h3 class="head">Spring 接 Kafka：@KafkaListener 與手動 ack</h3>
+<p><code>@KafkaListener</code>「把一個 Bean 的方法指定為監聽器容器的監聽器」（is used to designate a bean method as a listener for a listener container）。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/receiving-messages/listener-annotation.html" target="_blank" rel="noopener">出處</a> 監聽器容器（listener container）是 Spring 替你開的背景執行緒：一直跟 Kafka 拉訊息、交給你的方法、再替你提交位移。什麼時候提交，由 <strong>AckMode</strong>（ack 模式；ack 是 acknowledge，確認處理完了）決定：</p>
+<ul class="plainlist">
+<li>Kafka 用戶端自己也會自動提交（<code>enable.auto.commit</code>，「在背景定期提交」（periodically committed in the background），預設 true）。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener">出處</a> 背景定期提交跟你處理到哪裡沒有關係，所以 Spring 把它關掉：「從 2.3 版起，除非設定裡明確指定，框架會把 enable.auto.commit 設成 false」（Starting with version 2.3, the framework sets enable.auto.commit to false unless explicitly set in the configuration.），改由容器提交。</li>
+<li>預設的 AckMode 是 <code>BATCH</code>（The default AckMode is BATCH.）：「一次 <code>poll()</code>（消費者向 Kafka 拉一批訊息的方法）拿回來的紀錄全部處理完才提交」（Commit the offset when all the records returned by the poll() have been processed.）。也就是說預設就已經是「先處理、再提交」。</li>
+<li><code>RECORD</code>：每一筆處理完、方法回傳時就提交。</li>
+<li><code>MANUAL</code>／<code>MANUAL_IMMEDIATE</code>：你的方法多收一個 <code>Acknowledgment</code> 參數，自己呼叫 <code>acknowledge()</code> 才算數；<code>MANUAL_IMMEDIATE</code> 是「呼叫 acknowledge() 時立刻提交」（Commit the offset immediately when the Acknowledgment.acknowledge() method is called by the listener.）。</li>
+</ul>
+<p>以上 AckMode 的引文出自同一頁。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/receiving-messages/message-listener-container.html" target="_blank" rel="noopener">出處</a> 什麼時候要手動？處理裡有「方法回傳了但事情還沒做完」的情況（例如交給別的執行緒做），或想明確決定哪個時間點算成功。Spring Boot 用一行設定就能換：</p>
+<pre><code>spring.kafka.listener.ack-mode=manual_immediate</code></pre>
+<p>下面的實跑把「處理完、ack 前當機」真的做一次：監聽器扣完款之後，用 <code>Runtime.getRuntime().halt(1)</code> 讓程序直接死掉（不跑任何收尾），位移就沒提交。資料庫用 H2（用 Java 寫的小型資料庫）的檔案模式，重啟後資料還在。這一版<strong>先不做去重</strong>：</p>
+<pre><code>@KafkaListener(topics = "debits", groupId = "ledger-service")
+void onDebit(ConsumerRecord&lt;String, String&gt; rec, Acknowledgment ack) {
+    String[] f = rec.value().split(":");                 // 序號:帳號:金額
+    System.out.printf("收到 %s（分區 %d、位移 %d）%n", f[0], rec.partition(), rec.offset());
+    long balance = ledger.debit(f[0], f[1], Long.parseLong(f[2]));   // 扣款
+    System.out.println("  扣款完成，餘額 " + balance);
+    if (crash) {
+        System.out.println("  處理完、還沒 ack 就當機");
+        Runtime.getRuntime().halt(1);                     // 模擬程序直接死掉，位移沒提交
+    }
+    ack.acknowledge();                                     // 處理完才提交位移
+    System.out.println("  ack：位移提交");
+}</code></pre>
+<p>執行兩次，第一次帶 <code>--demo.crash=true</code>（上面的程式省略了去重的部分；下一段的去重版跟這裡是同一支程式，只差去重那一句有沒有開）：</p>
+<pre><code>=== 第一次執行：送出，處理完、ack 前當機
+送出 t-1001（A 扣 1000）
+收到 t-1001（分區 0、位移 0）
+  扣款完成，餘額 9000
+  處理完、還沒 ack 就當機
+=== 第二次執行：重新啟動
+收到 t-1001（分區 0、位移 0）
+  扣款完成，餘額 8000
+  ack：位移提交
+結束時 A 的餘額 8000</code></pre>
+<p>同一則 t-1001（同一個分區、同一個位移 0）來了兩次，A 被扣了兩次 1000。這就是至少一次：訊息沒丟，但重複了。手動 ack 只能保證「沒處理完的不會被當成處理完」，擋不住重複；擋重複是下一段的事。</p>
+<p class="muted">如果在監聽器方法上加 <code>@Transactional</code>，那筆交易管的只是資料庫，管不到位移提交；「資料庫提交了、位移還沒提交」的空窗一樣在，結果跟上面相同。<code>@Transactional</code> 的運作見〈Spring AOP 與交易控制〉。</p>
+
+<div class="drill">
+  <p class="dq">Spring for Apache Kafka 預設的 AckMode 是什麼？</p>
+  <ul class="dopts"><li>MANUAL</li><li data-ok>BATCH</li><li>RECORD</li><li>沒有預設，一定要設</li></ul>
+  <p class="dexp">文件：The default AckMode is BATCH，一次 poll() 拿回來的紀錄全部處理完才提交。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 Spring 裡用 Kafka，為什麼框架預設把 <code>enable.auto.commit</code> 關掉？</p>
+  <ul class="dopts"><li>因為自動提交會讓訊息重複寫進 Kafka</li><li>因為 Kafka 4 已經移除這個設定</li><li data-ok>因為背景定期提交跟處理進度無關，可能先提交了還沒處理完的</li><li>因為自動提交太慢，關掉之後 Kafka 的吞吐量會變好很多</li></ul>
+  <p class="dexp">Kafka 用戶端的自動提交是在背景定期做，不知道你的方法處理到哪裡。Spring 改由容器在處理完之後提交，才做得到「先處理、再提交」。</p>
+</div>
+<div class="drill">
+  <p class="dq">監聽器方法要收 <code>Acknowledgment ack</code> 參數、自己呼叫 <code>ack.acknowledge()</code>，AckMode 要設成哪一種？</p>
+  <ul class="dopts"><li>BATCH</li><li>RECORD，每筆處理完由你呼叫 acknowledge()</li><li>TIME</li><li data-ok>MANUAL 或 MANUAL_IMMEDIATE</li></ul>
+  <p class="dexp">只有 MANUAL 系列會把 Acknowledgment 交給你的方法；其他模式由容器自己決定何時提交。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實跑，第二次執行為什麼又收到 t-1001？</p>
+  <ul class="dopts"><li>因為生產者又送了一次</li><li data-ok>位移沒提交，重啟後從位移 0 再讀</li><li>因為第一次扣款的資料沒寫進 H2，程式自己補送</li><li>因為群組名稱換了</li></ul>
+  <p class="dexp">第二次執行沒有送訊息（沒帶 demo.send），收到的是同一個分區、同一個位移 0 的那一則。位移沒提交，群組的進度還停在 0。</p>
+</div>
+<div class="drill">
+  <p class="dq">把上面的 <code>ack.acknowledge()</code> 移到扣款<strong>之前</strong>（AckMode 是 MANUAL_IMMEDIATE），在扣款前當機，結果是？</p>
+  <ul class="dopts"><li>還是會扣兩次</li><li>Spring 會偵測到，自動把位移倒回去</li><li data-ok>位移已提交，不會再收到，款沒扣到</li><li>程式編譯不過</li></ul>
+  <p class="dexp">MANUAL_IMMEDIATE 呼叫 acknowledge() 就立刻提交。先提交再處理就是至多一次，當機時那筆就丟了。</p>
+</div>
+<div class="drill">
+  <p class="dq">監聽器方法上加了 <code>@Transactional</code>，扣款的資料庫交易已經提交，接著在提交位移前當機。重啟後會怎樣？</p>
+  <ul class="dopts"><li data-ok>同一則再收到一次，資料庫交易管不到位移</li><li>Spring 會把資料庫交易回復</li><li>不會再收到，因為 @Transactional 會一起提交位移</li><li>程式啟動失敗，因為交易沒有正常結束，H2 會把資料庫鎖住</li></ul>
+  <p class="dexp">@Transactional 預設只管資料庫那筆交易；位移是 Kafka 那邊的事。兩者之間的空窗還在，消費端一樣要冪等。</p>
+</div>
+</section>
+
+<section>
+<p class="era">做過的事記下來，第二次來就說「做過了」</p>
+<h3 class="head">冪等消費：去重表</h3>
+<p><strong>冪等</strong>（idempotent）是「做一次和做很多次，結果一樣」。按電梯的樓層鍵就是冪等：按十次也只去那一層。扣款天生不冪等，每做一次餘額就少一次，所以要自己加一道關卡。面試集〈系統設計：訊息佇列與最終一致性〉列了三招：去重表、業務唯一鍵、版本號；microservices.io 也說消費者「必須冪等，例如追蹤已經處理過的訊息編號」（a message consumer must be idempotent, perhaps by tracking the IDs of the messages that it has already processed）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 這裡把去重表實作出來。</p>
+<p>關鍵只有一句：<strong>去重表那一列和扣款，寫在同一筆資料庫交易裡。</strong>重複的訊息一插入就撞主鍵，整筆交易回復，扣款也跟著沒發生。</p>
+<pre><code>CREATE TABLE processed_message (
+  message_id   VARCHAR(64) NOT NULL,     -- 生產者給的唯一編號（這裡用轉帳序號）
+  consumer     VARCHAR(64) NOT NULL,     -- 哪個服務處理的：不同服務各記各的
+  processed_at TIMESTAMP   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  PRIMARY KEY (message_id, consumer)
+);</code></pre>
+<pre><code>@Component
+static class Ledger {
+    // 去重表與扣款放在同一筆交易：重複的訊息撞主鍵，整筆回復
+    @Transactional
+    public long debit(String messageId, String account, long amount) {
+        jdbc.update("INSERT INTO processed_message (message_id, consumer) VALUES (?, 'ledger-service')", messageId);
+        jdbc.update("UPDATE account SET balance = balance - ? WHERE id = ?", amount, account);
+        return jdbc.queryForObject("SELECT balance FROM account WHERE id = ?", Long.class, account);
+    }
+}
+
+// 監聽器裡：撞到主鍵就是做過了
+try {
+    long balance = ledger.debit(f[0], f[1], Long.parseLong(f[2]));
+    System.out.println("  扣款完成，餘額 " + balance);
+} catch (DuplicateKeyException e) {
+    System.out.println("  去重表已有 " + f[0] + "：做過了，跳過");
+}
+ack.acknowledge();                                         // 做過了也要 ack，不然會一直收到</code></pre>
+<p>同樣兩次執行（第一次 ack 前當機）：</p>
+<pre><code>=== 第一次執行：送出，處理完、ack 前當機
+送出 t-1001（A 扣 1000）
+收到 t-1001（分區 0、位移 0）
+  扣款完成，餘額 9000
+  處理完、還沒 ack 就當機
+=== 第二次執行：重新啟動
+收到 t-1001（分區 0、位移 0）
+  去重表已有 t-1001：做過了，跳過
+  ack：位移提交
+結束時 A 的餘額 9000</code></pre>
+<p>訊息一樣來了兩次，但餘額只少一次 1000。四個細節：</p>
+<ul class="plainlist">
+<li><strong><code>@Transactional</code> 放在 <code>Ledger</code> 這個 Bean 上，例外在交易外面接。</strong>例外從交易方法丟出來，Spring 才會回復整筆；同一個類別裡自己呼叫自己的方法，不會經過 Spring 的代理物件，<code>@Transactional</code> 不會生效（原因見〈Spring AOP 與交易控制〉），所以拆成兩個 Bean。</li>
+<li><strong>做過了也要 ack。</strong>跳過之後不確認，位移不前進，這則會一直重來。</li>
+<li><strong>編號要由生產者給、全域唯一。</strong>用 Kafka 的位移當編號不行：生產者重送一次，同一件事會拿到不同的位移。</li>
+<li><strong>主鍵包含 consumer 欄位。</strong>帳務服務與通知服務各自處理同一則訊息，各記各的，不會互相擋掉。</li>
+</ul>
+<p>另外兩招更省事：直接拿轉帳序號在業務表上建唯一索引（重複就插不進去），或更新時加 <code>WHERE version = 舊版本</code>（影響 0 列就是已經處理過）。哪一招都一樣，關鍵是「判斷有沒有做過」和「真的去做」要在同一筆交易裡。</p>
+<p class="formula">冪等消費：生產者給唯一編號；去重那一列和業務更新同一筆交易；撞主鍵就跳過，做過了也要 ack</p>
+
+<div class="drill">
+  <p class="dq">下面哪個操作<strong>本來就是</strong>冪等的？</p>
+  <ul class="dopts"><li>把餘額減 1000，扣完存回資料庫</li><li>寄一封轉帳成功的通知信給客戶</li><li data-ok>把訂單狀態設成「已出貨」</li><li>在交易紀錄表插入一筆新紀錄（主鍵自動遞增）</li></ul>
+  <p class="dexp">把狀態「設成」某個值，做幾次結果都一樣。減金額、寄信、插入自動編號的紀錄，每做一次就多一次效果，要另外擋重複。</p>
+</div>
+<div class="drill">
+  <p class="dq">去重表的 INSERT 和扣款的 UPDATE，為什麼一定要放在<strong>同一筆</strong>交易？</p>
+  <ul class="dopts"><li>因為分開寫比較慢</li><li data-ok>不然可能一個成功一個沒做到，下次重送時判斷錯</li><li>因為 Kafka 規定要這樣寫，不然位移會提交失敗</li><li>因為主鍵只在交易裡有效</li></ul>
+  <p class="dexp">如果先寫去重表、扣款前當機，重送時以為做過了，款就沒扣；先扣款、寫去重表前當機，重送時又扣一次。放同一筆交易，兩件事要嘛都成功、要嘛都沒發生。</p>
+</div>
+<div class="drill">
+  <p class="dq">去重表的主鍵為什麼是 <code>(message_id, consumer)</code>，而不是只有 <code>message_id</code>？</p>
+  <ul class="dopts"><li>因為 message_id 可能是空的</li><li>因為這樣查詢比較快</li><li>因為 Kafka 要求主鍵要有兩個欄位</li><li data-ok>不同服務處理同一則，各記各的</li></ul>
+  <p class="dexp">如果只用 message_id，帳務服務先記下 t-1001，通知服務處理同一則時就撞主鍵、以為做過了，通知就不會寄。</p>
+</div>
+<div class="drill">
+  <p class="dq">去重時，訊息的唯一編號用什麼最恰當？</p>
+  <ul class="dopts"><li data-ok>生產者給的業務編號，例如轉帳序號</li><li>Kafka 的位移，同一則訊息永遠是同一個數字</li><li>消費者收到的時間</li><li>訊息內容的長度</li></ul>
+  <p class="dexp">位移是 Kafka 寫進日誌時才給的。同一筆轉帳被重新送一次（例如轉送器重啟後重送），會拿到另一個位移，去重表就擋不住。要用代表「同一件事」的編號。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的監聽器撞到 <code>DuplicateKeyException</code> 之後，如果<strong>不</strong>呼叫 <code>ack.acknowledge()</code>，會怎樣？</p>
+  <ul class="dopts"><li>沒差，反正已經做過了</li><li>Spring 會自動幫你 ack</li><li data-ok>還會再收到同一則</li><li>broker 會把這則訊息直接刪掉</li></ul>
+  <p class="dexp">MANUAL_IMMEDIATE 模式下，只有呼叫 acknowledge() 才提交位移。跳過也是處理完了，一樣要確認。</p>
+</div>
+</section>
+
+<section>
+<p class="era">試幾次就好，救不了的放到一旁</p>
+<h3 class="head">重試與死信</h3>
+<p>消費者處理失敗有兩種：<strong>暫時性的</strong>（下游逾時、資料庫剛好忙），等一下再試可能就好；<strong>永久性的</strong>（金額格式錯、欄位缺了），試一萬次也一樣錯。後者叫<strong>毒訊息</strong>（poison message）：卡在那裡、永遠處理不了的訊息。重試的設計就是：暫時性的試幾次，用完還不行，或一看就是永久性的，就把它移到旁邊的<strong>死信</strong>（dead letter）區，讓後面的訊息繼續走，之後再有人工查原因、修好重放。</p>
+
+<p><strong>Kafka：DefaultErrorHandler 加死信主題。</strong>Spring for Apache Kafka 的監聽器丟例外時，預設的錯誤處理器是 <code>DefaultErrorHandler</code>：「預設失敗十次之後，把那筆失敗的紀錄寫進日誌（ERROR 層級）」（By default, after ten failures, the failed record is logged (at the ERROR level).），預設設定是 <code>FixedBackOff(0L, 9)</code>（不等待、重試 9 次，共 10 次）。寫進日誌之後就跳過了，那筆訊息等於只剩一行錯誤訊息。要留下來，就給它一個 <code>DeadLetterPublishingRecoverer</code>：「預設送到名為 &lt;原主題&gt;-dlt 的主題，而且跟原紀錄同一個分區」（By default, the dead-letter record is sent to a topic named &lt;originalTopic&gt;-dlt… and to the same partition as the original record.）。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/annotation-error-handling.html" target="_blank" rel="noopener">出處</a> 在 Spring Boot 裡，只要宣告一個 <code>CommonErrorHandler</code> 型別的 Bean，就會自動接到預設的監聽器容器工廠上（if a … CommonErrorHandler … bean is defined, it is automatically associated to the default factory）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/kafka.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>@Bean
+NewTopic paymentsDlt() {   // 死信主題的預設名稱：原主題名加 -dlt，分區跟原紀錄相同，所以分區數至少要一樣
+    return TopicBuilder.name("payments-dlt").partitions(1).replicas(1).build();
+}
+
+// 失敗後隔 0.5 秒重試 2 次（共 3 次），用完送死信主題
+@Bean
+DefaultErrorHandler errorHandler(KafkaTemplate&lt;String, String&gt; kafka) {
+    DefaultErrorHandler handler = new DefaultErrorHandler(
+            new DeadLetterPublishingRecoverer(kafka), new FixedBackOff(500L, 2L));
+    handler.addNotRetryableExceptions(IllegalArgumentException.class);   // 資料本身錯：重試也沒用
+    return handler;
+}
+
+@KafkaListener(topics = "payments", groupId = "payment-service")
+void onPayment(ConsumerRecord&lt;String, String&gt; rec) {
+    switch (rec.value()) {
+        case "下游逾時" -&gt; throw new IllegalStateException("下游逾時");       // 暫時性錯誤：值得重試
+        case "金額格式錯誤" -&gt; throw new IllegalArgumentException("金額格式錯誤");
+        default -&gt; … // 成功
+    }
+}
+
+@KafkaListener(topics = "payments-dlt", groupId = "dlt-watcher")
+void onDeadLetter(ConsumerRecord&lt;String, String&gt; rec) { … }   // 從標頭讀出失敗原因</code></pre>
+<p>送三筆：p-1 每次都逾時、p-2 金額格式錯、p-3 正常。執行結果（秒數從送出第一筆起算）：</p>
+<pre><code>  0.0 秒　p-1 第 1 次處理（位移 0）
+  0.5 秒　p-1 第 2 次處理（位移 0）
+  1.1 秒　p-1 第 3 次處理（位移 0）
+  1.6 秒　死信主題 payments-dlt 收到 p-1（原因 IllegalStateException）
+  1.6 秒　p-2 第 1 次處理（位移 1）
+  2.1 秒　死信主題 payments-dlt 收到 p-2（原因 IllegalArgumentException）
+  2.1 秒　p-3 第 1 次處理（位移 2）
+  2.1 秒　p-3 成功</code></pre>
+<p>看三件事。p-1 照設定試了 3 次、每次隔約 0.5 秒，然後進死信主題；p-2 的 <code>IllegalArgumentException</code> 被設成不重試，第一次失敗就直接送走。最重要的是 <strong>p-3 排在後面等</strong>：同一個分區要照順序，p-1 在重試的那 1.6 秒，p-3 只能等。所以重試的次數和間隔不能設太大，一筆卡住的訊息會擋住整個分區。死信紀錄的標頭帶著原本的例外類別、例外訊息與堆疊追蹤（stack trace）（例如 <code>KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN</code>），上面的原因就是從那裡讀出來的。</p>
+
+<p><strong>RabbitMQ：預設會一直重新排入。</strong>Spring AMQP 的確認模式預設是 <code>AUTO</code>：「容器自動確認，除非監聽器丟出例外」（The container acknowledges the message automatically, unless the MessageListener throws an exception.）。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/containerAttributes.html" target="_blank" rel="noopener">出處</a> 丟了例外呢？「通常訊息會被拒絕，並由 broker 重新排入佇列」（Normally the message is rejected and requeued by the broker.）。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/exception-handling.html" target="_blank" rel="noopener">出處</a> Spring Boot 文件說得更直接：沒開重試時，監聽器丟例外，「這則訊息會無限次重送」（By default, if retries are disabled and the listener throws an exception, the delivery is retried indefinitely.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a> 毒訊息就會在佇列頭上轉個不停。</p>
+<p>要讓它停，有三條路。容器的 <code>defaultRequeueRejected</code> 設成 false，「讓訊息被丟棄（或送到死信交換器）」（causes messages to be discarded (or routed to a dead letter exchange)）；或在監聽器裡針對這一則丟 <code>AmqpRejectAndDontRequeueException</code>。這兩句出自 Spring AMQP 文件。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/exception-handling.html" target="_blank" rel="noopener">出處</a> 第三條是開 Spring Boot 的監聽器重試（<code>spring.rabbitmq.listener.simple.retry.enabled=true</code>，預設關閉），「重試用完，訊息被拒絕，然後被丟掉，或在 broker 有設定時送到死信交換器」（When retries are exhausted, the message is rejected and either dropped or routed to a dead-letter exchange if the broker is configured to do so.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a> 被拒絕、不重新排入的訊息會不會留下來，看佇列有沒有設<strong>死信交換器</strong>（dead letter exchange，DLX）。RabbitMQ 文件列了四種會變成死信的情況：消費者「用 basic.reject 或 basic.nack（AMQP 裡拒絕訊息的兩個指令）負面確認，而且 requeue 參數是 false」、訊息的 TTL（存活時間）過期、佇列超過長度上限被丟掉、仲裁佇列（quorum queue，RabbitMQ 4 起用來複製到多台的佇列）的訊息被退回超過 delivery-limit（退回次數上限）次。<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a></p>
+<pre><code>@Bean
+Declarables topology() {
+    DirectExchange main = new DirectExchange("payments.ex");
+    DirectExchange dlx = new DirectExchange("payments.dlx");
+    Queue payments = QueueBuilder.durable("payments.q")
+            .deadLetterExchange("payments.dlx")     // 這條佇列的死信送到 payments.dlx
+            .deadLetterRoutingKey("dead")
+            .build();
+    Queue dead = QueueBuilder.durable("payments.dead").build();
+    return new Declarables(main, dlx, payments, dead,
+            BindingBuilder.bind(payments).to(main).with("pay"),
+            BindingBuilder.bind(dead).to(dlx).with("dead"));
+}
+
+@RabbitListener(queues = "payments.q")
+void onPayment(@Payload String body, @Header(AmqpHeaders.REDELIVERED) boolean redelivered) {
+    attempts++;
+    System.out.printf("第 %d 次收到「%s」，redelivered=%s%n", attempts, body, redelivered);
+    if (attempts &lt; 3) {
+        throw new IllegalStateException("下游逾時");            // 一般例外：預設拒絕並重新排入
+    }
+    throw new AmqpRejectAndDontRequeueException("放棄");       // 不再排入：走死信
+}
+
+@RabbitListener(queues = "payments.dead")
+void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt;&gt; death) { … }</code></pre>
+<p>執行結果：</p>
+<pre><code>第 1 次收到「p-9 扣款」，redelivered=false
+第 2 次收到「p-9 扣款」，redelivered=true
+第 3 次收到「p-9 扣款」，redelivered=true
+死信佇列收到「p-9 扣款」：來自 payments.q，原因 rejected，次數 1</code></pre>
+<p>前兩次丟一般例外，訊息被重新排入、馬上又送來（<code>redelivered=true</code> 是 broker 標的「這則送過了」）；第三次丟 <code>AmqpRejectAndDontRequeueException</code>，訊息被拒絕、不再排入，照佇列的設定轉到 <code>payments.dlx</code>，再進 <code>payments.dead</code>。死信訊息的 <code>x-death</code> 標頭記著它從哪條佇列來、原因（rejected）、發生幾次。示範為了一個檔案看完，把死信設定寫在宣告佇列的參數裡；RabbitMQ 文件「強烈建議」改用 policy（伺服器端的規則，不用重新部署程式就能改）（Hardcoded x-arguments are strongly recommended against since they cannot be updated without redeploying applications, while policies can be updated at any moment.）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th></th><th>Spring for Apache Kafka</th><th>Spring AMQP（RabbitMQ）</th></tr></thead><tbody>
+<tr><th>監聽器丟例外的預設</th><td>DefaultErrorHandler 共試 10 次，用完寫日誌、跳過</td><td>拒絕並重新排入，無限次重送</td></tr>
+<tr><th>失敗的去處</th><td>DeadLetterPublishingRecoverer 送到「原主題-dlt」</td><td>拒絕且不重新排入時，送到佇列設定的死信交換器</td></tr>
+<tr><th>資料本身錯、不要重試</th><td>addNotRetryableExceptions(…)</td><td>丟 AmqpRejectAndDontRequeueException</td></tr>
+<tr><th>重試期間</th><td>同一分區後面的訊息要等</td><td>重新排入後可能被別的消費者先拿，順序會變</td></tr>
+</tbody></table></div>
+<p>死信不是垃圾桶，是待辦清單：死信數量大於 0 就該有人收到告警，查出原因、修好之後，要能把死信重新送回原本的主題或佇列。</p>
+<p class="formula">暫時性錯誤重試幾次、間隔拉開；永久性錯誤不重試；用完都送死信。Kafka 預設試 10 次後只寫日誌，RabbitMQ 預設無限重送，兩邊都要自己接死信</p>
+
+<div class="drill">
+  <p class="dq">Spring for Apache Kafka 什麼都不設定，監聽器對某一筆一直丟例外，結果是？</p>
+  <ul class="dopts"><li>無限次重試，分區永遠卡住</li><li>第一次失敗就自動送到「原主題-dlt」</li><li>消費者停止運作</li><li data-ok>共試 10 次，之後寫日誌跳過</li></ul>
+  <p class="dexp">文件：預設失敗十次之後，那筆紀錄被寫進日誌（ERROR 層級）。不設 DeadLetterPublishingRecoverer 的話，不會有死信主題，那筆就只剩日誌。</p>
+</div>
+<div class="drill">
+  <p class="dq">Spring AMQP 什麼都不設定（AUTO 確認、沒開重試），監聽器對某一則一直丟一般的例外，結果是？</p>
+  <ul class="dopts"><li data-ok>這則一直被重新排入、一直送來</li><li>試 10 次後寫日誌、丟掉</li><li>第一次失敗就自動進死信佇列，不用任何設定</li><li>這則訊息被確認、刪掉</li></ul>
+  <p class="dexp">預設是拒絕並重新排入，Spring Boot 文件也說沒開重試時會無限次重送。要停下來，得設 defaultRequeueRejected=false、丟 AmqpRejectAndDontRequeueException，或開重試。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面 Kafka 的實跑，p-3 是正常的訊息，為什麼要等到 2.1 秒才處理？</p>
+  <ul class="dopts"><li>因為死信主題處理得比較慢</li><li>因為 p-3 也重試了</li><li data-ok>同分區照順序，前面處理完才輪到它</li><li>因為 FixedBackOff 讓每一筆都延遲</li></ul>
+  <p class="dexp">p-1 在重試的那段時間，同分區後面的訊息都得等。這是 Kafka 這種「原地重試」的代價：重試次數與間隔設太大，一筆壞訊息會擋住整個分區。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的設定 <code>new FixedBackOff(500L, 2L)</code>，一筆一直失敗的訊息總共會被處理幾次？</p>
+  <ul class="dopts"><li>2 次</li><li data-ok>3 次</li><li>500 次</li><li>10 次</li></ul>
+  <p class="dexp">第二個參數是重試次數 2，加上第一次共 3 次，跟實跑 p-1 的第 1、2、3 次一致。500L 是間隔 500 毫秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼把 <code>IllegalArgumentException</code> 加進 <code>addNotRetryableExceptions</code>？</p>
+  <ul class="dopts"><li>因為它是 Java 的內建例外，Spring 沒辦法對它重試</li><li data-ok>資料本身錯，重試結果一樣，直接送死信</li><li>因為它會讓消費者當機</li><li>因為這樣 Kafka 才會建立死信主題</li></ul>
+  <p class="dexp">格式錯誤這類永久性錯誤，重試只會浪費時間、擋住後面的訊息。設成不重試，第一次失敗就交給 DeadLetterPublishingRecoverer，實跑的 p-2 就是這樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">RabbitMQ 的佇列設了死信交換器，下面哪一種情況<strong>不會</strong>讓訊息變成死信？</p>
+  <ul class="dopts"><li>消費者 basic.nack，requeue=false</li><li>訊息的 TTL 過期</li><li data-ok>消費者正常處理完並確認</li><li>佇列超過長度上限，訊息被丟掉</li></ul>
+  <p class="dexp">文件列的四種是：負面確認且不重新排入、TTL 過期、超過長度上限被丟、仲裁佇列退回超過 delivery-limit。正常確認的訊息就是處理完了，直接從佇列移除。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面 RabbitMQ 的實跑，<code>redelivered=true</code> 代表什麼？</p>
+  <ul class="dopts"><li>生產者發現沒收到回應，自己又送了一次</li><li>這則已經進過死信佇列</li><li>這則已經被確認過</li><li data-ok>broker 送過這則，被退回後又送</li></ul>
+  <p class="dexp">第 1 次是 false，前一次被拒絕並重新排入之後，第 2、3 次就是 true。生產者只送了一次，是 broker 重送的。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先寫進自己的資料庫，再慢慢寄出去</p>
+<h3 class="head">交易式 Outbox 的實作骨架</h3>
+<p>最後一個問題：扣款寫資料庫、發事件寫 broker，是對兩個系統各寫一次（這叫雙重寫入）。先寫資料庫、再送訊息，中間當機，下游就永遠不知道這筆扣款；先送訊息、資料庫交易卻回復了，下游收到一件沒發生的事。microservices.io 說用兩階段提交（2PC，先問兩邊能不能做、都說能才一起提交）跨兩個系統不實際：「資料庫或 broker 可能不支援 2PC，而且讓服務同時跟兩者綁在一起通常不是好事」（The database and/or the message broker might not support 2PC. Also, it’s often undesirable to couple the service to both the database and the message broker.）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a></p>
+<p>解法是<strong>交易式 Outbox</strong>（transactional outbox）：「先把訊息當作更新業務資料那筆交易的一部分存進資料庫，再由另一個程序把訊息送到 broker」（first store the message in the database as part of the transaction that updates the business entities. A separate process then sends the messages to the message broker.）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 存訊息的表叫寄件匣（outbox），另一個程序叫訊息轉送器（message relay），名稱跟面試集那課相同。骨架三塊：</p>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="交易式 Outbox：左邊虛線框是同一筆資料庫交易，裡面有更新 account 與插入 outbox 兩步；中間的轉送器每 0.5 秒撈 outbox 裡還沒送的，送到 Kafka 主題 transfer-events，送成功再標記已送；右邊下游服務從 Kafka 讀">
+  <defs><marker id="mq-5-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="30" width="250" height="170" rx="10" fill="none" stroke="var(--gold)" stroke-dasharray="6 4"/>
+  <text x="32" y="52" font-size="13" fill="var(--gold-deep)">同一筆資料庫交易（@Transactional）</text>
+  <rect x="40" y="66" width="210" height="44" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="145" y="93" font-size="13" text-anchor="middle">① UPDATE account（扣款）</text>
+  <rect x="40" y="124" width="210" height="44" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="145" y="151" font-size="13" text-anchor="middle">② INSERT INTO outbox</text>
+  <text x="145" y="190" font-size="12" text-anchor="middle" opacity=".75">要嘛兩步都成功，要嘛都沒發生</text>
+  <rect x="320" y="110" width="170" height="80" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="405" y="138" font-size="13" text-anchor="middle">③ 轉送器</text>
+  <text x="405" y="158" font-size="12" text-anchor="middle">每 0.5 秒撈還沒送的</text>
+  <text x="405" y="176" font-size="12" text-anchor="middle">送成功才標記</text>
+  <line x1="250" y1="146" x2="318" y2="150" stroke="currentColor" marker-end="url(#mq-5-arrow)"/>
+  <text x="284" y="138" font-size="12" text-anchor="middle">讀</text>
+  <rect x="530" y="110" width="110" height="80" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="585" y="146" font-size="13" text-anchor="middle">Kafka</text>
+  <text x="585" y="166" font-size="11" text-anchor="middle" class="mono">transfer-events</text>
+  <line x1="490" y1="150" x2="528" y2="150" stroke="currentColor" marker-end="url(#mq-5-arrow)"/>
+  <rect x="660" y="110" width="90" height="80" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="705" y="146" font-size="13" text-anchor="middle">下游</text>
+  <text x="705" y="166" font-size="13" text-anchor="middle">服務</text>
+  <line x1="640" y1="150" x2="658" y2="150" stroke="currentColor" marker-end="url(#mq-5-arrow)"/>
+  <text x="320" y="236" font-size="12.5" opacity=".75">轉送器在「送出」和「標記」之間當機，下次會再送一次 → 下游要冪等</text>
+</svg>
+<figcaption>寄件匣跟業務資料在同一個資料庫，所以能放進同一筆交易；送到 broker 的工作交給轉送器，晚一點送沒關係，但不會漏。</figcaption>
+</figure>
+<pre><code>CREATE TABLE outbox (
+  id           BIGINT AUTO_INCREMENT PRIMARY KEY,   -- 轉送器照它的順序送
+  aggregate_id VARCHAR(64) NOT NULL,                -- 帳號：送 Kafka 時當 key，同帳號進同一分區
+  event_type   VARCHAR(64) NOT NULL,                -- 'TransferDebited'
+  payload      VARCHAR(1000) NOT NULL,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  published_at TIMESTAMP                            -- 送成功才填；NULL 表示還沒送
+);</code></pre>
+<pre><code>// ① ② 扣款與寫寄件匣在同一筆交易：要嘛都成功，要嘛都沒發生
+@Transactional
+public void debit(String txId, String account, long amount) {
+    int rows = jdbc.update("UPDATE account SET balance = balance - ? WHERE id = ? AND balance &gt;= ?",
+            amount, account, amount);
+    jdbc.update("INSERT INTO outbox (aggregate_id, event_type, payload) VALUES (?, 'TransferDebited', ?)",
+            account, txId + ":" + account + ":" + amount);
+    if (rows == 0) throw new IllegalStateException("餘額不足");   // 丟例外：上面兩句一起回復
+}
+
+// ③ 訊息轉送器：每 0.5 秒撈還沒送的，依序號送出，送成功才標記
+@Scheduled(fixedDelay = 500)
+public void relay() throws Exception {
+    List&lt;Map&lt;String, Object&gt;&gt; rows = jdbc.queryForList(
+            "SELECT id, aggregate_id, payload FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT 100");
+    for (Map&lt;String, Object&gt; r : rows) {
+        kafka.send("transfer-events", (String) r.get("AGGREGATE_ID"), (String) r.get("PAYLOAD"))
+             .get(5, TimeUnit.SECONDS);                     // 等 broker 確認
+        jdbc.update("UPDATE outbox SET published_at = CURRENT_TIMESTAMP WHERE id = ?", r.get("ID"));
+    }
+}</code></pre>
+<p><code>@Scheduled</code> 要在設定類別上加 <code>@EnableScheduling</code> 才會跑。實跑：A 原本 10,000，t-2001 扣 3,000 成功，t-2002 扣 50,000 餘額不足：</p>
+<pre><code>t-2001 扣 3000：交易提交
+t-2002 扣 50000：餘額不足，交易回復
+outbox 共 1 筆，A 的餘額 7000
+轉送器：outbox 第 1 筆送出並標記
+下游收到事件 t-2001:A:3000</code></pre>
+<p>t-2002 的 INSERT 其實執行了，但跟扣款一起回復，所以寄件匣只有 1 筆，下游也只收到 t-2001，不會收到一件沒發生的扣款。這套骨架還有三個要注意的地方：</p>
+<ul class="plainlist">
+<li><strong>轉送是至少一次。</strong>microservices.io：轉送器「可能在送出之後、記下已送之前當機」，重啟後再送一次（It might, for example, crash after publishing a message but before recording the fact that it has done so.），所以「消費者必須冪等」。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 上一段的去重表在這裡派上用場。</li>
+<li><strong>等 broker 確認才標記。</strong><code>.get(5, TimeUnit.SECONDS)</code> 等到 Kafka 回應才往下；沒等就標記，送失敗的那筆就再也不會重送。</li>
+<li><strong>同時跑好幾台轉送器，會撈到同一批。</strong>要嘛只讓一台跑，要嘛撈的時候把那幾列鎖住，否則同一筆會被送好幾次（下游冪等雖然擋得住，但浪費）。</li>
+</ul>
+<p>輪詢寄件匣（polling publisher）是最簡單的轉送方式；另一種是讀資料庫的變更日誌（交易日誌尾隨，transaction log tailing），兩者的取捨見〈系統設計：訊息佇列與最終一致性〉。</p>
+<p class="formula">Outbox：業務更新和寄件匣同一筆交易；轉送器撈未送的、等 broker 確認才標記；轉送是至少一次，下游要冪等</p>
+
+<div class="drill">
+  <p class="dq">程式寫成「先 <code>kafka.send(...)</code>，再在 <code>@Transactional</code> 方法裡扣款」，扣款因為餘額不足回復了。下游會怎樣？</p>
+  <ul class="dopts"><li>不會收到，因為交易回復時 Kafka 的訊息也會收回</li><li data-ok>還是會收到這筆「已扣款」的事件，但款其實沒扣</li><li>收到兩次</li><li>Kafka 會等交易提交才送</li></ul>
+  <p class="dexp">資料庫交易管不到已經送出的 Kafka 訊息，下游收到的是一件沒發生的事。這就是雙重寫入的問題，Outbox 把「發訊息」變成資料庫裡的一筆 INSERT，跟扣款一起提交或一起回復。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的實跑，t-2002 的 <code>INSERT INTO outbox</code> 其實有執行，為什麼寄件匣最後只有 1 筆？</p>
+  <ul class="dopts"><li>因為轉送器每次送完都會把已送的那一列刪掉</li><li>因為 INSERT 寫錯了</li><li>因為寄件匣一次只能放一筆</li><li data-ok>後面丟了例外，連同 INSERT 一起回復</li></ul>
+  <p class="dexp">@Transactional 方法丟出例外，Spring 回復整筆交易，扣款和寄件匣那筆都沒發生。這正是把兩者放同一筆交易的目的。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉送器送出訊息、Kafka 也收到了，但在 <code>UPDATE outbox SET published_at</code> 之前當機。重啟後會怎樣？</p>
+  <ul class="dopts"><li data-ok>同一筆再送一次，下游會收到兩次</li><li>這筆永遠不會送</li><li>Kafka 會自動拒絕重複的</li><li>轉送器會先問 Kafka 有沒有送過</li></ul>
+  <p class="dexp">published_at 還是 NULL，下次撈的時候又會撈到它。轉送是至少一次，下游要用去重表之類的方法冪等。冪等生產者擋的是同一次送出裡的自動重試；轉送器重啟後把這筆重新撈出來送，是另一次送出，擋不到。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉送器為什麼要等 <code>kafka.send(...)</code> 回應（<code>.get(...)</code>）之後，才把那筆標記成已送？</p>
+  <ul class="dopts"><li>因為 KafkaTemplate 不呼叫 get 就不會送</li><li>為了讓程式跑比較快，一次只送一筆</li><li data-ok>沒確認就標記，送失敗的那筆就不會重送了</li><li>因為 Kafka 規定要同步送</li></ul>
+  <p class="dexp">先標記、後確認，送失敗時寄件匣已經寫著「已送」，這筆就丟了。等確認才標記，最壞只是重送，下游冪等擋得住。</p>
+</div>
+<div class="drill">
+  <p class="dq">寄件匣的 <code>aggregate_id</code> 存帳號，轉送時拿來當 Kafka 的 key。目的是什麼？</p>
+  <ul class="dopts"><li>讓訊息比較小</li><li>讓 Kafka 能去重</li><li>讓轉送器知道這筆該送到哪一個主題</li><li data-ok>同帳號進同一分區，保持順序</li></ul>
+  <p class="dexp">同一個 key 一定寫進同一個分區，分區內有序，所以同一個帳號的扣款事件會照順序被讀到。key 跟去重、主題名稱無關。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>佇列換到解耦、緩衝尖峰、非同步；代價是結果變「稍後」、消費者要冪等、多一套要監控。要馬上拿結果的別用。</li><li>Kafka：主題切成分區，同一個 key 進同一個分區、分區內有序；位移是每個分區各自的行號；每個分區在一個群組裡只歸一個消費者，消費者比分區多就閒著；不同群組各讀各的；讀完不刪，可以倒回重讀。</li><li>RabbitMQ：訊息先到交換器，照綁定分到佇列；direct 比完全相同、fanout 全送、topic 用 * 與 # 比樣式；同一條佇列的消費者輪流拿；確認後刪除；沒有綁定符合的訊息預設丟掉。</li><li>先記位移再處理是至多一次（會丟），先處理再記位移是至少一次（會重複）。剛好一次只在 Kafka 讀寫 Kafka 的交易內成立；寫資料庫靠至少一次加冪等。冪等生產者只擋日誌裡的重複。</li><li>Spring Kafka 預設 AckMode 是 BATCH，框架關掉 enable.auto.commit；MANUAL／MANUAL_IMMEDIATE 自己呼叫 acknowledge()。ack 前當機，重啟會再收到同一則；@Transactional 管不到位移。</li><li>去重表：生產者給唯一編號，主鍵（訊息編號、消費者），跟業務更新同一筆交易，撞主鍵就跳過，跳過也要 ack。</li><li>重試與死信：Spring Kafka 預設試 10 次後寫日誌跳過，接 DeadLetterPublishingRecoverer 才送到「原主題-dlt」，重試期間同分區要等；Spring AMQP 預設拒絕並無限次重新排入，用 defaultRequeueRejected=false、AmqpRejectAndDontRequeueException 或開重試讓它停，佇列設死信交換器才留得住。</li><li>Outbox：業務更新與寄件匣同一筆交易，轉送器撈未送的、等 broker 確認才標記；轉送是至少一次，下游要冪等。</li></ul></div>
