@@ -203,22 +203,22 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <p>microservices.io 的定義：saga 是「一連串的本地交易」，每個本地交易更新資料庫並發出訊息觸發下一步；某一步違反業務規則失敗時，「saga 會執行一連串補償交易，撤銷前面本地交易做過的變更」（the saga executes a series of compensating transactions that undo the changes that were made by the preceding local transactions）。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a> 轉帳適合用編排式（orchestration）：一個協調者記住目前走到哪一步。AWS 的指引提醒「Saga 的參與者必須冪等，才能在暫時性失敗時重複執行」（Saga participants need to be idempotent to allow repeated execution in case of transient failures）。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="跨行轉帳的 Saga 狀態：已受理，扣款並轉入中間帳戶後變成已扣款，送出跨行指令後變成已送出；對方成功回覆變成完成；對方拒絕則補償，把中間帳戶的錢退回客戶，變成已退回；逾時或結果不明則先查詢，查不出來就進人工處理">
-  <defs><marker id="bt-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <defs><marker id="xfer-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
   <rect x="20" y="40" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="75" y="65" font-size="13" text-anchor="middle">已受理</text>
   <rect x="200" y="40" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="255" y="65" font-size="13" text-anchor="middle">已扣款</text>
   <rect x="380" y="40" width="110" height="40" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="435" y="65" font-size="13" text-anchor="middle">已送出</text>
   <rect x="600" y="40" width="130" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="665" y="65" font-size="13" text-anchor="middle">完成</text>
   <rect x="600" y="140" width="130" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="665" y="165" font-size="13" text-anchor="middle">已退回</text>
   <rect x="380" y="220" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="435" y="245" font-size="13" text-anchor="middle">人工處理</text>
-  <line x1="132" y1="60" x2="196" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <line x1="132" y1="60" x2="196" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a1)"/>
   <text x="164" y="32" font-size="11" text-anchor="middle">扣款＋轉入</text><text x="164" y="100" font-size="11" text-anchor="middle">中間帳戶</text>
-  <line x1="312" y1="60" x2="376" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <line x1="312" y1="60" x2="376" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a1)"/>
   <text x="344" y="32" font-size="11" text-anchor="middle">寫 Outbox</text><text x="344" y="100" font-size="11" text-anchor="middle">送出指令</text>
-  <line x1="492" y1="60" x2="596" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <line x1="492" y1="60" x2="596" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a1)"/>
   <text x="544" y="50" font-size="11" text-anchor="middle">對方成功</text>
-  <line x1="492" y1="72" x2="598" y2="150" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <line x1="492" y1="72" x2="598" y2="150" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a1)"/>
   <text x="604" y="114" font-size="11" text-anchor="start">對方拒絕：補償</text>
-  <line x1="435" y1="82" x2="435" y2="216" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a1)"/>
+  <line x1="435" y1="82" x2="435" y2="216" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a1)"/>
   <text x="445" y="140" font-size="11" text-anchor="start" fill="var(--gold-deep)">逾時、結果不明</text>
   <text x="445" y="158" font-size="11" text-anchor="start" fill="var(--gold-deep)">先查詢，查不出來</text>
   <text x="20" y="200" font-size="12" text-anchor="start">每一步：一筆本地交易</text>
@@ -433,26 +433,26 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <h3 class="head">答題順序與整體架構</h3>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="轉帳系統整體架構：用戶端帶冪等鍵呼叫 API，先過限流與風控評分，再進轉帳服務；轉帳服務在一筆交易裡寫帳戶、分錄、轉帳與 Outbox 表；Outbox 轉送程式把跨行指令送到清算機構；對帳批次讀分錄與清算明細；監控收集指標與追蹤；分錄定期歸檔到 WORM 儲存">
-  <defs><marker id="bt-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <defs><marker id="xfer-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
   <rect x="10" y="40" width="100" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="60" y="60" font-size="12" text-anchor="middle">用戶端</text><text x="60" y="76" font-size="10" text-anchor="middle">帶冪等鍵</text>
   <rect x="150" y="40" width="120" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="210" y="60" font-size="12" text-anchor="middle">API 閘道</text><text x="210" y="76" font-size="10" text-anchor="middle">限流</text>
   <rect x="310" y="40" width="120" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="370" y="66" font-size="12" text-anchor="middle">風控評分</text>
   <rect x="470" y="30" width="150" height="64" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="545" y="56" font-size="13" text-anchor="middle" font-weight="700">轉帳服務</text><text x="545" y="76" font-size="10" text-anchor="middle">一筆交易：鎖、限額、分錄</text>
-  <line x1="112" y1="62" x2="146" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
-  <line x1="272" y1="62" x2="306" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
-  <line x1="432" y1="62" x2="466" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <line x1="112" y1="62" x2="146" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a2)"/>
+  <line x1="272" y1="62" x2="306" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a2)"/>
+  <line x1="432" y1="62" x2="466" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a2)"/>
   <rect x="415" y="140" width="260" height="64" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="545" y="164" font-size="12" text-anchor="middle">帳務資料庫</text><text x="545" y="184" font-size="10" text-anchor="middle" class="mono">account・journal_entry・transfer・outbox</text>
-  <line x1="545" y1="96" x2="545" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <line x1="545" y1="96" x2="545" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a2)"/>
   <rect x="250" y="150" width="140" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="320" y="176" font-size="12" text-anchor="middle">Outbox 轉送</text>
-  <line x1="413" y1="172" x2="394" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <line x1="413" y1="172" x2="394" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a2)"/>
   <rect x="40" y="150" width="150" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="115" y="176" font-size="12" text-anchor="middle">清算機構（跨行）</text>
-  <line x1="248" y1="172" x2="194" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <line x1="248" y1="172" x2="194" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#xfer-a2)"/>
   <rect x="40" y="240" width="150" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="115" y="266" font-size="12" text-anchor="middle">對帳批次</text>
-  <line x1="115" y1="196" x2="115" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a2)"/>
-  <line x1="413" y1="200" x2="194" y2="256" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a2)"/>
+  <line x1="115" y1="196" x2="115" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
+  <line x1="413" y1="200" x2="194" y2="256" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
   <rect x="440" y="240" width="100" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="490" y="266" font-size="12" text-anchor="middle">監控與追蹤</text>
   <rect x="560" y="240" width="160" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="640" y="260" font-size="12" text-anchor="middle">WORM 歸檔</text><text x="640" y="276" font-size="10" text-anchor="middle">分錄與稽核紀錄</text>
-  <line x1="600" y1="206" x2="630" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a2)"/>
+  <line x1="600" y1="206" x2="630" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
   <text x="680" y="20" font-size="11" text-anchor="end" fill="var(--slate-deep)">實線＝請求流程；虛線＝批次或非同步</text>
 </svg>
 <figcaption>整體架構。同行轉帳在轉帳服務的一筆交易裡完成；跨行轉帳多了 Outbox 轉送與清算機構，最後由對帳批次確認帳對得上。</figcaption>
