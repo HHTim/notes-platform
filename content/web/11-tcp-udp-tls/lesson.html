@@ -1,0 +1,467 @@
+<!-- 來源：依 RFC 9293（TCP）、RFC 768（UDP）、RFC 8446（TLS 1.3）、RFC 5246（TLS 1.2）、RFC 5681（TCP 壅塞控制）、RFC 1122、RFC 1035、RFC 5280、RFC 9525、RFC 9110、RFC 9000、RFC 9114、Linux v6.12 原始碼 include/net/tcp.h、MDN〈TCP handshake〉新寫；curl 8.7.1 與 OpenSSL 3.6.4 對本站 hhtim.github.io 的輸出為 2026-10-02 實測 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把 TCP、UDP、TLS 放進分層圖裡正確的位置，知道 HTTP/3 的 QUIC 為什麼跑在 UDP 上</li><li>一步一步畫出 TCP 三向交握的旗標、序號、確認號與每一端的狀態，說出「為什麼不是兩次」的兩個理由</li><li>畫出四向揮手，知道 TIME_WAIT 落在哪一端、要等多久、為什麼伺服器上會堆很多，以及 CLOSE_WAIT 堆積代表程式忘了關連線</li><li>用一句話分清流量控制（接收方收不收得下）與壅塞控制（網路塞不塞）</li><li>一步一步講 TLS 1.3 握手、看懂 curl 印出來的握手訊息，並說出憑證鏈怎麼驗、TLS 1.2 對 1.3 差在哪</li></ul></div>
+
+<section>
+<p class="era">先把位置找對</p>
+<h3 class="head">分層：TCP、UDP、TLS 各坐哪一格</h3>
+<p>〈網路是怎麼運作的〉用一張四層表講過分工：應用層、傳輸層、網際網路層、網路存取層。這一課專講傳輸層的兩個主角 TCP、UDP，以及疊在 TCP 上面替 HTTP 加密的 TLS。面試常要你把 OSI 七層（Open Systems Interconnection，國際標準組織訂的參考模型）跟 TCP/IP 四層對起來，對法如下圖。</p>
+<figure>
+<svg viewBox="0 0 760 332" role="img" aria-label="OSI 七層與 TCP/IP 四層對照：OSI 的應用、表現、會議三層合成 TCP/IP 的應用層（HTTP、DNS）；傳輸層一對一（TCP、UDP），以古銅色標出；網路層對網際網路層（IP）；資料鏈結與實體兩層合成網路存取層（Ethernet、Wi-Fi）。TLS 用灰藍標在應用層與傳輸層之間">
+<text x="130" y="40" font-size="13" text-anchor="middle" fill="var(--slate-deep)">OSI 七層（參考模型）</text><text x="345" y="40" font-size="13" text-anchor="middle" fill="var(--slate-deep)">TCP/IP 四層（網際網路實際用的）</text><text x="600" y="40" font-size="13" text-anchor="middle" fill="var(--slate-deep)">這一層的協定</text><rect x="50" y="56" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="130" y="76" font-size="13" text-anchor="middle">應用層</text><rect x="50" y="92" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="130" y="112" font-size="13" text-anchor="middle">表現層</text><rect x="50" y="128" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="130" y="148" font-size="13" text-anchor="middle">會議層</text><rect x="50" y="164" width="160" height="30" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="130" y="184" font-size="13" text-anchor="middle">傳輸層</text><rect x="50" y="200" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="130" y="220" font-size="13" text-anchor="middle">網路層</text><rect x="50" y="236" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="130" y="256" font-size="13" text-anchor="middle">資料鏈結層</text><rect x="50" y="272" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="130" y="292" font-size="13" text-anchor="middle">實體層</text><rect x="265" y="56" width="160" height="102" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="345" y="112" font-size="13.5" text-anchor="middle">應用層</text><text x="600" y="112" font-size="13" text-anchor="middle">HTTP、DNS、SMTP</text><line x1="212" y1="107" x2="263" y2="107" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/><line x1="427" y1="107" x2="478" y2="107" stroke="currentColor" stroke-width="1" stroke-opacity=".35" stroke-dasharray="3 3"/><rect x="265" y="164" width="160" height="30" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="345" y="184" font-size="13.5" text-anchor="middle">傳輸層</text><text x="600" y="184" font-size="13" text-anchor="middle" fill="var(--gold-deep)">TCP、UDP</text><line x1="212" y1="179" x2="263" y2="179" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/><line x1="427" y1="179" x2="478" y2="179" stroke="currentColor" stroke-width="1" stroke-opacity=".35" stroke-dasharray="3 3"/><rect x="265" y="200" width="160" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="345" y="220" font-size="13.5" text-anchor="middle">網際網路層</text><text x="600" y="220" font-size="13" text-anchor="middle">IP</text><line x1="212" y1="215" x2="263" y2="215" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/><line x1="427" y1="215" x2="478" y2="215" stroke="currentColor" stroke-width="1" stroke-opacity=".35" stroke-dasharray="3 3"/><rect x="265" y="236" width="160" height="66" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="345" y="274" font-size="13.5" text-anchor="middle">網路存取層</text><text x="600" y="274" font-size="13" text-anchor="middle">Ethernet、Wi-Fi</text><line x1="212" y1="269" x2="263" y2="269" stroke="currentColor" stroke-width="1" stroke-opacity=".35"/><line x1="427" y1="269" x2="478" y2="269" stroke="currentColor" stroke-width="1" stroke-opacity=".35" stroke-dasharray="3 3"/><rect x="490" y="136" width="220" height="24" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="600" y="152" font-size="12" text-anchor="middle" fill="var(--slate-deep)">TLS：跑在 TCP 上、替應用層加密</text><text x="380" y="318" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">本課主角：傳輸層的 TCP、UDP，以及夾在應用層與傳輸層之間的 TLS</text>
+</svg>
+<figcaption>OSI 是拿來講概念的參考模型；網際網路實際照 TCP/IP 四層運作。RFC 1122 把最下層叫鏈結層，〈網路是怎麼運作的〉叫網路存取層，指同一層。</figcaption>
+</figure>
+<p>RFC 1122 對傳輸層的定義是「替應用程式提供端到端的通訊服務」（The transport layer provides end-to-end communication services for applications.），並點名兩個主要協定：TCP「是可靠、連線導向的傳輸服務，提供端到端的可靠性、重新排序與流量控制」（TCP is a reliable connection-oriented transport service that provides end-to-end reliability, resequencing, and flow control.），UDP「是無連線的（『資料包』）傳輸服務」（UDP is a connectionless ("datagram") transport service.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc1122.html#page-9" target="_blank" rel="noopener">RFC 1122 第 1.1.3 節</a> 「端到端」的意思是只有兩端的電腦在乎這一層，中間的路由器只看 IP 那一層，不管 TCP 的序號。</p>
+<p>TLS 不屬於任何一格。RFC 8446 說 TLS 對下面的傳輸「唯一的要求是一條可靠、照順序的資料流」（the only requirement from the underlying transport is a reliable, in-order data stream.），對上面則「跟應用協定無關，更上層的協定可以透明地疊在 TLS 上」（TLS is application protocol independent; higher-level protocols can layer on top of TLS transparently.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-1" target="_blank" rel="noopener">RFC 8446 第 1 節</a> 所以 HTTPS 的疊法是 HTTP 在 TLS 上、TLS 在 TCP 上。HTTP/3 是例外：它用的 QUIC「封包裝在 UDP 資料包裡」（QUIC packets are carried in UDP datagrams），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9000.html#section-1" target="_blank" rel="noopener">RFC 9000 第 1 節</a> 可靠性與加密都由 QUIC 自己做，細節在〈HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進〉。</p>
+<div class="drill">
+  <p class="dq">一台路由器收到一個要轉送的 HTTPS 封包。它決定往哪裡送，看的是哪一層的資訊？</p>
+  <ul class="dopts"><li>HTTP 請求裡的網址路徑</li><li>TLS 加密過的內容</li><li data-ok>IP 標頭裡的目的位址</li><li>TCP 標頭裡的序號</li></ul>
+  <p class="dexp">路由器做的是網際網路層的轉送，只看目的 IP。TCP 的序號、TLS、HTTP 都是兩端電腦才處理的東西，加密後的 HTTP 路由器也讀不到。</p>
+</div>
+<div class="drill">
+  <p class="dq">用瀏覽器開 https 網址、走 HTTP/1.1。由上到下，資料經過的協定順序是？</p>
+  <ul class="dopts"><li>HTTP → TCP → TLS → IP</li><li>TLS → HTTP → TCP → IP</li><li data-ok>HTTP → TLS → TCP → IP</li><li>HTTP → TLS → UDP → IP</li></ul>
+  <p class="dexp">TLS 要求下面是一條可靠、照順序的資料流，所以疊在 TCP 上面，HTTP 再疊在 TLS 上面。改走 UDP 的是 HTTP/3 的 QUIC，不是 HTTP/1.1。</p>
+</div>
+<div class="drill">
+  <p class="dq">面試官問「OSI 的表現層、會議層對到 TCP/IP 的哪一層？」最好的回答是？</p>
+  <ul class="dopts"><li>對到傳輸層，因為兩者都管資料格式</li><li data-ok>跟應用層一起併進 TCP/IP 的應用層</li><li>對到網際網路層</li><li>TCP/IP 沒有這兩層的功能，所以不存在</li></ul>
+  <p class="dexp">TCP/IP 的應用層把 OSI 最上面三層的功能放在一起，例如 HTTP 自己處理資料格式。功能還是存在，只是不另外切成一層。</p>
+</div>
+<div class="drill">
+  <p class="dq">HTTP/3 的 QUIC 封包裝在哪一種傳輸協定裡送？</p>
+  <ul class="dopts"><li>TCP</li><li data-ok>UDP</li><li>直接放在 IP 上，不用傳輸層</li><li>TLS 記錄裡，再放進 TCP</li></ul>
+  <p class="dexp">RFC 9000 寫 QUIC packets are carried in UDP datagrams。可靠性、重傳、加密都由 QUIC 自己做，所以不需要 TCP。</p>
+</div>
+</section>
+
+<section>
+<p class="era">打電話前先確認對方聽得到</p>
+<h3 class="head">TCP 三向交握，一步一步</h3>
+<p>TCP 送的不是一封一封信，而是一條<strong>位元組串流</strong>：每個位元組都有一個號碼，叫<strong>序號</strong>（sequence number）。對方回的<strong>確認號</strong>（acknowledgment number）意思是「這個號碼以前的我都收到了，下一個請給我這一號」。一條新連線的序號不從 0 開始，而是各自挑一個<strong>起始序號</strong>（ISN，initial sequence number），所以開始傳資料前，兩端得先互相告知、互相確認起始序號。這件事就是三向交握（three-way handshake）。</p>
+<p>RFC 9293 的推導：同步「要求每一端送出自己的起始序號，並收到對方的確認；每一端也要收到對方的起始序號，並回一個確認」（The synchronization requires each side to send its own initial sequence number and to receive a confirmation of it in acknowledgment from the remote TCP peer. Each side must also receive the remote peer's initial sequence number and send a confirming acknowledgment.）。照字面是四步，但「第 2、3 步可以合成一個訊息，所以叫三向（或三訊息）交握」（Because steps 2 and 3 can be combined in a single message this is called the three-way (or three message) handshake）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.5" target="_blank" rel="noopener">RFC 9293 第 3.5 節</a></p>
+<p>每一步帶什麼，看 TCP 標頭裡的<strong>旗標</strong>（flag，一個位元一個開關）：SYN 表示「我要同步序號」，ACK 表示「確認號這一欄有效」。下圖的數字照 RFC 9293 圖 6：</p>
+<figure>
+<svg viewBox="0 0 760 340" role="img" aria-label="TCP 三向交握時序圖，照 RFC 9293 圖 6 的數字：用戶端送 SYN，序號 100，進入 SYN-SENT；伺服器回 SYN 加 ACK，序號 300、確認號 101，進入 SYN-RECEIVED；用戶端回 ACK，序號 101、確認號 301，用戶端此時已是 ESTABLISHED，伺服器收到後也進入 ESTABLISHED；之後開始送資料">
+<defs><marker id="tu-2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="tu-2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs><rect x="150" y="20" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="210" y="40" font-size="14" text-anchor="middle">用戶端</text><rect x="490" y="20" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="550" y="40" font-size="14" text-anchor="middle">伺服器</text><line x1="210" y1="50" x2="210" y2="328" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="550" y1="50" x2="550" y2="328" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="212" y1="99" x2="546" y2="111" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-2g)"/><text x="380" y="97" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">SYN  SEQ=100</text><text x="380" y="125" font-size="11.5" text-anchor="middle" opacity=".75">「我的起始序號是 100」</text><line x1="548" y1="159" x2="214" y2="171" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-2g)"/><text x="380" y="157" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">SYN+ACK  SEQ=300 ACK=101</text><text x="380" y="185" font-size="11.5" text-anchor="middle" opacity=".75">「100 收到，下一個給我 101；我的起始序號是 300」</text><line x1="212" y1="219" x2="546" y2="231" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-2g)"/><text x="380" y="217" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ACK  SEQ=101 ACK=301</text><text x="380" y="245" font-size="11.5" text-anchor="middle" opacity=".75">「300 收到，下一個給我 301」</text><line x1="212" y1="289" x2="546" y2="301" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-2a)"/><text x="380" y="287" font-size="12.5" text-anchor="middle" class="mono">ACK＋資料  SEQ=101 ACK=301</text><text x="380" y="315" font-size="11.5" text-anchor="middle" opacity=".75">交握完成，開始送資料（第三步其實就能帶資料）</text><text x="198" y="76" font-size="12" text-anchor="end" class="mono">CLOSED</text><text x="562" y="76" font-size="12" text-anchor="start" class="mono">LISTEN</text><text x="198" y="96" font-size="12" text-anchor="end" fill="var(--gold-deep)" class="mono">SYN-SENT</text><text x="562" y="126" font-size="12" text-anchor="start" fill="var(--gold-deep)" class="mono">SYN-RECEIVED</text><text x="198" y="186" font-size="12" text-anchor="end" fill="var(--slate-deep)" class="mono">ESTABLISHED</text><text x="562" y="246" font-size="12" text-anchor="start" fill="var(--slate-deep)" class="mono">ESTABLISHED</text>
+</svg>
+<figcaption>確認號＝對方的序號＋1：SYN 本身佔一個序號，所以伺服器回 ACK=101。左右兩側是每一端送完或收到後的狀態。</figcaption>
+</figure>
+<ul class="plainlist">
+<li><strong>第 1 步，SYN：</strong>用戶端挑起始序號 100，送出只帶 SYN 的區段，進入 SYN-SENT（送了 SYN，等回音）。伺服器原本在 LISTEN（開著連接埠等人連），收到後進入 SYN-RECEIVED。</li>
+<li><strong>第 2 步，SYN＋ACK：</strong>伺服器一次做兩件事：ACK=101 確認用戶端的 100，SYN 帶出自己的起始序號 300。用戶端收到後進入 ESTABLISHED（連線已建立）。</li>
+<li><strong>第 3 步，ACK：</strong>用戶端回 ACK=301，確認伺服器的 300。伺服器收到後也進入 ESTABLISHED。RFC 的圖在第 5 行讓用戶端直接帶資料送出，序號還是 101，因為單純的 ACK 不佔序號。</li>
+</ul>
+<p>RFC 列的連線狀態共 11 個：LISTEN、SYN-SENT、SYN-RECEIVED、ESTABLISHED、FIN-WAIT-1、FIN-WAIT-2、CLOSE-WAIT、CLOSING、LAST-ACK、TIME-WAIT，以及「虛構的」CLOSED（the fictional state CLOSED）——它代表連線根本不存在。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.3.2" target="_blank" rel="noopener">RFC 9293 第 3.3.2 節</a> 後面四向揮手會用到其中六個。</p>
+<p>交握要等一趟來回。2026-10-02 從我的電腦對本站實測，<code>ping</code> 量到的來回時間約 55 毫秒，<code>curl</code> 回報的 TCP 連線完成時間（<code>time_connect</code>）五次都在 0.057〜0.068 秒之間——三向交握的成本差不多就是一趟來回：</p>
+<pre><code>$ ping -c 5 hhtim.github.io | tail -1
+round-trip min/avg/max/stddev = 54.545/55.059/55.626/0.464 ms
+$ curl -s -o /dev/null -w 'connect=%{time_connect}\n' https://hhtim.github.io/notes-platform/
+connect=0.057942</code></pre>
+<p class="muted">MDN 也寫這一步「發生在 DNS 查詢之後、TLS 握手之前」（This handshake step happens after a DNS lookup and before the TLS handshake, when creating a secure connection.）。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Glossary/TCP_handshake" target="_blank" rel="noopener">MDN〈TCP handshake〉</a> 〈從輸入網址到看到網頁〉寫成「TLS 交握」，跟本課的「TLS 握手」是同一件事（handshake）；TCP 的那個本站一律叫三向交握。</p>
+<div class="drill">
+  <p class="dq">用戶端送出 SYN，序號 5000。伺服器的起始序號選 9000。伺服器回的那個區段，確認號是多少？</p>
+  <ul class="dopts"><li>5000</li><li data-ok>5001</li><li>9000</li><li>9001</li></ul>
+  <p class="dexp">確認號是「下一個想收的號碼」。SYN 佔一個序號，5000 收到了，下一個要 5001。9000 是伺服器自己的序號，放在序號欄；9001 是用戶端第三步要回的確認號。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，用戶端收到 SYN＋ACK（序號 9000、確認號 5001）之後，第三步要送什麼？</p>
+  <ul class="dopts"><li data-ok>ACK，序號 5001、確認號 9001</li><li>SYN＋ACK，序號 5001、確認號 9001</li><li>ACK，序號 5000、確認號 9000</li><li>FIN，序號 5001</li></ul>
+  <p class="dexp">第三步只要確認伺服器的 9000，所以只帶 ACK、確認號 9001；用戶端自己的序號從 5001 接著走。不用再送 SYN，用戶端的序號第一步已經送過、也被確認了。</p>
+</div>
+<div class="drill">
+  <p class="dq">伺服器送出 SYN＋ACK 後，還沒收到第三步的 ACK。伺服器這時在哪個狀態？</p>
+  <ul class="dopts"><li>LISTEN</li><li>SYN-SENT</li><li>ESTABLISHED（已經可以收資料）</li><li data-ok>SYN-RECEIVED</li></ul>
+  <p class="dexp">伺服器收到 SYN 就進 SYN-RECEIVED，要等第三步的 ACK 才進 ESTABLISHED。SYN-SENT 是主動送 SYN 那一端（用戶端）等回音的狀態。</p>
+</div>
+<div class="drill">
+  <p class="dq">三向交握的哪一步送完，<strong>用戶端</strong>就已經進入 ESTABLISHED？</p>
+  <ul class="dopts"><li data-ok>收到 SYN＋ACK 時</li><li>送出第 1 步的 SYN 時</li><li>伺服器收到第 3 步的 ACK 時</li><li>送出第一筆資料時</li></ul>
+  <p class="dexp">用戶端收到 SYN＋ACK，自己的序號被確認了、也拿到伺服器的序號，就進入 ESTABLISHED，然後送出第三步。伺服器要等第三步到了才進 ESTABLISHED，兩端進入的時間點不同。</p>
+</div>
+<div class="drill">
+  <p class="dq">從台北連一台在美國、來回時間 180 毫秒的伺服器（HTTP/1.1，沒有 TLS）。從開始連線到伺服器收到第一個 HTTP 請求，最少大約要多久？</p>
+  <ul class="dopts"><li>大約 90 毫秒（SYN 送到就算）</li><li data-ok>大約 270 毫秒（一趟半）</li><li>大約 360 毫秒（兩趟）</li><li>大約 540 毫秒（三趟）</li></ul>
+  <p class="dexp">SYN 到伺服器半趟、SYN＋ACK 回來又半趟，共一趟；第三步的 ACK 可以直接帶著 HTTP 請求，再半趟抵達伺服器。合起來一趟半，約 270 毫秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個說法正確？</p>
+  <ul class="dopts"><li>第三步的 ACK 不能帶資料，資料要等第四個區段</li><li data-ok>單純的 ACK 不佔序號</li><li>確認號表示「我最後收到的號碼」</li><li>新連線的序號一律從 0 開始</li></ul>
+  <p class="dexp">RFC 圖 6 的第 4、5 行，ACK 與帶資料的區段序號都是 101。第三步本來就能帶資料；確認號是「下一個想收的號碼」；起始序號由每一端自己挑，不是 0。</p>
+</div>
+</section>
+
+<section>
+<p class="era">少一步會出什麼事</p>
+<h3 class="head">為什麼不是兩次</h3>
+<p>理由有兩個，一個從「互相確認」來，一個從「舊封包」來。</p>
+<p><strong>理由一：伺服器的序號沒人確認。</strong>如果只有 SYN、SYN＋ACK 兩步，用戶端的起始序號確認過了，伺服器的 300 卻沒有人回「收到」。伺服器不知道用戶端拿到的是不是對的號碼，之後用戶端回的確認號就可能對不上。</p>
+<p><strong>理由二：擋掉網路裡遲到的舊 SYN。</strong>RFC 9293 自己講的主因：「三向交握的主要理由，是防止舊的重複連線請求造成混亂」（The principal reason for the three-way handshake is to prevent old duplicate connection initiations from causing confusion.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.5" target="_blank" rel="noopener">RFC 9293 第 3.5 節</a> 封包在網路裡可能繞路、卡住，過一陣子才到。RFC 的圖 8 示範用第三步擋掉它：</p>
+<figure>
+<svg viewBox="0 0 760 400" role="img" aria-label="舊的重複 SYN 怎麼被擋下，照 RFC 9293 圖 8：用戶端這次送的 SYN 序號是 100，但先到伺服器的是上一輪遺留、序號 90 的舊 SYN。伺服器照常回 SYN 加 ACK、確認號 91；用戶端發現 91 不是自己要的 101，回 RST，伺服器回到 LISTEN。等序號 100 的 SYN 抵達，交握照正常流程完成。如果只有兩步，伺服器在回完 SYN 加 ACK 時就已經把舊連線當真">
+<defs><marker id="tu-3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="tu-3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker><marker id="tu-3d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--danger)"/></marker></defs><rect x="150" y="14" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="210" y="34" font-size="14" text-anchor="middle">用戶端</text><rect x="490" y="14" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="550" y="34" font-size="14" text-anchor="middle">伺服器</text><line x1="210" y1="44" x2="210" y2="388" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="550" y1="44" x2="550" y2="388" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="212" y1="80" x2="546" y2="80" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#tu-3d)"/><text x="380" y="72" font-size="12.5" text-anchor="middle" fill="var(--danger)" class="mono">SYN  SEQ=90（舊的）</text><text x="380" y="100" font-size="11.5" text-anchor="middle" opacity=".75">上一輪卡在網路裡、現在才到</text><line x1="548" y1="139" x2="214" y2="151" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-3a)"/><text x="380" y="137" font-size="12.5" text-anchor="middle" class="mono">SYN+ACK  SEQ=300 ACK=91</text><text x="380" y="165" font-size="11.5" text-anchor="middle" opacity=".75">伺服器分不出新舊，照常回</text><line x1="212" y1="199" x2="546" y2="211" stroke="var(--danger)" stroke-width="1.6" marker-end="url(#tu-3d)"/><text x="380" y="197" font-size="12.5" text-anchor="middle" fill="var(--danger)" class="mono">RST  SEQ=91</text><text x="380" y="225" font-size="11.5" text-anchor="middle" opacity=".75">「ACK=91 不對，我送的是 100」→ 重設</text><line x1="212" y1="254" x2="546" y2="266" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-3g)"/><text x="380" y="252" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">SYN  SEQ=100</text><text x="380" y="280" font-size="11.5" text-anchor="middle" opacity=".75">真正這一次的 SYN 到了</text><line x1="548" y1="304" x2="214" y2="316" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-3g)"/><text x="380" y="302" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">SYN+ACK  SEQ=400 ACK=101</text><line x1="212" y1="354" x2="546" y2="366" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-3g)"/><text x="380" y="352" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ACK  SEQ=101 ACK=401</text><text x="380" y="380" font-size="11.5" text-anchor="middle" opacity=".75">雙方對上號，連線建立</text><text x="198" y="64" font-size="12" text-anchor="end" fill="var(--gold-deep)" class="mono">SYN-SENT（送了 100）</text><text x="562" y="64" font-size="12" text-anchor="start" class="mono">LISTEN</text><text x="562" y="136" font-size="12" text-anchor="start" class="mono">SYN-RECEIVED</text><text x="562" y="226" font-size="12" text-anchor="start" fill="var(--danger)" class="mono">回到 LISTEN</text><text x="198" y="326" font-size="12" text-anchor="end" fill="var(--slate-deep)" class="mono">ESTABLISHED</text><text x="562" y="376" font-size="12" text-anchor="start" fill="var(--slate-deep)" class="mono">ESTABLISHED</text>
+</svg>
+<figcaption>RST（reset，重設）是「這個區段不對，作廢」的訊號。伺服器收到 RST 就放棄這條半成形的連線、回到 LISTEN。</figcaption>
+</figure>
+<p>RFC 的說明：舊的 SYN 先到，伺服器「分不出這是舊的重複區段，所以照常回應」（TCP Peer B cannot tell that this is an old duplicate, so it responds normally）；用戶端「發現 ACK 欄位不對，回一個 RST」（TCP Peer A detects that the ACK field is incorrect and returns a RST），伺服器收到 RST 就回到 LISTEN；等原本的 SYN 抵達，同步就正常進行。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.5" target="_blank" rel="noopener">RFC 9293 第 3.5 節</a> 關鍵在第三步：伺服器要等用戶端「對過號」才算連線成立。如果只有兩步，伺服器在回 SYN＋ACK 的當下就得把舊的請求當成真的連線，替它保留記憶體，甚至開始送資料給一個根本沒在等的用戶端。</p>
+<p class="formula">三次＝雙方各一次 SYN、各一次 ACK，中間兩個合成一包；第三步的 ACK 替伺服器的序號蓋章，也讓用戶端有機會說「這不是我要的連線」</p>
+<p class="muted">面試的答法（先一句話定義、再講理由）見面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉。</p>
+<div class="drill">
+  <p class="dq">如果 TCP 只用兩步（SYN、SYN＋ACK）就建立連線，哪一個序號會從頭到尾沒有被確認？</p>
+  <ul class="dopts"><li>用戶端的起始序號</li><li>兩個都沒被確認</li><li data-ok>伺服器的起始序號</li><li>兩個都被確認了，沒有問題</li></ul>
+  <p class="dexp">SYN＋ACK 裡的 ACK 確認了用戶端的序號；伺服器自己的序號是在 SYN＋ACK 裡第一次送出，要靠第三步的 ACK 才被確認。</p>
+</div>
+<div class="drill">
+  <p class="dq">用戶端這次送的 SYN 序號是 100，卻收到伺服器回的 SYN＋ACK，確認號是 91。用戶端下一步該做什麼？</p>
+  <ul class="dopts"><li>照樣回 ACK，進入 ESTABLISHED</li><li>不理它，等伺服器逾時</li><li>重送序號 90 的 SYN</li><li data-ok>回 RST，告訴伺服器這個連線請求不對</li></ul>
+  <p class="dexp">確認號 91 代表伺服器回應的是序號 90 的 SYN，那是舊的重複請求。RFC 9293 圖 8 的做法是回 RST，讓伺服器回到 LISTEN，再等真正那個 SYN。</p>
+</div>
+<div class="drill">
+  <p class="dq">伺服器收到一個 RST，而它當時在 SYN-RECEIVED（這條連線原本是從 LISTEN 進來的）。接著會怎樣？</p>
+  <ul class="dopts"><li>進入 ESTABLISHED</li><li>進入 TIME-WAIT</li><li>進入 CLOSE-WAIT，等程式關閉</li><li data-ok>回到 LISTEN，繼續等新的連線</li></ul>
+  <p class="dexp">RFC 9293 圖 8：TCP Peer B, on receiving the RST, returns to the LISTEN state。半成形的連線作廢，伺服器照樣開著連接埠等下一個 SYN。</p>
+</div>
+<div class="drill">
+  <p class="dq">RFC 9293 說三向交握的「主要理由」是什麼？</p>
+  <ul class="dopts"><li>讓連線建得比較快</li><li>交換加密金鑰</li><li>協商要用 IPv4 還是 IPv6</li><li data-ok>防止舊的重複連線請求造成混亂</li></ul>
+  <p class="dexp">原句 The principal reason for the three-way handshake is to prevent old duplicate connection initiations from causing confusion。交握跟加密無關（那是 TLS 的事），也只會讓建連線多花一趟來回，不會變快。</p>
+</div>
+<div class="drill">
+  <p class="dq">「舊的重複 SYN」最可能怎麼來的？</p>
+  <ul class="dopts"><li>伺服器自己複製了一份 SYN 備用</li><li>TLS 握手失敗後，瀏覽器自動重送的 SYN</li><li data-ok>上一次的 SYN 在網路裡繞路，很晚才到</li><li>DNS 查詢回傳了兩個 IP</li></ul>
+  <p class="dexp">IP 不保證封包照順序、只到一次，RFC 1122 寫 IP 資料包可能 duplicated, out of order。遲到的舊 SYN 就是這樣出現的，交握的第三步負責把它擋掉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">掛電話也有規矩</p>
+<h3 class="head">四向揮手與 TIME_WAIT</h3>
+<p>TCP 是雙向的，關閉也是一個方向一個方向關。旗標 FIN 表示「我這個方向沒有資料要送了」。下圖照 RFC 9293 圖 12，用戶端主動關閉：</p>
+<figure>
+<svg viewBox="0 0 760 440" role="img" aria-label="四向揮手時序圖，照 RFC 9293 圖 12：用戶端主動關閉，送 FIN，進 FIN-WAIT-1；伺服器回 ACK 進 CLOSE-WAIT，用戶端收到進 FIN-WAIT-2；這段時間伺服器還可以送資料；伺服器的程式也關閉後送出自己的 FIN，進 LAST-ACK；用戶端回最後一個 ACK 進 TIME-WAIT，伺服器收到就 CLOSED；用戶端等 2 倍 MSL 才 CLOSED">
+<defs><marker id="tu-4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="tu-4g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker><marker id="tu-4s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--slate)"/></marker></defs><rect x="150" y="14" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="210" y="34" font-size="14" text-anchor="middle">用戶端</text><rect x="490" y="14" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="550" y="34" font-size="14" text-anchor="middle">伺服器</text><line x1="210" y1="44" x2="210" y2="428" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="550" y1="44" x2="550" y2="428" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="212" y1="89" x2="546" y2="101" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-4g)"/><text x="380" y="87" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">FIN+ACK  SEQ=100 ACK=300</text><text x="380" y="115" font-size="11.5" text-anchor="middle" opacity=".75">「我沒有資料要送了」</text><line x1="548" y1="144" x2="214" y2="156" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-4a)"/><text x="380" y="142" font-size="12.5" text-anchor="middle" class="mono">ACK  SEQ=300 ACK=101</text><text x="380" y="170" font-size="11.5" text-anchor="middle" opacity=".75">「知道了」——但我這邊可能還有資料</text><line x1="548" y1="199" x2="214" y2="211" stroke="var(--slate)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#tu-4s)"/><text x="380" y="197" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">（還可以繼續送資料）</text><text x="380" y="225" font-size="11.5" text-anchor="middle" opacity=".75">半關閉：只剩伺服器→用戶端這個方向</text><line x1="548" y1="254" x2="214" y2="266" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#tu-4g)"/><text x="380" y="252" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">FIN+ACK  SEQ=300 ACK=101</text><text x="380" y="280" font-size="11.5" text-anchor="middle" opacity=".75">伺服器的程式也關了，換它說沒資料</text><line x1="212" y1="309" x2="546" y2="321" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-4a)"/><text x="380" y="307" font-size="12.5" text-anchor="middle" class="mono">ACK  SEQ=101 ACK=301</text><text x="380" y="335" font-size="11.5" text-anchor="middle" opacity=".75">最後一個確認</text><text x="198" y="64" font-size="12" text-anchor="end" class="mono">ESTABLISHED</text><text x="562" y="64" font-size="12" text-anchor="start" class="mono">ESTABLISHED</text><text x="198" y="92" font-size="12" text-anchor="end" fill="var(--gold-deep)" class="mono">FIN-WAIT-1</text><text x="562" y="116" font-size="12" text-anchor="start" fill="var(--gold-deep)" class="mono">CLOSE-WAIT</text><text x="198" y="171" font-size="12" text-anchor="end" fill="var(--gold-deep)" class="mono">FIN-WAIT-2</text><text x="562" y="257" font-size="12" text-anchor="start" fill="var(--gold-deep)" class="mono">LAST-ACK</text><text x="198" y="281" font-size="12" text-anchor="end" fill="var(--danger)" class="mono">TIME-WAIT</text><text x="562" y="336" font-size="12" text-anchor="start" fill="var(--slate-deep)" class="mono">CLOSED</text><text x="198" y="420" font-size="12" text-anchor="end" fill="var(--slate-deep)" class="mono">CLOSED</text><rect x="70" y="290" width="132" height="116" rx="6" fill="none" stroke="var(--danger)" stroke-dasharray="4 3"/><text x="136" y="372" font-size="12.5" text-anchor="middle" fill="var(--danger)">等 2×MSL</text><text x="136" y="392" font-size="11" text-anchor="middle" opacity=".75">RFC 4 分鐘、Linux 60 秒</text>
+</svg>
+<figcaption>中間灰藍那段叫半關閉：用戶端→伺服器的方向已經關了，伺服器→用戶端的方向還開著。主動關閉的那一端（這裡是用戶端）最後要在 TIME-WAIT 等 2 倍 MSL。</figcaption>
+</figure>
+<p><strong>為什麼是四段、不是三段：</strong>RFC 寫收到 FIN 的一端會回 ACK，但要等自己的使用者也關閉後才送自己的 FIN。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.6" target="_blank" rel="noopener">RFC 9293 第 3.6 節</a> 伺服器收到 FIN 時，它的程式可能還有資料沒送完，所以 ACK 先回、FIN 晚點才送，兩個通常分開。如果伺服器剛好也沒資料了，ACK 和 FIN 可以合在同一包，看起來就只有三段。</p>
+<p><strong>TIME_WAIT 在等什麼：</strong>狀態定義是「等待足夠的時間，確定對方收到了對它關閉請求的確認，並避免新的連線被前一條連線延遲到達的區段影響」（waiting for enough time to pass to be sure the remote TCP peer received the acknowledgment of its connection termination request and to avoid new connections being impacted by delayed segments from previous connections.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.3.2" target="_blank" rel="noopener">RFC 9293 第 3.3.2 節</a> 第一個理由：最後那個 ACK 可能遺失，伺服器會重送 FIN，用戶端要還在、才能再回一次 ACK。第二個理由跟三向交握一樣是怕舊封包——同一組位址與連接埠如果馬上開新連線，上一條遲到的區段可能被誤收。</p>
+<p><strong>等多久：</strong>「主動關閉的連線必須（MUST）在 TIME-WAIT 停留 2×MSL」（When a connection is closed actively, it MUST linger in the TIME-WAIT state for a time 2xMSL (Maximum Segment Lifetime)）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.6" target="_blank" rel="noopener">RFC 9293 第 3.6 節</a> MSL 是「一個 TCP 區段能在網路裡存在的時間，隨意訂為 2 分鐘」（the time a TCP segment can exist in the internetwork system. Arbitrarily defined to be 2 minutes.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-4" target="_blank" rel="noopener">RFC 9293 第 4 節</a> 所以照 RFC 是 4 分鐘。Linux 實作把它定成 60 秒（<code>#define TCP_TIMEWAIT_LEN (60*HZ)</code>，註解寫「以前是 3 分鐘，新的值是 60 秒」，It used to be 3min, new value is 60sec）。<a class="fixsrc" href="https://github.com/torvalds/linux/blob/v6.12/include/net/tcp.h#L126" target="_blank" rel="noopener">Linux v6.12 tcp.h</a></p>
+<p><strong>兩個在伺服器上常看到的堆積：</strong></p>
+<div class="tablewrap"><table><thead><tr><th>用 <code>ss</code> 或 <code>netstat</code> 看到很多</th><th>代表什麼</th><th>常見原因與方向</th></tr></thead><tbody>
+<tr><th>TIME_WAIT</th><td>這台機器是<strong>主動關閉</strong>的那一端，每條連線關掉後都要等一段時間</td><td>伺服器每次回完就主動關連線（短連線），或應用程式對資料庫、其他服務每次新開連線用完就關。解法是重用連線：HTTP 持久連線、資料庫連線池</td></tr>
+<tr><th>CLOSE_WAIT</th><td>對方已經送 FIN，這台機器回了 ACK，但<strong>自己的程式一直沒關</strong></td><td>RFC 的定義是在「等本地使用者送出關閉請求」（waiting for a connection termination request from the local user）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.3.2" target="_blank" rel="noopener">RFC 9293 第 3.3.2 節</a> 堆積多半是程式拿了連線忘了 close，要回頭查程式</td></tr>
+</tbody></table></div>
+<p class="muted">RFC 寫 TIME-WAIT、CLOSE-WAIT（連字號），<code>ss</code>、<code>netstat</code> 這類指令的輸出寫 TIME_WAIT、CLOSE_WAIT（底線），本課講狀態機時照 RFC，講指令看到的東西時照輸出。</p>
+<div class="drill">
+  <p class="dq">用戶端送出 FIN 之後收到伺服器的 ACK，但還沒收到伺服器的 FIN。用戶端在哪個狀態？</p>
+  <ul class="dopts"><li data-ok>FIN-WAIT-2</li><li>FIN-WAIT-1</li><li>CLOSE-WAIT</li><li>TIME-WAIT</li></ul>
+  <p class="dexp">送出 FIN 進 FIN-WAIT-1；FIN 被確認後進 FIN-WAIT-2，等對方的 FIN。CLOSE-WAIT 是被動關閉那一端（伺服器）的狀態。</p>
+</div>
+<div class="drill">
+  <p class="dq">伺服器收到用戶端的 FIN、回了 ACK。這時伺服器還能做什麼？</p>
+  <ul class="dopts"><li data-ok>還能把剩下的資料送完，再送自己的 FIN</li><li>什麼都不能做，收到 FIN 就代表兩個方向都已經關閉</li><li>只能收資料，不能再送</li><li>必須立刻送 RST，避免連線卡住</li></ul>
+  <p class="dexp">FIN 只關一個方向。用戶端→伺服器關了，伺服器→用戶端還開著（半關閉），伺服器的程式關閉後才送 FIN。</p>
+</div>
+<div class="drill">
+  <p class="dq">一台 Web 伺服器每回一個回應就主動關閉 TCP 連線。用 <code>ss</code> 一看有上萬個 TIME_WAIT。這些 TIME_WAIT 在哪一端？</p>
+  <ul class="dopts"><li>在各個用戶端的電腦上，伺服器看不到</li><li>伺服器和用戶端各一半</li><li>在中間的路由器上</li><li data-ok>在伺服器上，它是主動關閉的一端</li></ul>
+  <p class="dexp">TIME-WAIT 落在主動關閉的那一端。伺服器主動關，就是伺服器在等。路由器不管 TCP 狀態。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，最根本的改法是？</p>
+  <ul class="dopts"><li>把伺服器的記憶體加大，讓它撐得住更多 TIME_WAIT</li><li data-ok>重用連線（HTTP 持久連線），少開少關</li><li>改用 UDP</li><li>關掉 TCP 的檢查碼</li></ul>
+  <p class="dexp">TIME_WAIT 是每關一條連線就產生一個。連線重用讓關閉的次數變少，自然少等。加記憶體只是撐住，改 UDP 或關檢查碼則是把可靠性丟掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 Java 服務跑了幾天後，<code>ss</code> 顯示對資料庫的連線有上千個 CLOSE_WAIT，而且一直增加。最可能的原因是？</p>
+  <ul class="dopts"><li>資料庫伺服器太慢，查詢一直沒回</li><li data-ok>資料庫已經關了連線，服務的程式卻沒有 close</li><li>網路延遲太高，封包卡在路上</li><li>這個服務主動關閉了太多連線，來不及等完 TIME_WAIT</li></ul>
+  <p class="dexp">CLOSE-WAIT 是「對方已送 FIN，我在等本地程式關閉」。一直堆就是本地程式沒關。主動關閉太多會堆的是 TIME_WAIT，不是 CLOSE_WAIT。</p>
+</div>
+<div class="drill">
+  <p class="dq">照 RFC 9293，主動關閉的一端要在 TIME-WAIT 等多久？</p>
+  <ul class="dopts"><li>1 個 MSL，2 分鐘</li><li data-ok>2 倍 MSL，4 分鐘</li><li>一趟來回的時間</li><li>不用等，收到最後一個 ACK 就關</li></ul>
+  <p class="dexp">MUST linger in the TIME-WAIT state for a time 2xMSL，MSL 訂為 2 分鐘。Linux 實作用的是 60 秒，那是實作的選擇，RFC 的數字是 4 分鐘。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼最後送 ACK 的那一端不能一送完就馬上 CLOSED？</p>
+  <ul class="dopts"><li>因為還要等對方把剩下的資料送完</li><li>因為要跟對方重新協商下一條連線的序號</li><li>因為 TLS 還沒關</li><li data-ok>最後的 ACK 可能丟，對方會重送 FIN</li></ul>
+  <p class="dexp">TIME-WAIT 的定義裡第一件事就是確定對方收到了確認；第二件事是避免遲到的舊區段混進同一組位址的新連線。</p>
+</div>
+</section>
+
+<section>
+<p class="era">兩種「慢一點」</p>
+<h3 class="head">流量控制與壅塞控制一眼</h3>
+<p>TCP 會自己調整送多快，原因有兩個，名字很像，管的對象不一樣。</p>
+<ul class="plainlist">
+<li><strong>流量控制（flow control）：接收方收不收得下。</strong>TCP 標頭有一個 Window 欄位，意思是「從確認號那個位元組算起，送這個區段的一方還願意收多少位元組」（The number of data octets beginning with the one indicated in the acknowledgment field that the sender of this segment is willing to accept.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.1" target="_blank" rel="noopener">RFC 9293 第 3.1 節</a> 這個值叫<strong>接收視窗</strong>（rwnd），RFC 假設它跟「這條連線目前可用的緩衝區空間」有關（related to the data buffer space currently available for this connection）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.8.6" target="_blank" rel="noopener">RFC 9293 第 3.8.6 節</a> 接收方的程式讀太慢、緩衝區快滿了，就把視窗報小，送方就得慢下來。</li>
+<li><strong>壅塞控制（congestion control）：中間的網路塞不塞。</strong>送方自己維護一個<strong>壅塞視窗</strong>（cwnd），RFC 5681 的定義是「限制 TCP 能送多少資料的狀態變數」，任何時候送出去還沒被確認的資料，不得超過 cwnd 與 rwnd 兩者中較小的那個（At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5681.html#section-2" target="_blank" rel="noopener">RFC 5681 第 2 節</a></li>
+</ul>
+<p>壅塞控制的基本做法，RFC 9293 規定「必須（MUST）實作慢啟動、壅塞避免，以及重傳逾時的指數退避」（A TCP endpoint MUST implement the basic congestion control algorithms slow start, congestion avoidance, and exponential backoff of RTO）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.8.2" target="_blank" rel="noopener">RFC 9293 第 3.8.2 節</a> 三個拆開講：</p>
+<div class="tablewrap"><table><thead><tr><th>做法</th><th>白話</th><th>RFC 5681 怎麼寫</th></tr></thead><tbody>
+<tr><th>慢啟動</th><td>剛開始不知道網路多寬，先少送，邊送邊加</td><td>每收到一個確認了新資料的 ACK，cwnd 最多加一個區段的大小（increments cwnd by at most SMSS bytes for each ACK received that cumulatively acknowledges new data）。一趟來回裡每個區段都被確認的話，同理推算 cwnd 大約翻倍<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5681.html#section-3.1" target="_blank" rel="noopener">RFC 5681 第 3.1 節</a></td></tr>
+<tr><th>壅塞避免</th><td>cwnd 超過門檻（ssthresh）後改成慢慢加</td><td>「大約每一趟來回加一個完整大小的區段」（cwnd is incremented by roughly 1 full-sized segment per round-trip time (RTT)）<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5681.html#section-3.1" target="_blank" rel="noopener">RFC 5681 第 3.1 節</a></td></tr>
+<tr><th>發現遺失時</th><td>判斷網路塞了，門檻砍半</td><td>ssthresh 不超過 <code>max(FlightSize / 2, 2*SMSS)</code>，FlightSize 是送出但還沒被確認的資料量<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5681.html#section-3.1" target="_blank" rel="noopener">RFC 5681 第 3.1 節</a></td></tr>
+</tbody></table></div>
+<p class="formula">流量控制看接收方（rwnd，對方報給你）；壅塞控制看網路（cwnd，你自己估）；能送的量取兩者較小的</p>
+<p class="muted">慢啟動也是新連線一開始比較慢的原因之一。這正是 HTTP 要重用連線、HTTP/2 改用一條連線的理由之一，見〈HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進〉。</p>
+<div class="drill">
+  <p class="dq">接收方的程式很忙，來不及把 TCP 緩衝區裡的資料讀走，緩衝區快滿了。哪個機制會讓送方慢下來？</p>
+  <ul class="dopts"><li>壅塞控制：送方偵測到封包遺失而減速</li><li>三向交握重新來過</li><li data-ok>流量控制：接收方把接收視窗報小</li><li>TIME_WAIT 讓連線暫停</li></ul>
+  <p class="dexp">接收方收不下是流量控制的事，靠 rwnd 告訴送方。壅塞控制管的是中間網路，跟接收方程式忙不忙無關。</p>
+</div>
+<div class="drill">
+  <p class="dq">接收方報的接收視窗是 64 KB，送方目前的壅塞視窗是 16 KB。送方最多可以有多少還沒被確認的資料在路上？</p>
+  <ul class="dopts"><li data-ok>16 KB</li><li>64 KB</li><li>80 KB</li><li>沒有上限</li></ul>
+  <p class="dexp">RFC 5681：送出去還沒確認的量不得超過 cwnd 與 rwnd 中較小的那個。接收方收得下 64 KB，但送方估計網路只吃得下 16 KB。</p>
+</div>
+<div class="drill">
+  <p class="dq">一條剛建立的 TCP 連線，在慢啟動階段每一趟來回送的量會怎麼變？（假設每個區段都被確認、沒有遺失）</p>
+  <ul class="dopts"><li>每趟固定一樣多</li><li>每趟加一個區段</li><li data-ok>大約每趟翻倍</li><li>一開始就用接收視窗的大小送</li></ul>
+  <p class="dexp">慢啟動是每個 ACK 加一個區段的大小，一趟裡送幾個區段就回幾個 ACK，所以一趟下來大約翻倍。「每趟加一個區段」是壅塞避免階段的做法。</p>
+</div>
+<div class="drill">
+  <p class="dq">壅塞視窗已經超過門檻（ssthresh），一直沒有遺失。cwnd 怎麼長？</p>
+  <ul class="dopts"><li>每個 ACK 加一個區段，大約每趟翻倍</li><li>不再增加</li><li>直接跳到接收視窗的大小</li><li data-ok>大約每趟來回加一個區段</li></ul>
+  <p class="dexp">超過門檻就從慢啟動換成壅塞避免，RFC 5681 寫 roughly 1 full-sized segment per round-trip time。</p>
+</div>
+<div class="drill">
+  <p class="dq">送方發現有區段遺失（重傳計時器還沒逾時、靠其他訊號判斷）。照 RFC 5681，門檻 ssthresh 會設成什麼？</p>
+  <ul class="dopts"><li>設成 0，暫停傳送直到逾時</li><li data-ok>約為未確認資料量的一半</li><li>加倍，趕快把遺失的補回來</li><li>不變，只重傳遺失的那一段</li></ul>
+  <p class="dexp">公式是 ssthresh = max(FlightSize / 2, 2*SMSS)。TCP 把遺失當成網路塞了的訊號，所以把門檻砍半。</p>
+</div>
+</section>
+
+<section>
+<p class="era">什麼都不保證，所以什麼都能自己決定</p>
+<h3 class="head">UDP 與它適合的場景</h3>
+<p>UDP 的規格 RFC 768 只有三頁。它「讓應用程式用最少的協定機制送訊息給其他程式；以交易為導向，不保證送達、也不保證不重複」（This protocol provides a procedure for application programs to send messages to other programs with a minimum of protocol mechanism. The protocol is transaction oriented, and delivery and duplicate protection are not guaranteed.），並直接建議「需要照順序、可靠傳送資料流的應用程式應該用 TCP」（Applications requiring ordered reliable delivery of streams of data should use the Transmission Control Protocol (TCP)）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc768.html" target="_blank" rel="noopener">RFC 768</a></p>
+<p>UDP 標頭只有四個欄位：來源連接埠、目的連接埠、長度、檢查碼，各 2 位元組，所以「長度的最小值是 8」（the minimum value of the length is eight.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc768.html" target="_blank" rel="noopener">RFC 768</a> 沒有序號、沒有確認、沒有視窗，也沒有交握——第一個資料包就是資料。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>TCP</th><th>UDP</th></tr></thead><tbody>
+<tr><th>開始送之前</th><td>三向交握，一趟來回</td><td>不用，直接送</td></tr>
+<tr><th>遺失、亂序、重複</th><td>序號＋確認＋重傳，保證照順序到</td><td>都不管，交給應用程式</td></tr>
+<tr><th>流量與壅塞控制</th><td>有（rwnd、cwnd）</td><td>沒有，應用程式自己負責別把網路塞爆</td></tr>
+<tr><th>資料的邊界</th><td>位元組串流，一次送的東西對方可能分好幾次讀到</td><td>一個資料包就是一則訊息，邊界不會亂</td></tr>
+<tr><th>標頭裡有什麼</th><td>序號、確認號、旗標、視窗、檢查碼等</td><td>只有連接埠、長度、檢查碼四個欄位，共 8 位元組</td></tr>
+</tbody></table></div>
+<p>什麼時候選 UDP？看的是「等重傳」與「自己掌控」值不值得：</p>
+<ul class="plainlist">
+<li><strong>一問一答、問題小：</strong>DNS 查詢。RFC 1035 寫 UDP「是網際網路上標準查詢的建議方式」，但也提醒「用 UDP 送的查詢可能遺失，所以需要重送的策略」（UDP is not acceptable for zone transfers, but is the recommended method for standard queries in the Internet. Queries sent using UDP may be lost, and hence a retransmission strategy is required.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc1035.html#section-4.2.1" target="_blank" rel="noopener">RFC 1035 第 4.2.1 節</a> 一包問、一包答，丟了重問就好，不值得先花一趟來回交握。</li>
+<li><strong>即時、過期就沒用：</strong>語音通話、視訊、線上遊戲的位置更新。晚到半秒的聲音已經沒意義，與其讓 TCP 卡住等重傳，不如跳過這一包。</li>
+<li><strong>要自己做一套傳輸：</strong>QUIC 就是在 UDP 上自己做可靠性、壅塞控制與加密。選 UDP 是因為作業系統與網路設備早就認得它，部署得出去；RFC 9114 也規定 UDP 被擋、QUIC 連不上時，「用戶端應該（SHOULD）改用跑在 TCP 上的 HTTP 版本」（clients SHOULD attempt to use TCP-based versions of HTTP in this case.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1" target="_blank" rel="noopener">RFC 9114 第 3.1 節</a></li>
+</ul>
+<p class="q">UDP 不等於「不可靠所以比較差」。它把要不要可靠、怎麼可靠的決定權交給應用程式。</p>
+<div class="drill">
+  <p class="dq">網路電話 App 要即時傳聲音，偶爾遺失一兩個封包可以接受，但延遲一高對話就卡。比較適合用哪個傳輸協定？</p>
+  <ul class="dopts"><li data-ok>UDP，遺失的就跳過，不要等重傳</li><li>TCP，因為遺失的封包會自動補回</li><li>TCP 再加上 TLS，又可靠又安全</li><li>兩個都不行，要用 HTTP</li></ul>
+  <p class="dexp">聲音晚到就沒用了。TCP 遺失一包會讓後面全部等重傳；UDP 讓應用程式自己決定丟掉這一包、繼續播下一包。</p>
+</div>
+<div class="drill">
+  <p class="dq">銀行要每天晚上把一個 2 GB 的對帳檔傳給合作夥伴，一個位元組都不能錯。該用哪個？</p>
+  <ul class="dopts"><li>UDP，比較快</li><li>UDP，不用交握</li><li data-ok>TCP</li><li>都可以，沒有差別</li></ul>
+  <p class="dexp">檔案要完整、照順序。TCP 本身就保證這些；用 UDP 得自己寫重傳與排序，等於重做一次 TCP。</p>
+</div>
+<div class="drill">
+  <p class="dq">DNS 一般查詢用 UDP。如果查詢的封包遺失了，誰負責處理？</p>
+  <ul class="dopts"><li>UDP 協定本身會自動重傳</li><li data-ok>發查詢的程式自己逾時重問</li><li>路由器會補送</li><li>沒人處理，查詢永遠失敗</li></ul>
+  <p class="dexp">UDP 不保證送達、也不重傳。RFC 1035 直接寫用 UDP 送的查詢可能遺失，所以需要重送的策略，這是 DNS 用戶端自己的工作。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 UDP 送出三則訊息，每則 100 位元組，都順利到達。接收方的程式會讀到什麼？</p>
+  <ul class="dopts"><li>一整段 300 位元組的資料，看不出原本分成三則</li><li>三個資料包，順序一定跟送出時一樣</li><li data-ok>三個 100 位元組的資料包，順序不保證</li><li>依網路狀況被切成任意大小的片段</li></ul>
+  <p class="dexp">UDP 一個資料包就是一則訊息，邊界保留；但它不保證順序。「一段邊界不明的資料」是 TCP 位元組串流的特性。</p>
+</div>
+<div class="drill">
+  <p class="dq">公司防火牆擋掉了對外的 UDP 443。瀏覽器原本想用 HTTP/3 連某網站，接著照規格該怎麼做？</p>
+  <ul class="dopts"><li data-ok>退回 TCP 版的 HTTP</li><li>放棄連線，顯示「無法連上這個網站」</li><li>改用 UDP 的其他連接埠，一個一個試到通為止</li><li>改用不加密的 HTTP 連線</li></ul>
+  <p class="dexp">RFC 9114：UDP 被擋造成 QUIC 連不上時，clients SHOULD attempt to use TCP-based versions of HTTP。退回的是 TCP 版本，不是拿掉加密。</p>
+</div>
+<div class="drill">
+  <p class="dq">UDP 標頭最少多大？</p>
+  <ul class="dopts"><li>0 位元組，UDP 沒有標頭</li><li data-ok>8 位元組</li><li>20 位元組</li><li>40 位元組</li></ul>
+  <p class="dexp">四個欄位各 2 位元組：來源連接埠、目的連接埠、長度、檢查碼。RFC 768 寫長度欄的最小值是 8，就是只有標頭、沒有資料的時候。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先講好暗號再說話</p>
+<h3 class="head">TLS 1.3 握手，一步一步</h3>
+<p>〈HTTP 與 HTTPS〉講過 TLS 提供的三種保護，以及 TLS 1.3 拿掉了「用伺服器公鑰加密預主金鑰」的舊做法。這裡把一次完整握手拆開來看。RFC 8446 說握手協定讓兩端「協商協定版本、選定密碼演算法、選擇性地互相驗證身分，並建立共用的秘密金鑰材料」（The handshake protocol allows peers to negotiate a protocol version, select cryptographic algorithms, optionally authenticate each other, and establish shared secret keying material.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-1" target="_blank" rel="noopener">RFC 8446 第 1 節</a></p>
+<p>先懂一個工具：<strong>Diffie-Hellman 金鑰交換</strong>。白話：雙方各自想一個秘密數字，各算出一個「公開值」丟給對方；拿自己的秘密配上對方的公開值，兩邊會算出同一把鑰匙，而旁邊偷看到兩個公開值的人算不出來。TLS 1.3 的 <code>key_share</code> 擴充欄位放的就是這個公開值，每次連線現算一組（暫時性的，所以叫 DHE 或 ECDHE，E 是 ephemeral）。</p>
+<p>RFC 8446 把握手分成三個階段，並強調「這個階段（金鑰交換）之後的一切都是加密的」（Everything after this phase is encrypted.）：<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-2" target="_blank" rel="noopener">RFC 8446 第 2 節</a></p>
+<ol>
+<li><strong>金鑰交換：</strong>用戶端送 <code>ClientHello</code>，帶一個隨機數、支援的版本與加密套件，以及預先算好的 <code>key_share</code>。伺服器挑定參數，回 <code>ServerHello</code> 和自己的 <code>key_share</code>。到這裡兩邊都算得出同一把握手金鑰。</li>
+<li><strong>伺服器參數：</strong><code>EncryptedExtensions</code>，放其他協商結果，例如之後要講 HTTP/2 還是 HTTP/1.1——這個協商叫 ALPN（Application-Layer Protocol Negotiation，應用層協定協商）。從這一則起已經加密。</li>
+<li><strong>身分驗證：</strong><code>Certificate</code> 送憑證鏈；<code>CertificateVerify</code> 是「用憑證裡公鑰對應的私鑰，對整段握手做的簽章」（A signature over the entire handshake using the private key corresponding to the public key in the Certificate message.）；<code>Finished</code> 是「對整段握手算的 MAC（訊息鑑別碼）」，提供金鑰確認、把身分與交換到的金鑰綁在一起（A MAC (Message Authentication Code) over the entire handshake. This message provides key confirmation, binds the endpoint's identity to the exchanged keys）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-2" target="_blank" rel="noopener">RFC 8446 第 2 節</a> 用戶端驗過憑證與簽章後，送出自己的 <code>Finished</code>，接著就能送應用資料。</li>
+</ol>
+<figure>
+<svg viewBox="0 0 760 512" role="img" aria-label="TLS 1.2 與 TLS 1.3 完整握手並排比較，兩邊都先畫一趟 TCP 三向交握。左邊 TLS 1.2：ClientHello；伺服器回 ServerHello、Certificate、ServerKeyExchange、ServerHelloDone；用戶端送 ClientKeyExchange、ChangeCipherSpec、Finished；伺服器回 ChangeCipherSpec、Finished；共兩趟來回後才送應用資料。右邊 TLS 1.3：ClientHello 就帶 key_share；伺服器回 ServerHello 與 key_share，接著 EncryptedExtensions、Certificate、CertificateVerify、Finished 都已加密；用戶端送 Finished 時就能接著送應用資料，只要一趟來回">
+<defs><marker id="tu-5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="tu-5g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs><text x="190" y="26" font-size="15" text-anchor="middle" fill="var(--gold-deep)">TLS 1.2（RFC 5246）</text><text x="60" y="50" font-size="12.5" text-anchor="middle">用戶端</text><text x="320" y="50" font-size="12.5" text-anchor="middle">伺服器</text><line x1="60" y1="58" x2="60" y2="470" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="320" y1="58" x2="320" y2="470" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="62" y1="70" x2="316" y2="92" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="190" y="75" font-size="11.5" text-anchor="middle" class="mono">SYN</text><line x1="318" y1="100" x2="64" y2="122" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="190" y="105" font-size="11.5" text-anchor="middle" class="mono">SYN+ACK</text><line x1="62" y1="130" x2="316" y2="152" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="190" y="135" font-size="11.5" text-anchor="middle" class="mono">ACK</text><line x1="62" y1="165" x2="316" y2="190" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="190" y="171.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ClientHello</text><line x1="318" y1="245" x2="64" y2="270" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="190" y="221.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ServerHello、Certificate</text><text x="190" y="236.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ServerKeyExchange</text><text x="190" y="251.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ServerHelloDone</text><line x1="62" y1="330" x2="316" y2="355" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="190" y="321.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ClientKeyExchange</text><text x="190" y="336.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ChangeCipherSpec、Finished</text><line x1="318" y1="395" x2="64" y2="420" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="190" y="401.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ChangeCipherSpec、Finished</text><line x1="62" y1="440" x2="316" y2="462" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="190" y="445" font-size="11.5" text-anchor="middle" class="mono">應用資料</text><text x="50" y="111" font-size="11" text-anchor="end" opacity=".75">TCP 1 趟</text><text x="50" y="210" font-size="11" text-anchor="end" opacity=".75">TLS 第 1 趟</text><text x="50" y="380" font-size="11" text-anchor="end" opacity=".75">TLS 第 2 趟</text><text x="190" y="498" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">TCP 1 趟＋TLS 2 趟，才送得出第一筆應用資料</text><text x="570" y="26" font-size="15" text-anchor="middle" fill="var(--gold-deep)">TLS 1.3（RFC 8446）</text><text x="440" y="50" font-size="12.5" text-anchor="middle">用戶端</text><text x="700" y="50" font-size="12.5" text-anchor="middle">伺服器</text><line x1="440" y1="58" x2="440" y2="470" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="700" y1="58" x2="700" y2="470" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="442" y1="70" x2="696" y2="92" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="570" y="75" font-size="11.5" text-anchor="middle" class="mono">SYN</text><line x1="698" y1="100" x2="444" y2="122" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="570" y="105" font-size="11.5" text-anchor="middle" class="mono">SYN+ACK</text><line x1="442" y1="130" x2="696" y2="152" stroke="currentColor" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#tu-5a)"/><text x="570" y="135" font-size="11.5" text-anchor="middle" class="mono">ACK</text><line x1="442" y1="175" x2="696" y2="200" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="570" y="181.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ClientHello + key_share</text><line x1="698" y1="275" x2="444" y2="300" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="570" y="221.5" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">ServerHello + key_share</text><text x="570" y="236.5" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">{EncryptedExtensions}</text><text x="570" y="251.5" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">{Certificate}</text><text x="570" y="266.5" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">{CertificateVerify}</text><text x="570" y="281.5" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">{Finished}</text><line x1="442" y1="330" x2="696" y2="355" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#tu-5g)"/><text x="570" y="321.5" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">{Finished}</text><text x="570" y="336.5" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">[應用資料]</text><text x="430" y="111" font-size="11" text-anchor="end" opacity=".75">TCP 1 趟</text><text x="430" y="240" font-size="11" text-anchor="end" opacity=".75">TLS 第 1 趟</text><text x="570" y="498" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">TCP 1 趟＋TLS 1 趟；{ } 裡的訊息已加密</text><line x1="380" y1="30" x2="380" y2="480" stroke="currentColor" stroke-width="1" stroke-opacity=".2" stroke-dasharray="4 4"/>
+</svg>
+<figcaption>兩邊都先付一趟 TCP。TLS 1.3 第一則就帶金鑰交換用的公開值，伺服器一回完就能加密；TLS 1.2 要多一趟來回才交換完金鑰。</figcaption>
+</figure>
+<p>RFC 8446 把這種完整握手叫「1-RTT 握手」（RTT，round-trip time，來回一趟的時間）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-2.3" target="_blank" rel="noopener">RFC 8446 第 2.3 節</a> 用戶端猜錯了伺服器支援的金鑰交換群組時，伺服器會回 <code>HelloRetryRequest</code>，用戶端要「帶正確的 key_share 重新開始握手」（the client needs to restart the handshake with an appropriate "key_share" extension），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-2.1" target="_blank" rel="noopener">RFC 8446 第 2.1 節</a> 多花一趟。另外還有用上次連線留下的金鑰、第一則就夾資料的 0-RTT，它的重放風險見面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉。</p>
+<p>實際看一次。2026-10-02 用 <code>curl -v --http1.1</code> 連本站，握手那段的輸出（節錄）：</p>
+<pre><code>* ALPN: curl offers http/1.1
+* (304) (OUT), TLS handshake, Client hello (1):
+* (304) (IN), TLS handshake, Server hello (2):
+* (304) (IN), TLS handshake, Unknown (8):
+* (304) (IN), TLS handshake, Certificate (11):
+* (304) (IN), TLS handshake, CERT verify (15):
+* (304) (IN), TLS handshake, Finished (20):
+* (304) (OUT), TLS handshake, Finished (20):
+* SSL connection using TLSv1.3 / AEAD-CHACHA20-POLY1305-SHA256 / [blank] / UNDEF
+* ALPN: server accepted http/1.1</code></pre>
+<p>括號裡的數字是 RFC 8446 定義的握手訊息類型編號：<code>client_hello(1)</code>、<code>server_hello(2)</code>、<code>encrypted_extensions(8)</code>、<code>certificate(11)</code>、<code>certificate_verify(15)</code>、<code>finished(20)</code>。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-4" target="_blank" rel="noopener">RFC 8446 第 4 節</a> 這個 curl 不認得 8 的名字，所以印 Unknown，它就是 <code>EncryptedExtensions</code>。順序跟上面的圖一模一樣：OUT 一則、IN 五則、OUT 一則。（每行開頭的 <code>(304)</code> 是 curl 自己印的標記，跟 HTTP 的 304 狀態碼無關。）</p>
+<div class="drill">
+  <p class="dq">TLS 1.3 握手中，用戶端送出 ClientHello 之後，伺服器送的<strong>第一則</strong>訊息是？</p>
+  <ul class="dopts"><li>Certificate</li><li>Finished</li><li>ServerKeyExchange</li><li data-ok>ServerHello</li></ul>
+  <p class="dexp">伺服器先用 ServerHello 回選定的參數和自己的公開值，接著才是 EncryptedExtensions、Certificate、CertificateVerify、Finished。ServerKeyExchange 是 TLS 1.2 的訊息，1.3 沒有。</p>
+</div>
+<div class="drill">
+  <p class="dq">TLS 1.3 的握手裡，從哪一則訊息開始就已經是加密傳送？</p>
+  <ul class="dopts"><li>ClientHello</li><li>ServerHello</li><li data-ok>EncryptedExtensions</li><li>要等 Finished 之後才開始加密</li></ul>
+  <p class="dexp">ServerHello 帶出伺服器的 key_share，雙方算得出握手金鑰；它之後的 EncryptedExtensions、Certificate、CertificateVerify、Finished 都用握手金鑰加密。RFC 8446 第 1.2 節：All handshake messages after the ServerHello are now encrypted。</p>
+</div>
+<div class="drill">
+  <p class="dq">伺服器送了 Certificate，又送 CertificateVerify。CertificateVerify 證明的是什麼？</p>
+  <ul class="dopts"><li>憑證還在有效期間內</li><li>憑證是由可信任的 CA 簽發</li><li>用戶端的身分</li><li data-ok>伺服器握有對應的私鑰</li></ul>
+  <p class="dexp">憑證是公開的，誰都能複製一份送出來。CertificateVerify 是用私鑰對整段握手簽章，只有握有私鑰的人簽得出來。有效期與簽發者是驗憑證鏈時檢查的。</p>
+</div>
+<div class="drill">
+  <p class="dq">用戶端的 ClientHello 只帶了某一種群組的 key_share，伺服器不支援那一種、但支援用戶端列出的另一種。接下來會怎樣？</p>
+  <ul class="dopts"><li data-ok>伺服器要求用戶端重送 ClientHello</li><li>握手直接失敗，瀏覽器顯示安全性錯誤</li><li>伺服器改用不加密的連線繼續</li><li>伺服器改用 RSA 加密一把金鑰，直接送給用戶端</li></ul>
+  <p class="dexp">RFC 8446 第 2.1 節：key_share 不合時，伺服器用 HelloRetryRequest 修正，用戶端重新開始握手。完全沒有共同參數才中止；用 RSA 加密金鑰是 1.3 已經移除的做法。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 curl -v 看握手，看到 <code>(IN), TLS handshake, Unknown (8)</code>。這一則是什麼？</p>
+  <ul class="dopts"><li data-ok>EncryptedExtensions</li><li>一則 curl 不認得的壞訊息，代表連線可能被竄改</li><li>HTTP 的 8 號狀態碼</li><li>這則訊息已經重傳了 8 次</li></ul>
+  <p class="dexp">RFC 8446 第 4 節的 HandshakeType 裡 encrypted_extensions 是 8。它夾在 Server hello (2) 與 Certificate (11) 之間，位置也對得上。</p>
+</div>
+<div class="drill">
+  <p class="dq">TLS 1.3 完整握手（不算 TCP），用戶端最早在什麼時候可以送出第一筆加密的 HTTP 請求？</p>
+  <ul class="dopts"><li>送 ClientHello 的同時</li><li data-ok>一趟來回後（送出自己的 Finished 時）</li><li>兩趟來回後，等伺服器確認 Finished</li><li>三趟來回後</li></ul>
+  <p class="dexp">完整握手是 1-RTT：ClientHello 去、伺服器那一串回來，用戶端送 Finished 時就能接著送應用資料。第一則就夾資料的是 0-RTT，要有上次連線留下的金鑰，不是完整握手。</p>
+</div>
+<div class="drill">
+  <p class="dq">Diffie-Hellman 金鑰交換中，攻擊者從網路上看到了雙方交換的兩個公開值。他能算出雙方的共用金鑰嗎？</p>
+  <ul class="dopts"><li>能，公開值就是金鑰</li><li>能，只要再拿到憑證</li><li data-ok>不能，還需要其中一方自己的秘密數字</li><li>不能，因為公開值是用伺服器公鑰加密過的</li></ul>
+  <p class="dexp">共用金鑰要「自己的秘密＋對方的公開值」才算得出來，秘密從來不上網路。公開值本身沒有加密，就是公開送的；憑證是證明身分用的，不能拿來算出金鑰。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一層一層往上找擔保人</p>
+<h3 class="head">憑證鏈怎麼驗</h3>
+<p>伺服器在 <code>Certificate</code> 訊息裡送的通常不只一張憑證。RFC 8446 的規則：「送方自己的憑證必須（MUST）放第一張，後面每一張應該（SHOULD）直接替前一張背書」（The sender's certificate MUST come in the first CertificateEntry in the list. Each following certificate SHOULD directly certify the one immediately preceding it.）；用戶端本來就有的<strong>信任錨</strong>（trust anchor，作業系統或瀏覽器內建、無條件相信的根憑證）可以不送（a certificate that specifies a trust anchor MAY be omitted from the chain）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-4.4.2" target="_blank" rel="noopener">RFC 8446 第 4.4.2 節</a> 2026-10-02 用 <code>openssl s_client -showcerts</code> 看本站（節錄）：</p>
+<pre><code>$ openssl s_client -connect hhtim.github.io:443 -servername hhtim.github.io -showcerts
+ 0 s:CN=*.github.io
+   i:C=US, O=Let's Encrypt, CN=YR1
+ 1 s:C=US, O=Let's Encrypt, CN=YR1
+   i:C=US, O=ISRG, CN=Root YR
+ 2 s:C=US, O=ISRG, CN=Root YR
+   i:C=US, O=Internet Security Research Group, CN=ISRG Root X1
+Verification: OK
+Protocol: TLSv1.3</code></pre>
+<p><code>s:</code> 是主體（subject，這張憑證是誰的），<code>i:</code> 是簽發者（issuer，誰簽的）。每一張的簽發者剛好是下一張的主體，三張之後接上 ISRG Root X1。我的電腦的信任清單 <code>/etc/ssl/cert.pem</code> 裡有 ISRG Root X1、沒有 Root YR，所以伺服器得把 Root YR 也送來，鏈才接得上。</p>
+<figure>
+<svg viewBox="0 0 760 240" role="img" aria-label="憑證鏈，由左到右：伺服器憑證 *.github.io 由 YR1 簽發；YR1 由 Root YR 簽發；Root YR 由 ISRG Root X1 簽發；ISRG Root X1 是本機信任清單裡的根憑證。前三張是伺服器送來的，最右邊那張是用戶端自己帶的。箭頭表示用右邊那張的公鑰驗證左邊那張的簽章">
+<defs><marker id="tu-6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="40" y="70" width="150" height="92" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="115" y="100" font-size="14" text-anchor="middle" class="mono">*.github.io</text><text x="115" y="124" font-size="11.5" text-anchor="middle" opacity=".8">簽發者：YR1</text><text x="115" y="148" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">伺服器憑證（第 0 張）</text><rect x="220" y="70" width="150" height="92" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="295" y="100" font-size="14" text-anchor="middle" class="mono">YR1</text><text x="295" y="124" font-size="11.5" text-anchor="middle" opacity=".8">簽發者：Root YR</text><text x="295" y="148" font-size="11.5" text-anchor="middle">中繼憑證（第 1 張）</text><rect x="400" y="70" width="150" height="92" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="475" y="100" font-size="14" text-anchor="middle" class="mono">Root YR</text><text x="475" y="124" font-size="11.5" text-anchor="middle" opacity=".8">簽發者：ISRG Root X1</text><text x="475" y="148" font-size="11.5" text-anchor="middle">中繼憑證（第 2 張）</text><rect x="580" y="70" width="150" height="92" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="655" y="100" font-size="14" text-anchor="middle" class="mono">ISRG Root X1</text><text x="655" y="124" font-size="11.5" text-anchor="middle" opacity=".8">自己簽自己</text><text x="655" y="148" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)">本機信任清單裡的根</text><line x1="218" y1="116" x2="190" y2="116" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-6a)"/><line x1="398" y1="116" x2="370" y2="116" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-6a)"/><line x1="578" y1="116" x2="550" y2="116" stroke="currentColor" stroke-width="1.6" marker-end="url(#tu-6a)"/><path d="M40 52 L40 44 L550 44 L550 52" fill="none" stroke="var(--gold)" stroke-width="1.4"/><text x="295" y="36" font-size="12" text-anchor="middle" fill="var(--gold-deep)">伺服器在 Certificate 訊息裡送來的三張（openssl -showcerts 實測，2026-10-02）</text><path d="M580 52 L580 44 L730 44 L730 52" fill="none" stroke="var(--slate)" stroke-width="1.4"/><text x="655" y="36" font-size="12" text-anchor="middle" fill="var(--slate-deep)">用戶端自己帶的</text><text x="380" y="196" font-size="12.5" text-anchor="middle">箭頭：用右邊那張的公鑰，驗左邊那張上的簽章。從信任的根一路驗回伺服器憑證，每張都要在有效期間內</text><text x="380" y="222" font-size="12.5" text-anchor="middle">最後再檢查第 0 張的名稱：*.github.io 只配得上一層，hhtim.github.io 可以，a.hhtim.github.io 不行</text>
+</svg>
+<figcaption>主體、簽發者照 openssl 實測輸出。信任清單裡有哪些根，每台電腦、每個瀏覽器不一定一樣。</figcaption>
+</figure>
+<p>用戶端驗的事情有三類：</p>
+<ul class="plainlist">
+<li><strong>鏈接得起來、每張都有效：</strong>RFC 5280 的路徑驗證要求「第 x 張的主體是第 x+1 張的簽發者；第 1 張由信任錨簽發；第 n 張是要驗的目標憑證；每一張在當下都有效」（for all x in {1, ..., n-1}, the subject of certificate x is the issuer of certificate x+1; (b) certificate 1 is issued by the trust anchor; (c) certificate n is the certificate to be validated (i.e., the target certificate); and (d) for all x in {1, ..., n}, the certificate was valid at the time in question.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5280.html#section-6.1" target="_blank" rel="noopener">RFC 5280 第 6.1 節</a> 注意 RFC 5280 是從根往伺服器數（第 1 張靠根），跟 TLS 訊息裡從伺服器往根排的順序相反。中間的憑證還要標明自己是 CA：basic constraints 擴充欄位的 cA 值表示「這把公鑰能不能拿來驗別張憑證的簽章」（The cA boolean indicates whether the certified public key may be used to verify certificate signatures.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.9" target="_blank" rel="noopener">RFC 5280 第 4.2.1.9 節</a></li>
+<li><strong>名稱對得上：</strong>RFC 9110 規定用戶端「必須（MUST）確認服務的身分跟網址裡的主機相符」（a client MUST verify that the service's identity is an acceptable match for the URI's origin server.），用來防止中間人或控制了 DNS 的攻擊者冒充伺服器。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-4.3.4" target="_blank" rel="noopener">RFC 9110 第 4.3.4 節</a> 本站的憑證是萬用字元憑證 <code>*.github.io</code>，curl 印出 <code>subjectAltName: host "hhtim.github.io" matched cert's "*.github.io"</code>。RFC 9525 規定萬用字元只能是最左邊一整段，而且「只能配上一段」（A wildcard in a presented identifier can only match one label in a reference identifier.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9525.html#section-6.3" target="_blank" rel="noopener">RFC 9525 第 6.3 節</a></li>
+<li><strong>對方真的握有私鑰：</strong>就是前一段的 <code>CertificateVerify</code>。鏈再漂亮，簽不出這個簽章就是冒牌貨。</li>
+</ul>
+<div class="drill">
+  <p class="dq">伺服器只送了自己的憑證，沒送中繼憑證，而用戶端的信任清單裡只有根憑證。驗證結果最可能是？</p>
+  <ul class="dopts"><li>通過，只要伺服器憑證本身沒過期就好</li><li>通過，但瀏覽器會自動改用不加密的 HTTP</li><li>失敗，因為根憑證不能放在信任清單裡</li><li data-ok>失敗，從根接不到伺服器憑證，中間缺一段</li></ul>
+  <p class="dexp">RFC 5280 要求每一張的主體是下一張的簽發者。少了中繼憑證，根與伺服器憑證之間斷掉。可以省略不送的只有信任錨（根）本身。</p>
+</div>
+<div class="drill">
+  <p class="dq">網站憑證是 <code>*.example.com</code>。用戶端連 <code>api.shop.example.com</code>，名稱檢查會怎樣？</p>
+  <ul class="dopts"><li>通過，萬用字元配任何子網域</li><li>通過，只要憑證鏈有效</li><li data-ok>不通過，萬用字元只能配一段</li><li>要看伺服器設定</li></ul>
+  <p class="dexp">RFC 9525：A wildcard in a presented identifier can only match one label。<code>*.example.com</code> 配得上 <code>shop.example.com</code>，配不上 <code>api.shop.example.com</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">憑證鏈裡伺服器憑證還有效，但中間那張中繼憑證上週過期了。驗證結果？</p>
+  <ul class="dopts"><li data-ok>失敗，路徑上的每一張在當下都要有效</li><li>通過，因為只有伺服器憑證的期限要檢查</li><li>通過，中繼憑證不用檢查期限</li><li>通過，只要根憑證有效</li></ul>
+  <p class="dexp">RFC 5280 的條件 (d)：for all x in {1, ..., n}, the certificate was valid at the time in question。整條路上任何一張過期都不行。</p>
+</div>
+<div class="drill">
+  <p class="dq">攻擊者把某銀行網站的憑證（公開的）整條複製下來，架了一台假伺服器送出去。用戶端會在哪一步識破？</p>
+  <ul class="dopts"><li>驗憑證鏈時，因為複製來的鏈接不起來</li><li>名稱檢查時，因為假伺服器的網域名稱一定不同</li><li>識破不了，憑證一模一樣，用戶端根本分不出真假</li><li data-ok>驗 CertificateVerify 簽章時</li></ul>
+  <p class="dexp">複製來的鏈本身是真的，名稱也對，前兩項檢查都會過。但 CertificateVerify 要用私鑰簽，攻擊者拿不到私鑰。</p>
+</div>
+<div class="drill">
+  <p class="dq">openssl 印出 <code>1 s:CN=YR1</code>、<code>i:CN=Root YR</code>。這一行的意思是？</p>
+  <ul class="dopts"><li data-ok>這張是 YR1 的，Root YR 簽的</li><li>YR1 簽發了 Root YR</li><li>YR1 和 Root YR 是同一張憑證的兩個名字</li><li>Root YR 是這次連線的伺服器憑證</li></ul>
+  <p class="dexp">s 是主體（這張是誰的），i 是簽發者（誰簽的）。伺服器憑證是第 0 張 *.github.io。</p>
+</div>
+<div class="drill">
+  <p class="dq">TLS 的 Certificate 訊息裡，憑證照什麼順序排？</p>
+  <ul class="dopts"><li data-ok>伺服器的放第一張，往根的方向排</li><li>根憑證放第一張，往下排到伺服器憑證</li><li>沒有規定順序，用戶端自己排</li><li>只能放一張伺服器憑證</li></ul>
+  <p class="dexp">RFC 8446 第 4.4.2 節：送方的憑證 MUST 放第一張，後面每張 SHOULD 直接替前一張背書。從根往下數的是 RFC 5280 路徑驗證的編號方式，方向相反。</p>
+</div>
+</section>
+
+<section>
+<p class="era">少一趟，也少一堆舊東西</p>
+<h3 class="head">TLS 1.2 對 TLS 1.3</h3>
+<p>RFC 8446 第 1.2 節自己列了跟 TLS 1.2 的主要差異，<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-1.2" target="_blank" rel="noopener">RFC 8446 第 1.2 節</a> 對照 TLS 1.2 的 RFC 5246 整理如下：</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>TLS 1.2（RFC 5246）</th><th>TLS 1.3（RFC 8446）</th></tr></thead><tbody>
+<tr><th>完整握手要幾趟</th><td>兩趟來回：ClientHello → ServerHello…ServerHelloDone → ClientKeyExchange…Finished → Finished<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5246.html#section-7.3" target="_blank" rel="noopener">RFC 5246 第 7.3 節</a></td><td>一趟來回；另有 0-RTT 模式，「以犧牲某些安全性質為代價」省下一趟（at the cost of certain security properties）</td></tr>
+<tr><th>金鑰交換</th><td>可以用靜態 RSA（用戶端拿伺服器公鑰加密預主金鑰），也可以用 ECDHE</td><td>「靜態 RSA 與 Diffie-Hellman 加密套件已移除；所有以公鑰為基礎的金鑰交換現在都提供前向保密」（Static RSA and Diffie-Hellman cipher suites have been removed; all public-key based key exchange mechanisms now provide forward secrecy.）</td></tr>
+<tr><th>哪些握手訊息加密</th><td>Certificate 等訊息明文傳送</td><td>「ServerHello 之後的所有握手訊息現在都加密」（All handshake messages after the ServerHello are now encrypted.）</td></tr>
+<tr><th>資料加密演算法</th><td>還有舊式演算法可選</td><td>清掉所有被視為過時的演算法，留下來的全是 AEAD（加密的同時附帶完整性檢查的演算法）</td></tr>
+<tr><th>多餘的訊息</th><td>有 ChangeCipherSpec</td><td>移除 ChangeCipherSpec 這類多餘訊息（為了相容中間設備而需要時例外）</td></tr>
+</tbody></table></div>
+<p><strong>前向保密</strong>（forward secrecy）是表裡最重要的一格：每次連線用一組現算現丟的 Diffie-Hellman 金鑰，伺服器的長期私鑰日後就算外洩，過去錄下來的流量也解不開。靜態 RSA 做不到，因為預主金鑰是用那把長期公鑰加密的，私鑰一外洩，錄下的流量全部可以回頭解密。</p>
+<p>同一天用 <code>curl -v --tls-max 1.2</code> 強制走 TLS 1.2，握手訊息（節錄）跟 RFC 5246 的圖一則一則對得上，伺服器那串最後是 ServerHelloDone（curl 印成 Server finished，類型編號 14），兩端還各送一次 ChangeCipherSpec：</p>
+<pre><code>* (304) (OUT), TLS handshake, Client hello (1):
+* (304) (IN), TLS handshake, Server hello (2):
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+* TLSv1.2 (IN), TLS change cipher, Change cipher spec (1):
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+* SSL connection using TLSv1.2 / ECDHE-RSA-CHACHA20-POLY1305 / [blank] / UNDEF</code></pre>
+<p>RFC 5246 的編號是 <code>server_key_exchange(12)</code>、<code>server_hello_done(14)</code>、<code>client_key_exchange(16)</code>。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5246.html#section-7.4" target="_blank" rel="noopener">RFC 5246 第 7.4 節</a> 數一下方向：OUT、IN 四則、OUT 三則、IN 兩則，用戶端要等到第二趟回來才送得出資料。</p>
+<p>TLS 1.2 不是不能用 ECDHE，而是「可以選、不強制」。2026-10-02 強制用 TLS 1.2 連本站，協商到的套件名稱開頭就是 ECDHE：</p>
+<pre><code>$ openssl s_client -connect hhtim.github.io:443 -servername hhtim.github.io -tls1_2
+New, TLSv1.2, Cipher is ECDHE-RSA-CHACHA20-POLY1305
+Protocol: TLSv1.2
+
+$ openssl s_client -connect hhtim.github.io:443 -servername hhtim.github.io
+New, TLSv1.3, Cipher is TLS_AES_128_GCM_SHA256
+Protocol: TLSv1.3</code></pre>
+<p>兩個名稱的長相也反映了表裡的差異：TLS 1.2 的套件名稱把金鑰交換（ECDHE）、身分驗證（RSA）、資料加密（CHACHA20-POLY1305）全寫在一起；TLS 1.3 的套件只寫資料加密與雜湊（AES_128_GCM、SHA256），因為 RFC 8446 把「身分驗證與金鑰交換機制」從套件裡拆了出去（The cipher suite concept has been changed to separate the authentication and key exchange mechanisms from the record protection algorithm）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-1.2" target="_blank" rel="noopener">RFC 8446 第 1.2 節</a></p>
+<div class="drill">
+  <p class="dq">某系統還在用 TLS 1.2 的靜態 RSA 金鑰交換。三年後伺服器私鑰外洩，攻擊者手上有這三年錄下來的加密流量。會怎樣？</p>
+  <ul class="dopts"><li>沒影響，因為每次連線的資料金鑰都不一樣</li><li>只能解開私鑰外洩之後新錄到的流量</li><li>要先破解 CA 才行</li><li data-ok>可以，有私鑰就能解出預主金鑰</li></ul>
+  <p class="dexp">靜態 RSA 沒有前向保密：私鑰一到手，每條連線的預主金鑰都能解出來，再推出資料金鑰。這正是 TLS 1.3 移除它的原因。</p>
+</div>
+<div class="drill">
+  <p class="dq">同樣的情況，換成 TLS 1.3（ECDHE）。私鑰外洩後，過去錄下的流量呢？</p>
+  <ul class="dopts"><li>全部可以解開，跟 TLS 1.2 一樣</li><li>只有最近一年的可以解開</li><li data-ok>解不開，有前向保密</li><li>要看憑證有沒有過期</li></ul>
+  <p class="dexp">TLS 1.3 的長期私鑰只用在 CertificateVerify 簽章，不參與算出資料金鑰。這就是前向保密。私鑰外洩的風險是之後可能被冒充，過去的流量不受影響。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 TLS 1.2 的連線上，網路中間的設備能看到伺服器送的憑證內容嗎？TLS 1.3 呢？</p>
+  <ul class="dopts"><li data-ok>1.2 看得到，1.3 看不到</li><li>兩個都看不到，憑證一律加密</li><li>兩個都看得到，憑證本來就是公開的</li><li>1.2 看不到，1.3 看得到</li></ul>
+  <p class="dexp">TLS 1.3 把 ServerHello 之後的握手訊息都加密，Certificate 也在裡面；TLS 1.2 的 Certificate 是明文送的。</p>
+</div>
+<div class="drill">
+  <p class="dq">openssl 顯示 <code>Cipher is TLS_AES_128_GCM_SHA256</code>，裡面沒有 ECDHE 或 RSA。這代表？</p>
+  <ul class="dopts"><li>這條連線沒有做金鑰交換，直接加密</li><li data-ok>這是 TLS 1.3 的套件命名方式</li><li>這條連線跳過了伺服器身分驗證</li><li>用的是比較舊的 TLS 1.0 或 1.1</li></ul>
+  <p class="dexp">RFC 8446 把身分驗證與金鑰交換從套件概念裡拆開，套件只描述資料加密與雜湊。金鑰交換照樣做（key_share），身分驗證照樣做（Certificate、CertificateVerify）。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>傳輸層提供端到端的通訊：TCP 是可靠、照順序的位元組串流，UDP 是不保證送達的資料包；TLS 疊在 TCP 上替應用層加密；HTTP/3 的 QUIC 裝在 UDP 裡、自己做可靠與加密。</li><li>三向交握：SYN（我的起始序號）→ SYN＋ACK（收到，這是我的）→ ACK（收到你的）。確認號是「下一個想收的號碼」。不是兩次的理由：伺服器的序號要被確認，以及讓用戶端能用 RST 擋掉遲到的舊 SYN。</li><li>四向揮手：FIN 只關一個方向，對方回 ACK 後還能送完資料再送 FIN。主動關閉的一端在 TIME-WAIT 等 2×MSL（RFC 4 分鐘、Linux 60 秒）；TIME_WAIT 多＝自己常主動關，CLOSE_WAIT 多＝自己的程式沒關。</li><li>流量控制看接收方（rwnd），壅塞控制看網路（cwnd，慢啟動大約每趟翻倍、壅塞避免每趟加一個區段、遺失時門檻砍半），能送的量取兩者較小的。</li><li>TLS 1.3 握手一趟：ClientHello＋key_share → ServerHello＋key_share、{EncryptedExtensions、Certificate、CertificateVerify、Finished} → {Finished}＋應用資料。ServerHello 之後全部加密。</li><li>憑證鏈：伺服器憑證放第一張、往根排；每張的簽發者是下一張的主體，每張都要有效、中間的要是 CA；名稱要跟網址主機相符（萬用字元只配一段）；CertificateVerify 證明握有私鑰。</li><li>TLS 1.3 比 1.2 少一趟、移除靜態 RSA（全面前向保密）、ServerHello 之後加密、只留 AEAD、移除 ChangeCipherSpec。</li></ul></div>
