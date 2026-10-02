@@ -53,7 +53,7 @@
 <tr><th>高度（height）</th><td>從這個節點往下，走到最深的節點要幾條邊；整棵樹的高度就是根的高度</td><td>整棵樹 3；11 是 1；葉子是 0</td></tr>
 </tbody></table></div>
 <p>這組定義照 MIT 6.006 講義：根「沒有父節點」（The root of a tree has no parent）、葉「沒有孩子」（A leaf of a tree has no children）、深度是「從這個節點到根的路徑長度」、高度是「以它為根的子樹裡，任何節點的最大深度」（max depth of any node in the subtree rooted at &lt;X&gt;）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/376714cc85c6c784d90eec9c575ec027_MIT6_006S20_lec6.pdf" target="_blank" rel="noopener">出處</a> 路徑長度數的是邊，所以只有一個根的樹高度是 0，algs4 的 <code>BST.java</code> 也這樣寫（a 1-node tree has height 0）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/BST.java.html" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">數節點還是數邊，每本書不一樣：普林斯頓 introcs 的習題把只有一個節點的樹高度算成 1。LeetCode 的「最大深度」題（104 題）數的是最長那條路徑上的節點數，所以上圖的答案是 4。寫題目前先看清楚它數的是什麼，面試時講清楚自己用哪一種。</p>
+<p class="muted">數節點還是數邊，各處不一樣。普林斯頓 introcs 也數邊：樹的高度是「從根到葉子的任何一條路徑上，最多有幾個連結」（The height of a tree is the maximum number of links on any path from the root node to a leaf node.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/44st/" target="_blank" rel="noopener">出處</a> LeetCode 的「最大深度」題（104 題）數的則是最長那條路徑上的節點數，所以上圖的答案是 4。寫題目前先看清楚它數的是什麼，面試時講清楚自己用哪一種。</p>
 <p>Java 沒有內建的「樹節點」類別，題目通常給你這樣一個類別：</p>
 <pre><code>static class TreeNode {
     int val;
@@ -83,7 +83,7 @@
 </div>
 <div class="drill">
   <p class="dq">上圖節點 13 的父節點是誰？</p>
-  <ul class="dopts"><li>5</li><li>4</li><li data-ok>8</li><li>11</li></ul>
+  <ul class="dopts"><li data-ok>8</li><li>4</li><li>5</li><li>11</li></ul>
   <p class="dexp">13 直接連在 8 的左邊，8 是它的父節點。5 是它的祖先（往上兩層），不是父節點。</p>
 </div>
 <div class="drill">
@@ -397,7 +397,7 @@ public class Traversals {
 </div>
 <div class="drill">
   <p class="dq">同一棵樹，後序走訪的順序是？</p>
-  <ul class="dopts"><li>F C E D B A</li><li>D B E F C A</li><li data-ok>D E B F C A</li><li>A C F B E D</li></ul>
+  <ul class="dopts"><li data-ok>D E B F C A</li><li>D B E F C A</li><li>F C E D B A</li><li>A C F B E D</li></ul>
   <p class="dexp">左 → 右 → 自己：B 的子樹是 D E B，C 的子樹是 F C，最後才是 A。F C E D B A 是把前序整個倒過來，不是後序。</p>
 </div>
 <div class="drill">
@@ -553,7 +553,7 @@ public class Traversals {
     if (node == null) return 0;
     return count(node.left) + count(node.right) + 1;
 }</code></pre>
-  <ul class="dopts"><li>樹的高度</li><li>葉子的數量</li><li data-ok>節點的總數</li><li>最大的值</li></ul>
+  <ul class="dopts"><li data-ok>節點的總數</li><li>葉子的數量</li><li>樹的高度</li><li>最大的值</li></ul>
   <p class="dexp">空樹 0，其他每個節點貢獻 1 再加上左右子樹的數量，就是整棵樹有幾個節點。要數葉子得多一個「左右都是 null 就回傳 1」的判斷。</p>
 </div>
 <div class="drill">
@@ -586,7 +586,7 @@ public class Traversals {
   <p class="dexp">每個節點都要對調，交給遞迴最簡單；先換再遞迴（前序）或先遞迴再換（後序）都可以。只換根的話，下面的層沒有翻。把中序結果反轉不會改變樹本身。</p>
 </div>
 <div class="drill">
-  <p class="dq">遞迴解樹題時，下面哪一個終止條件寫法最常見也最安全？</p>
+  <p class="dq">遞迴解樹題時，下面哪一個終止條件寫法最安全？</p>
   <ul class="dopts"><li>if (node.left == null) return …;</li><li>if (node.val == 0) return …;</li><li data-ok>if (node == null) return …;</li><li>不用終止條件，左右子樹會自己停</li></ul>
   <p class="dexp">從 null 開始想：空樹的答案是什麼。只檢查 node.left 的話，傳進來的 node 本身是 null 時就會 NullPointerException。</p>
 </div>
@@ -641,7 +641,7 @@ public class Traversals {
 <p><strong>複雜度看樹的高度。</strong>algs4：搜尋、插入、找最小最大、刪除等操作「在最壞情況下，所花的時間都跟樹的高度成正比」（all take time proportional to the height of the tree, in the worst case）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/" target="_blank" rel="noopener">出處</a> 高度又看插入的順序：</p>
 <ul class="plainlist">
 <li><strong>平衡</strong>：每層都差不多塞滿，高度約 log n，搜尋 O(log n)。algs4 證明，鍵用隨機順序插入時，搜尋平均約比較 2 ln N 次（about 1.39 lg N）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/" target="_blank" rel="noopener">出處</a></li>
-<li><strong>退化成鏈</strong>：普林斯頓課本寫，最壞情況下「BST 基本上就是一條多浪費了一個參考的鏈結串列，插入與查詢都要線性時間」，而且「這個最壞情況實務上並不少見，例如依序插入鍵時就會發生」（it arises, for example, when we insert the keys in order）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/44st/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>退化成鏈</strong>：普林斯頓課本寫，最壞情況下「BST 基本上就是一條多浪費了一個參考的鏈結串列，插入與查詢都要線性時間」（the BST is essentially a linked list with an extra wasted link, where put operations and get requests take linear time.），而且「這個最壞情況實務上並不少見，例如依序插入鍵時就會發生」（it arises, for example, when we insert the keys in order）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/44st/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <figure>
 <svg viewBox="0 0 760 340" role="img" aria-label="同樣 1 到 7 七個鍵：左邊依序插入，每個都掛在右邊，變成一條高度 6 的鏈，找 7 要比 7 次；右邊照 4、2、6、1、3、5、7 插入，是高度 2 的平衡樹，找任何鍵最多比 3 次">
@@ -832,8 +832,8 @@ public class Bst {
 </div>
 <div class="drill">
   <p class="dq">下面哪棵是合法的 BST？（括號內是左孩子、右孩子，- 表示沒有）</p>
-  <ul class="dopts"><li>根 5（3, 8），3 的孩子（4, 2）</li><li>根 5（7, 3）</li><li data-ok>根 5（3, 8），8 的孩子（6, 9）</li><li>根 5（3, 8），3 的孩子（-, 6）</li></ul>
-  <p class="dexp">8 的左孩子 6 比 8 小、也比根 5 大，9 比 8 大，全部符合。第一個的 3 左孩子 4 比 3 大；第二個左右放反了；最後一個的 6 在根的左子樹裡卻比 5 大。</p>
+  <ul class="dopts"><li data-ok>根 5（3, 8），8 的孩子（6, 9）</li><li>根 5（7, 3）</li><li>根 5（3, 8），3 的孩子（4, 2）</li><li>根 5（3, 8），3 的孩子（-, 6）</li></ul>
+  <p class="dexp">8 的左孩子 6 比 8 小、也比根 5 大，9 比 8 大，全部符合。3 的孩子（4, 2）那棵，左孩子 4 比 3 大；根 5（7, 3）左右放反了；3 的右孩子是 6 那棵，6 在根的左子樹裡卻比 5 大。</p>
 </div>
 <div class="drill">
   <p class="dq">BST 裡最小的鍵在哪裡？</p>
@@ -842,7 +842,7 @@ public class Bst {
 </div>
 <div class="drill">
   <p class="dq">一棵 BST 有 n 個節點，搜尋最壞要多少時間？</p>
-  <ul class="dopts"><li>一律 O(log n)</li><li>一律 O(1)</li><li data-ok>O(h)，h 是高度；平衡時約 O(log n)，退化成鏈時 O(n)</li><li>一律 O(n log n)</li></ul>
+  <ul class="dopts"><li data-ok>O(h)：平衡時約 O(log n)，退化成鏈時 O(n)</li><li>一律 O(1)，跟雜湊表一樣</li><li>一律 O(log n)，因為每往下一層就丟掉另一邊，跟二分搜尋一樣</li><li>一律 O(n log n)</li></ul>
   <p class="dexp">algs4：這些操作的時間跟樹的高度成正比。只說「BST 搜尋 O(log n)」是假設了樹是平衡的。</p>
 </div>
 <div class="drill">
@@ -864,7 +864,7 @@ public class Bst {
 <ul class="plainlist">
 <li><strong>葉子</strong>：直接拿掉，父節點那一邊改成 null。</li>
 <li><strong>只有一個孩子</strong>：讓那個孩子頂上來，接到自己的位置。</li>
-<li><strong>兩個孩子都有</strong>：父節點只有一個位置可以接，放不下兩個孩子。algs4 介紹的做法是 T. Hibbard 在 1962 年提出的：「用它的後繼者取代它」（delete a node x by replacing it with its successor）。後繼者是「右子樹裡最小的那個」（its successor is the node with the smallest key in its right subtree），中序順序裡緊接在它後面的鍵。這樣換「不會破壞樹的順序，因為 x 和後繼者之間沒有別的鍵」。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>兩個孩子都有</strong>：父節點只有一個位置可以接，放不下兩個孩子。algs4 介紹的做法是 T. Hibbard 在 1962 年提出的：「用它的後繼者取代它」（delete a node x by replacing it with its successor）。後繼者是「右子樹裡最小的那個」（its successor is the node with the smallest key in its right subtree），中序順序裡緊接在它後面的鍵。這樣換「不會破壞樹的順序，因為 x 和後繼者之間沒有別的鍵」（The replacement preserves order in the tree because there are no keys between x.key and the successor's key.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <figure>
 <svg viewBox="0 0 760 335" role="img" aria-label="刪除有兩個孩子的根 50：先在右子樹找最小的 60（後繼者），把 60 搬到根的位置，再把原本的 60 刪掉，60 只有右孩子 65，所以 65 頂上來">
@@ -947,7 +947,7 @@ public class Bst {
 <p class="era">會自己保持平衡的樹</p>
 <h3 class="head">平衡樹與 Java 的 TreeMap</h3>
 <p>普通的 BST 遇到依序插入就退化。<strong>平衡樹</strong>在插入、刪除時會自己調整形狀，讓高度一直維持在 O(log n)。MIT 講義的說法：「在動態操作下維持 O(log n) 高度的二元樹，叫做平衡的」（A binary tree that maintains O(log n) height under dynamic operations is called balanced）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/a2c80596cf4a2b5fbc854afdd2f23dcb_MIT6_006S20_lec7.pdf" target="_blank" rel="noopener">出處</a> 常見的有 AVL 樹與紅黑樹（red-black tree）。algs4 寫紅黑樹「高度不超過 2 lg N」，搜尋、插入、刪除等操作「在最壞情況下都是對數時間」（take logarithmic time in the worst case）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/33balanced/" target="_blank" rel="noopener">出處</a> 它怎麼旋轉、怎麼著色，面試很少要求手寫，知道「它保證 O(log n)」以及 Java 哪裡用到它就夠了。</p>
-<p>Java 的 <code>TreeMap</code> 就是紅黑樹。API 文件第一句：「以紅黑樹為基礎的 <code>NavigableMap</code> 實作」（A Red-Black tree based NavigableMap implementation.），並保證 <code>containsKey</code>、<code>get</code>、<code>put</code>、<code>remove</code>「有 log(n) 的時間成本保證」（This implementation provides guaranteed log(n) time cost for the containsKey, get, put and remove operations.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/TreeMap.html" target="_blank" rel="noopener">出處</a> <code>TreeSet</code> 的 <code>add</code>、<code>remove</code>、<code>contains</code> 也是同樣的保證。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/TreeSet.html" target="_blank" rel="noopener">出處</a> 〈雜湊表：HashMap 怎麼做到幾乎一步找到〉講的 <code>HashMap</code> 樹化，桶裡換上的也是紅黑樹，最壞從 O(n) 改善到 O(log n)，就是這裡說的平衡效果。</p>
+<p>Java 的 <code>TreeMap</code> 就是紅黑樹。API 文件第一句：「以紅黑樹為基礎的 <code>NavigableMap</code> 實作」（A Red-Black tree based NavigableMap implementation.），並保證 <code>containsKey</code>、<code>get</code>、<code>put</code>、<code>remove</code>「有 log(n) 的時間成本保證」（This implementation provides guaranteed log(n) time cost for the containsKey, get, put and remove operations.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/TreeMap.html" target="_blank" rel="noopener">出處</a> <code>TreeSet</code> 的 <code>add</code>、<code>remove</code>、<code>contains</code> 也是同樣的保證。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/TreeSet.html" target="_blank" rel="noopener">出處</a> 〈雜湊表：HashMap 怎麼做到幾乎一步找到〉講的 <code>HashMap</code> 樹化，桶裡換上的也是紅黑樹，最壞從 O(n) 改善到 O(log n)（鍵可以比大小時），就是這裡說的平衡效果。</p>
 <p>因為是 BST，<code>TreeMap</code> 走訪時就是中序，鍵由小到大；「小於等於 x 的最大鍵」這類查詢（<code>floorKey</code>、<code>ceilingKey</code>）在〈雜湊表〉已經示範過。</p>
 <pre><code>import java.util.TreeMap;
 
@@ -975,7 +975,7 @@ A001 C003
 
 <div class="drill">
   <p class="dq">Java 的 <code>TreeMap</code> 底下是什麼？</p>
-  <ul class="dopts"><li>雜湊表</li><li>排好序的陣列</li><li data-ok>紅黑樹，一種會自己保持平衡的二元搜尋樹</li><li>普通的二元搜尋樹，不會自己平衡，所以依序 put 時要小心退化</li></ul>
+  <ul class="dopts"><li data-ok>紅黑樹，一種會自己保持平衡的二元搜尋樹</li><li>排好序的陣列</li><li>雜湊表</li><li>普通的二元搜尋樹，不會自己平衡，所以依序 put 時要小心退化</li></ul>
   <p class="dexp">API 文件第一句就是 A Red-Black tree based NavigableMap implementation。因為會自己平衡，依序 put 也不會退化。</p>
 </div>
 <div class="drill">
@@ -998,8 +998,8 @@ A001 C003
 <section>
 <p class="era">兩個面試常見題</p>
 <h3 class="head">驗證 BST 與最低共同祖先</h3>
-<p><strong>驗證一棵樹是不是 BST。</strong>最常見的錯是只比自己和孩子：每個節點的左孩子比自己小、右孩子比自己大，看起來都對，整棵樹卻可能不是 BST，因為定義要求的是「左子樹<strong>所有</strong>節點」。正確做法是一路往下傳「允許的範圍」：往左走時，上限變成自己；往右走時，下限變成自己。algs4 的 <code>BST.java</code> 檢查方法 <code>isBST(node, min, max)</code> 就是這樣寫，註解說它檢查「以 x 為根的樹，所有鍵都嚴格介於 min 與 max 之間」（is the tree rooted at x a BST with all keys strictly between min and max）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/BST.java.html" target="_blank" rel="noopener">出處</a> 另一個做法是做一次中序走訪，檢查有沒有每個都比前一個大。</p>
-<p><strong>最低共同祖先</strong>（lowest common ancestor，簡稱 LCA）：兩個節點往上追，最先碰到的共同長輩。在 BST 裡可以用大小關係直接找：兩個都比目前的小，答案在左邊；兩個都比目前的大，答案在右邊；一個小一個大（或其中一個就是目前這個），目前這個就是分岔點，也就是答案。時間 O(h)。一般二元樹（不是 BST）沒有大小可用，要改用後序的想法：左右子樹各自回報有沒有找到，兩邊都找到的那個節點就是答案。</p>
+<p><strong>驗證一棵樹是不是 BST。</strong>常見的錯是只比自己和孩子：每個節點的左孩子比自己小、右孩子比自己大，看起來都對，整棵樹卻可能不是 BST，因為定義要求的是「左子樹<strong>所有</strong>節點」。正確做法是一路往下傳「允許的範圍」：往左走時，上限變成自己；往右走時，下限變成自己。algs4 的 <code>BST.java</code> 檢查方法 <code>isBST(node, min, max)</code> 就是這樣寫，註解說它檢查「以 x 為根的樹，所有鍵都嚴格介於 min 與 max 之間」（is the tree rooted at x a BST with all keys strictly between min and max）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/32bst/BST.java.html" target="_blank" rel="noopener">出處</a> 另一個做法是做一次中序走訪，檢查有沒有每個都比前一個大。</p>
+<p><strong>最低共同祖先</strong>（lowest common ancestor，簡稱 LCA）：兩個節點往上追，最先碰到的共同長輩。在 BST 裡可以用大小關係直接找：兩個都比目前的小，答案在左邊；兩個都比目前的大，答案在右邊；一個小一個大（或其中一個就是目前這個），目前這個就是分岔點，也就是答案。時間 O(h)。一般二元樹（不是 BST）沒有大小可用，要改用後序的想法：左右子樹各自回報有沒有找到，兩邊都找到的那個節點就是答案；或自己就是 p、q 其中一個（另一個在它底下），答案也是自己，例如下面程式裡的 LCA(30, 20) = 30。</p>
 <pre><code>public class ValidateLca {
     static class TreeNode {
         int val;
@@ -1072,7 +1072,7 @@ LCA(30, 20) = 30</code></pre>
 </div>
 <div class="drill">
   <p class="dq">帶範圍驗證時，從節點 50 往<strong>左</strong>走，範圍怎麼變？</p>
-  <ul class="dopts"><li>下限變成 50</li><li data-ok>上限變成 50，下限不變</li><li>上下限都變成 50，因為往下走就要以目前的節點為準</li><li>範圍不變</li></ul>
+  <ul class="dopts"><li>下限變成 50</li><li>範圍不變</li><li>上下限都變成 50，因為往下走就要以目前的節點為準</li><li data-ok>上限變成 50，下限不變</li></ul>
   <p class="dexp">左子樹全部要比 50 小，所以上限換成 50；下限沿用從上面傳下來的。往右走則是下限換成 50。</p>
 </div>
 <div class="drill">
