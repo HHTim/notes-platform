@@ -4,7 +4,7 @@
 <section>
     <p class="era">認證基礎</p>
     <h3 class="head">誰、能做什麼、憑證怎麼帶</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補協定編號或版本。版本主軸：Spring Security 依撰寫時的現行版 7.1 官方文件，OWASP Top 10 用 2025 版。Filter 鏈與登入流程見 Spring 模組第 9 課〈Spring Security 認證與授權〉，CORS、CSRF、雜湊與鹽見第 10 課〈網站安全三題：CORS、CSRF、密碼學〉，Gateway 驗 Token 見面試集第 2 課〈後端與雲端面試題庫〉；本課補協定本身與演算法的名字。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補協定編號或版本。版本主軸：Spring Security 依撰寫時的現行版 7.1 官方文件，OWASP Top 10 用 2025 版。Filter 鏈與登入流程見〈Spring Security 認證與授權〉，CORS、CSRF、雜湊與鹽見〈網站安全三題：CORS、CSRF、密碼學〉，Gateway 驗 Token 見〈後端與雲端面試題庫〉；本課補協定本身與演算法的名字。</p>
     <p class="q">面試官：認證與授權差在哪？Session 對 Token 各自的優缺點？</p>
     <p><strong>一句話定義：</strong>認證（authentication）回答「你是誰」，授權（authorization）回答「你能做什麼」。網銀輸入帳號密碼加簡訊驗證碼是認證；登入後能不能查別人的帳戶是授權。</p>
     <p><strong>差別與取捨：</strong>Session 是「伺服器記得你」：狀態存伺服器，瀏覽器只拿識別碼放 Cookie；Token 是「你自己帶著證明」：伺服器簽發一段字串，每次請求帶上，驗簽章就知道你是誰。Session 登出、強制下線立刻生效，成本是多台伺服器要共用狀態；Token 無狀態、跨服務好傳遞，代價是簽出去就難以即時作廢——OWASP 的 JWT 速查表點破：一做拒絕清單（伺服器記下已作廢的權杖，收到就擋）「工作階段就不再完全無狀態」（user sessions won't be completely stateless anymore）。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> 網銀網頁走 Session 就夠，行動銀行 App 與多個後端服務之間走 Token。</p>
@@ -24,7 +24,7 @@
     <p class="q">面試官：JWT 怎麼過期、怎麼撤銷？Refresh Token 的角色？Token 放 Cookie 還是 localStorage？</p>
     <p><strong>過期與撤銷：</strong>過期靠 exp；撤銷是弱項，因為簽出去就不會回頭問伺服器。OWASP 給的路是拒絕清單（「通常以 jti 與 iss 為鍵」，代價是又有狀態），並說「權杖重複使用可以靠短過期時間緩解」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>Refresh Token：</strong>RFC 6749 第 1.5 節：「Refresh token 是用來取得 access token 的憑證」，「只用於授權伺服器，絕不送往資源伺服器」（never sent to resource servers）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-1.5" target="_blank" rel="noopener">出處</a> 所以存取權杖短效、更新權杖長效，撤銷就撤更新權杖；RFC 9700 第 4.14 節再加「更新權杖輪替」：每次換發給新的、舊的作廢，外洩的那把一被重複使用，授權伺服器就會發現。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-4.14" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>放哪裡：</strong>localStorage 對頁面上任何 JavaScript 開放，被 XSS（跨網站指令碼，把惡意程式塞進網頁執行）打中就整包被讀走。OWASP 工作階段管理速查表：「不要把認證權杖、JWT、更新權杖或任何憑證存在 localStorage 或 sessionStorage……改用 HttpOnly、Secure、SameSite=Strict 的 Cookie」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> Cookie 會被瀏覽器自動帶，所以要另外防 CSRF（Spring 模組第 10 課）。</p>
+    <p><strong>放哪裡：</strong>localStorage 對頁面上任何 JavaScript 開放，被 XSS（跨網站指令碼，把惡意程式塞進網頁執行）打中就整包被讀走。OWASP 工作階段管理速查表：「不要把認證權杖、JWT、更新權杖或任何憑證存在 localStorage 或 sessionStorage……改用 HttpOnly、Secure、SameSite=Strict 的 Cookie」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> Cookie 會被瀏覽器自動帶，所以要另外防 CSRF（〈網站安全三題：CORS、CSRF、密碼學〉）。</p>
     <p class="formula">簽章只保證沒被改；演算法由驗證方寫死；存取權杖短效、更新權杖輪替；憑證放 HttpOnly Cookie 再防 CSRF</p>
 </section>
 <section>
@@ -96,7 +96,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         .oauth2ResourceServer((oauth2) -&gt; oauth2.jwt(Customizer.withDefaults()));
     return http.build();
 }</code></pre>
-    <p><strong>它實際做了什麼：</strong>官方列出收到 JWT 時的三件事：「用從 jwks_url 端點（授權伺服器公開它公鑰的網址）取得、與 JWT 相符的公鑰驗證簽章」、「驗證 exp 與 nbf 時間戳記以及 iss 聲明」、「把每個 scope（權杖被允許的操作範圍）對應成前綴 SCOPE_ 的權限」；金鑰換新時「會自動輪替」。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a> aud 預設不驗，多個 API 共用同一個授權伺服器時，要在設定加 <code>spring.<wbr>security.<wbr>oauth2.<wbr>resourceserver.<wbr>jwt.<wbr>audiences</code> 屬性（或自訂驗證器）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a>面試集第 2 課講的「Gateway 驗完、內部服務仍要重新授權」，在 Spring 裡就是每個資源伺服器各自掛這段。</p>
+    <p><strong>它實際做了什麼：</strong>官方列出收到 JWT 時的三件事：「用從 jwks_url 端點（授權伺服器公開它公鑰的網址）取得、與 JWT 相符的公鑰驗證簽章」、「驗證 exp 與 nbf 時間戳記以及 iss 聲明」、「把每個 scope（權杖被允許的操作範圍）對應成前綴 SCOPE_ 的權限」；金鑰換新時「會自動輪替」。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a> aud 預設不驗，多個 API 共用同一個授權伺服器時，要在設定加 <code>spring.<wbr>security.<wbr>oauth2.<wbr>resourceserver.<wbr>jwt.<wbr>audiences</code> 屬性（或自訂驗證器）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a>〈後端與雲端面試題庫〉講的「Gateway 驗完、內部服務仍要重新授權」，在 Spring 裡就是每個資源伺服器各自掛這段。</p>
 </section>
 <section>
     <p class="era">OWASP 與常見漏洞</p>
@@ -123,7 +123,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     <div class="terms">
       <div class="term"><b>SQL 注入</b><span>成因：使用者輸入被拼進 SQL 字串，輸入就能改變查詢結構。防法：OWASP「主要防禦第一項」是「預備語句（參數化查詢）」，Java 對應 PreparedStatement；「跳脫所有使用者輸入」被標為「強烈不建議」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></span></div>
       <div class="term"><b>XSS</b><span>成因：使用者輸入原樣放進 HTML，瀏覽器把它當程式執行。防法：「框架的安全保護、輸出編碼與 HTML 淨化能提供最好的保護」；CSP 只是「額外的一層防禦」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></span></div>
-      <div class="term"><b>CSRF</b><span>成因：瀏覽器自動帶 Cookie，惡意網站借你的登入狀態送請求。防法：「先用框架內建的 CSRF 防護」，「有狀態的軟體用同步權杖模式」、「無狀態的用雙重提交 Cookie」；SameSite 屬性可加，但「任何能用 GET 改狀態的操作，SameSite=Lax 都擋不住」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> Spring Security 的權杖怎麼帶見 Spring 模組第 10 課。</span></div>
+      <div class="term"><b>CSRF</b><span>成因：瀏覽器自動帶 Cookie，惡意網站借你的登入狀態送請求。防法：「先用框架內建的 CSRF 防護」，「有狀態的軟體用同步權杖模式」、「無狀態的用雙重提交 Cookie」；SameSite 屬性可加，但「任何能用 GET 改狀態的操作，SameSite=Lax 都擋不住」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> Spring Security 的權杖怎麼帶見〈網站安全三題：CORS、CSRF、密碼學〉。</span></div>
       <div class="term"><b>SSRF</b><span>SSRF（Server-Side Request Forgery，伺服器端請求偽造）成因：應用程式拿使用者給的網址去發請求（下載頭像、呼叫 webhook），攻擊者就能讓伺服器替他連內網或雲端中繼資料服務。防法：目標「只會是已識別、受信任的應用程式」時用允許清單；封鎖清單容易被繞過，能用允許清單就用；真的躲不掉時至少封鎖內網、本機與雲端中繼資料位址，再加上網路層隔離。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></span></div>
     </div>
     <p class="q">面試官：CSP 標頭在擋什麼？跟 XSS 的關係？</p>
