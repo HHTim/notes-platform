@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "交易 A 讀到交易 B 改了但還沒提交的餘額，之後 B 還原。這是哪一種讀異常？最低要用哪個隔離層級才能擋住？",
+   "opts": [
+    "髒讀；READ COMMITTED",
+    "不可重複讀；REPEATABLE READ",
+    "幻讀；SERIALIZABLE",
+    "遺失更新；READ UNCOMMITTED"
+   ],
+   "exp": "讀到未提交的資料是髒讀。READ COMMITTED 只讀已提交的資料，就擋住了；實跑時 READ UNCOMMITTED 讀到 7000、READ COMMITTED 三次都是 10000。"
+  },
+  {
+   "q": "MySQL InnoDB 與 PostgreSQL 的預設隔離層級分別是？",
+   "opts": [
+    "REPEATABLE READ；READ COMMITTED",
+    "READ COMMITTED；REPEATABLE READ",
+    "兩個都是 REPEATABLE READ",
+    "兩個都是 SERIALIZABLE"
+   ],
+   "exp": "InnoDB 預設 REPEATABLE READ，PostgreSQL 預設 READ COMMITTED。同一段程式搬家後，不可重複讀的行為可能改變。"
+  },
+  {
+   "q": "InnoDB 的 REPEATABLE READ 下，同一筆交易裡一般 SELECT 數出 3 筆，緊接著加 FOR SHARE 的同一句數出 4 筆（中間別人插入一筆並提交）。為什麼？",
+   "opts": [
+    "一般 SELECT 讀快照，鎖定讀讀最新版本",
+    "FOR SHARE 會讀到別人還沒提交的資料",
+    "InnoDB 的 COUNT(*) 本來就有誤差",
+    "FOR SHARE 會在背後另外開一筆新的交易"
+   ],
+   "exp": "快照讀與鎖定讀看的是不同狀態；手冊也說快照適用於 SELECT，不一定適用於 DML。別人的插入已提交，鎖定讀看得到。"
+  },
+  {
+   "q": "InnoDB 用什麼讓一般 SELECT 不必等別人的寫入鎖，就能讀到改之前的值？",
+   "opts": [
+    "MVCC：從 undo log 找回舊版本",
+    "把每一次寫入都先暫存在快取裡",
+    "讀之前先把整張表另外複製一份",
+    "讀的時候自動替那一列加共享鎖"
+   ],
+   "exp": "一致性讀不加鎖；舊版本存在 undo 表空間的還原區段，每列的 DB_ROLL_PTR 指向它。"
+  },
+  {
+   "q": "交易 A 對帳戶 1 下 SELECT … FOR UPDATE 還沒提交，交易 B 也對同一列 SELECT … FOR UPDATE。B 會怎樣？",
+   "opts": [
+    "等 A 結束，拿到鎖後讀最新值",
+    "立刻讀到 A 改之前的舊值",
+    "兩個都拿到鎖，各改各的",
+    "B 立刻收到 ERROR 1213 死結"
+   ],
+   "exp": "FOR UPDATE 要排他鎖，跟 A 的排他鎖衝突，只能等。實跑 B 等了 2 秒，讀到 A 扣完的 7000。"
+  },
+  {
+   "q": "REPEATABLE READ 下，A 執行 SELECT … WHERE balance &gt;= 8000 FOR UPDATE（索引上有 5000、8000、10000、12000）。B 想插入餘額 9000 的新帳戶，會怎樣？",
+   "opts": [
+    "要等：8000 之後的間隙被鎖住",
+    "直接成功：9000 不是已存在的記錄",
+    "直接成功：鎖只加在主鍵的記錄上",
+    "報錯：餘額這個欄位不能有重複的值"
+   ],
+   "exp": "Next-Key 鎖＝記錄鎖＋前面的間隙；B 的插入意向鎖要進 (8000, 10000] 那段間隙，被擋住。實跑 B 的 INSERT 等了 2 秒才成功。"
+  },
+  {
+   "q": "兩筆轉帳都用「先 SELECT 讀出餘額、程式算好、再 UPDATE 寫回」，同時扣同一個帳戶。最可能出什麼問題？",
+   "opts": [
+    "遺失更新：後寫的蓋掉先寫的",
+    "髒讀：讀到對方還沒提交的值",
+    "死結：兩筆一定會互相等待",
+    "沒問題：REPEATABLE READ 會擋住"
+   ],
+   "exp": "兩邊都根據舊值計算；實跑 10000 扣 3000 與 4000，最後是 6000。修法是讓 UPDATE 自己算、FOR UPDATE 先鎖、或用版本號。"
+  },
+  {
+   "q": "樂觀鎖的 UPDATE … SET balance = ?, version = version + 1 WHERE id = ? AND version = ? 影響 0 列，代表什麼？",
+   "opts": [
+    "已被別人改過，要重讀重試",
+    "資料庫寫入失敗，需要重新啟動",
+    "這一列被別的交易鎖住，正在等",
+    "這個帳戶的資料不存在或被刪除"
+   ],
+   "exp": "版本號不符就找不到列，表示有人搶先改了；應用程式重新讀出最新值再算。實跑第二筆 Rows matched: 0。"
+  },
+  {
+   "q": "應用程式收到 ERROR 1213（Deadlock found）時，該怎麼做？",
+   "opts": [
+    "整筆交易重新做一次，重試次數設上限",
+    "只重送最後失敗的那一條語句",
+    "關掉 innodb_deadlock_detect",
+    "把隔離層級調成 READ UNCOMMITTED"
+   ],
+   "exp": "死結的受害交易已經整筆被還原，要從頭再做；手冊：Deadlocks are not dangerous. Just try again。再搭配固定的拿鎖順序減少發生。"
+  },
+  {
+   "q": "等鎖逾時（ERROR 1205）跟死結（ERROR 1213），預設各還原什麼？",
+   "opts": [
+    "逾時只還原一句；死結還原整筆",
+    "兩種都只還原正在執行的那一句",
+    "兩種都把整筆交易全部還原",
+    "逾時還原整筆；死結只還原一句"
+   ],
+   "exp": "innodb_lock_wait_timeout 預設 50 秒，逾時時 the current statement is rolled back (not the entire transaction)；死結偵測則還原整筆受害交易。收到 1205 要自己 ROLLBACK 再重試。"
+  }
+ ]
+}
