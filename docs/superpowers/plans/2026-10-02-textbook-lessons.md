@@ -16,8 +16,8 @@
 | `database/07-transaction-isolation-locks` | 交易隔離層級與鎖 | （新）效能 | 同上 | ✅ `452c1c5`（58 題、9 圖；mins 60） | 同上 | | |
 | `java/16-jvm-memory-gc` | JVM 記憶體與垃圾回收 | （新）JVM 與效能 | 〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉 | ✅ `90f6756`（49 題、2 圖、41 出處；mins 55） | 審查中（`review-java-a`） | | |
 | `java/17-thread-pool-concurrency` | 執行緒池與並行工具 | 並行與設計 | 〈Java 並行快答：執行緒池、鎖與並行集合〉 | ✅ `e3e7298`（51 題、1 圖、28 出處；mins 55） | 同上 | | |
-| `spring/13-transactional-propagation` | @Transactional 的傳播、隔離與失效情境 | （新）進階 | 〈Spring 面試快答：IoC、Bean、AOP 與交易〉 | 撰寫中（`write-algo-a`） | | | |
-| `spring/14-boot-autoconfig-actuator` | Spring Boot 自動組態與 Actuator | （新）進階 | 同上、〈微服務與架構面試題〉 | 撰寫中（`write-algo-a`） | | | |
+| `spring/13-transactional-propagation` | @Transactional 的傳播、隔離與失效情境 | （新）進階 | 〈Spring 面試快答：IoC、Bean、AOP 與交易〉 | ✅ `99257bf`（58 題、4 圖；mins 80 偏長） | 審查中（`review-algo-d`） | | |
+| `spring/14-boot-autoconfig-actuator` | Spring Boot 自動組態與 Actuator | （新）進階 | 同上、〈微服務與架構面試題〉 | ✅ `d83fa5b`（47 題、4 圖；mins 70） | 同上 | | |
 | `web/11-tcp-udp-tls` | TCP、UDP 與 TLS 握手 | 網路與伺服器 | 〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉 | 撰寫中（`write-web-b`） | | | |
 | `web/12-http-advanced` | HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進 | 網路與伺服器 | 同上 | 撰寫中（`write-web-b`） | | | |
 | `spring/15-security-jwt-oauth` | JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接 | （新）進階 | 〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉 | 撰寫中（`write-algo-d`） | | | |
@@ -33,6 +33,11 @@
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
 | `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | 撰寫中（`write-algo-c`） | | | |
 | `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | 撰寫中（`write-algo-b`） | | | |
+| `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | 撰寫中（`write-algo-a`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | 撰寫中（`fix-algo-0708` 轉做） | | | |
+
+**主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
+
+**主控決定（10-02）：新課一律課中練習 50 題以內、mins 60 上下**；超過的在審查時建議砍題或把重複段落縮成指路。
 
 各課涵蓋範圍照 roadmap 計畫第三部分「最急」表格那一列。課序照資料夾編號接在各模組最後。
