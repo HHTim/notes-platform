@@ -12,7 +12,7 @@
 </svg>
 <figcaption>chunk 導向：一筆一筆讀與處理，湊滿一包才一起寫、一起提交。</figcaption>
 </figure>
-<p>這課的例子：日終把 1 萬筆交易從 CSV 檔寫進 MySQL 的 <code>tx</code> 表，chunk 大小 1,000。環境是 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 跑的 MySQL 8.4。Spring Boot 4.1 要把批次的紀錄存進資料庫，相依套件用 <code>spring-boot-starter-batch-jdbc</code>：</p>
+<p>這課的例子：日終把 1 萬筆交易從 CSV 檔寫進 MySQL 的 <code>tx</code> 表，chunk 大小 1,000。環境是 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 跑的 MySQL 8.4。Spring Boot 4.1 文件列出批次紀錄可以自動設定的三種存放方式：「記憶體、JDBC、MongoDB」（the following stores can be auto-configured: In-memory, JDBC, MongoDB）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/io/spring-batch.html" target="_blank" rel="noopener">出處</a> 只加 <code>spring-boot-starter-batch</code> 是記在記憶體，程式一結束就沒了；要存進資料庫，相依套件用 <code>spring-boot-starter-batch-jdbc</code>：</p>
 <pre><code>&lt;dependencies&gt;
   &lt;dependency&gt;
     &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
@@ -49,7 +49,7 @@
 <div class="drill">
   <p class="dq">Spring Boot 4.1 要讓 Spring Batch 把執行紀錄存進資料庫，相依套件用哪一個？</p>
   <ul class="dopts"><li>spring-boot-starter-web</li><li>spring-boot-starter-actuator</li><li>spring-boot-starter-opentelemetry</li><li data-ok>spring-boot-starter-batch-jdbc</li></ul>
-  <p class="dexp">Spring Boot 4.1 把批次拆成 batch 與 batch-jdbc；batch-jdbc 帶著 JDBC 版的 JobRepository，執行紀錄才會進資料庫的 BATCH_ 表。</p>
+  <p class="dexp">Spring Boot 4.1 文件列出記憶體、JDBC、MongoDB 三種存放方式；只加 spring-boot-starter-batch 是記在記憶體，加 batch-jdbc 才存進資料庫的 BATCH_ 表。</p>
 </div>
 </section>
 
@@ -72,7 +72,7 @@
 <pre><code>$ java -jar app/target/batch-1.0.jar --spring.batch.job.name=importTxJob inputFile=tx-20251001.csv runDate=2025-10-01 &gt; logs-02.txt 2&gt;&amp;1; echo "exit=$?"; grep -E 'JobInstanceAlreadyCompleteException|already exists and is complete' logs-02.txt | head -3 | sed -E 's/^[0-9-]+T[0-9:.+]+ +//'
 exit=1
 Caused by: org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException: A job instance already exists and is complete for identifying parameters={JobParameter{name='inputFile', value=tx-20251001.csv, type=class java.lang.String, identifying=true},JobParameter{name='runDate', value=2025-10-01, type=class java.lang.String, identifying=true}}.  If you want to run this job again, change the parameters.</code></pre>
-<p>第二次直接被拒絕：「這個 JobInstance 已經存在而且已完成……要再跑這個 Job，請改參數」，行程結束代碼是 1。這是防止同一天的交易被重複入帳的保護：日終要是因為排程器重送就多入一次帳，帳就錯了。真的要重跑同一天（例如資料修正後），要嘛先處理掉已入帳的資料、改用新的參數，而不是想辦法繞過這個檢查。</p>
+<p>第二次直接被拒絕：「這個 JobInstance 已經存在而且已完成……要再跑這個 Job，請改參數」，行程結束代碼是 1。這是防止同一天的交易被重複入帳的保護：日終要是因為排程器重送就多入一次帳，帳就錯了。真的要重跑同一天（例如資料修正後），要先處理掉已入帳的資料、再改用新的參數，而不是想辦法繞過這個檢查。</p>
 <p class="formula">JobInstance＝Job＋識別參數（例如營業日）；JobExecution＝每一次嘗試；成功過的 JobInstance 不能再跑，失敗的可以接著跑</p>
 
 <div class="drill">
@@ -87,7 +87,7 @@ Caused by: org.springframework.batch.core.launch.JobInstanceAlreadyCompleteExcep
 </div>
 <div class="drill">
   <p class="dq">10 月 1 日的日終已經成功，有人用一模一樣的參數再跑一次。會發生什麼事？</p>
-  <ul class="dopts"><li>再入帳一次，資料變兩倍</li><li>覆蓋上一次入帳的結果</li><li data-ok>被拒絕</li><li>自動改成 10 月 2 日再跑</li></ul>
+  <ul class="dopts"><li>再入帳一次，資料變兩倍</li><li>覆蓋上一次入帳的結果</li><li data-ok>被拒絕，不會再入帳一次</li><li>自動改成 10 月 2 日再跑</li></ul>
   <p class="dexp">成功過的 JobInstance 不能再跑。實跑訊息：A job instance already exists and is complete for identifying parameters…</p>
 </div>
 <div class="drill">
@@ -293,11 +293,11 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <div class="drill">
   <p class="dq">reader 設了 <code>.name("txReader")</code>，這個名字在哪裡會用到？</p>
   <ul class="dopts"><li>印在交易檔的檔頭</li><li>當作寫入的資料表名稱</li><li data-ok>斷點的鍵前綴</li><li>只是註解，沒有作用</li></ul>
-  <p class="dexp">reader 把讀到第幾行存進執行情境，鍵就是名字加上 read.count。實跑解開斷點看到的正是 txReader.read.count = 7000。</p>
+  <p class="dexp">reader 把讀到第幾筆存進執行情境，鍵就是名字加上 read.count。實跑解開斷點看到的正是 txReader.read.count = 7000。</p>
 </div>
 <div class="drill">
-  <p class="dq">交易檔第 6,001 行的金額寫成 <code>12O0.00</code>（字母 O）。FlatFileItemReader 讀到這行會？</p>
-  <ul class="dopts"><li>把它當成 1200.00 繼續寫入</li><li>把那個欄位當成 0</li><li data-ok>丟出 FlatFileParseException</li><li>自動跳過這一行，不需要設定</li></ul>
+  <p class="dq">交易檔第 6,001 筆的金額寫成 <code>12O0.00</code>（字母 O）。FlatFileItemReader 讀到這筆會？</p>
+  <ul class="dopts"><li>把它當成 1200.00 繼續寫入</li><li>把那個欄位當成 0 繼續寫入</li><li data-ok>丟出 FlatFileParseException</li><li>自動跳過這一筆，不需要任何設定</li></ul>
   <p class="dexp">文件：讀檔遇到任何錯誤時丟 FlatFileParseException。要不要跳過，看 Step 有沒有把它設成可跳過的例外。</p>
 </div>
 <div class="drill">
@@ -336,7 +336,7 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 </div>
 <div class="drill">
   <p class="dq">chunk 的交易是誰開、誰提交的？</p>
-  <ul class="dopts"><li>要在 writer 方法上加 @Transactional</li><li>MySQL 自動提交</li><li>沒有交易</li><li data-ok>Step 用設定給它的 Platform<wbr>Transaction<wbr>Manager 開與提交</li></ul>
+  <ul class="dopts"><li>要在 writer 方法上自己加 @Transactional</li><li>MySQL 預設的自動提交（autocommit）</li><li>沒有交易，寫進去就算數</li><li data-ok>Step 用設定給它的 Platform<wbr>Transaction<wbr>Manager</li></ul>
   <p class="dexp">建 Step 時給的 .transactionManager(...) 就是做這件事；文件說它是開始與提交交易的那個 Platform<wbr>Transaction<wbr>Manager。</p>
 </div>
 <div class="drill">
@@ -349,7 +349,7 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <section>
 <p class="era">壞一筆，不一定要整批停</p>
 <h3 class="head">跳過與重試</h3>
-<p><strong>跳過</strong>（skip）：遇到某些錯誤時，略過那一筆繼續做。文件特別提到金融資料：「這通常要由真正懂資料、知道資料意義的人決定。例如金融資料可能不能跳過，因為它會導致錢被轉移，必須完全正確」（Financial data, for example, may not be skippable because it results in money being transferred, which needs to be completely accurate.）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/configuring-skip.html" target="_blank" rel="noopener">出處</a> 所以這課只跳過「格式錯、根本讀不懂的那一行」，而且最多 10 筆，被跳過的要另外記下來讓人處理；寫入資料庫失敗不跳過。</p>
+<p><strong>跳過</strong>（skip）：遇到某些錯誤時，略過那一筆繼續做。文件特別提到金融資料：「這通常要由真正懂資料、知道資料意義的人決定。例如金融資料可能不能跳過，因為它會導致錢被轉移，必須完全正確」（Financial data, for example, may not be skippable because it results in money being transferred, which needs to be completely accurate.）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/configuring-skip.html" target="_blank" rel="noopener">出處</a> 所以這課只跳過「格式錯、根本讀不懂的那一筆」，而且最多 10 筆，被跳過的要另外記下來讓人處理；寫入資料庫失敗不跳過。實務上會在 Step 掛一個 <code>SkipListener</code>：文件說讀、處理、寫的監聽器都只會通知「出錯了」，但「沒有一個會告訴你某筆紀錄真的被跳過了」，所以另外有這個專門追蹤跳過項目的介面（onSkipInRead、onSkipInProcess、onSkipInWrite），可以在裡面把被跳過的那筆寫進日誌或錯誤表。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/intercepting-execution.html" target="_blank" rel="noopener">出處</a> 這課的示範程式沒有掛，跳過的那筆只反映在 READ_SKIP_COUNT。</p>
 <p><strong>重試</strong>（retry）：文件說「不是所有例外都是確定的」：讀到格式錯的那一行，重讀幾次都一樣；但像資料庫死結這種錯，「等一下再試可能就成功了」。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/retry-logic.html" target="_blank" rel="noopener">出處</a> 這課對 <code>Transient<wbr>Data<wbr>Access<wbr>Exception</code>（Spring 對「暫時性資料庫錯誤」的分類）重試最多 3 次。Spring Batch 6 的重試設定用的是 Spring Framework 7 的 <code>RetryPolicy</code>，寫法照文件的範例。</p>
 <p>10 月 2 日的檔案動了手腳：第 3,000 筆金額是 0（處理器濾掉）、第 6,001 筆金額格式錯、第 8,000 筆帳號超過欄位長度（<code>VARCHAR(10)</code>）；程式另外在寫到含 T005000 的 chunk 時，假裝資料庫斷線一次。實跑：</p>
 <pre><code>$ java -jar app/target/batch-1.0.jar --spring.batch.job.name=importTxJob inputFile=tx-20251002.csv runDate=2025-10-02 &gt; logs-03.txt 2&gt;&amp;1; echo "exit=$?"; batchlog &lt; logs-03.txt | head -40
@@ -371,7 +371,7 @@ Caused by: java.sql.BatchUpdateException: Data truncation: Data too long for col
 Caused by: com.mysql.cj.jdbc.exceptions.MysqlDataTruncation: Data truncation: Data too long for column 'account' at row 1
 INFO 7426 --- [           main] o.s.batch.core.step.AbstractStep         : Step: [importStep] executed in 2s373ms
 INFO 7426 --- [           main] o.s.b.c.l.s.TaskExecutorJobLauncher      : Job: [SimpleJob: [name=importTxJob]] completed with the following parameters: [{JobParameter{name='inputFile', value=tx-20251002.csv, type=class java.lang.String, identifying=true},JobParameter{name='runDate', value=2025-10-02, type=class java.lang.String, identifying=true}}] and the following status: [FAILED] in 2s398ms</code></pre>
-<p>依序看：含 T005000 的 chunk 第一次寫入時「斷線」，重試後寫入成功；第 6,001 行沒有任何錯誤訊息，因為它是可跳過的例外，被靜靜略過了；寫到含 T008000 的 chunk 時，MySQL 回「Data too long for column 'account'」，<code>Data<wbr>Integrity<wbr>Violation<wbr>Exception</code> 既不在可跳過名單、也不在可重試名單，Step 失敗。注意「第 1 次」只出現一次：日誌雖然寫著 Retry exhausted，但這個例外不可重試，實際上只寫了一次就放棄，沒有白白重試。</p>
+<p>依序看：含 T005000 的 chunk 第一次寫入時「斷線」，重試後寫入成功；第 6,001 筆沒有任何錯誤訊息，因為它是可跳過的例外，被靜靜略過了；寫到含 T008000 的 chunk 時，MySQL 回「Data too long for column 'account'」，<code>Data<wbr>Integrity<wbr>Violation<wbr>Exception</code> 既不在可跳過名單、也不在可重試名單，Step 失敗。注意「第 1 次」只出現一次：日誌雖然寫著 Retry exhausted，但這個例外不可重試，實際上只寫了一次就放棄，沒有白白重試。</p>
 <p class="formula">格式錯、讀不懂的才跳過，而且設上限；暫時性錯誤（斷線、死結）才重試；資料本身有問題的，讓 Step 失敗、修好再重啟</p>
 
 <div class="drill">
@@ -437,10 +437,10 @@ mysql&gt; SELECT STEP_EXECUTION_ID, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUN
 |                 1 | COMPLETED |      10000 |            0 |       10000 |               0 |           10 |              0 |
 |                 2 | FAILED    |       7999 |            1 |        6998 |               1 |            7 |              1 |
 +-------------------+-----------+------------+--------------+-------------+-----------------+--------------+----------------+</code></pre>
-<p>對照下面的圖讀這一列：COMMIT_COUNT 7，代表 chunk 1 到 7 已提交；ROLLBACK_COUNT 1 是失敗的 chunk 8；WRITE_COUNT 6998＝前 7 個 chunk 的 7,000 行，扣掉濾掉的 1 筆與跳過的 1 筆；READ_COUNT 7999 還把 chunk 8 讀了但沒提交的 1,000 筆也算進去。資料表裡也正好 6,998 筆。</p>
+<p>對照下面的圖讀這一列：COMMIT_COUNT 7，代表 chunk 1 到 7 已提交；ROLLBACK_COUNT 1 是失敗的 chunk 8；WRITE_COUNT 6998＝前 7 個 chunk 的 7,000 筆，扣掉濾掉的 1 筆與跳過的 1 筆；READ_COUNT 7999 還把 chunk 8 讀了但沒提交的 1,000 筆也算進去。資料表裡也正好 6,998 筆。</p>
 <figure>
-<svg viewBox="0 0 760 276" role="img" aria-label="失敗與重啟的 chunk 圖，取自實跑。第一次跑：chunk 1 到 7 提交，chunk 3 濾掉 1 筆、chunk 5 重試一次後成功、chunk 7 跳過 1 筆，chunk 8 寫入失敗被還原，之後的 chunk 沒有執行，斷點記下讀到第 7000 行。修好欄位後用同樣的參數重跑：chunk 1 到 7 不重讀，從第 7001 行接著做 chunk 8 到 10，提交 3 次，兩次共寫入 9998 筆">
-<text x="30" y="26" font-size="13" text-anchor="start" fill="var(--gold-deep)">JobExecution 2（第一次跑）</text><rect x="30" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="64.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 1</text><text x="64.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">1–1000</text><rect x="102" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="136.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 2</text><text x="136.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">1001–2000</text><rect x="174" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="208.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 3</text><text x="208.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">2001–3000</text><text x="208.0" y="100" font-size="11" text-anchor="middle" fill="var(--slate-deep)">濾掉 1 筆</text><rect x="246" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="280.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 4</text><text x="280.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">3001–4000</text><rect x="318" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="352.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 5</text><text x="352.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">4001–5000</text><text x="352.0" y="100" font-size="11" text-anchor="middle" fill="var(--slate-deep)">重試 1 次後成功</text><rect x="390" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="424.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 6</text><text x="424.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">5001–6000</text><rect x="462" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="496.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 7</text><text x="496.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">6001–7000</text><text x="496.0" y="100" font-size="11" text-anchor="middle" fill="var(--slate-deep)">跳過 1 筆</text><rect x="534" y="40" width="68" height="40" rx="4" fill="var(--surface)" stroke="var(--gold-deep)" stroke-dasharray="4 3"/><text x="568.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 8</text><text x="568.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">7001–8000</text><text x="568.0" y="100" font-size="11" text-anchor="middle" fill="var(--gold-deep)">寫入失敗，還原</text><rect x="606" y="40" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".35"/><text x="640.0" y="58" font-size="11.5" text-anchor="middle" opacity=".5" class="mono">chunk 9</text><text x="640.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">8001–9000</text><rect x="678" y="40" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".35"/><text x="712.0" y="58" font-size="11.5" text-anchor="middle" opacity=".5" class="mono">chunk 10</text><text x="712.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">9001–10000</text><text x="30" y="124" font-size="12" text-anchor="start">提交 7 次（chunk 1–7），chunk 8 還原；斷點記下 txReader.read.count = 7000</text><text x="30" y="160" font-size="13" text-anchor="start" fill="var(--gold-deep)">JobExecution 3（修好欄位後，同參數重跑）</text><rect x="30" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="64.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="102" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="136.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="174" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="208.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="246" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="280.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="318" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="352.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="390" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="424.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="462" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="496.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="534" y="174" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="568.0" y="192" font-size="11.5" text-anchor="middle" class="mono">chunk 8</text><text x="568.0" y="208" font-size="10" text-anchor="middle" opacity=".7" class="mono">7001–8000</text><rect x="606" y="174" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="640.0" y="192" font-size="11.5" text-anchor="middle" class="mono">chunk 9</text><text x="640.0" y="208" font-size="10" text-anchor="middle" opacity=".7" class="mono">8001–9000</text><rect x="678" y="174" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="712.0" y="192" font-size="11.5" text-anchor="middle" class="mono">chunk 10</text><text x="712.0" y="208" font-size="10" text-anchor="middle" opacity=".7" class="mono">9001–10000</text><text x="30" y="238" font-size="12" text-anchor="start">從第 7001 行接著讀，READ_COUNT 3000、COMMIT_COUNT 3；兩次加起來寫入 6998 + 3000 = 9998 筆</text><text x="30" y="262" font-size="12" text-anchor="start" opacity=".6">古銅實框＝已提交；虛線框＝這次沒有提交；數字是交易檔的資料行範圍</text>
+<svg viewBox="0 0 760 276" role="img" aria-label="失敗與重啟的 chunk 圖，取自實跑。第一次跑：chunk 1 到 7 提交，chunk 3 濾掉 1 筆、chunk 5 重試一次後成功、chunk 7 跳過 1 筆，chunk 8 寫入失敗被還原，之後的 chunk 沒有執行，斷點記下讀到第 7000 筆。修好欄位後用同樣的參數重跑：chunk 1 到 7 不重讀，從第 7001 筆接著做 chunk 8 到 10，提交 3 次，兩次共寫入 9998 筆">
+<text x="30" y="26" font-size="13" text-anchor="start" fill="var(--gold-deep)">JobExecution 2（第一次跑）</text><rect x="30" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="64.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 1</text><text x="64.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">1–1000</text><rect x="102" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="136.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 2</text><text x="136.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">1001–2000</text><rect x="174" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="208.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 3</text><text x="208.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">2001–3000</text><text x="208.0" y="100" font-size="11" text-anchor="middle" fill="var(--slate-deep)">濾掉 1 筆</text><rect x="246" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="280.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 4</text><text x="280.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">3001–4000</text><rect x="318" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="352.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 5</text><text x="352.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">4001–5000</text><text x="352.0" y="100" font-size="11" text-anchor="middle" fill="var(--slate-deep)">重試 1 次後成功</text><rect x="390" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="424.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 6</text><text x="424.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">5001–6000</text><rect x="462" y="40" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="496.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 7</text><text x="496.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">6001–7000</text><text x="496.0" y="100" font-size="11" text-anchor="middle" fill="var(--slate-deep)">跳過 1 筆</text><rect x="534" y="40" width="68" height="40" rx="4" fill="var(--surface)" stroke="var(--gold-deep)" stroke-dasharray="4 3"/><text x="568.0" y="58" font-size="11.5" text-anchor="middle" class="mono">chunk 8</text><text x="568.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">7001–8000</text><text x="568.0" y="100" font-size="11" text-anchor="middle" fill="var(--gold-deep)">寫入失敗，還原</text><rect x="606" y="40" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".35"/><text x="640.0" y="58" font-size="11.5" text-anchor="middle" opacity=".5" class="mono">chunk 9</text><text x="640.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">8001–9000</text><rect x="678" y="40" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".35"/><text x="712.0" y="58" font-size="11.5" text-anchor="middle" opacity=".5" class="mono">chunk 10</text><text x="712.0" y="74" font-size="10" text-anchor="middle" opacity=".7" class="mono">9001–10000</text><text x="30" y="124" font-size="12" text-anchor="start">提交 7 次（chunk 1–7），chunk 8 還原；斷點記下 txReader.read.count = 7000</text><text x="30" y="160" font-size="13" text-anchor="start" fill="var(--gold-deep)">JobExecution 3（修好欄位後，同參數重跑）</text><rect x="30" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="64.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="102" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="136.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="174" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="208.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="246" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="280.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="318" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="352.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="390" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="424.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="462" y="174" width="68" height="40" rx="4" fill="var(--surface)" stroke="currentColor" opacity=".3"/><text x="496.0" y="198" font-size="11" text-anchor="middle" opacity=".45">不重讀</text><rect x="534" y="174" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="568.0" y="192" font-size="11.5" text-anchor="middle" class="mono">chunk 8</text><text x="568.0" y="208" font-size="10" text-anchor="middle" opacity=".7" class="mono">7001–8000</text><rect x="606" y="174" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="640.0" y="192" font-size="11.5" text-anchor="middle" class="mono">chunk 9</text><text x="640.0" y="208" font-size="10" text-anchor="middle" opacity=".7" class="mono">8001–9000</text><rect x="678" y="174" width="68" height="40" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="712.0" y="192" font-size="11.5" text-anchor="middle" class="mono">chunk 10</text><text x="712.0" y="208" font-size="10" text-anchor="middle" opacity=".7" class="mono">9001–10000</text><text x="30" y="238" font-size="12" text-anchor="start">從第 7001 筆接著讀，READ_COUNT 3000、COMMIT_COUNT 3；兩次加起來寫入 6998 + 3000 = 9998 筆</text><text x="30" y="262" font-size="12" text-anchor="start" opacity=".6">古銅實框＝已提交；虛線框＝這次沒有提交；數字是交易檔的第幾筆</text>
 </svg>
 <figcaption>提交過的 chunk 不會重做；重啟從最後一次提交的斷點接著讀。</figcaption>
 </figure>
@@ -462,7 +462,7 @@ public class ShowContext {
 batch.stepType = org.springframework.batch.core.step.item.ChunkOrientedStep
 batch.version = 6.0.5
 txReader.read.count = 7000</code></pre>
-<p><code>txReader.read.count = 7000</code>：reader 記得最後一次提交時讀到第 7,000 行。修正的方法是運維的事（這裡把欄位放寬到 <code>VARCHAR(20)</code>），然後<strong>用同樣的參數</strong>再跑。Spring Boot 文件：「要重啟失敗的 Job，所有參數（識別用與非識別用）都要在命令列重新指定」（To restart a failed Job, all parameters (identifying and non-identifying) must be re-specified on the command line.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/batch.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>txReader.read.count = 7000</code>：reader 記得最後一次提交時讀到第 7,000 筆。修正的方法是運維的事（這裡把欄位放寬到 <code>VARCHAR(20)</code>），然後<strong>用同樣的參數</strong>再跑。Spring Boot 文件：「要重啟失敗的 Job，所有參數（識別用與非識別用）都要在命令列重新指定」（To restart a failed Job, all parameters (identifying and non-identifying) must be re-specified on the command line.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/batch.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>mysql&gt; ALTER TABLE tx MODIFY account VARCHAR(20) NOT NULL
 
 $ java -jar app/target/batch-1.0.jar --spring.batch.job.name=importTxJob inputFile=tx-20251002.csv runDate=2025-10-02 &gt; logs-04.txt 2&gt;&amp;1; echo "exit=$?"; batchlog &lt; logs-04.txt | head -30
@@ -514,9 +514,9 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 | T006002 | A00128          |
 | T008000 | A00042-TOO-LONG |
 +---------+-----------------+</code></pre>
-<p>第三次執行屬於同一個 JobInstance 2，這次 READ_COUNT 只有 3000、COMMIT_COUNT 3：從第 7,001 行接著讀，前 7 個 chunk 沒有重做。最後 6,998 加 3,000，共 9,998 筆，等於 1 萬筆扣掉濾掉與跳過的各 1 筆；T008000 在欄位放寬後寫進去了。</p>
+<p>第三次執行屬於同一個 JobInstance 2，這次 READ_COUNT 只有 3000、COMMIT_COUNT 3：從第 7,001 筆接著讀，前 7 個 chunk 沒有重做。最後 6,998 加 3,000，共 9,998 筆，等於 1 萬筆扣掉濾掉與跳過的各 1 筆；T008000 在欄位放寬後寫進去了。</p>
 <p>重啟次數也能限制：Step 的 start-limit 預設是 <code>Integer.MAX_VALUE</code>，超過設定次數再跑會丟 <code>Start<wbr>Limit<wbr>Exceeded<wbr>Exception</code>。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/restart.html" target="_blank" rel="noopener">出處</a></p>
-<p class="formula">提交過的 chunk 不重做；reader 把讀到第幾行存進執行情境；修好之後用同樣的參數重跑，就從斷點接著做</p>
+<p class="formula">提交過的 chunk 不重做；reader 把讀到第幾筆存進執行情境；修好之後用同樣的參數重跑，就從斷點接著做</p>
 
 <div class="drill">
   <p class="dq">失敗那次 COMMIT_COUNT 是 7、ROLLBACK_COUNT 是 1。代表？</p>
@@ -525,23 +525,23 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 </div>
 <div class="drill">
   <p class="dq">失敗那次 WRITE_COUNT 是 6998，不是 7000。少的 2 筆去哪了？</p>
-  <ul class="dopts"><li>寫入資料庫失敗了</li><li>還留在記憶體裡沒寫</li><li data-ok>濾掉 1 筆、跳過 1 筆</li><li>被重試的過程吃掉了</li></ul>
-  <p class="dexp">前 7 個 chunk 共 7,000 行，T003000 金額 0 被濾掉（FILTER_COUNT 1）、T006001 格式錯被跳過（READ_SKIP_COUNT 1），寫進去的是 6,998 筆。</p>
+  <ul class="dopts"><li>寫入資料庫的時候失敗了</li><li>還留在記憶體裡、沒寫進去</li><li data-ok>濾掉 1 筆、跳過 1 筆</li><li>被重試的過程吃掉了兩筆</li></ul>
+  <p class="dexp">前 7 個 chunk 共 7,000 筆，T003000 金額 0 被濾掉（FILTER_COUNT 1）、T006001 格式錯被跳過（READ_SKIP_COUNT 1），寫進去的是 6,998 筆。</p>
 </div>
 <div class="drill">
   <p class="dq">斷點 <code>txReader.read.count = 7000</code> 存在哪裡？</p>
-  <ul class="dopts"><li>交易檔的最後一行後面</li><li>應用程式自己的記憶體裡</li><li data-ok>BATCH_<wbr>STEP_<wbr>EXECUTION_<wbr>CONTEXT 表</li><li>MySQL 裡存交易的 tx 表</li></ul>
+  <ul class="dopts"><li>交易檔最後一行的後面，附加一行</li><li>應用程式自己的記憶體裡，結束就清掉</li><li data-ok>JobRepository 裡的執行情境表</li><li>MySQL 裡存交易資料的 tx 表</li></ul>
   <p class="dexp">執行情境由框架保存在 JobRepository；用 JDBC 時就是 BATCH_<wbr>STEP_<wbr>EXECUTION_<wbr>CONTEXT。程式結束了，下次啟動還讀得到。</p>
 </div>
 <div class="drill">
   <p class="dq">修好欄位之後，要讓 10 月 2 日的日終從斷點接著做，該怎麼跑？</p>
-  <ul class="dopts"><li data-ok>用一模一樣的參數再跑一次</li><li>把 runDate 改成 2025-10-03 再跑</li><li>先把 BATCH_ 表全部清空再跑</li><li>把交易檔前 7,000 行刪掉再跑</li></ul>
+  <ul class="dopts"><li data-ok>用一模一樣的參數（inputFile、runDate）再跑一次</li><li>把 runDate 改成 2025-10-03 再跑</li><li>先把 BATCH_ 表全部清空再跑</li><li>把交易檔前 7,000 筆刪掉再跑</li></ul>
   <p class="dexp">同樣的參數才是同一個 JobInstance，才會沿用上次的執行情境；Spring Boot 文件說重啟要把所有參數重新指定。改參數或清表就變成從頭做，可能重複入帳。</p>
 </div>
 <div class="drill">
   <p class="dq">重啟那次的 READ_COUNT 是 3000。代表？</p>
-  <ul class="dopts"><li>這次從頭讀了 3,000 行就停了</li><li>讀了 3 次</li><li>有 3,000 筆讀取失敗</li><li data-ok>從第 7,001 行接著讀到第 10,000 行</li></ul>
-  <p class="dexp">前 7,000 行已經提交過，不重讀；從斷點接著讀剩下的 3,000 行，提交 3 次。</p>
+  <ul class="dopts"><li>這次從頭讀了 3,000 筆就停了</li><li>整個檔案讀了 3 次</li><li>有 3,000 筆讀取失敗</li><li data-ok>從第 7,001 筆接著讀</li></ul>
+  <p class="dexp">前 7,000 筆已經提交過，不重讀；從斷點接著讀剩下的 3,000 筆，提交 3 次。</p>
 </div>
 <div class="drill">
   <p class="dq">重啟成功之後，10 月 2 日的資料在 tx 表裡共有幾筆？</p>
@@ -558,7 +558,7 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <section>
 <p class="era">一台跑不完怎麼辦</p>
 <h3 class="head">分割平行：一眼</h3>
-<p>資料多到一條執行緒跑不完時，可以把資料切成不重疊的幾段同時跑。Spring Batch 的<strong>分割</strong>（partitioning）是：Job 裡有一個 Step 當 manager，把工作切開交給好幾個 worker；文件說 worker「全都是同一個 Step 的相同實例」，而分割可以在單一行程裡跑，也可以分散到多個行程（Partitioning a Step (single or multi-process)）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a> 例如月底算利息時，依帳號範圍切成四段，每段各自讀、各自寫、各自記斷點；哪一段失敗，重啟時只重跑那一段。</p>
+<p>資料多到一條執行緒跑不完時，可以把資料切成不重疊的幾段同時跑。Spring Batch 的<strong>分割</strong>（partitioning）是：Job 裡有一個 Step 當 manager，把工作切開交給好幾個 worker；文件說 worker「全都是同一個 Step 的相同實例」，而分割可以在單一行程裡跑，也可以分散到多個行程（Partitioning a Step (single or multi-process)）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a> 例如月底算利息時，依帳號範圍切成四段，每段各自讀、各自寫、各自記斷點。同一頁也寫：「失敗的 Job 永遠可以重啟，而且重啟時只會重新執行失敗的 Step」（A failed Job can always be restarted, and, in that case, only the failed Steps are re-executed.）<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a>；所以哪一段失敗，重啟時只重跑那一段。</p>
 <figure>
 <svg viewBox="0 0 760 286" role="img" aria-label="分割平行的示意圖：manager Step 把 500 個帳號切成四段，交給四個 worker Step 同時處理，每段 125 個帳號；四個都完成後 manager 才結束。每個 worker 是同一個 Step 的一份，各自讀寫與記斷點">
 <defs><marker id="sb2-m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="30" y="90" width="170" height="60" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="115.0" y="117.0" font-size="13.5" text-anchor="middle">manager Step</text><text x="115.0" y="135.0" font-size="11.5" text-anchor="middle" opacity=".7">切成幾個分割</text><rect x="300" y="20" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="39.0" font-size="13.5" text-anchor="middle">worker Step 1</text><text x="400.0" y="57.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00001–A00125</text><line x1="202" y1="120" x2="298" y2="42" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="42" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="300" y="80" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="99.0" font-size="13.5" text-anchor="middle">worker Step 2</text><text x="400.0" y="117.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00126–A00250</text><line x1="202" y1="120" x2="298" y2="102" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="102" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="300" y="140" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="159.0" font-size="13.5" text-anchor="middle">worker Step 3</text><text x="400.0" y="177.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00251–A00375</text><line x1="202" y1="120" x2="298" y2="162" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="162" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="300" y="200" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="219.0" font-size="13.5" text-anchor="middle">worker Step 4</text><text x="400.0" y="237.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00376–A00500</text><line x1="202" y1="120" x2="298" y2="222" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="222" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="600" y="90" width="140" height="60" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="670.0" y="117.0" font-size="13.5" text-anchor="middle">全部完成</text><text x="670.0" y="135.0" font-size="11.5" text-anchor="middle" opacity=".7">manager 才結束</text><text x="30" y="272" font-size="12" text-anchor="start" opacity=".6">每個 worker 是同一個 Step 的一份，各自讀寫自己那段資料、各自記斷點；可以在同一台用多條執行緒，也可以在不同機器上跑</text>
@@ -569,7 +569,7 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 
 <div class="drill">
   <p class="dq">用分割平行算 500 個帳號的利息，最合理的切法是？</p>
-  <ul class="dopts"><li data-ok>依帳號範圍切成不重疊的幾段，每個 worker 一段</li><li>四個 worker 都處理全部 500 個</li><li>隨機分配，可以重複</li><li>只用一個 worker</li></ul>
+  <ul class="dopts"><li data-ok>依帳號範圍切成不重疊的幾段</li><li>四個 worker 都各自處理全部 500 個</li><li>隨機分配給 worker，可以重複</li><li>只用一個 worker 從頭跑到尾</li></ul>
   <p class="dexp">各段要互不重疊，同一筆資料才不會被算兩次或互相鎖住。</p>
 </div>
 <div class="drill">
@@ -580,7 +580,7 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <div class="drill">
   <p class="dq">四個 worker 裡有一個失敗了，重啟時會怎樣？</p>
   <ul class="dopts"><li data-ok>只接著跑失敗的那段</li><li>四段全部從頭重做一次</li><li>失敗之後就不能重啟了</li><li>改成單執行緒整批重跑</li></ul>
-  <p class="dexp">每個 worker 各自有 StepExecution 與斷點，成功的那幾段已完成，重啟時只處理沒完成的。</p>
+  <p class="dexp">文件：失敗的 Job 重啟時只會重新執行失敗的 Step。每個 worker 各自有 StepExecution 與斷點，成功的那幾段已完成，不重做。</p>
 </div>
 </section>
 
@@ -592,18 +592,18 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <li><strong>Spring 的 <code>@Scheduled</code></strong>：在應用程式裡定時呼叫 JobOperator。簡單，但只活在這個應用程式裡：程式沒開就不會跑，部署多台還要自己避免每台都跑一次。</li>
 <li><strong>外部排程器</strong>（銀行常見的是 Control-M 這類企業排程器）：用命令列啟動批次行程，管理前後相依（例如「收到清算檔才跑對帳」）、重送與告警。文件說這時「命令列是主要的介面」，而且排程器多半只看行程，「回報成功或失敗的唯一方式就是結束代碼……最簡單的情況 0 是成功、1 是失敗」。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/job/running.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>這課的四次執行就是用命令列跑的，結束代碼也看得到：成功是 0，失敗是 5，同參數被拒是 1。外部排程器靠這個數字決定要不要觸發下一個工作、要不要通知值班人員。</p>
+<p>這課的四次執行就是用命令列跑的，結束代碼也看得到：成功是 0，失敗是 5，同參數被拒是 1。5 不是隨便的數字：Spring Boot 的 <code>JobExecutionExitCodeGenerator</code> 直接拿 JobExecution 狀態的序號當結束代碼（<code>execution.getStatus().ordinal()</code>）<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-batch/src/main/java/org/springframework/boot/batch/autoconfigure/JobExecutionExitCodeGenerator.java" target="_blank" rel="noopener">出處</a>，而 <code>BatchStatus</code> 依序是 COMPLETED、STARTING、STARTED、STOPPING、STOPPED、FAILED……，從 0 數起 FAILED 正好是 5<a class="fixsrc" href="https://github.com/spring-projects/spring-batch/blob/v6.0.5/spring-batch-core/src/main/java/org/springframework/batch/core/BatchStatus.java" target="_blank" rel="noopener">出處</a>。同參數被拒時 Job 根本沒有開始執行，是啟動過程丟出例外，實跑的結束代碼是 1。外部排程器靠這個數字決定要不要觸發下一個工作、要不要通知值班人員。</p>
 <p class="formula">Spring Batch 管怎麼跑，排程器管幾點跑；銀行的日終多半交給外部排程器用命令列觸發，靠結束代碼判斷成敗</p>
 
 <div class="drill">
   <p class="dq">Spring Batch 文件對「排程」的說法是？</p>
-  <ul class="dopts"><li>Spring Batch 內建完整的排程</li><li data-ok>不是排程框架，要搭配排程器</li><li>Spring Batch 只能在午夜執行</li><li>排程一定要用 @Scheduled</li></ul>
+  <ul class="dopts"><li>Spring Batch 內建完整的排程</li><li data-ok>不是排程框架，要搭配外部排程器</li><li>Spring Batch 只能在午夜執行</li><li>排程一定要用 @Scheduled</li></ul>
   <p class="dexp">原文：Spring Batch is not a scheduling framework。它負責批次怎麼跑，幾點跑交給排程器。</p>
 </div>
 <div class="drill">
   <p class="dq">外部排程器用命令列啟動批次，它怎麼知道這次批次成功還是失敗？</p>
   <ul class="dopts"><li>讀 BATCH_ 表</li><li>看日誌有沒有 ERROR</li><li>問 Prometheus</li><li data-ok>看行程的結束代碼</li></ul>
-  <p class="dexp">文件：多數排程器只看行程，回報成敗的唯一方式就是結束代碼。實跑成功是 0、失敗是 5、同參數被拒是 1。</p>
+  <p class="dexp">文件：多數排程器只看行程，回報成敗的唯一方式就是結束代碼。實跑成功是 0、失敗是 5（BatchStatus.FAILED 的序號）、同參數被拒是 1。</p>
 </div>
 <div class="drill">
   <p class="dq">日終對帳要「收到清算單位的檔案之後才跑」，部署在三台機器上。用哪一種觸發方式比較合適？</p>
