@@ -16,11 +16,11 @@ Tim 10-02 交代：「不試用，你繼續幹活」。
 | `13-grammar-participles` 分詞與分詞構句 | ✅ `c0d85fa`（61 題課中練習、30 出處／22 網址；mins 44） | 同上 | 同上 | ✅ 10-02 上線 |
 | `14-grammar-adj-adv` 形容詞與副詞（含比較級） | ✅ `d83e5e3`（66 題課中練習、59 出處／43 網址；mins 48） | ✅ 10-02 審完（14＋15）：只有 1 題正解不唯一（left the room for the presentation 也通）；alone 的位置、quicker than 靠塞字等不精確；建議刪 10 題重複回到 60 題；三個有爭議的陷阱（below the age、by foot、between）主控決定換掉；清單在 `.superpowers/audit/english/findings-b2d.md`；修正交回原寫課代理 | ✅ 修正 `1a5f955`（全改；「大部分兩個音節用 more」改引 British Council 原句保留；刪題後兩課各 60 題）；範圍複審 ✅；兩處小尾巴（still 題解析、退房題把 until 換成 for、加 throughout）主控順手修 | ✅ 10-02 上線（英文模組第 14、15 課） |
 | `15-grammar-prepositions` 介系詞 | ✅ `261efd3`（64 題課中練習、60 出處／49 網址；mins 46） | 同上 | 同上 | ✅ 10-02 上線 |
-| `16-grammar-conjunctions` 連接詞與連接副詞 | 撰寫中（10-02，Opus `write-en-b2e`） | | | |
-| `17-grammar-relative` 關係詞 | 撰寫中（10-02，Opus `write-en-b2e`） | | | |
-| `18-grammar-noun-clauses` 名詞子句 | 撰寫中（10-02，Opus `write-en-b2f`） | | | |
-| `19-grammar-conditionals` 假設語氣 | 撰寫中（10-02，Opus `write-en-b2f`） | | | |
-| `20-grammar-inversion-strategy` 倒裝與省略＋多益文法題解題順序 | | | | |
+| `16-grammar-conjunctions` 連接詞與連接副詞 | ✅ `6a3ba09`（62 題課中練習、66 出處／41 網址，含普渡、北卡寫作中心；mins 50） | ✅ 10-02 審完（16＋17）：137 題沒有正解不唯一；必修 5 條（unless 解析講反、so 的分類、縮短關係子句的條件跟分詞課打架、whose／who 判斷法有反例、16 課刪 2 題）；用詞「配對連接詞」「逗號接句」改掉；清單在 `.superpowers/audit/english/findings-b2e.md`；修正交回原寫課代理 | ✅ 修正 `6ebe1df`（15 條全改、零駁回；16 課 60 題、mins 48）；範圍複審 ✅；so 的註解改成不歸到劍橋名下等四處小尾巴主控順手修 | ✅ 10-02 上線（英文模組第 16、17 課） |
+| `17-grammar-relative` 關係詞 | ✅ `8e3eec9`（55 題課中練習、34 出處／14 網址；mins 44） | 同上 | 同上 | ✅ 10-02 上線 |
+| `18-grammar-noun-clauses` 名詞子句 | ✅ `ce6aa1c`（59 題課中練習、50 出處／23 網址，含牛津學習者辭典、美國之音；mins 45） | 審查中（Opus `review-en-b2f`，18＋19 一起） | | |
+| `19-grammar-conditionals` 假設語氣 | ✅ `ded6a42`（60 題課中練習、4 張圖（新增虛線空心圓與弧線箭頭兩個符號）、46 出處／18 網址；mins 50） | 同上 | | |
+| `20-grammar-inversion-strategy` 倒裝與省略＋多益文法題解題順序 | ✅ `c7812af`（65 題課中練習含 31 題跨課綜合、17 列解題對照表、42 出處／26 網址；mins 50） | 審查中（Opus `review-en-b2g`，含跨課對照） | | |
 
 分波：每個寫課代理寫兩課（最後一課單獨），同時最多三個寫課代理；寫完一波就派審查，審查與下一波寫課交錯進行。
 
