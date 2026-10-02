@@ -12,7 +12,7 @@
 
 | 資料夾 | 課名 | 分組 | 對應面試集 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|---|---|---|
-| `database/06-index-internals` | 索引是怎麼運作的 | （新）效能 | 〈資料庫面試題：索引、交易隔離與鎖〉 | ✅ `8a99e64`（55 題、3 圖；mins 55） | ✅ 10-02 審完：無錯誤級；B+ 樹圖葉節點掛錯、死結圖時間不符腳本、key_len 那句不是手冊說的；07 砍到 50 題；清單 `.superpowers/audit/database/findings-06-07.md`；修正交回 `write-algo-b`；「隔離層級」全站統一（`94fa56a`） | 修正 `29d636e`（16 條全改、07 砍到 50 題）；範圍複審中 | | |
+| `database/06-index-internals` | 索引是怎麼運作的 | （新）效能 | 〈資料庫面試題：索引、交易隔離與鎖〉 | ✅ `8a99e64`（55 題、3 圖；mins 55） | ✅ 10-02 審完：無錯誤級；B+ 樹圖葉節點掛錯、死結圖時間不符腳本、key_len 那句不是手冊說的；07 砍到 50 題；清單 `.superpowers/audit/database/findings-06-07.md`；修正交回 `write-algo-b`；「隔離層級」全站統一（`94fa56a`） | 修正 `29d636e`（16 條全改、07 砍到 50 題）；範圍複審 ✅（@Version 一句主控改） | ✅ 10-03 上線 `bd92486` | | |
 | `database/07-transaction-isolation-locks` | 交易隔離層級與鎖 | （新）效能 | 同上 | ✅ `452c1c5`（58 題、9 圖；mins 60） | 同上 | | |
 | `java/16-jvm-memory-gc` | JVM 記憶體與垃圾回收 | （新）JVM 與效能 | 〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉 | ✅ `90f6756`（49 題、2 圖、41 出處；mins 55） | ✅ 10-02 審完：遞迴層數重現不了要寫範圍、K8s requests 不算處理器數、CompletionException 的原因講錯、兩課測驗正解太常最長；清單 `.superpowers/audit/java/findings-16-17.md`；修正交回 `write-java-a`（順序：執行緒池排第 11 課後、JVM 開新組排最後） | 修正 `75d6fcf`＋主控 `6913dce`；範圍複審 ✅ | ✅ 10-03 上線 | | |
 | `java/17-thread-pool-concurrency` | 執行緒池與並行工具 | 並行與設計 | 〈Java 並行快答：執行緒池、鎖與並行集合〉 | ✅ `e3e7298`（51 題、1 圖、28 出處；mins 55） | 同上 | 同上 | ✅ 10-03 上線 |
@@ -43,7 +43,7 @@
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
 | `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | ✅ `d631eeb`（42 題、4 圖、12 網址；Batch 6.0.5、MySQL 8.4 四次執行實跑） | 審查中（`review-algo-b`） | | | |
-| `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | ✅ `12c638f`（48 題、3 圖、20 出處） | 審查中（`review-algo-a`） | | | |
+| `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | ✅ `12c638f`（48 題、3 圖、20 出處） | ✅ 10-03 審完：測驗角括號沒跳脫（註冊後測試會失敗）等 5 處小修，主控直接改 | — | ✅ 10-03 上線 | | | |
 | `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | 撰寫中（`write-algo-d`） | | | |
 | `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | 撰寫中（`fix-algo-1112`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
