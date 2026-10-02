@@ -26,11 +26,12 @@
 
 | 資料夾 | 課名 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|---|
-| `database/08-cache-redis` | 快取放哪裡、怎麼失效 | 撰寫中（`write-algo-c`） | | | |
+| `database/08-cache-redis` | 快取放哪裡、怎麼失效 | ✅ `4979bf7`（49 題、5 圖、30 出處；mins 60） | 審查中（`review-algo-b`） | | |
 | `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | 撰寫中（`fix-algo-1112` 轉做） | | | |
 | `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | 撰寫中（`fix-algo-0910` 轉做） | | | |
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | 撰寫中（`fix-int17` 轉做） | | | |
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
+| `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | 撰寫中（`write-algo-c`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | 撰寫中（`fix-algo-0708` 轉做） | | | |
 
 各課涵蓋範圍照 roadmap 計畫第三部分「最急」表格那一列。課序照資料夾編號接在各模組最後。
