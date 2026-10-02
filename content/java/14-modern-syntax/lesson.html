@@ -22,10 +22,10 @@
 <section>
 <p class="era">型別交給編譯器，名字交給你</p>
 <h3 class="head">var：區域變數型別推論</h3>
-<p>JEP 286 的摘要：「把型別推論延伸到有初始值的區域變數宣告」（extend type inference to declarations of local variables with initializers）。範圍也寫得很清楚：只限「有初始值的區域變數、增強型 for 的索引、傳統 for 迴圈裡宣告的區域變數」，「方法參數、建構子參數、方法回傳型別、欄位、catch 參數」等其他宣告都不能用（it would not be available for method formals, constructor formals, method return types, fields, catch formals, or any other kind of variable declaration）。<a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a> try-with-resources 的資源宣告也算區域變數，JLS 的清單把它列在內。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.4" target="_blank" rel="noopener">出處</a></p>
+<p>JEP 286 的摘要：「把型別推論延伸到有初始值的區域變數宣告」（extend type inference to declarations of local variables with initializers）。範圍也寫得很清楚：只限「有初始值的區域變數、增強型 for 的迴圈變數、傳統 for 迴圈裡宣告的區域變數」，「方法參數、建構子參數、方法回傳型別、欄位、catch 參數」等其他宣告都不能用（it would not be available for method formals, constructor formals, method return types, fields, catch formals, or any other kind of variable declaration）。<a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a> try-with-resources 的資源宣告也算區域變數，JLS 的清單把它列在內。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.4" target="_blank" rel="noopener">出處</a></p>
 <pre><code>var amounts = new ArrayList&lt;Long&gt;();         // 推論成 ArrayList&lt;Long&gt;
 amounts.add(1_200L);
-for (var a : amounts) {                      // 增強型 for 的索引也可以
+for (var a : amounts) {                      // 增強型 for 的迴圈變數也可以
     System.out.println(a + 1);               // 1201
 }
 
@@ -45,7 +45,7 @@ System.out.println(var);                     // var 不是關鍵字</code></pre>
 <tr><td><code>var arr = {1, 2, 3};</code></td><td><code>array initializer needs an explicit target-type</code></td></tr>
 <tr><td><code>var a = 1, b = 2;</code></td><td><code>'var' is not allowed in a compound declaration</code></td></tr>
 </tbody></table></div>
-<p><strong>可讀性的取捨。</strong>OpenJDK 的 <code>var</code> 風格指南第一條原則是「讀程式碼比寫程式碼重要」（P1. Reading code is more important than writing code.），建議「初始值已經提供足夠資訊時才考慮 var」（G3. Consider var when the initializer provides sufficient information to the reader.）。它也點名兩個陷阱：<code>var</code> 配菱形 <code>&lt;&gt;</code>，「推論出的型別會變」，例如 <code>var itemQueue = new PriorityQueue&lt;&gt;();</code> 會推成 <code>PriorityQueue&lt;Object&gt;</code>；<code>var</code> 配整數字面值，一律推成 <code>int</code>，原本寫 <code>byte</code>、<code>long</code> 時的自動轉換就沒了。<a class="fixsrc" href="https://openjdk.org/projects/amber/guides/lvti-style-guide" target="_blank" rel="noopener">出處</a></p>
+<p><strong>可讀性的取捨。</strong>OpenJDK 的 <code>var</code> 風格指南第一條原則是「讀程式碼比寫程式碼重要」（P1. Reading code is more important than writing code.），建議「初始值已經提供足夠資訊時才考慮 var」（G3. Consider var when the initializer provides sufficient information to the reader.）。它也點名兩個陷阱：<code>var</code> 配菱形 <code>&lt;&gt;</code>，「推論出的型別會變」，例如 <code>var itemQueue = new PriorityQueue&lt;&gt;();</code> 會推成 <code>PriorityQueue&lt;Object&gt;</code>；<code>var</code> 配不帶 <code>L</code> 的整數字面值，推成 <code>int</code>，原本寫 <code>byte</code>、<code>long</code> 時的自動轉換就沒了。<a class="fixsrc" href="https://openjdk.org/projects/amber/guides/lvti-style-guide" target="_blank" rel="noopener">出處</a></p>
 <pre><code>var raw = new ArrayList&lt;&gt;();      // 菱形沒有東西可推：ArrayList&lt;Object&gt;
 raw.add("A");
 raw.add(1);                       // 什麼都放得進去，泛型的保護沒了
@@ -110,6 +110,7 @@ System.out.println(list.size());</code></pre>
             throw new IllegalArgumentException("幣別要是三個大寫字母：" + currency);
         }
         amount = amount.setScale(2);                 // 改的是參數，結尾才自動指定給欄位
+                                                     // 超過兩位小數會丟 ArithmeticException
     }
 
     Money plus(Money other) {
@@ -132,7 +133,9 @@ System.out.println(a.equals(b) + " " + (a == b) + " " + (a.hashCode() == b.hashC
 // true false true
 System.out.println(a.plus(b));             // Money[amount=200.00, currency=TWD]
 System.out.println(a);                     // Money[amount=100.00, currency=TWD]，a 沒變
-new Money(BigDecimal.ONE, "twd");          // 丟出 IllegalArgumentException：幣別要是三個大寫字母：twd</code></pre>
+new Money(BigDecimal.ONE, "twd");          // 丟出 IllegalArgumentException：幣別要是三個大寫字母：twd
+new Money(new BigDecimal("1.234"), "TWD"); // 丟出 ArithmeticException：Rounding necessary</code></pre>
+<p>最後一行要注意：<code>setScale(2)</code> 沒指定捨入方式，只能補零、不能捨掉位數。文件寫「如果這個調整需要捨入，就丟出 ArithmeticException」（ArithmeticException - if the specified scaling operation would require rounding.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/math/BigDecimal.html#setScale(int)" target="_blank" rel="noopener">出處</a> 真的要收超過兩位的金額，就改用指定捨入方式的 <code>setScale(2, RoundingMode.HALF_EVEN)</code> 這類寫法，用哪一種捨入依業務規則決定。</p>
 <p>緊湊建構子的規則，JEP 395 原文：參數是隱含宣告的，「對應元件的 private 欄位不能在本體裡指定，而是在建構子結尾自動指定成對應的參數」（the private fields corresponding to record components cannot be assigned in the body but are automatically assigned to the corresponding formal parameter (this.x = x;) at the end of the constructor）；它讓開發者「專心在驗證與正規化參數」。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a> 所以上面改的是參數 <code>amount</code>；寫 <code>this.amount = ...</code> 反而會編譯錯誤（<code>cannot assign a value to final variable amount</code>）。</p>
 <p><strong>限制。</strong>JEP 395 的「record 類別的規則」一節：<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
@@ -221,7 +224,7 @@ System.out.println(b.ids());</code></pre>
 <section>
 <p class="era">switch 也能算出一個值</p>
 <h3 class="head">switch 運算式、箭頭與 yield</h3>
-<p>JEP 361（Java 14）讓 switch 可以「當敘述也可以當運算式用」，兩種都能用傳統的 <code>case ... :</code>（會穿透）或新的 <code>case ... -></code>（不會穿透），另外新增 <code>yield</code> 敘述讓 switch 運算式交出值。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a> <strong>穿透</strong>（fall through）是舊寫法的老問題：某個 case 沒寫 <code>break</code>，就會一路執行到下一個 case。</p>
+<p>JEP 361（Java 14）讓 switch 可以「當敘述也可以當運算式用」，兩種都能用傳統的 <code>case ... :</code>（會穿透）或新的 <code>case ... -></code>（不會穿透），另外新增 <code>yield</code> 敘述讓 switch 運算式交出值。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a> <strong>穿透</strong>（fall through）是舊寫法常見的錯：某個 case 沒寫 <code>break</code>，就會一路執行到下一個 case。</p>
 <pre><code>enum Channel { BRANCH, ATM, MOBILE, INTERNET }
 
 static int oldFee(Channel ch) {
@@ -283,7 +286,7 @@ System.out.println(level);</code></pre>
 <div class="drill">
   <p class="dq">switch 運算式的箭頭右邊是一個大括號區塊時，要怎麼交出值？</p>
   <ul class="dopts"><li>return 值;</li><li>break 值;</li><li data-ok>yield 值;</li><li>區塊最後一行的運算式自動成為值</li></ul>
-  <p class="dexp">JEP 361 新增 <code>yield</code> 給 switch 運算式交出值。<code>return</code> 會直接離開整個方法；<code>break 值</code> 是 Java 12 預覽時的寫法，定案時改成 yield。</p>
+  <p class="dexp">JEP 361 新增 <code>yield</code> 給 switch 運算式交出值。<code>return</code> 會直接離開整個方法；Java 12 第一次預覽時用 <code>break 值</code>，Java 13 第二次預覽就改成 yield。</p>
 </div>
 <div class="drill">
   <p class="dq">這段程式印出什麼？</p>
@@ -319,7 +322,7 @@ System.out.println(hours);</code></pre>
 <section>
 <p class="era">檢查型別、取出內容，一步做完</p>
 <h3 class="head">模式比對：instanceof、switch 型別模式與 record 解構</h3>
-<p><strong>模式比對</strong>（pattern matching，也有人譯作型樣比對）是「檢查一個值的形狀，符合就順便把需要的部分取出來」。以前判斷型別要寫三步：<code>instanceof</code> 檢查、轉型、宣告變數；JEP 394（Java 16）合成一步。<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></p>
+<p><strong>模式比對</strong>（pattern matching）是「檢查一個值的形狀，符合就順便把需要的部分取出來」。以前判斷型別要寫三步：<code>instanceof</code> 檢查、轉型、宣告變數；JEP 394（Java 16）合成一步。<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></p>
 <pre><code>Object obj = "A001";
 if (obj instanceof String s &amp;&amp; s.length() == 4) {   // 比對成功才有 s，&amp;&amp; 右邊就能用
     System.out.println("帳號 " + s.toLowerCase());     // 帳號 a001
@@ -354,7 +357,7 @@ describe(3.5);           // 其他：3.5</code></pre>
 <li><strong>模式 switch 一定要窮舉</strong>，連 switch 敘述也一樣：只要用了模式或 <code>null</code> 標籤，或選擇的值不是傳統型別（char、byte、short、int 與它們的包裝類別、String、enum），編譯器就檢查窮舉。對 <code>Object</code> 只列 <code>String</code> 和 <code>Integer</code> 兩種，javac 報 <code>does not cover all possible input values</code>。</li>
 <li>不會穿透的箭頭寫法照舊。</li>
 </ul>
-<p><strong>record 解構模式（Java 21，JEP 440）。</strong>比對 record 時可以直接把元件拆出來，還能一層套一層；元件的型別可以寫 <code>var</code>。JEP 的摘要說 record 模式與型別模式「可以巢狀」，做出「宣告式、可組合的資料走訪與處理」。<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a> JLS 另外規定「null 不會比對到 record 模式」（The null reference does not match a record pattern.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.30.2" target="_blank" rel="noopener">出處</a></p>
+<p><strong>record 解構模式（Java 21，JEP 440）。</strong>比對 record 時可以直接把元件拆出來，還能一層套一層；元件的型別可以寫 <code>var</code>。JEP 的摘要說 record 模式與型別模式「可以巢狀」，做出「宣告式、可組合的資料走訪與處理」。<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a> JLS 另外規定「null 不會比對到 record 模式」（The null reference does not match a record pattern.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.30.2" target="_blank" rel="noopener">出處</a> 下面用到的 <code>Payment</code>、<code>Transfer</code> 定義在下一段。</p>
 <pre><code>Payment p = new Transfer("B002", Money.twd(5_000));
 if (p instanceof Transfer(String to, Money(var amt, var cur))) {   // 兩層解構
     System.out.println(to + " " + amt + " " + cur);                  // B002 5000.00 TWD

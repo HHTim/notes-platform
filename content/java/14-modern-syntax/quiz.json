@@ -4,9 +4,9 @@
    "q": "下面哪一個地方可以用 var 宣告？",
    "opts": [
     "方法裡、有初始值的區域變數",
-    "類別的欄位",
-    "方法的參數",
-    "方法的回傳型別"
+    "類別的欄位，只要寫了初始值",
+    "方法的參數，呼叫時就知道型別",
+    "方法的回傳型別，從 return 推得出來"
    ],
    "exp": "JEP 286 只開放有初始值的區域變數、for 迴圈的變數（以及 try-with-resources 的資源）；欄位、參數、回傳型別、catch 參數都不行。"
   },
@@ -23,9 +23,9 @@
   {
    "q": "record Money(BigDecimal amount, String currency) {} 的兩個物件，什麼時候 equals 回傳 true？",
    "opts": [
-    "兩者都是 Money，而且 amount 與 currency 都相等",
-    "兩者是同一個物件時",
-    "只要 amount 相等",
+    "amount 與 currency 都相等時",
+    "兩者是同一個物件時，跟 == 一樣",
+    "只要 amount 相等，幣別不比",
     "永遠不會，record 沒有覆寫 equals"
    ],
    "exp": "JEP 395：自動產生的 equals 在「同型別、而且元件值都相等」時回傳 true，所以 record 適合當 Map 的鍵。"
@@ -33,9 +33,9 @@
   {
    "q": "要在 record 建立時檢查幣別是三個大寫字母，最直接的寫法是什麼？",
    "opts": [
-    "在緊湊建構子 Money { ... } 裡檢查，不符合就丟 IllegalArgumentException",
-    "寫一個 setCurrency 方法檢查",
-    "在 toString 裡檢查",
+    "在緊湊建構子 Money { ... } 裡檢查",
+    "寫一個 setCurrency 方法，設定時檢查",
+    "在 toString 裡檢查，印出來時就知道",
     "宣告一個 private boolean valid 欄位記錄"
    ],
    "exp": "緊湊建構子就是為了驗證與正規化參數而設計；record 欄位是 final、沒有 setter，也不能自己加實體欄位。"
@@ -43,20 +43,20 @@
   {
    "q": "record 能不能寫 extends？",
    "opts": [
-    "不能，父類別一律是 java.lang.Record；但可以 implements 介面",
-    "可以，只要父類別是抽象類別",
-    "可以，但只能繼承一層",
-    "不能，而且也不能實作介面"
+    "不能，但可以 implements 介面",
+    "可以，只要父類別是抽象類別就行",
+    "可以，但只能繼承一層，不能再往上",
+    "不能，而且也不能 implements 任何介面"
    ],
    "exp": "JEP 395：record 宣告沒有 extends，父類別固定是 java.lang.Record；它隱含是 final，可以實作任意介面。"
   },
   {
    "q": "舊的 switch 敘述 case BRANCH: fee = 30; 後面忘了寫 break，會發生什麼事？",
    "opts": [
-    "繼續執行下一個 case 的程式碼（穿透）",
-    "編譯錯誤",
+    "繼續執行下一個 case（穿透）",
+    "編譯錯誤，缺 break 的 case 不能編譯",
     "只執行 BRANCH 這一段就離開",
-    "執行時丟出例外"
+    "執行時丟出例外，提醒少了 break"
    ],
    "exp": "傳統的 case ... : 預設會穿透到下一個 case。箭頭寫法 case ... -&gt; 只執行右邊那一段，不會穿透。"
   },
@@ -68,14 +68,14 @@
     "break",
     "最後一行的運算式自動成為值"
    ],
-   "exp": "JEP 361 新增 yield 給 switch 運算式交出值；return 會離開整個方法，break 只能用在 switch 敘述。"
+   "exp": "JEP 361 新增 yield 給 switch 運算式交出值；return 會離開整個方法，break 不能拿來跳出 switch 運算式。"
   },
   {
    "q": "switch (obj) 裡依序寫 case CharSequence cs -&gt; ... 與 case String s -&gt; ...，會怎樣？",
    "opts": [
-    "編譯錯誤，String 那個 case 被前面的 CharSequence 支配",
+    "編譯錯誤，String 那個 case 被支配",
     "字串會進 String 那個 case",
-    "兩個 case 都會執行",
+    "兩個 case 都會執行，先 CharSequence 再 String",
     "執行時丟出 MatchException"
    ],
    "exp": "由上往下第一個符合的生效；String 是 CharSequence 的子型別，後面那個 case 永遠輪不到，JEP 441 把它當成編譯錯誤。窄的要放前面。"
@@ -84,9 +84,9 @@
    "q": "一個用了型別模式的 switch，選擇的值是 null，而且沒有寫 case null，會怎樣？",
    "opts": [
     "丟出 NullPointerException",
-    "落進 default",
-    "回傳 null",
-    "編譯錯誤"
+    "落進 default 那個分支",
+    "回傳 null，交給呼叫者處理",
+    "編譯錯誤，模式 switch 一定要寫 case null"
    ],
    "exp": "JEP 441：沒有 case null 就跟以前一樣丟 NullPointerException；為了相容，default 不會比對到 null。"
   },
