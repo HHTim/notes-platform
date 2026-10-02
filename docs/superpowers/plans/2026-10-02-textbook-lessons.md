@@ -32,13 +32,13 @@
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | ✅ `ee2f5c2`（48 題、4 圖；Boot 4.1.1） | 審查中（`review-java-a`） | | | |
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | ✅ `a654d17`（50 題、2 圖、16 網址；kind v1.36.4 實跑） | 審查中（`review-algo-c`） | | | |
 | `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | ✅ `1ed20d6`（47 題、4 圖、20 網址；Boot 4.1.1、Jaeger OTLP） | ✅ 10-03 審完：可上線，用詞與體例小修主控改；選項長度待補（`.superpowers/audit/spring/findings-20.md`） | — | ✅ 10-03 上線 `ccdc32c` | | | |
-| `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | ✅ `a435e4f`（49 題、3 圖、25 網址；Boot 4.1.1、Framework 7 內建版本） | 審查中（`review-algo-d`） | | | |
+| `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | ✅ `a435e4f`（49 題、3 圖、25 網址；Boot 4.1.1、Framework 7 內建版本） | ✅ 10-03 審完：範例冪等沒存失敗結果（跟草案不一致）、工作紀錄寫法、learn 5 條；縮到 mins 60；清單 `.superpowers/audit/spring/findings-21.md`；修正交給 `fix-db08`（原寫課者在修資料庫 06、07） | | | |
 | `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | ✅ `d57361b`（47 題、3 圖、17 網址；mins 50） | ✅ 10-03 審完：無錯誤級；Thymeleaf／Angular 編碼補出處、「比網銀低」改成有理由的說法、選項長度；清單 `.superpowers/audit/web/findings-13.md`；修正 `579af10`（7 條全改、標頭重跑 10-03）；範圍複審 ✅ | ✅ 10-03 上線 `83c2471` | | | |
 | `web/14-realtime-websocket-sse` | 即時通訊：WebSocket、SSE 與輪詢 | ✅ `7d76544`（45 題、6 圖、17 網址；mins 55；Nginx 待補 Docker 實跑） | ✅ 10-03 審完：無錯誤級；手機撐寬、curl 輸出新舊混用、Node 要加旗標、「訊息代理」白話；frame 統一譯「訊框」（`589e0f9`）；清單 `.superpowers/audit/web/findings-14.md`；修正交回 `write-web-b` | | | |
 | `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | ✅ `188d31a`（40 題、4 圖、17 網址；Flyway 12.4、MySQL 8.4 實跑 18 步）；Spring 9 課手機撐寬 `0da686c`；全站掃描另抓 6 頁撐寬交 `write-algo-d` 修 | 審查中（`review-algo-a`） | | | |
 | `java/18-solid-antipatterns` | SOLID 與常見反模式 | ✅ `e305b96`（43 題、3 圖、21 出處；mins 50） | ✅ 10-03 審完：無錯誤級，5 條小修主控直接改（Liskov 1987 原文 ACM 擋 403 無法逐字核對，主控決定保留 DOI） | — | ✅ 10-03 上線 `214d03f` | | | |
 | `cloud/16-aws-lb-autoscaling-messaging` | 負載平衡、自動擴展與訊息服務 | 撰寫中（`fix-algo-0910`） | | | |
-| `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | 撰寫中（`fix-db08` 轉做） | | | |
+| `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | 審查中（`review-algo-d`） | | | |
 | `database/09-sql-advanced` | SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式 | 撰寫中（`fix-int17`） | | | |
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
