@@ -33,7 +33,7 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `interview/17-java-modern-qa` 見上表 | 撰寫中（`write-algo-b` 轉做） | | | |
+| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | 審查中（`review-algo-c`） | | |
 | `web/09-git-branching` Git 分支與協作 | 撰寫中（`write-algo-c` 轉做） | | | |
 | `web/10-cicd-pipeline` CI/CD：從 push 到上線 | 撰寫中（`write-algo-d` 轉做） | | | |
 

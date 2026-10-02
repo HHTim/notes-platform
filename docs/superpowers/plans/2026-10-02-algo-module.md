@@ -16,7 +16,7 @@
 | `04-linked-list` | ✅ `b584646`（51 題、9 張圖、9 出處；mins 50） | 同上 | ✅ 10-02 上線 |
 | `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | 修正已交（03／04：`0db0f04`；05／06：`5f927d2`）；範圍複審 ✅ | ✅ 10-02 上線 |
 | `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | ✅ 10-02 上線 |
-| `07-sorting-binary-search` | ✅ `628dd36`（61 題、8 張圖、36 出處；mins 75） | 審查中（`review-algo-a`，07＋08） | | |
+| `07-sorting-binary-search` | ✅ `628dd36`（61 題、8 張圖、36 出處；mins 75） | ✅ 10-02 審完：無錯誤級，133 題正解都唯一；額外空間講法跟〈複雜度〉打架、int[] 不走計數排序、選項長度洩題嚴重（08 測驗 9／10 題正解最長）；07 砍到 55 題以下；清單 `.superpowers/audit/algo/findings-07-08.md`；修正交給 `fix-algo-0708` | | |
 | `08-two-pointers-window` | ✅ `d5a4101`（51 題、6 張圖、7 出處；mins 50） | 同上 | | |
 | `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
