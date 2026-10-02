@@ -1,0 +1,54 @@
+{
+ "questions": [
+  {
+   "q": "正式環境的結構交給 Flyway 管，Hibernate 的 ddl-auto 最適合設什麼？",
+   "opts": ["validate：只核對實體與表，對不上就啟動失敗", "update：讓 Hibernate 補上 Flyway 漏掉的", "create：每次啟動確保表存在", "create-drop：跟測試環境一致"],
+   "exp": "兩個工具同時改結構就分不清誰改的。validate 不改資料庫；實跑時實體多一個欄位，啟動就以 missing column 失敗。"
+  },
+  {
+   "q": "下面哪一個檔名會被 Flyway 當成版本 2.1 的版本化腳本？",
+   "opts": ["V2_1__add_index.sql", "V2.1_add_index.sql", "2_1__add_index.sql", "R2_1__add_index.sql"],
+   "exp": "格式是 V＋版本＋兩個底線＋描述，版本裡的底線代表點；R 開頭是可重複腳本，沒有版本。"
+  },
+  {
+   "q": "同一次啟動同時有待跑的 V3 與內容改過的 R 腳本，順序是？",
+   "opts": ["先 V3，可重複腳本永遠最後", "先 R，因為字母 R 在 V 前面", "兩支同時執行", "看檔案修改時間"],
+   "exp": "Flyway 文件：repeatable migrations are always applied last, after all pending versioned migrations have been executed。"
+  },
+  {
+   "q": "已套用到正式環境的 V1 被改了內容，重啟時會怎樣？",
+   "opts": ["校驗和不符，validate 失敗，應用程式啟動失敗", "Flyway 自動重跑 V1", "忽略差異，繼續跑新腳本", "Flyway 自動執行 repair"],
+   "exp": "實跑：Migration checksum mismatch for migration version 1，Spring Boot 啟動失敗。validate-on-migrate 預設 true。"
+  },
+  {
+   "q": "V1 的欄位長度需要加長，照 Flyway 文件建議該怎麼做？",
+   "opts": ["新增一支版本化腳本去 ALTER，往前修", "改 V1 的內容再 repair", "在正式資料庫直接下 ALTER", "clean 後從 V1 重跑"],
+   "exp": "文件：It's best to create a new versioned migration script and roll forward any necessary changes。repair 只改歷史表，不改結構。"
+  },
+  {
+   "q": "資料庫已在 V3，出現一支沒跑過的 V2_1，out-of-order 是預設值。結果是？",
+   "opts": ["啟動失敗：Detected resolved migration not applied to database", "自動在 V3 之後執行 V2_1", "忽略 V2_1，正常啟動", "刪掉 V3 再依序重跑"],
+   "exp": "out-of-order 預設 false。設成 true 會執行，但 Flyway 警告順序可能無法重現。"
+  },
+  {
+   "q": "MySQL 上一支腳本兩句 DDL，第一句成功、第二句失敗，之後的狀況是？",
+   "opts": ["第一句已提交退不回；歷史表記一筆 success = 0，要手動清理再 repair", "Flyway 自動整支退回", "兩句都沒有生效", "下次啟動會只補跑第二句"],
+   "exp": "MySQL 的 DDL 會隱含提交，手冊也說原子 DDL 不是交易式 DDL；Flyway 只能標成失敗。實跑查得到第一句加的欄位。"
+  },
+  {
+   "q": "Spring Boot 內建的 Flyway 社群版，上線後發現 V7 改錯了，正確的回退方式是？",
+   "opts": ["寫一支新的 V8 往前修", "執行 undo 回到 V6", "改 V7 再 repair", "clean 整個 schema 再重跑"],
+   "exp": "undo 是 Flyway Teams 的功能；clean 會清空資料，而且 clean-disabled 預設 true。"
+  },
+  {
+   "q": "Liquibase 用什麼辨識一個 changeset 是否已執行？",
+   "opts": ["author、id 加上 changelog 檔案路徑", "id 必須是遞增整數，只看 id", "檔名裡的版本號", "執行時間"],
+   "exp": "文件：A changeset is uniquely tagged by both the author and id attributes (author:id), as well as the changelog file path。紀錄存在 DATABASECHANGELOG。"
+  },
+  {
+   "q": "要把 owner 改名為 owner_name 又不停機，擴張收縮的做法是？",
+   "opts": ["先加可為 NULL 的 owner_name 並補資料，程式全部改用它之後才刪 owner", "一支腳本直接 RENAME COLUMN", "先刪 owner 再加 owner_name", "停機後一次改完"],
+   "exp": "Fowler：expand, migrate, contract。滾動更新期間新舊程式同時在跑，每個時間點都要找得到各自需要的欄位；依賴 owner 的 view 也要在收縮時一起改。"
+  }
+ ]
+}
