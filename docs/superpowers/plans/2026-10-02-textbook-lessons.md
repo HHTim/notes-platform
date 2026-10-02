@@ -43,8 +43,9 @@
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
 | `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | ✅ `d631eeb`（42 題、4 圖、12 網址；Batch 6.0.5、MySQL 8.4 四次執行實跑） | 審查中（`review-algo-b`） | | | |
-| `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | 撰寫中（`fix-algo-1112`） | | | |
+| `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | ✅ `12c638f`（48 題、3 圖、20 出處） | 審查中（`review-algo-a`） | | | |
 | `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | 撰寫中（`write-algo-d`） | | | |
+| `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | 撰寫中（`fix-algo-1112`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
