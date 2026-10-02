@@ -26,7 +26,7 @@
 
 | 資料夾 | 課名 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|---|
-| `database/08-cache-redis` | 快取放哪裡、怎麼失效 | ✅ `4979bf7`（49 題、5 圖、30 出處；mins 60） | 審查中（`review-algo-b`） | | |
+| `database/08-cache-redis` | 快取放哪裡、怎麼失效 | ✅ `4979bf7`（49 題、5 圖、30 出處；mins 60） | ✅ 10-02 審完：淘汰實驗兩個數不是同一次執行（加起來超過 3,000）、noeviction 預設找不到那一行；跟面試集〈系統設計：快取一致性與熱點〉大量重疊——主控決定本課留實跑、面試集留答題講法、互相指路、數字統一；清單 `.superpowers/audit/database/findings-08.md`；修正交給 `fix-db08` | | |
 | `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | ✅ `e9b6a3e`（49 題、4 圖；Boot 3.5 實跑）→ 升 Boot 4.1 重跑中 | | | |
 | `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | 撰寫中（`fix-algo-0910` 轉做） | | | |
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | 撰寫中（`fix-int17` 轉做） | | | |
