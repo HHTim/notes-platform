@@ -1,5 +1,5 @@
 <!-- 來源：依 MySQL 8.4 參考手冊（InnoDB 索引、鎖、交易隔離、EXPLAIN、Online DDL）、PostgreSQL 現行文件（交易隔離、MVCC、VACUUM、索引類型）新寫；SQL 範例於 MySQL 8.4.11 實跑 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 InnoDB 的索引長什麼樣：為什麼用 B+ 樹、叢集索引與二級索引差在哪、回表與覆蓋索引是什麼</li><li>判斷一條查詢用不用得到索引：最左前綴、五種讓索引失效的寫法，以及 EXPLAIN 要看哪幾欄</li><li>答出四個隔離等級各擋住哪種讀異常、MySQL 與 PostgreSQL 預設哪個、MVCC 怎麼做到讀不加鎖</li><li>分清記錄鎖、間隙鎖、Next-Key 鎖，說明悲觀鎖與樂觀鎖的取捨，並用 SHOW ENGINE INNODB STATUS 排查死結</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 InnoDB 的索引長什麼樣：為什麼用 B+ 樹、叢集索引與二級索引差在哪、回表與覆蓋索引是什麼</li><li>判斷一條查詢用不用得到索引：最左前綴、五種讓索引失效的寫法，以及 EXPLAIN 要看哪幾欄</li><li>答出四個隔離層級各擋住哪種讀異常、MySQL 與 PostgreSQL 預設哪個、MVCC 怎麼做到讀不加鎖</li><li>分清記錄鎖、間隙鎖、Next-Key 鎖，說明悲觀鎖與樂觀鎖的取捨，並用 SHOW ENGINE INNODB STATUS 排查死結</li></ul></div>
 <section>
     <p class="era">索引結構</p>
     <h3 class="head">B+ 樹、叢集索引與二級索引</h3>
@@ -73,15 +73,15 @@ EXPLAIN FORMAT=TREE SELECT id, status FROM orders WHERE customer_id = 42 AND sta
 <section>
     <p class="era">交易隔離</p>
     <h3 class="head">四個等級、三種讀異常與 MVCC</h3>
-    <p class="q">面試官：四個隔離等級各允許哪些讀異常？MySQL 預設哪個？PostgreSQL 預設哪個？</p>
-    <p><strong>一句話定義：</strong>隔離等級（isolation level）是「多筆交易同時跑時，彼此看得到對方多少中間狀態」的設定，換的是效能與一致性之間的平衡。SQL 標準的三種讀異常，PostgreSQL 文件的定義最清楚<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>：</p>
+    <p class="q">面試官：四個隔離層級各允許哪些讀異常？MySQL 預設哪個？PostgreSQL 預設哪個？</p>
+    <p><strong>一句話定義：</strong>隔離層級（isolation level）是「多筆交易同時跑時，彼此看得到對方多少中間狀態」的設定，換的是效能與一致性之間的平衡。SQL 標準的三種讀異常，PostgreSQL 文件的定義最清楚<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>：</p>
     <div class="terms">
       <div class="term"><b>髒讀（dirty read）</b><span>讀到另一筆交易還沒提交的資料——對方一旦還原（rollback，取消整筆交易），你讀到的就是從沒存在過的值。</span></div>
       <div class="term"><b>不可重複讀（nonrepeatable read）</b><span>同一筆交易裡重讀同一列，發現被別的交易改掉並提交了。</span></div>
       <div class="term"><b>幻讀（phantom read）</b><span>同一筆交易裡重跑同一個條件查詢，符合條件的「列的集合」變了——別人插了或刪了列。</span></div>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>隔離等級</th><th>髒讀</th><th>不可重複讀</th><th>幻讀</th></tr></thead>
+      <thead><tr><th>隔離層級</th><th>髒讀</th><th>不可重複讀</th><th>幻讀</th></tr></thead>
       <tbody>
         <tr><th>READ UNCOMMITTED</th><td>可能</td><td>可能</td><td>可能</td></tr>
         <tr><th>READ COMMITTED</th><td>不會</td><td>可能</td><td>可能</td></tr>
@@ -136,7 +136,7 @@ UPDATE accounts SET ... WHERE id = 2;  ←等  UPDATE accounts SET ... WHERE id 
 -- 其中一方收到：ERROR 1213 (40001) Deadlock found when trying to get lock; try restarting transaction</code></pre>
     <p><strong>InnoDB 怎麼處理：</strong>死結偵測預設開啟，偵測到就還原其中一筆交易（受害者）來解開，挑的是「較小」的那筆——大小以插入、更新、刪除的列數計<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a>。若用 <code>innodb_deadlock_detect</code> 關掉偵測，就靠 <code>innodb_lock_wait_timeout</code>（預設 50 秒）逾時，錯誤碼 1205。要注意逾時預設<strong>只還原當下那一條語句、不是整筆交易</strong>（要整筆還原得開 <code>innodb_rollback_on_timeout</code>）；應用程式若以為交易已整筆還原就直接開新交易，前面的語句其實還在原交易裡、鎖也還握著<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a>。所以就算應用程式邏輯正確，也要處理「交易必須重試」的情況<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>怎麼排查：</strong><code>SHOW ENGINE INNODB STATUS</code> 的 <code>LATEST DETECTED DEADLOCK</code> 區段列出最近一次死結牽涉的交易、各自正在執行的語句、持有與等待的鎖，以及 InnoDB 決定還原哪一筆<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-standard-monitor.html" target="_blank" rel="noopener">出處</a>。它只留最近一次；死結頻繁時開 <code>innodb_print_all_deadlocks</code>，把每一次都寫進錯誤日誌<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
-    <p><strong>怎麼減少：</strong>手冊的清單——交易小而短、做完一組相關變更就提交；不同交易對多張表或大範圍列用同樣的順序操作；替 <code>FOR UPDATE</code> 與 <code>UPDATE ... WHERE</code> 用到的欄位建好索引，掃得少就鎖得少；能接受舊快照的 SELECT 就別加 <code>FOR UPDATE</code>；鎖定讀若能接受，改用 READ COMMITTED 這類較低的隔離等級<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>怎麼減少：</strong>手冊的清單——交易小而短、做完一組相關變更就提交；不同交易對多張表或大範圍列用同樣的順序操作；替 <code>FOR UPDATE</code> 與 <code>UPDATE ... WHERE</code> 用到的欄位建好索引，掃得少就鎖得少；能接受舊快照的 SELECT 就別加 <code>FOR UPDATE</code>；鎖定讀若能接受，改用 READ COMMITTED 這類較低的隔離層級<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
     <p class="formula">「Deadlocks are not dangerous. Just try again.」——手冊原句；面試答到重試機制才算完整</p>
     <p class="q">面試官：大表加欄位或加索引會鎖表嗎？</p>
     <p><strong>一句話定義：</strong>Online DDL 讓 <code>ALTER TABLE</code> 用即時（instant）或就地（in-place）方式改結構，改的同時允許其他連線讀寫（手冊叫並行 DML，DML 就是 INSERT／UPDATE／DELETE）；預設不用特別設定，MySQL 會在允許的範圍內選最少鎖的做法<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a>。</p>
@@ -153,12 +153,12 @@ ALTER TABLE orders ADD INDEX idx_created (created_at), ALGORITHM=INPLACE, LOCK=N
     <div class="tablewrap"><table>
       <thead><tr><th>面向</th><th>MySQL（InnoDB）</th><th>PostgreSQL</th></tr></thead>
       <tbody>
-        <tr><th>預設隔離等級</th><td>REPEATABLE READ<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a></td><td>READ COMMITTED；只實作三級，REPEATABLE READ 不會幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></td></tr>
+        <tr><th>預設隔離層級</th><td>REPEATABLE READ<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a></td><td>READ COMMITTED；只實作三級，REPEATABLE READ 不會幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></td></tr>
         <tr><th>MVCC 舊版本放哪</th><td>undo log（還原區段），另外保存<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener">出處</a></td><td>留在資料表裡；UPDATE／DELETE 不會馬上移除舊版本，要靠 VACUUM 回收空間<a class="fixsrc" href="https://www.postgresql.org/docs/current/routine-vacuuming.html" target="_blank" rel="noopener">出處</a></td></tr>
         <tr><th>索引類型</th><td>InnoDB 的索引都是 B-tree（空間索引用 R-tree、全文索引用倒排表）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a></td><td>索引類型多：B-tree、Hash、GiST、SP-GiST、GIN、BRIN 與擴充套件 bloom，預設 B-tree<a class="fixsrc" href="https://www.postgresql.org/docs/current/indexes-types.html" target="_blank" rel="noopener">出處</a></td></tr>
         <tr><th>讀寫互擋</th><td>一致性讀不加鎖<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></td><td>「讀永不擋寫、寫永不擋讀」，連 SERIALIZABLE 也靠可序列化快照隔離（SSI，靠偵測交易之間的相依關係、必要時中止其中一筆，而不是靠鎖）維持<a class="fixsrc" href="https://www.postgresql.org/docs/current/mvcc-intro.html" target="_blank" rel="noopener">出處</a></td></tr>
       </tbody>
     </table></div>
-    <p>面試時抓兩個對比最有效：預設隔離等級不同（所以同一段程式搬家後幻讀行為會變），以及舊版本的存放位置不同（所以 PostgreSQL 有 VACUUM、MySQL 有 undo 表空間膨脹）。Spring 端 <code>@Transactional</code> 的傳播行為見面試集〈Spring 面試快答：IoC、Bean、AOP 與交易〉；隔離等級怎麼對應見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
+    <p>面試時抓兩個對比最有效：預設隔離層級不同（所以同一段程式搬家後幻讀行為會變），以及舊版本的存放位置不同（所以 PostgreSQL 有 VACUUM、MySQL 有 undo 表空間膨脹）。Spring 端 <code>@Transactional</code> 的傳播行為見面試集〈Spring 面試快答：IoC、Bean、AOP 與交易〉；隔離層級怎麼對應見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>InnoDB 索引是 B-tree：節點多路、一頁 16KB、樹很矮，等號與範圍都能用；雜湊只能等號。資料列住在叢集索引的葉節點，二級索引帶主鍵值、要回表。</li><li>複合索引照最左前綴用；對欄位套函式、字串欄位比數字、<code>LIKE '%x'</code>、OR 混到沒索引的欄位，索引都用不上。查詢欄位全在索引裡就是覆蓋索引，EXPLAIN 顯示 <code>Using index</code>。</li><li>EXPLAIN 盯 <code>type</code>、<code>key</code>、<code>rows</code>、<code>Extra</code>；<code>ALL</code>、<code>Using filesort</code>、<code>Using temporary</code> 是警訊。慢查詢靠 slow query log 抓，預設關、門檻 10 秒。</li><li>InnoDB 預設 REPEATABLE READ、PostgreSQL 預設 READ COMMITTED。MVCC 用 undo log 重建舊版本，一致性讀不加鎖；長交易會讓 undo 無法清除。</li><li>Next-Key 鎖＝記錄鎖＋前一段間隙鎖，InnoDB 靠它在 REPEATABLE READ 擋幻讀；READ COMMITTED 一般搜尋不加間隙鎖。悲觀鎖用 <code>FOR UPDATE</code>，樂觀鎖用版本欄位加重試。</li><li>死結由 InnoDB 自動偵測並還原較小的交易，應用程式要重試；<code>SHOW ENGINE INNODB STATUS</code> 看 LATEST DETECTED DEADLOCK。加欄位 INSTANT、加索引 in-place 不鎖表，改型別才重建。</li></ul></div>
