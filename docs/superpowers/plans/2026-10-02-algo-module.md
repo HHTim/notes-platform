@@ -10,11 +10,11 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | 審查中（`review-algo-a`，01＋02 一起） | | |
+| `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | ✅ 10-02 審完：無錯誤級，131 題正解都唯一；最要緊是「最壞／平均」與「O 上限」沒分清楚；SortCount 其實是物件排序、字面值共用不是巧合、StringBuilder 擴容要附原始碼出處；砍重複題；清單 `.superpowers/audit/algo/findings-01-02.md`；修正交給新代理 `fix-algo-0102`（原寫課代理在寫 09、10） | | |
 | `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | | |
 | `03-hash-table` | ✅ `e858aa1`＋`ef879b1`（52 題、4 張圖、42 出處；mins 60） | 審查中（`review-algo-b`，03＋04 一起） | | |
 | `04-linked-list` | ✅ `b584646`（51 題、9 張圖、9 出處；mins 50） | 同上 | | |
-| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | 審查中（`review-algo-c`，05＋06 一起） | | |
+| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | | |
 | `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | | |
 | `07-sorting-binary-search` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
 | `08-two-pointers-window` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
@@ -22,7 +22,7 @@
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `11-graph` | 撰寫中（`write-algo-b` 第二輪） | | | |
 | `12-dynamic-programming` | 撰寫中（`write-algo-b` 第二輪） | | | |
-| `13-interview-strategy` | | | | |
+| `13-interview-strategy` | 待寫（`write-algo-c` 修完 05、06 後接著寫） | | | |
 
 流程照多益文法：寫課 → 獨立審查 → 交回原寫課代理修正 → 原審查者範圍複審 → 主控修小尾巴、註冊、推。兩課審好就先上線。同時跑的代理約四到五個。
 
