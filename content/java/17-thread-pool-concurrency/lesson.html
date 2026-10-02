@@ -4,7 +4,7 @@
 <section>
 <p class="era">為什麼不要每個任務開一條執行緒</p>
 <h3 class="head">ThreadPoolExecutor 的七個參數與任務進來的處理順序</h3>
-<p>〈執行緒與並行〉講過，大量工作不要一個配一條新執行緒；〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉實測過，每條平台執行緒都是一條作業系統執行緒，開得越多、上下文切換越頻繁。<strong>執行緒池</strong>（thread pool）重複使用固定數量的執行緒，任務排隊等著被拿去做。Java 的標準實作是 <code>ThreadPoolExecutor</code>，建構子最完整的版本有七個參數：</p>
+<p>〈執行緒與並行〉講過，大量工作不要一個配一條新執行緒；每條平台執行緒都是一條作業系統執行緒，開得越多、上下文切換越頻繁（實測見〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉）。<strong>執行緒池</strong>（thread pool）重複使用固定數量的執行緒，任務排隊等著被拿去做。Java 的標準實作是 <code>ThreadPoolExecutor</code>，建構子最完整的版本有七個參數：</p>
 <pre><code>int cores = Runtime.getRuntime().availableProcessors();
 ThreadPoolExecutor pool = new ThreadPoolExecutor(
         cores,                                     // corePoolSize：常駐的執行緒數
@@ -161,7 +161,7 @@ pool.execute(() -&gt; System.out.println("第 3 個任務由 " + Thread.currentT
 <div class="drill">
   <p class="dq">下面哪一種情況，用 DiscardPolicy 比較說得過去？</p>
   <ul class="dopts"><li>寫入每一筆交易紀錄</li><li>寄送月底對帳單給客戶</li><li>執行一筆扣款</li><li data-ok>每秒一次的監控心跳</li></ul>
-  <p class="dexp">文件說它只為「從不依賴任務完成」的少數情況設計。心跳下一秒還會再送；其餘三個少一筆都是事故。</p>
+  <p class="dexp">文件說它只為「從不依賴任務完成」的少數情況設計。心跳下一秒還會再送；交易紀錄、對帳單、扣款少一筆都是事故。</p>
 </div>
 <div class="drill">
   <p class="dq">ThreadPoolExecutor 在什麼情況下會拒絕新任務？</p>
@@ -188,7 +188,7 @@ for (int i = 0; i &lt; 100; i++) {
 <p><strong>池子開多大。</strong>官方文件沒有公式，只有方向：起點是 <code>Runtime.<wbr>availableProcessors()</code>（「回傳 Java 虛擬機可用的處理器數」）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Runtime.html" target="_blank" rel="noopener">出處</a>；而 <code>ThreadPoolExecutor</code> 的文件提醒「如果任務常常阻塞（例如 I/O 密集），系統可能有辦法排程比你允許的更多的執行緒」，大佇列配小池子「可能讓吞吐量低得不自然」，小佇列配大池子則可能遇到「無法接受的排程負擔」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 所以一般的做法（這是通則、不是官方規定）：</p>
 <ul class="plainlist">
 <li><strong>CPU 密集</strong>（解析檔案、算利息）：執行緒數接近核心數。多開也不會多出算力，只會多切換。</li>
-<li><strong>I/O 密集</strong>（寫資料庫、呼叫核心系統）：執行緒大部分時間在等，可以開比核心數多很多，常見的估算式是「核心數 ×（1＋等待時間 ÷ 計算時間）」，它出自並行程式設計的教材，只是起點，要靠壓測與監控修正。</li>
+<li><strong>I/O 密集</strong>（寫資料庫、呼叫核心系統）：執行緒大部分時間在等，可以開比核心數多很多，常見的估算式是「核心數 ×（1＋等待時間 ÷ 計算時間）」，這是業界常用的估算式，沒有官方出處，只是起點，要靠壓測與監控修正。</li>
 <li><strong>下游的上限才是真正的上限</strong>：資料庫連線池只有 20 條，對帳池開 200 條也只有 20 條在做事，其餘在等連線。</li>
 </ul>
 <p><strong>銀行情境：批次對帳。</strong>4 核心的機器上，對帳分兩段：讀檔與比對是 CPU 密集，開 4 條；每筆寫回資料庫平均等 40 毫秒、自己只算 10 毫秒，照估算式是 4 ×（1＋40÷10）＝ 20 條，再跟資料庫連線池的大小取小的。佇列給上限（例如 500），拒絕策略用 CallerRunsPolicy，讀檔的執行緒被拖慢就自動減速。這些數字都是起點，跑一次壓測、看 CPU 使用率與資料庫連線等待時間再調。</p>
@@ -303,7 +303,7 @@ System.out.println("supplyAsync 跑在：" + CompletableFuture.supplyAsync(() -&
 <div class="drill">
   <p class="dq">上面的 <code>failed</code>（supplyAsync 丟例外、後面接了 thenApply），再接 <code>exceptionally(<wbr>ex -&gt; ex.<wbr>getClass().<wbr>getSimpleName())</code>，回傳什麼？</p>
   <ul class="dopts"><li>IllegalStateException</li><li data-ok>CompletionException</li><li>TimeoutException</li><li>null</li></ul>
-  <p class="dexp">例外經過中間的 thenApply 時被包成 CompletionException，所以 exceptionally 拿到的是外面那一層。要看原因就先 getCause()。</p>
+  <p class="dexp">supplyAsync 丟出的例外本身就會被包成 CompletionException 往下傳，不管中間有沒有接 thenApply，exceptionally 拿到的都是外面那一層。要看原因就先 getCause()。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>supplyAsync(...).<wbr>orTimeout(200, TimeUnit.<wbr>MILLISECONDS)</code>，工作要 2 秒才完成，結果是什麼？</p>
@@ -385,7 +385,7 @@ System.out.println("computeIfAbsent 計數：" + new TreeMap&lt;&gt;(freq));
 <div class="drill">
   <p class="dq">多條執行緒要替各分行計數，下面哪個寫法在 ConcurrentHashMap 上不會少算？</p>
   <ul class="dopts"><li>if (!map.<wbr>containsKey(<wbr>b)) map.<wbr>put(<wbr>b, 0); map.<wbr>put(<wbr>b, map.<wbr>get(<wbr>b) + 1);</li><li>map.<wbr>put(<wbr>b, map.<wbr>getOrDefault(<wbr>b, 0) + 1);</li><li data-ok>map.<wbr>merge(<wbr>b, 1, Integer::sum);</li><li>synchronized 只包住 map.get(b)</li></ul>
-  <p class="dexp">merge 是一次完成的原子操作。前兩個都是「先讀再寫」的兩次呼叫，中間會被插隊；只包住 get 也擋不住寫回時互相蓋掉。</p>
+  <p class="dexp">merge 是一次完成的原子操作。「containsKey 再 put」與「getOrDefault 再 put」都是「先讀再寫」的兩次呼叫，中間會被插隊；只包住 get 也擋不住寫回時互相蓋掉。</p>
 </div>
 </section>
 
@@ -445,7 +445,7 @@ CyclicBarrier barrier = new CyclicBarrier(3, () -&gt; System.out.println("  這�
   <p class="dexp">CyclicBarrier 讓一組執行緒互相等待到共同的屏障點，釋放後可以重複使用，還能帶一個每輪執行一次的動作。實跑兩輪各印一次「這一輪三家都到了」。</p>
 </div>
 <div class="drill">
-  <p class="dq">主執行緒在 <code>done.await()</code> 返回之後讀 <code>total</code>，一定看得到各分片在 <code>countDown()</code> 之前寫入的值嗎？</p>
+  <p class="dq">主執行緒在 <code>done.await()</code> 結束之後讀 <code>total</code>，一定看得到各分片在 <code>countDown()</code> 之前寫入的值嗎？</p>
   <ul class="dopts"><li data-ok>一定看得到，countDown 之前的動作 happens-before await 之後</li><li>不一定，total 要宣告成 volatile 才行</li><li>不一定，要先 sleep 一小段時間</li><li>一定看不到，要用 synchronized 讀</li></ul>
   <p class="dexp">java.util.concurrent 套件說明：CountDownLatch.countDown 這類釋放方法之前的動作，happens-before 另一條執行緒成功 await 之後的動作。透過這些工具交手的資料不必另外加 volatile。</p>
 </div>
@@ -580,7 +580,7 @@ System.out.println("普通欄位：設成 true 兩秒後，迴圈還在跑嗎？
 <tr><td>對一個監視器解鎖（離開 <code>synchronized</code>）</td><td>之後每一次對同一個監視器上鎖</td></tr>
 <tr><td>寫入一個 volatile 欄位</td><td>之後每一次讀取那個欄位</td></tr>
 <tr><td>呼叫一條執行緒的 <code>start()</code></td><td>那條執行緒裡的任何動作</td></tr>
-<tr><td>一條執行緒裡的所有動作</td><td>另一條執行緒對它的 <code>join()</code> 成功返回</td></tr>
+<tr><td>一條執行緒裡的所有動作</td><td>另一條執行緒對它的 <code>join()</code> 成功結束</td></tr>
 </tbody></table></div>
 <p>而且它可以遞移：hb(x, y) 且 hb(y, z) 就有 hb(x, z)。所以「先寫一般資料、再寫 volatile 旗標」，讀到旗標的執行緒也看得到那些一般資料。<code>java.util.concurrent</code> 把這些保證延伸到高階工具：放進並行集合之前的動作 happens-before 另一條執行緒取出之後的動作；送進執行器之前的動作 happens-before 任務開始執行；非同步計算的動作 happens-before 另一條執行緒用 <code>Future.get()</code> 拿到結果之後的動作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/package-summary.html" target="_blank" rel="noopener">出處</a> volatile 不保證 <code>count++</code> 的原子性，這點見〈執行緒與並行〉。</p>
 
@@ -596,8 +596,8 @@ System.out.println("普通欄位：設成 true 兩秒後，迴圈還在跑嗎？
 </div>
 <div class="drill">
   <p class="dq">下面哪一組<strong>沒有</strong> happens-before 關係？</p>
-  <ul class="dopts"><li>呼叫 t.start() 之前的動作，與 t 裡的動作</li><li>t 裡的所有動作，與另一條執行緒的 t.<wbr>join() 返回之後</li><li>離開 synchronized(<wbr>lock) 與之後進入 synchronized(<wbr>lock)</li><li data-ok>執行緒 A 寫一個普通欄位，與執行緒 B 之後讀那個欄位</li></ul>
-  <p class="dexp">前三個都是 JLS 17.4.5 列出的。兩條執行緒對普通欄位的寫與讀，中間沒有任何同步，就沒有 happens-before，也就是資料競爭。</p>
+  <ul class="dopts"><li>呼叫 t.start() 之前的動作，與 t 裡的動作</li><li>t 裡的所有動作，與另一條執行緒的 t.<wbr>join() 結束之後</li><li>離開 synchronized(<wbr>lock) 與之後進入 synchronized(<wbr>lock)</li><li data-ok>執行緒 A 寫一個普通欄位，與執行緒 B 之後讀那個欄位</li></ul>
+  <p class="dexp">「start() 之前與 t 裡的動作」「t 的動作與 join() 結束之後」「離開與之後進入同一把鎖」都是 JLS 17.4.5 列出的。兩條執行緒對普通欄位的寫與讀，中間沒有任何同步，就沒有 happens-before，也就是資料競爭。</p>
 </div>
 <div class="drill">
   <p class="dq">任務送進 <code>ExecutorService</code> 之前，主執行緒先把一個普通物件的欄位設好。任務開始執行時，一定看得到那些值嗎？</p>

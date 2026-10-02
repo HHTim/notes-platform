@@ -42,12 +42,12 @@
 <p>JVMS 第 2.5 節的定義：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>區域</th><th>規格怎麼說</th><th>誰擁有</th><th>出事時</th></tr></thead><tbody>
 <tr><th>pc 暫存器</th><td>「每條 JVM 執行緒有自己的 pc（程式計數器）暫存器」，記著目前執行到哪一條指令</td><td>每條執行緒</td><td>—</td></tr>
-<tr><th>JVM 堆疊</th><td>「與執行緒同時建立」，存放「框」（frame）：區域變數與運算中的部分結果，「參與方法的呼叫與返回」</td><td>每條執行緒</td><td>需要的深度超過允許值丟 <code>StackOverflowError</code>；配不出記憶體丟 <code>OutOfMemoryError</code></td></tr>
+<tr><th>JVM 堆疊</th><td>「與執行緒同時建立」，存放「框」（frame）：區域變數與運算中的部分結果，「參與方法的呼叫與回傳」</td><td>每條執行緒</td><td>需要的深度超過允許值丟 <code>StackOverflowError</code>；配不出記憶體丟 <code>OutOfMemoryError</code></td></tr>
 <tr><th>堆</th><td>「所有 JVM 執行緒共用」，是「配置所有類別實體與陣列的執行期資料區」；物件「從不明確釋放」，由垃圾回收器回收</td><td>共用</td><td><code>OutOfMemoryError</code></td></tr>
 <tr><th>方法區</th><td>「所有 JVM 執行緒共用」，存放每個類別的結構：執行期常數池、欄位與方法的資料、方法與建構子的程式碼</td><td>共用</td><td><code>OutOfMemoryError</code></td></tr>
 <tr><th>本機方法堆疊</th><td>執行 C 這類原生方法時用的堆疊</td><td>每條執行緒</td><td><code>StackOverflowError</code> 或 <code>OutOfMemoryError</code></td></tr>
 </tbody></table></div>
-<p>每次呼叫方法就推一個框進那條執行緒的 JVM 堆疊，方法返回就彈出。所以區域變數只有自己那條執行緒看得到，天生不必同步；堆上的物件大家都拿得到參考，才需要〈執行緒與並行〉講的那些鎖。方法區在 HotSpot 裡的實作叫 <strong>Metaspace</strong>：Java 8 的 JEP 122「從 HotSpot JVM 移除永久代，因此也不再需要調整永久代的大小」（Remove the permanent generation from the Hotspot JVM and thus the need to tune the size of the permanent generation.）<a class="fixsrc" href="https://openjdk.org/jeps/122" target="_blank" rel="noopener">出處</a>，類別中繼資料改放在原生記憶體（native memory，作業系統直接給行程、不在 Java 堆裡的記憶體）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
+<p>每次呼叫方法就推一個框進那條執行緒的 JVM 堆疊，方法結束就彈出。所以區域變數只有自己那條執行緒看得到，天生不必同步；堆上的物件大家都拿得到參考，才需要〈執行緒與並行〉講的那些鎖。方法區在 HotSpot 裡的實作叫 <strong>Metaspace</strong>：Java 8 的 JEP 122「從 HotSpot JVM 移除永久代，因此也不再需要調整永久代的大小」（Remove the permanent generation from the Hotspot JVM and thus the need to tune the size of the permanent generation.）<a class="fixsrc" href="https://openjdk.org/jeps/122" target="_blank" rel="noopener">出處</a>，類別中繼資料改放在原生記憶體（native memory，作業系統直接給行程、不在 Java 堆裡的記憶體）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">堆與方法區共用；JVM 堆疊、pc、本機方法堆疊每條執行緒一份</p>
 
 <div class="drill">
@@ -131,12 +131,12 @@
         System.out.println(sum + " " + survivors.size());
     }
 }
-// java -Xmx64m -Xlog:gc Churn（Java 21、預設 G1）節錄：
+// java -Xmx64m -Xlog:gc Churn（Java 21、預設 G1；Docker 環境 10 顆 CPU、8 GB 記憶體）節錄：
 // [0.001s][info][gc] Using G1
 // [0.028s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 24M-&gt;1M(64M) 0.630ms
 // [0.034s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 38M-&gt;1M(64M) 0.486ms
 // [0.039s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 38M-&gt;1M(64M) 0.490ms</code></pre>
-<p><code>38M->1M(64M)</code> 是「回收前用了 38 MB、回收後剩 1 MB、堆目前 64 MB」：每次年輕代回收，幾乎全部都是死物件，零點幾毫秒就清掉了，這就是弱分代假說的效果。</p>
+<p><code>38M->1M(64M)</code> 是「回收前用了 38 MB、回收後剩 1 MB、堆目前 64 MB」。括號裡的堆大小跟機器記憶體有關：初始堆是實體記憶體的 1/64，在 2 GB 的容器裡跑同一個程式，日誌就變成 <code>19M->1M(34M)</code> 這樣。不管哪一種，每次年輕代回收，幾乎全部都是死物件，零點幾毫秒就清掉了，這就是弱分代假說的效果。</p>
 <p><strong>堆多大：</strong>調校指南列的預設值是「初始堆大小為實體記憶體的 1/64」「最大堆大小為實體記憶體的 1/4」，最小與最大堆分別用 <code>-Xms</code>、<code>-Xmx</code> 設。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a> 它還說 HotSpot 啟動時「在位址空間裡保留整個 Java 堆，但除非需要，不會替它配置實體記憶體」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a>，這正是〈作業系統怎麼跑程式〉的需求分頁：<code>-Xmx4g</code> 不代表一啟動就吃掉 4 GB 實體記憶體。在只給 2 GB 記憶體的容器裡實跑 <code>java -XX:+PrintCommandLineFlags -version</code>，看到 <code>-XX:InitialHeapSize=33554432</code>（32 MB，2 GB 的 1/64）與 <code>-XX:MaxHeapSize=536870912</code>（512 MB，2 GB 的 1/4）：JVM 認的「實體記憶體」是容器給的上限。</p>
 <p class="formula">新物件進 Eden；年輕代回收快，因為大多數都死了；活得夠久才晉升老年代</p>
 
@@ -238,7 +238,7 @@
 <tr><td><code>--cpus=2 --memory=1g</code></td><td><code>-XX:+UseSerialGC</code>（記憶體不到 1792 MB）</td></tr>
 <tr><td><code>--cpus=2 --memory=2g</code></td><td><code>-XX:+UseG1GC</code></td></tr>
 </tbody></table></div>
-<p>所以 K8s 上只給 1 顆 CPU 或 1 GB 記憶體的 Java 服務，沒指定的話跑的是 Serial。同一個 <code>Churn</code> 程式換回收器，日誌的開頭也不一樣：</p>
+<p>所以 K8s 上 <code>limits</code> 設成 1 顆 CPU，或記憶體 <code>limits</code> 低於 1792 MB（例如 1 GB）的 Java 服務，沒指定的話跑的是 Serial；實跑 <code>--memory=1792m</code> 是 G1、<code>--memory=1791m</code> 就變 Serial。只設 <code>requests</code> 不算：K8s 文件說 CPU 的 request「通常定義的是一個權重」（The CPU request typically defines a weighting）<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>，落到節點上是 CPU 份額（shares），而 Java 19 起 JVM 不再用份額算處理器數（JDK-8281181，Do not use CPU Shares to compute active processor count）<a class="fixsrc" href="https://bugs.openjdk.org/browse/JDK-8281181" target="_blank" rel="noopener">出處</a>；實跑 <code>--cpu-shares=512 --memory=2g</code> 照樣是 G1。同一個 <code>Churn</code> 程式換回收器，日誌的開頭也不一樣：</p>
 <pre><code>// java -Xmx64m -XX:+UseSerialGC -Xlog:gc Churn
 // [0.001s][info][gc] Using Serial
 // [0.033s][info][gc] GC(0) Pause Young (Allocation Failure) 18M-&gt;1M(61M) 0.384ms
@@ -313,7 +313,7 @@
 }
 // java -Xmx64m HeapOom（預設 G1）：            撐了 31 MB：java.lang.OutOfMemoryError: Java heap space
 // java -Xmx64m -XX:+UseSerialGC HeapOom：     撐了 60 MB：java.lang.OutOfMemoryError: Java heap space</code></pre>
-<p>同樣 64 MB 的堆，G1 只放得進 31 個 1 MB 陣列，Serial 放得進 60 個。原因在 G1 的區域：這個堆的區域大小是 1 MB（<code>-Xlog:gc+init</code> 印出 <code>Heap Region Size: 1M</code>），調校指南說「大於等於半個區域的物件」是<strong>巨型物件</strong>（humongous object），每一個「配置成老年代裡一串連續的區域」，最後一塊區域剩下的空間「在整個物件被回收前都不能再拿來配置」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a> 1 MB 的陣列加上物件標頭比 1 MB 多一點，就占掉兩塊區域。這也是用 G1 時「大陣列很吃堆」的原因。</p>
+<p>同樣 64 MB 的堆，G1 只放得進 31 個 1 MB 陣列，Serial 放得進 60 個。原因在 G1 的區域：這個堆的區域大小是 1 MB（<code>-Xlog:gc+init</code> 印出 <code>Heap Region Size: 1M</code>），調校指南說「大於等於半個區域的物件」是<strong>巨型物件</strong>（humongous object），每一個「配置成老年代裡一串連續的區域」，最後一塊區域剩下的空間「在整個物件被回收前都不能再拿來配置」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a> 1 MB 的陣列加上物件標頭比 1 MB 多一點，就占掉兩塊區域。所以用 G1 時，大小剛好超過半個區域（或剛好超過區域整數倍）的大陣列最浪費空間。</p>
 <p><strong>Metaspace。</strong>指南：「Java 類別中繼資料配置在原生記憶體（這裡稱為 Metaspace）」，用完就丟訊息是 <code>Metaspace</code> 的 <code>OutOfMemoryError</code>；上限是 <code>MaxMetaspaceSize</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a> 讓每個新的類別載入器各定義一次同一份位元碼，每次都是一個新類別：</p>
 <pre><code>public class Meta {
     // 每個載入器各自定義一次同一份位元碼，就是一個新的類別，類別中繼資料放進 Metaspace
@@ -367,8 +367,9 @@ try {
         }
     }
 }
-// Linux/Aarch64 容器，預設 -Xss（2048 KB）：遞迴 47332 層後：java.lang.StackOverflowError
-// java -Xss256k Deep：                       遞迴 1928 層後：java.lang.StackOverflowError</code></pre>
+// Linux/Aarch64 容器，預設 -Xss（2048 KB），實跑六次：遞迴 45102〜94549 層後丟 java.lang.StackOverflowError
+// java -Xss256k Deep，實跑六次：                遞迴 1629〜2793 層後丟 java.lang.StackOverflowError</code></pre>
+<p>層數每次都不一樣，因為即時編譯（後面 JIT 一段）把 <code>down()</code> 編成機器碼的時機不同，每一框占的堆疊大小也跟著變；要看的是量級：預設是幾萬層，256 KB 只剩兩千層上下。</p>
 <p>還有兩種沒在這裡重現：<code>GC overhead limit exceeded</code>，指南說是回收器「幾乎一直在跑」，一次回收後「花超過大約 98% 的時間在回收」卻收回很少<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a>；以及開太多執行緒時的 <code>unable to create native thread</code>，對應 JVMS 那句「沒有足夠記憶體替新執行緒建立初始的 JVM 堆疊時，丟 OutOfMemoryError」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 每一種的完整排查方向整理在〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
 <div class="tablewrap"><table><thead><tr><th>訊息</th><th>哪一塊不夠</th><th>先想到</th></tr></thead><tbody>
 <tr><td><code>Java heap space</code></td><td>Java 堆</td><td><code>-Xmx</code> 太小，或有東西一直抓著物件（洩漏）</td></tr>
@@ -402,7 +403,7 @@ try {
 <div class="drill">
   <p class="dq">把 <code>-Xss</code> 從預設改成 <code>256k</code>，上面 <code>Deep</code> 能遞迴的層數會怎樣？</p>
   <ul class="dopts"><li>變多，因為堆疊比較小跑得比較快</li><li>不變，-Xss 只影響堆</li><li data-ok>變少，因為每條執行緒的堆疊變小了</li><li>直接丟 OutOfMemoryError</li></ul>
-  <p class="dexp">-Xss 設的是每條執行緒的堆疊大小。實跑時預設（2048 KB）是四萬七千多層，256 KB 只剩一千九百多層。</p>
+  <p class="dexp">-Xss 設的是每條執行緒的堆疊大小。實跑六次，預設（2048 KB）是四萬五千到九萬多層，256 KB 只剩一千六百到兩千八百層左右；層數每次不同，但量級差很多。</p>
 </div>
 <div class="drill">
   <p class="dq">64 MB 的 G1 堆，為什麼只放得進 31 個 1 MB 的陣列，而 Serial 放得進 60 個？</p>
@@ -452,7 +453,7 @@ try {
 <div class="drill">
   <p class="dq">下面哪一種寫法最可能造成記憶體洩漏？</p>
   <ul class="dopts"><li>方法裡 new 了大陣列，方法結束後沒再用</li><li data-ok>往 static Map 放了從不移除</li><li>兩個物件互相參考，之後都沒人用</li><li>在迴圈裡大量建立用完就丟的字串</li></ul>
-  <p class="dexp">static Map 從 GC Root 可達，放進去的東西永遠不會變成垃圾。其餘三種在沒人參考後都會被回收，最後一種正是年輕代最擅長處理的情況。</p>
+  <p class="dexp">static Map 從 GC Root 可達，放進去的東西永遠不會變成垃圾。「方法結束後沒再用的大陣列」「互相參考、之後都沒人用的兩個物件」「用完就丟的字串」在沒人參考後都會被回收，用完就丟的短命字串正是年輕代最擅長處理的情況。</p>
 </div>
 <div class="drill">
   <p class="dq">執行緒池裡的執行緒用 <code>ThreadLocal</code> 存了一個大物件，用完沒呼叫 <code>remove()</code>，會怎樣？</p>
