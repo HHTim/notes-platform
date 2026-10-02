@@ -23,8 +23,8 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `java/12-lambda-functional` | ✅ `86ea72a`＋`075d33e`（55 題；mins 55） | ✅ 10-02 審完：132 題正解都唯一（三題只在 JDK 實作上唯一，要標明實跑）；出處連結裡塞了 wbr 點不開；測驗正解太常最長；清單 `.superpowers/audit/java/findings-12-13.md`；修正交給 `fix-java-1213` | | |
-| `java/13-stream-api` | ✅ `c09e024`（57 題；mins 55） | 同上 | | |
+| `java/12-lambda-functional` | ✅ `86ea72a`＋`075d33e`（55 題；mins 55） | ✅ 10-02 審完：132 題正解都唯一（三題只在 JDK 實作上唯一，要標明實跑）；出處連結裡塞了 wbr 點不開；測驗正解太常最長；清單 `.superpowers/audit/java/findings-12-13.md`；修正交給 `fix-java-1213` | ✅ 10-02 上線 |
+| `java/13-stream-api` | ✅ `c09e024`（57 題；mins 55） | 同上 | ✅ 10-02 上線 |
 | `java/14-modern-syntax` | 撰寫中（`write-java-a` 第二輪） | | | |
 | `java/15-os-process-io` | 撰寫中（`write-java-a` 第二輪） | | | |
 | `interview/17-java-modern-qa` | | | | |

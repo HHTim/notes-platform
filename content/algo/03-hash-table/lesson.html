@@ -4,7 +4,7 @@
 <section>
 <p class="era">置物櫃，鍵直接換成格子編號</p>
 <h3 class="head">雜湊表的想法：用算的找位置</h3>
-<p>想像車站的投幣置物櫃。如果你手上的收據寫著「17 號」，你會直接走到 17 號櫃子打開，不會從 1 號一路開過去。陣列也是這樣：知道索引，一步就拿到那一格（〈陣列與字串〉講過）。〈陣列與字串〉的置物櫃要你自己記得號碼；雜湊表多了一台「用名字算號碼」的機器（雜湊函式），你只要報名字。</p>
+<p>想像車站的投幣置物櫃。如果你手上的收據寫著「17 號」，你會直接走到 17 號櫃子打開，不會從 1 號一路開過去。陣列也是這樣：知道索引，一步就拿到那一格。〈陣列與字串〉的置物櫃要你自己記得號碼；雜湊表多了一台「用名字算號碼」的機器（雜湊函式），你只要報名字。</p>
 <p>麻煩在於，我們要找的東西通常不是用「17 號」這種小整數標示，而是帳號、身分證字號、商品編號這種字串。<strong>雜湊表</strong>（hash table）的想法是：準備一排格子（陣列），再準備一個<strong>雜湊函式</strong>（hash function，把任何一個鍵算成一個格子編號的公式）。要存就算出編號放進去，要找就用同一個公式算出編號直接去看。普林斯頓《Algorithms》把它拆成兩步：先用雜湊函式「把要找的鍵轉成陣列索引」（compute a hash function that transforms the search key into an array index），第二步是處理「兩個以上不同的鍵算到同一個索引」的情況，叫碰撞處理（collision-resolution process）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
 <p>在 Java 裡，第一步分成兩半：每個物件都有 <code>hashCode()</code>，回傳一個 32 位元的整數，叫<strong>雜湊碼</strong>；<code>HashMap</code> 再拿這個整數算出要放進哪一格。<code>HashMap</code> 的每一格叫<strong>桶</strong>（bucket，因為一格裡可能裝不只一筆）。算法寫在 OpenJDK 原始碼裡：</p>
 <ul class="plainlist">
@@ -462,7 +462,7 @@ public class WorstCase {
 <div class="drill">
   <p class="dq">某個桶已經樹化。後來擴容把它拆成兩半，其中一半只剩 5 個節點，那一半會怎樣？</p>
   <ul class="dopts"><li data-ok>退回普通的串列</li><li>繼續維持紅黑樹</li><li>跟隔壁的桶合併</li><li>觸發下一次擴容</li></ul>
-  <p class="dexp">拆完剩的節點數小於等於 UNTREEIFY_THRESHOLD（6）就退回串列。原始碼註解只要求這個值比 TREEIFY_THRESHOLD 小（Should be less than TREEIFY_THRESHOLD）。</p>
+  <p class="dexp">拆完剩的節點數小於等於 UNTREEIFY_THRESHOLD（6）就退回串列。原始碼註解要求它比 TREEIFY_THRESHOLD 小、而且最多是 6（Should be less than TREEIFY_THRESHOLD, and at most 6 to mesh with shrinkage detection under removal）。</p>
 </div>
 <div class="drill">
   <p class="dq">HashMap 為什麼不一開始就把每個桶都做成樹？</p>

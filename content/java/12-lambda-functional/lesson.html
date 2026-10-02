@@ -36,7 +36,7 @@ System.out.println(txs);
 
 select(txs, tx -&gt; tx.amount() &gt;= 500);      // [Tx[id=T3, amount=980], Tx[id=T1, amount=500]]
 select(txs, tx -&gt; tx.id().equals("T2"));    // [Tx[id=T2, amount=120]]</code></pre>
-<p>還有一件常被忽略的事：<strong>寫下 lambda 不等於執行它。</strong>JLS 說，對 lambda 運算式求值會產生一個<strong>函式介面</strong>（只有一個抽象方法的介面，後面〈函式介面與 @FunctionalInterface〉一段細講）的實例，「但不會執行運算式的本體；本體可能在之後、當函式介面對應的方法被呼叫時才執行」（Lambda expression evaluation does not cause the execution of the expression's body; instead, this may occur at a later time when an appropriate method of the functional interface is invoked.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 上面 <code>select</code> 裡，是 <code>rule.test(tx)</code> 這一行才真的跑了呼叫端寫的那段程式碼。</p>
+<p>還有一件常被忽略的事：<strong>寫下 lambda 不等於執行它。</strong>JLS 說，對 lambda 運算式求值會產生一個<strong>函式介面</strong>（只有一個抽象方法的介面，後面「函式介面與 @FunctionalInterface」那一段細講）的實例，「但不會執行運算式的本體；本體可能在之後、當函式介面對應的方法被呼叫時才執行」（Lambda expression evaluation does not cause the execution of the expression's body; instead, this may occur at a later time when an appropriate method of the functional interface is invoked.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 上面 <code>select</code> 裡，是 <code>rule.test(tx)</code> 這一行才真的跑了呼叫端寫的那段程式碼。</p>
 <p class="formula">lambda＝只留參數與本體的匿名方法；寫下它只是「準備好」，被呼叫時才執行</p>
 
 <div class="drill">
@@ -512,7 +512,7 @@ list.sort(Comparator.comparing(Transfer::amount, Comparator.reverseOrder())
 <div class="drill">
   <p class="dq">要「金額由大到小、同金額時間由早到晚」，下面哪一個比較器正確？</p>
   <ul class="dopts"><li data-ok>comparing(<wbr>Transfer::amount, Comparator.<wbr>reverseOrder()).<wbr>thenComparing(<wbr>Transfer::time)</li><li>comparing(<wbr>Transfer::amount).<wbr>thenComparing(<wbr>Transfer::time).<wbr>reversed()</li><li>comparing(<wbr>Transfer::time).<wbr>thenComparing(<wbr>Transfer::amount).<wbr>reversed()</li><li>comparing(<wbr>Transfer::amount).<wbr>reversed().<wbr>thenComparing(<wbr>Transfer::time).<wbr>reversed()</li></ul>
-  <p class="dexp">只把金額這個鍵的比較改成反序，時間照自然順序。第二個整串反轉，時間也變晚到早；第三個以時間為主鍵；第四個的第二次 <code>reversed()</code> 又把整串翻回金額小到大、時間晚到早。</p>
+  <p class="dexp">只把金額這個鍵的比較改成反序，時間照自然順序。<code>thenComparing(Transfer::time).reversed()</code> 那個把整串反轉，時間也變晚到早；<code>comparing(Transfer::time)</code> 開頭的那個以時間為主鍵；<code>reversed()</code> 出現兩次的那個，第二次又把整串翻回金額小到大、時間晚到早。</p>
 </div>
 <div class="drill">
   <p class="dq">這段程式印出什麼？</p>
