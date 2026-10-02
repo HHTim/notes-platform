@@ -29,5 +29,6 @@
 | `database/08-cache-redis` | 快取放哪裡、怎麼失效 | 撰寫中（`write-algo-c`） | | | |
 | `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | 撰寫中（`fix-algo-1112` 轉做） | | | |
 | `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | 撰寫中（`fix-algo-0910` 轉做） | | | |
+| `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | 撰寫中（`fix-int17` 轉做） | | | |
 
 各課涵蓋範圍照 roadmap 計畫第三部分「最急」表格那一列。課序照資料夾編號接在各模組最後。
