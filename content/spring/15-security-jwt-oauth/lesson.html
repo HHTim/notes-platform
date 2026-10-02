@@ -1,5 +1,5 @@
 <!-- 來源：依 RFC 7519、6749、7636、9700、OpenID Connect Core 1.0、Spring Security 7.1 參考文件（resource-server/jwt、oauth2/client/authorization-grants、oauth2/login/core、authorization-server/getting-started、authorization/method-security、authentication/mfa、features/authentication/password-storage、test/mockmvc/oauth2）、Spring Security 7.0 新功能說明與 spring-security 7.1.1 標籤的原始碼（DaoAuthenticationProvider、OAuth2ResourceServerConfigurer、OAuth2RefreshTokenGenerator）新寫；三個示範專案（資源伺服器、授權伺服器、OIDC 登入用戶端）以 Spring Boot 4.1.1（Spring Security 7.1.1）、Java 21、Maven 建立，金鑰自己產生，輸出都是 MockMvc 測試實跑的結果 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把 API 設成資源伺服器：驗 JWT 的簽章、exp、iss、aud，分清 401 與 403</li><li>用 <code>@PreAuthorize</code> 擋住「改網址就看到別人的帳戶」，並用 <code>jwt()</code> 寫測試</li><li>一步一步走過授權碼流程與 PKCE，知道授權伺服器每一步檢查什麼</li><li>說明更新權杖輪替的實際行為，以及 <code>oauth2Login()</code> 幫你帶了哪些參數</li><li>用 DelegatingPasswordEncoder 讓舊格式密碼在下次登入時自動升級</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把 API 設成資源伺服器：驗 JWT 的簽章、exp、iss、aud，分清 401 與 403</li><li>用 <code>@PreAuthorize</code> 擋住「改網址就看到別人的帳戶」，並用 <code>jwt()</code> 寫測試</li><li>一步一步走過授權碼流程與 PKCE，知道授權伺服器每一步檢查什麼</li><li>說明更新權杖輪替與 <code>oauth2Login()</code> 的實際行為，並讓舊格式密碼在登入時自動升級</li></ul></div>
 
 <section>
 <p class="era">從概念到設定</p>
@@ -25,7 +25,7 @@
 </div>
 <div class="drill">
   <p class="dq">網銀前台要「用銀行的統一帳號登入」：按登入後被導去統一登入頁，回來後就是登入狀態。前台用哪個設定？</p>
-  <ul class="dopts"><li data-ok>oauth2Login()</li><li>oauth2ResourceServer()，因為它要收權杖</li><li>oauth2AuthorizationServer()，因為要有登入頁</li><li>httpBasic()，由瀏覽器跳出帳密視窗</li></ul>
+  <ul class="dopts"><li data-ok>oauth2Login()</li><li>oauth2ResourceServer()</li><li>oauth2AuthorizationServer()</li><li>httpBasic()</li></ul>
   <p class="dexp">把使用者導去別人的登入頁、帶結果回來，是用戶端的工作。</p>
 </div>
 </section>
@@ -57,7 +57,7 @@
 </ul>
 <figure>
 <svg viewBox="0 0 760 364" role="img" aria-label="資源伺服器驗 JWT 的順序：拆段解碼、驗簽章、檢查 exp 與 nbf、檢查 iss、檢查 aud，任何一步失敗都回 401 invalid_token；全部通過才把 scope 轉成 SCOPE_ 權限，交給授權規則，權限不夠才回 403">
-<defs><marker id="sj-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="30" y="30" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="54" font-size="12.5" text-anchor="middle">拆三段、base64url 解碼</text><line x1="180" y1="70" x2="180" y2="80" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="49" x2="384" y2="49" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="54" font-size="12" fill="var(--gold-deep)">401 invalid_token：格式不對</text><rect x="30" y="82" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="106" font-size="12.5" text-anchor="middle">驗簽章（只接受 RS256）</text><line x1="180" y1="122" x2="180" y2="132" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="101" x2="384" y2="101" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="106" font-size="12" fill="var(--gold-deep)">401 invalid_token：Invalid signature／Unsupported algorithm</text><rect x="30" y="134" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="158" font-size="12.5" text-anchor="middle">exp、nbf（容許 60 秒時鐘誤差）</text><line x1="180" y1="174" x2="180" y2="184" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="153" x2="384" y2="153" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="158" font-size="12" fill="var(--gold-deep)">401 invalid_token：Jwt expired at …</text><rect x="30" y="186" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="210" font-size="12.5" text-anchor="middle">iss 是不是我信任的</text><line x1="180" y1="226" x2="180" y2="236" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="205" x2="384" y2="205" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="210" font-size="12" fill="var(--gold-deep)">401 invalid_token：The iss claim is not valid</text><rect x="30" y="238" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="262" font-size="12.5" text-anchor="middle">aud 有沒有我（要自己加）</text><line x1="180" y1="278" x2="180" y2="288" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="257" x2="384" y2="257" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="262" font-size="12" fill="var(--gold-deep)">401 invalid_token：The aud claim is not valid</text><rect x="30" y="290" width="300" height="38" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="180" y="314" font-size="12.5" text-anchor="middle">scope → SCOPE_ 權限</text><text x="392" y="314" font-size="12.5" fill="var(--slate-deep)">通過 → 進授權規則；權限不夠才是 403</text><text x="30" y="350" font-size="12" opacity=".6">古銅字是這課實跑時 WWW-Authenticate 標頭裡的 error_description（節錄）</text>
+<defs><marker id="sj-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="30" y="30" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="54" font-size="12.5" text-anchor="middle">拆三段、base64url 解碼</text><line x1="180" y1="70" x2="180" y2="80" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="49" x2="384" y2="49" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="54" font-size="12" fill="var(--gold-deep)">401 invalid_token：格式不對（白話）</text><rect x="30" y="82" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="106" font-size="12.5" text-anchor="middle">驗簽章（只接受 RS256）</text><line x1="180" y1="122" x2="180" y2="132" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="101" x2="384" y2="101" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="106" font-size="12" fill="var(--gold-deep)">401 invalid_token：Invalid signature／Unsupported algorithm</text><rect x="30" y="134" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="158" font-size="12.5" text-anchor="middle">exp、nbf（容許 60 秒時鐘誤差）</text><line x1="180" y1="174" x2="180" y2="184" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="153" x2="384" y2="153" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="158" font-size="12" fill="var(--gold-deep)">401 invalid_token：Jwt expired at …</text><rect x="30" y="186" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="210" font-size="12.5" text-anchor="middle">iss 是不是我信任的</text><line x1="180" y1="226" x2="180" y2="236" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="205" x2="384" y2="205" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="210" font-size="12" fill="var(--gold-deep)">401 invalid_token：The iss claim is not valid</text><rect x="30" y="238" width="300" height="38" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="262" font-size="12.5" text-anchor="middle">aud 有沒有我（要自己加）</text><line x1="180" y1="278" x2="180" y2="288" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m2)"/><line x1="334" y1="257" x2="384" y2="257" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m2)"/><text x="392" y="262" font-size="12" fill="var(--gold-deep)">401 invalid_token：The aud claim is not valid</text><rect x="30" y="290" width="300" height="38" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="180" y="314" font-size="12.5" text-anchor="middle">scope → SCOPE_ 權限</text><text x="392" y="314" font-size="12.5" fill="var(--slate-deep)">通過 → 進授權規則；權限不夠才是 403</text><text x="30" y="350" font-size="12" opacity=".6">古銅字是這課實跑時 WWW-Authenticate 標頭裡 error_description 的節錄；第一關是白話，這課沒有實跑格式錯誤的權杖</text>
 </svg>
 <figcaption>前五關任一關沒過是 401（權杖本身不行），全部過了但權限不夠才是 403。</figcaption>
 </figure>
@@ -70,7 +70,7 @@ iss 不對          → 401  WWW-Authenticate: Bearer error="invalid_token", err
 竄改聲明          → 401  WWW-Authenticate: Bearer error="invalid_token", error_description="…Signed JWT rejected: Invalid signature"
 alg 改成 none     → 401  WWW-Authenticate: Bearer error="invalid_token", error_description="Unsupported algorithm of none"
 別把金鑰簽的      → 401  WWW-Authenticate: Bearer error="invalid_token", error_description="…Signed JWT rejected: Invalid signature"</code></pre>
-<p>另一個測試把標頭改成 HS256，拿<strong>公開的</strong> RSA 公鑰當 HMAC 密鑰簽名（演算法混淆）：</p>
+<p>另一個測試把標頭改成 HS256，拿<strong>公開的</strong> RSA 公鑰當 HMAC 金鑰簽名（演算法混淆）：</p>
 <pre><code>alg 換成 HS256 → 401  Bearer error="invalid_token", error_description="…Signed JWT rejected: Another algorithm expected, or no matching key(s) found"</code></pre>
 <ul class="plainlist">
 <li><strong>過期 30 秒還能過</strong>：文件寫「資源伺服器預設容許 60 秒的時鐘誤差」（By default, Resource Server configures a clock skew of 60 seconds.）<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a>。</li>
@@ -111,7 +111,7 @@ alg 改成 none     → 401  WWW-Authenticate: Bearer error="invalid_token", err
   <p class="dexp">簽章算的是原本的內容；改過就驗不過，走不到授權規則，所以是 401。</p>
 </div>
 <div class="drill">
-  <p class="dq">攻擊者把標頭改成 <code>{"alg":"HS256"}</code>，拿 API 公開的 RSA 公鑰當 HMAC 密鑰重簽。這課的 API 怎麼回？</p>
+  <p class="dq">攻擊者把標頭改成 <code>{"alg":"HS256"}</code>，拿 API 公開的 RSA 公鑰當 HMAC 金鑰重簽。這課的 API 怎麼回？</p>
   <ul class="dopts"><li>200，因為用的是正確的那把公鑰</li><li>403，HS256 簽的權杖權限比較少</li><li>500，伺服器不支援 HS256 所以出錯</li><li data-ok>401，驗證端只接受 RS256</li></ul>
   <p class="dexp">NimbusJwtDecoder.<wbr>withPublicKey 只用 RSA 驗，實跑訊息 Another algorithm expected, or no matching key(s) found。</p>
 </div>
@@ -130,7 +130,8 @@ alg 改成 none     → 401  WWW-Authenticate: Bearer error="invalid_token", err
 <section>
 <p class="era">一支 API，兩條 Filter 鏈</p>
 <h3 class="head">資源伺服器的設定</h3>
-<pre><code>@Order(1)
+<pre><code>@Bean
+@Order(1)
 SecurityFilterChain tokenEndpoint(HttpSecurity http) throws Exception {
     http
         .securityMatcher("/token")                           // 這條鏈只管 /token
@@ -178,7 +179,7 @@ carol     POST /transfers     → 200  轉帳受理，操作人 carol</code></pr
 <p><code>issuer-uri</code> 驗 iss，<code>audiences</code> 驗 aud（Boot also has the audiences property for validating the aud claim）；授權伺服器換新金鑰時，「Spring Security 會自動輪替」驗證用的金鑰（Spring Security will automatically rotate the keys used to validate JWTs.）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
 
 <h4>權杖裡的權限怎麼變成 Spring 的權限</h4>
-<p>預設把 scope 每一項加上 <code>SCOPE_</code>。角色放在別的聲明（例如 <code>roles</code>）時，換一個 <code>Jwt<wbr>Granted<wbr>Authorities<wbr>Converter</code>，文件的範例就是 <code>set<wbr>Authorities<wbr>Claim<wbr>Name</code>。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a> 這課對一張帶 <code>"roles":["TELLER","AUDITOR"]</code> 的 JWT 實跑：預設轉換得到 <code>SCOPE_accounts:read</code>；改用 <code>set<wbr>Authorities<wbr>Claim<wbr>Name(<wbr>"roles")</code> 加 <code>set<wbr>Authority<wbr>Prefix(<wbr>"ROLE_")</code> 後得到 <code>ROLE_TELLER</code>、<code>ROLE_AUDITOR</code>，兩次都另外多一個 <code>FACTOR_BEARER</code>。<code>FACTOR_BEARER</code> 是 Spring Security 7 為多因素認證加的：用密碼登入時，會自動加上密碼那一種 FactorGrantedAuthority（when a user authenticates using a password a FactorGrantedAuthority … is automatically added）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authentication/mfa.html" target="_blank" rel="noopener">出處</a> 實跑時權杖認證是 <code>FACTOR_BEARER</code>、密碼登入是 <code>FACTOR_PASSWORD</code>；這課的 <code>/token</code> 寫 scope 時特意濾掉 <code>FACTOR_</code> 開頭的。</p>
+<p>預設把 scope 每一項加上 <code>SCOPE_</code>。角色放在別的聲明（例如 <code>roles</code>）時，換一個 <code>Jwt<wbr>Granted<wbr>Authorities<wbr>Converter</code>，文件的範例就是 <code>set<wbr>Authorities<wbr>Claim<wbr>Name</code>。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a> 這課對一張帶 <code>"roles":["TELLER","AUDITOR"]</code> 的 JWT 實跑：預設轉換得到 <code>SCOPE_accounts:read</code>；改用 <code>set<wbr>Authorities<wbr>Claim<wbr>Name(<wbr>"roles")</code> 加 <code>set<wbr>Authority<wbr>Prefix(<wbr>"ROLE_")</code> 後得到 <code>ROLE_TELLER</code>、<code>ROLE_AUDITOR</code>，兩次都另外多一個 <code>FACTOR_BEARER</code>。<code>FACTOR_BEARER</code> 是 Spring Security 7 為多因素認證加的：用密碼登入時，會自動加上密碼那一種 FactorGrantedAuthority（when a user authenticates using a password a FactorGrantedAuthority … is automatically added）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authentication/mfa.html" target="_blank" rel="noopener">出處</a> 實跑時權杖認證是 <code>FACTOR_BEARER</code>（原始碼裡的常數 <code>BEARER_AUTHORITY = "FACTOR_BEARER"</code><a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/core/src/main/java/org/springframework/security/core/authority/FactorGrantedAuthority.java" target="_blank" rel="noopener">出處</a>）、密碼登入是 <code>FACTOR_PASSWORD</code>；這課的 <code>/token</code> 寫 scope 時特意濾掉 <code>FACTOR_</code> 開頭的。</p>
 <p class="formula">兩條鏈：/token 用 Basic、API 用 Bearer；帶 Bearer 的請求不做 CSRF 檢查；權限預設是 SCOPE_ 加 scope</p>
 
 <div class="drill">
@@ -188,7 +189,7 @@ carol     POST /transfers     → 200  轉帳受理，操作人 carol</code></pr
 </div>
 <div class="drill">
   <p class="dq">資源伺服器那條鏈沒寫 <code>csrf(...)</code>，carol 帶 Bearer 權杖 <code>POST /transfers</code>、沒帶 CSRF 權杖。結果是？</p>
-  <ul class="dopts"><li>403，因為沒帶 CSRF 權杖</li><li>401，CSRF 失敗被當成認證失敗</li><li data-ok>200，Bearer 請求不檢查 CSRF</li><li>要看 carol 之前有沒有用瀏覽器登入</li></ul>
+  <ul class="dopts"><li>403，因為沒帶 CSRF 權杖</li><li>401，CSRF 失敗被當成認證失敗</li><li data-ok>200，不檢查 CSRF</li><li>要看 carol 之前有沒有用瀏覽器登入</li></ul>
   <p class="dexp">OAuth2ResourceServerConfigurer 把帶 Bearer 權杖的請求排除在 CSRF 外；瀏覽器不會自動附帶 Bearer 權杖。</p>
 </div>
 <div class="drill">
@@ -213,7 +214,7 @@ carol     POST /transfers     → 200  轉帳受理，操作人 carol</code></pr
 </div>
 <div class="drill">
   <p class="dq">這課的 API 設了 <code>Session<wbr>Creation<wbr>Policy.<wbr>STATELESS</code>。alice 帶權杖查過一次帳戶後，下一個請求不帶權杖，結果是？</p>
-  <ul class="dopts"><li data-ok>401</li><li>200，伺服器記得她剛才登入過</li><li>200，瀏覽器會自動帶上 Session Cookie</li><li>403，因為 Session 已經過期</li></ul>
+  <ul class="dopts"><li>200，伺服器記得她</li><li data-ok>401，沒帶權杖</li><li>200，Cookie 自動帶上</li><li>403，Session 過期</li></ul>
   <p class="dexp">STATELESS 不建 Session，伺服器不記得任何人；每個請求都要自己帶權杖重新認證。</p>
 </div>
 </section>
@@ -221,7 +222,7 @@ carol     POST /transfers     → 200  轉帳受理，操作人 carol</code></pr
 <section>
 <p class="era">路徑規則之外的第二道門</p>
 <h3 class="head">方法層級授權：只能查自己的帳戶</h3>
-<p>路徑規則只看得出「有沒有 <code>accounts:read</code>」，看不出「查的是不是自己的帳戶」。把 <code>/accounts/alice</code> 改成 <code>/accounts/bob</code> 就看到別人的資料，是 OWASP 排第一的「存取控制失效」最典型的樣子。這種檢查放在方法上：</p>
+<p>路徑規則只看得出「有沒有 <code>accounts:read</code>」，看不出「查的是不是自己的帳戶」。把 <code>/accounts/alice</code> 改成 <code>/accounts/bob</code> 就看到別人的資料，是 OWASP Top 10:2025 排第一的「存取控制失效」（Broken Access Control）最典型的樣子<a class="fixsrc" href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control" target="_blank" rel="noopener">出處</a>（面試集〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉有十項的整理）。這種檢查放在方法上：</p>
 <pre><code>@Service
 public class AccountService {
     @PreAuthorize("#owner == authentication.name")   // 只能查自己的帳戶
@@ -230,7 +231,7 @@ public class AccountService {
     }
 }</code></pre>
 <p>設定類別要加 <code>@EnableMethodSecurity</code>，之後「就能在任何 Spring 管理的類別或方法上加 @PreAuthorize」（you are immediately able to annotate any Spring-managed class or method with @PreAuthorize）。<code>#owner</code> 是參數名稱，文件說用 <code>-parameters</code> 編譯就讀得到（If you compile your code with the -parameters argument, the standard JDK reflection API is used to discover the parameter names.），Spring Boot 的 Maven 設定預設就有。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authorization/method-security.html" target="_blank" rel="noopener">出處</a> <code>authentication.name</code> 在資源伺服器裡就是 JWT 的 sub（Authentication#getName maps to the JWT's sub property）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
-<p>前面 alice 查 bob 得到 403，標頭卻寫 <code>insufficient_scope</code>：資源伺服器把拒絕存取一律寫成這種錯誤，不代表真的是 scope 不夠。</p>
+<p>前面 alice 查 bob 得到 403，標頭卻寫 <code>insufficient_scope</code>：原始碼的 <code>Bearer<wbr>Token<wbr>Access<wbr>Denied<wbr>Handler</code> 只要看到請求是用權杖認證的（<code>request.<wbr>get<wbr>User<wbr>Principal() instanceof Abstract<wbr>OAuth2Token<wbr>Authentication<wbr>Token</code>），被拒時一律寫 <code>INSUFFICIENT_SCOPE</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-resource-server/src/main/java/org/springframework/security/oauth2/server/resource/web/access/BearerTokenAccessDeniedHandler.java" target="_blank" rel="noopener">出處</a> 所以帶有效 Bearer 權杖的請求被方法規則擋下，也是這個字，不代表真的是 scope 不夠。</p>
 
 <h4>測試不必真的簽 JWT：<code>jwt()</code></h4>
 <p><code>spring-security-test</code> 的 <code>jwt()</code> 直接放一個已驗證的 JWT 身分進請求，文件寫預設的 JWT 是 <code>"sub": "user", "scope": "read"</code>。這課用 <code>jwt().<wbr>jwt(<wbr>j -&gt; j.<wbr>subject(<wbr>"alice")).<wbr>authorities(<wbr>…SCOPE_accounts:read)</code> 分別查自己與 bob，再試一次不給 authorities：<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/test/mockmvc/oauth2.html" target="_blank" rel="noopener">出處</a></p>
@@ -251,7 +252,7 @@ jwt() 沒給 authorities → 403</code></pre>
 </div>
 <div class="drill">
   <p class="dq">在資源伺服器裡，<code>authentication.name</code> 取的是 JWT 的哪個聲明？</p>
-  <ul class="dopts"><li>iss，發行者的網址</li><li>aud，權杖要給哪個服務</li><li data-ok>sub</li><li>scope，第一個權限名稱</li></ul>
+  <ul class="dopts"><li>iss</li><li>aud</li><li data-ok>sub</li><li>jti</li></ul>
   <p class="dexp">文件：Authentication#getName 對應 JWT 的 sub，所以 sub 的值要對得上帳戶擁有者。</p>
 </div>
 <div class="drill">
@@ -261,7 +262,7 @@ jwt() 沒給 authorities → 403</code></pre>
 </div>
 <div class="drill">
   <p class="dq">alice 查 bob 被 <code>@PreAuthorize</code> 擋下，回應標頭寫 <code>error="insufficient_scope"</code>。該怎麼解讀？</p>
-  <ul class="dopts"><li>alice 的權杖少了某個 scope，補上就能查 bob</li><li data-ok>標頭只是統一寫法，實際是 @PreAuthorize 擋的</li><li>代表 alice 的權杖已經過期，要換新的</li><li>代表 CSRF 檢查失敗，要補防偽權杖</li></ul>
+  <ul class="dopts"><li>alice 的權杖少了某個 scope，補上就能查 bob</li><li data-ok>只是統一寫法，是 @PreAuthorize 擋的</li><li>代表 alice 的權杖已經過期，要換新的</li><li>代表 CSRF 檢查失敗，要補防偽權杖</li></ul>
   <p class="dexp">被拒是因為不是自己的帳戶，再多 scope 也查不了 bob。</p>
 </div>
 </section>
@@ -282,7 +283,7 @@ jwt() 沒給 authorities → 403</code></pre>
 <p><code>mobile-app</code> 是<strong>公開用戶端</strong>：裝在使用者手機上、藏不住密碼，所以用 <code>NONE</code>。另一個 <code>web-portal</code> 是<strong>機密用戶端</strong>：跑在銀行自己的伺服器、用 client secret 認證，權杖設定是存取權杖 5 分鐘、更新權杖 8 小時、<code>reuse<wbr>Refresh<wbr>Tokens(<wbr>false)</code>。</p>
 <figure>
 <svg viewBox="0 0 760 476" role="img" aria-label="授權碼加 PKCE 的流程：用戶端先產生 code_verifier 與 code_challenge，把瀏覽器導去授權端點並帶上 challenge；使用者在授權伺服器登入後，帶著授權碼導回用戶端；用戶端用授權碼加 verifier 向 token 端點換到 access token 與 ID token，再帶 access token 呼叫資源伺服器">
-<defs><marker id="sj-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="20" width="140" height="34" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="90" y="42" font-size="12.5" text-anchor="middle">使用者的瀏覽器</text><line x1="90" y1="56" x2="90" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><rect x="230" y="20" width="140" height="34" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="300" y="42" font-size="12.5" text-anchor="middle">用戶端</text><line x1="300" y1="56" x2="300" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><rect x="440" y="20" width="140" height="34" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="510" y="42" font-size="12.5" text-anchor="middle">授權伺服器</text><line x1="510" y1="56" x2="510" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><rect x="620" y="20" width="140" height="34" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="690" y="42" font-size="12.5" text-anchor="middle">資源伺服器</text><line x1="690" y1="56" x2="690" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><text x="300" y="80" font-size="12" text-anchor="middle" fill="var(--gold-deep)">① 產生 code_verifier，算出 code_challenge</text><line x1="300" y1="110" x2="504" y2="110" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="405" y="102" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">② 導去 /oauth2/authorize?response_type=code&amp;state&amp;nonce&amp;code_challenge</text><line x1="510" y1="150" x2="96" y2="150" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="300" y="142" font-size="11.5" text-anchor="middle">③ 還沒登入 → 302 /login，使用者輸入帳密</text><line x1="510" y1="190" x2="306" y2="190" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="405" y="182" font-size="11.5" text-anchor="middle">④ 302 redirect_uri?code=…&amp;state=…（授權碼只用一次、很快過期）</text><line x1="300" y1="230" x2="504" y2="230" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="405" y="222" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">⑤ POST /oauth2/token：code＋code_verifier（機密用戶端再加密碼）</text><line x1="510" y1="270" x2="306" y2="270" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="405" y="262" font-size="11.5" text-anchor="middle">⑥ access_token、id_token（機密用戶端另有 refresh_token）</text><line x1="300" y1="320" x2="684" y2="320" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="495" y="312" font-size="11.5" text-anchor="middle">⑦ Authorization: Bearer access_token</text><line x1="690" y1="360" x2="306" y2="360" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="495" y="352" font-size="11.5" text-anchor="middle">⑧ 驗簽、驗聲明後回應資料</text><text x="20" y="410" font-size="12" fill="var(--gold-deep)">② 與 ⑤ 是 PKCE 的兩半：授權請求只送 challenge（雜湊），換權杖時才送原本的 verifier</text><text x="20" y="432" font-size="12">③ 的帳號密碼只交給授權伺服器，用戶端從頭到尾沒碰過</text><text x="20" y="456" font-size="12" opacity=".6">這張圖每一步都在本課的 AuthCodeFlowTest 裡實際跑過（③ 用表單登入）</text>
+<defs><marker id="sj-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="20" width="140" height="34" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="90" y="42" font-size="12.5" text-anchor="middle">使用者的瀏覽器</text><line x1="90" y1="56" x2="90" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><rect x="230" y="20" width="140" height="34" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="300" y="42" font-size="12.5" text-anchor="middle">用戶端</text><line x1="300" y1="56" x2="300" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><rect x="440" y="20" width="140" height="34" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="510" y="42" font-size="12.5" text-anchor="middle">授權伺服器</text><line x1="510" y1="56" x2="510" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><rect x="620" y="20" width="140" height="34" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="690" y="42" font-size="12.5" text-anchor="middle">資源伺服器</text><line x1="690" y1="56" x2="690" y2="470" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/><text x="300" y="74" font-size="12" text-anchor="middle" fill="var(--gold-deep)">① 產生 code_verifier，算出 code_challenge</text><line x1="300" y1="108" x2="96" y2="108" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="195" y="100" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">② 302 導向授權端點（帶 state、nonce、code_challenge）</text><line x1="90" y1="132" x2="504" y2="132" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="300" y="124" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">瀏覽器打 /oauth2/authorize?response_type=code&amp;…</text><line x1="510" y1="158" x2="96" y2="158" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="300" y="150" font-size="11.5" text-anchor="middle">③ 還沒登入 → 302 /login，使用者輸入帳密</text><line x1="510" y1="190" x2="96" y2="190" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="300" y="182" font-size="11.5" text-anchor="middle">④ 302 導回 redirect_uri?code=…&amp;state=…</text><line x1="90" y1="214" x2="294" y2="214" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="195" y="206" font-size="11.5" text-anchor="middle">瀏覽器帶著授權碼打用戶端（授權碼只用一次、很快過期）</text><line x1="300" y1="244" x2="504" y2="244" stroke="var(--gold-deep)" stroke-opacity="1" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="405" y="236" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">⑤ POST /oauth2/token：code＋code_verifier（機密用戶端再加密碼）</text><line x1="510" y1="278" x2="306" y2="278" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="405" y="270" font-size="11.5" text-anchor="middle">⑥ access_token、id_token（機密用戶端另有 refresh_token）</text><line x1="300" y1="320" x2="684" y2="320" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="495" y="312" font-size="11.5" text-anchor="middle">⑦ Authorization: Bearer access_token</text><line x1="690" y1="360" x2="306" y2="360" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sj-m3)"/><text x="495" y="352" font-size="11.5" text-anchor="middle">⑧ 驗簽、驗聲明後回應資料</text><text x="20" y="410" font-size="12" fill="var(--gold-deep)">② 與 ⑤ 是 PKCE 的兩半：授權請求只送 challenge（雜湊），換權杖時才送原本的 verifier</text><text x="20" y="432" font-size="12">③ 的帳號密碼只交給授權伺服器，用戶端從頭到尾沒碰過</text><text x="20" y="456" font-size="12" opacity=".6">這張圖每一步都在本課的 AuthCodeFlowTest 裡實際跑過（③ 用表單登入）</text>
 </svg>
 <figcaption>授權碼走瀏覽器（看得到但用不了），權杖走後端通道；PKCE 讓攔到授權碼的人也換不到權杖。</figcaption>
 </figure>
@@ -319,7 +320,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 
 <h4>PKCE 的兩個值</h4>
 <p>RFC 7636：<code>code_verifier</code> 長度「至少 43、最多 128 個字元」（with a minimum length of 43 characters and a maximum length of 128 characters）；S256 是 <code>BASE64URL-ENCODE(<wbr>SHA256(<wbr>ASCII(<wbr>code_verifier)))</code>，而且「做得到 S256 就必須用 S256」（If the client is capable of using "S256", it MUST use "S256"）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7636#section-4" target="_blank" rel="noopener">出處</a></p>
-<p>測試裡的 <code>challenge()</code> 就是照這個公式寫的（<code>MessageDigest</code> 算 SHA-256，再用不補等號的 base64url 編碼）。拿 RFC 7636 附錄 B 的 verifier <code>d<wbr>Bjft<wbr>Je<wbr>Z4CVP-<wbr>m<wbr>B92K27uhb<wbr>UJU1p1r_w<wbr>W1g<wbr>FWFOEj<wbr>Xk</code> 驗算，得到的 <code>E9Melhoa2Owv<wbr>Fr<wbr>EMTJgu<wbr>CHaoe<wbr>K1t8URWbu<wbr>GJSstw-<wbr>c<wbr>M</code> 跟 RFC 列的一字不差。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7636#appendix-B" target="_blank" rel="noopener">出處</a> 這台授權伺服器的探索文件也只列一種：<code>code_challenge_methods_supported=["S256"]</code>。</p>
+<p>測試裡的 <code>challenge()</code> 就是照這個公式寫的（<code>MessageDigest</code> 算 SHA-256，再用不補等號的 base64url 編碼）。拿 RFC 7636 附錄 B 的 verifier <code>d<wbr>Bjft<wbr>Je<wbr>Z4CVP-<wbr>m<wbr>B92K27uhb<wbr>UJU1p1r_w<wbr>W1g<wbr>FWFOEj<wbr>Xk</code> 驗算，得到的 <code>E9Melhoa2Owv<wbr>Fr<wbr>EMTJgu<wbr>CHaoe<wbr>K1t8URWbu<wbr>GJSstw-<wbr>c<wbr>M</code> 跟 RFC 列的一字不差。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7636#appendix-B" target="_blank" rel="noopener">出處</a> 這台授權伺服器的探索文件（授權伺服器公開自己端點與能力的那份清單，網址是 <code>/.<wbr>well-<wbr>known/<wbr>openid-<wbr>configuration</code>）也只列一種：<code>code_challenge_methods_supported=["S256"]</code>。</p>
 <p class="formula">導回網址完全比對；state 防 CSRF；授權碼短效、只能用一次；換權杖時要拿出原本的 verifier</p>
 
 <div class="drill">
@@ -334,7 +335,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 </div>
 <div class="drill">
   <p class="dq"><code>mobile-app</code> 的授權請求<strong>沒帶</strong> <code>code_challenge</code>，<code>redirect_uri</code> 是登記過的。實跑結果是？</p>
-  <ul class="dopts"><li>照常發授權碼，公開用戶端可以不用 PKCE</li><li>直接回 400，不導回任何地方</li><li>302 導去 /login 要求重新登入</li><li data-ok>導回 callback，帶 error=invalid_request</li></ul>
+  <ul class="dopts"><li>照常發授權碼，公開用戶端可以不用 PKCE</li><li>直接回 400，不導回任何地方</li><li>302 導去 /login 要求重新登入</li><li data-ok>導回 callback，帶上錯誤</li></ul>
   <p class="dexp">導回網址可信，就把錯誤導回用戶端。跟上一題對照：網址不可信才直接 400。</p>
 </div>
 <div class="drill">
@@ -344,7 +345,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 </div>
 <div class="drill">
   <p class="dq">32 個隨機位元組做 base64url（不補等號）得到 43 個字元，拿來當 <code>code_verifier</code>，符合 RFC 7636 嗎？</p>
-  <ul class="dopts"><li data-ok>符合</li><li>不符合，最少要 64 個字元</li><li>不符合，verifier 必須是十六進位字串</li><li>不符合，長度必須剛好 128 個字元</li></ul>
+  <ul class="dopts"><li data-ok>符合，長度在範圍內</li><li>不符合，最少 64 字</li><li>不符合，要十六進位</li><li>不符合，要剛好 128 字</li></ul>
   <p class="dexp">RFC 7636：最少 43、最多 128 個字元，字元限英數與 - . _ ~，base64url 的輸出剛好落在範圍內。</p>
 </div>
 <div class="drill">
@@ -369,7 +370,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 </div>
 <div class="drill">
   <p class="dq">照 RFC 6749 的建議，授權碼最長應該多久內過期？</p>
-  <ul class="dopts"><li data-ok>10 分鐘</li><li>跟存取權杖一樣，一小時</li><li>跟更新權杖一樣，八小時</li><li>沒有建議，由授權伺服器自由決定</li></ul>
+  <ul class="dopts"><li>1 小時</li><li data-ok>10 分鐘</li><li>8 小時</li><li>沒有建議</li></ul>
   <p class="dexp">RFC 6749 第 4.1.2 節：A maximum authorization code lifetime of 10 minutes is RECOMMENDED。授權碼要走瀏覽器、可能外洩，所以短效又只能用一次。</p>
 </div>
 </section>
@@ -397,7 +398,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 
 <div class="drill">
   <p class="dq"><code>mobile-app</code>（公開用戶端）登記時加了 <code>REFRESH_TOKEN</code>，換權杖的回應裡有沒有 <code>refresh_token</code>？</p>
-  <ul class="dopts"><li>有，登記了這種授權方式就會發</li><li>有，但效期只有一分鐘</li><li data-ok>沒有</li><li>要看使用者有沒有勾選同意畫面</li></ul>
+  <ul class="dopts"><li>有，登記了就發</li><li>有，但只能用一次</li><li data-ok>沒有，公開用戶端不發</li><li>要看同意畫面</li></ul>
   <p class="dexp">實跑的欄位沒有 refresh_token；OAuth2RefreshTokenGenerator 遇到授權碼流程的公開用戶端直接回傳 null。</p>
 </div>
 <div class="drill">
@@ -412,7 +413,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 </div>
 <div class="drill">
   <p class="dq">網銀前台用 <code>oauth2-client</code>，存取權杖五分鐘過期。需要自己寫「拿更新權杖去換新」的程式嗎？</p>
-  <ul class="dopts"><li>要，Spring 只會拿第一次的權杖</li><li data-ok>通常不用</li><li>要，而且要把更新權杖送去資源伺服器</li><li>不用，因為存取權杖其實不會過期</li></ul>
+  <ul class="dopts"><li>要，Spring 不會換</li><li data-ok>通常不用，會自動換</li><li>要，送去資源伺服器換</li><li>不用，權杖不會過期</li></ul>
   <p class="dexp">oauth2-client 的更新權杖授權預設由 RestClientRefreshTokenTokenResponseClient 處理。更新權杖絕不送去資源伺服器。</p>
 </div>
 </section>
@@ -450,11 +451,11 @@ GET /oauth2/authorization/bank → 302
 </ul>
 <h4>ID Token 給用戶端，Access Token 給 API</h4>
 <div class="tablewrap"><table><thead><tr><th></th><th>access_token</th><th>id_token</th></tr></thead><tbody>
-<tr><td>aud（實跑）</td><td><code>mobile-app</code>（這台授權伺服器預設放 client_id）</td><td><code>mobile-app</code></td></tr>
+<tr><td>aud（實跑）</td><td><code>mobile-app</code>（授權伺服器的 <code>JwtGenerator</code> 預設放 client_id<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-authorization-server/src/main/java/org/springframework/security/oauth2/server/authorization/token/JwtGenerator.java" target="_blank" rel="noopener">出處</a>）</td><td><code>mobile-app</code></td></tr>
 <tr><td>特有的聲明</td><td><code>scope</code></td><td><code>nonce</code>、<code>auth_time</code>、<code>azp</code>、<code>sid</code></td></tr>
 <tr><td>誰來驗</td><td>資源伺服器</td><td>用戶端：iss 必須完全符合、aud 必須包含自己的 client_id（The Client MUST validate that the aud (audience) Claim contains its client_id value）<a class="fixsrc" href="https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation" target="_blank" rel="noopener">出處</a></td></tr>
 </tbody></table></div>
-<p>access_token 的 aud 是 <code>mobile-app</code>，拿去打這課有 aud 檢查的 API 會被擋；授權伺服器要依 API 設定 aud。登入後 Controller 拿到 <code>OidcUser</code>，測試可以用 <code>oidcLogin()</code> 模擬：</p>
+<p>access_token 的 aud 是 <code>mobile-app</code>，拿去打這課有 aud 檢查的 API 會被擋；要讓 API 收，授權伺服器得用 <code>OAuth2TokenCustomizer</code> 在權杖產生前改 aud（provides the ability to customize the attributes of an OAuth2Token）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/authorization-server/core-model-components.html#oauth2AuthorizationServer-oauth2-token-customizer" target="_blank" rel="noopener">出處</a>登入後 Controller 拿到 <code>OidcUser</code>，測試可以用 <code>oidcLogin()</code> 模擬：</p>
 <pre><code>用 oidcLogin() 模擬已登入 → 200 歡迎 alice，登入時間 2026-10-02T09:00:00Z</code></pre>
 <p class="formula">oauth2Login 自動帶 state、nonce、PKCE；ID Token 由用戶端驗，Access Token 由 API 驗</p>
 
@@ -470,17 +471,17 @@ GET /oauth2/authorization/bank → 302
 </div>
 <div class="drill">
   <p class="dq">前台（client_id 是 <code>web-portal</code>）收到一張 ID Token，<code>aud</code> 只有 <code>mobile-app</code>。照 OIDC Core 該怎麼處理？</p>
-  <ul class="dopts"><li>接受，同一個授權伺服器發的就好</li><li>接受，但只取 sub 不取其他聲明</li><li>改用 mobile-app 的身分登入</li><li data-ok>拒絕</li></ul>
+  <ul class="dopts"><li>接受，同一台發的</li><li>接受，只取 sub</li><li>改用 mobile-app 登入</li><li data-ok>拒絕這張 ID Token</li></ul>
   <p class="dexp">OIDC Core：用戶端必須確認 aud 包含自己的 client_id，沒有就拒絕。發給別的用戶端的 ID Token 不能拿來登入自己。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>web-portal</code> 有 client secret，Spring Security 7.1 的 <code>oauth2Login</code> 預設會不會送 <code>code_challenge</code>？</p>
-  <ul class="dopts"><li>不會，PKCE 只給公開用戶端用</li><li data-ok>會</li><li>要看授權伺服器的探索文件怎麼寫</li><li>只有 client secret 是空的才會送</li></ul>
+  <ul class="dopts"><li>不會，只給公開用戶端</li><li data-ok>會，預設就帶</li><li>看探索文件決定</li><li>secret 空的才會</li></ul>
   <p class="dexp">實跑的授權請求帶了 code_challenge 與 S256；要關掉得把 requireProofKey 設成 false。</p>
 </div>
 <div class="drill">
   <p class="dq">把這台授權伺服器發給 <code>mobile-app</code> 的 access_token（aud 是 mobile-app），拿去打這課要求 aud 含 <code>core-banking</code> 的帳戶 API。結果是？</p>
-  <ul class="dopts"><li>200，因為是同一台授權伺服器發的</li><li>403，因為 mobile-app 沒有轉帳權限</li><li>200，因為 iss 是對的就夠了</li><li data-ok>401</li></ul>
+  <ul class="dopts"><li>200，同一台發的</li><li>403，沒轉帳權限</li><li>200，iss 對就好</li><li data-ok>401，aud 不對</li></ul>
   <p class="dexp">aud 檢查不通過是 401 invalid_token。要讓 API 收，授權伺服器得把 core-banking 放進 aud。</p>
 </div>
 </section>
@@ -504,8 +505,9 @@ matches {noop} 舊格式：true
 <pre><code>=== 舊格式密碼自動升級
 登入前：{noop}bob-pw
 登入後：{bcrypt}$2a$10$…</code></pre>
-<p>做這件事的是 <code>Dao<wbr>Authentication<wbr>Provider</code>：登入成功後，如果 <code>upgradeEncoding(舊值)</code> 為 true、又有 <code>User<wbr>Details<wbr>Password<wbr>Service</code>，就用剛輸入的密碼重新編碼，呼叫 <code>updatePassword</code> 存回去。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/core/src/main/java/org/springframework/security/authentication/dao/DaoAuthenticationProvider.java" target="_blank" rel="noopener">出處</a> <code>In<wbr>Memory<wbr>User<wbr>Details<wbr>Manager</code> 本身就實作了這個介面；正式系統要自己實作，把新值寫回資料庫。只有使用者<strong>輸入正確密碼的那一刻</strong>才拿得到明文，所以只能等他登入時升級。</p>
-<p class="formula">編碼用現行演算法、比對看前綴；沒前綴丟例外；登入成功時用 UserDetailsPasswordService 換成新格式</p>
+<p>做這件事的是 <code>Dao<wbr>Authentication<wbr>Provider</code>：登入成功後，如果 <code>upgradeEncoding(舊值)</code> 為 true、又有 <code>User<wbr>Details<wbr>Password<wbr>Service</code>，就用剛輸入的密碼重新編碼，呼叫 <code>updatePassword</code> 存回去。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/core/src/main/java/org/springframework/security/authentication/dao/DaoAuthenticationProvider.java" target="_blank" rel="noopener">出處</a> <code>In<wbr>Memory<wbr>User<wbr>Details<wbr>Manager</code> 本身就實作了這個介面；正式系統要自己實作，把新值寫回資料庫。只有使用者<strong>輸入正確密碼的那一刻</strong>才拿得到明文，所以要換成直接對密碼算的 bcrypt，只能等他登入時做。</p>
+<p>這是「等使用者登入」的升級法。不想讓舊雜湊在資料庫留那麼久，OWASP 列了另一種：直接拿舊的雜湊值當輸入，整批包成更安全的演算法，例如把 md5($password) 升級成 bcrypt(md5($password))（Use the existing password hashes as inputs for a more secure algorithm.），這樣不必知道原密碼；但這種疊起來的雜湊「應該在使用者下次登入時換成直接對密碼算的雜湊」（These hashes should be replaced with direct hashes of the users' passwords next time the user logs in.）。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#upgrading-legacy-hashes" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">編碼用現行演算法、比對看前綴；沒前綴丟例外；登入成功時用 UserDetailsPasswordService 換成新格式；要整批升級可以先包一層</p>
 
 <div class="drill">
   <p class="dq">用 <code>create<wbr>Delegating<wbr>Password<wbr>Encoder()</code> 把同一組密碼編碼兩次，兩個結果會怎樣？</p>
@@ -523,9 +525,9 @@ matches {noop} 舊格式：true
   <p class="dexp">upgradeEncoding 對 {noop} 回 true，DaoAuthenticationProvider 用剛輸入的密碼以 bcrypt 重新編碼後存回去。</p>
 </div>
 <div class="drill">
-  <p class="dq">銀行想把 50 萬筆舊的 SHA-1 密碼「今晚一次全部」轉成 bcrypt。為什麼做不到？</p>
-  <ul class="dopts"><li data-ok>SHA-1 推不回明文，bcrypt 沒東西可算</li><li>bcrypt 太慢，一晚算不完 50 萬筆</li><li>Spring Security 7 已經不支援 SHA-1</li><li>要先關掉 DelegatingPasswordEncoder 才能轉</li></ul>
-  <p class="dexp">bcrypt 要對明文算，SHA-1 的值推不回明文；所以等每個使用者登入時再升級（這課的 bob 就是）。</p>
+  <p class="dq">銀行有 50 萬筆舊的 <code>sha1(密碼)</code>。為什麼不能今晚把每一筆直接換成 <code>bcrypt(密碼)</code>？</p>
+  <ul class="dopts"><li>bcrypt 太慢，一晚算不完</li><li>Spring 7 讀不了 SHA-1</li><li data-ok>手上只有雜湊值，推不回原密碼</li><li>要先關掉密碼編碼器</li></ul>
+  <p class="dexp">bcrypt(密碼) 要對原密碼算，SHA-1 推不回原密碼。整批能做的是包一層 bcrypt(sha1(密碼))（OWASP 的第二種升級法），等使用者登入時再換成直接對密碼算的。</p>
 </div>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>三個角色在 Spring Security 7 各一個設定：<code>oauth2Login()</code>、<code>oauth2Authorization<wbr>Server()</code>、<code>oauth2ResourceServer()</code>；Spring Boot 4 的 starter 名字多了 <code>security-</code>。</li><li>資源伺服器驗 JWT：演算法由驗證端決定，預設檢查 exp、nbf（容許 60 秒誤差）與 iss，aud 要自己加；權杖不可信是 401，權限不夠才是 403。</li><li>帶 Bearer 權杖的請求不做 CSRF 檢查；scope 預設變成 <code>SCOPE_</code> 權限，角色在別的聲明就換 <code>Jwt<wbr>Granted<wbr>Authorities<wbr>Converter</code>。</li><li>路徑規則管「有沒有這類權限」，<code>@Pre<wbr>Authorize(<wbr>"#owner == authentication.<wbr>name")</code> 管「是不是你的資料」；要先 <code>@EnableMethodSecurity</code>，測試用 <code>jwt()</code>。</li><li>授權碼流程：導回網址完全比對、state 防 CSRF、授權碼只能用一次，重複使用時已發的權杖被撤銷；PKCE 用 S256，攔到授權碼沒有 verifier 也換不到。</li><li>公開用戶端拿不到更新權杖；輪替讓舊的一用就失效，但「偵測到重複使用就撤銷整串」要看實作；離線驗的 JWT 撤銷不了，存取權杖要短效。</li><li><code>oauth2Login</code> 自動帶 state、nonce、PKCE；ID Token 給用戶端驗、Access Token 給 API 驗。DelegatingPasswordEncoder 沒前綴丟例外，舊格式在登入成功時自動升級。</li></ul></div>
