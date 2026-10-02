@@ -1,4 +1,4 @@
-<!-- 來源：依 https://top10.owasp.org/2025/ 新寫（OWASP Top 10:2025 導言與十個類別頁；OWASP Cheat Sheet Series 的 SQL Injection Prevention、Cross Site Scripting Prevention、Server Side Request Forgery Prevention、HTTP Headers、Secrets Management 各篇；MDN 的 CSP、Strict-Transport-Security、X-Content-Type-Options、Referrer-Policy、frame-ancestors 各頁；Spring Security 參考文件 Security HTTP Response Headers；OpenBSD sshd_config 手冊；CIS Benchmarks 介紹頁；範例程式全部自編，以 Spring Boot 4.1.1、Java 21 實際執行，網站標頭以 curl 於 2026-10-02 實測） · 收錄日期：2026-10-02 -->
+<!-- 來源：依 https://top10.owasp.org/2025/ 新寫（OWASP Top 10:2025 導言與十個類別頁；OWASP Cheat Sheet Series 的 SQL Injection Prevention、Cross Site Scripting Prevention、Server Side Request Forgery Prevention、HTTP Headers、Secrets Management 各篇；MDN 的 CSP、Strict-Transport-Security、X-Content-Type-Options、Referrer-Policy、frame-ancestors 各頁；Spring Security 參考文件 Security HTTP Response Headers；OpenBSD sshd_config 手冊；CIS Benchmarks 介紹頁；範例程式全部自編，以 Spring Boot 4.1.1、Java 21 實際執行，網站標頭以 curl 於 2026-10-03 實測） · 收錄日期：2026-10-02 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 OWASP Top 10:2025 的十個類別，每個舉得出一個例子與一個防法</li><li>看懂 SQL 注入與 XSS 為什麼會發生，用 PreparedStatement 與輸出編碼擋下，並說明 SSRF 為什麼要用允許清單</li><li>讀懂一個網站回應裡的 CSP、HSTS、X-Content-Type-Options、Referrer-Policy、frame-ancestors，知道 Spring Security 預設送哪些</li><li>說出伺服器加固與機密管理的基本做法：SSH 金鑰、只開必要的埠、最小權限、機密不進程式碼</li></ul></div>
 
 <section>
@@ -22,7 +22,7 @@
 
 <div class="drill">
   <p class="dq">OWASP Top 10:2025 排第一的類別是？</p>
-  <ul class="dopts"><li>注入</li><li data-ok>存取控制失效</li><li>密碼學失效</li><li>安全設定錯誤</li></ul>
+  <ul class="dopts"><li>注入</li><li>密碼學失效</li><li>安全設定錯誤</li><li data-ok>存取控制失效</li></ul>
   <p class="dexp">2025 年版 A01 是存取控制失效（Broken Access Control），注入是 A05，安全設定錯誤是 A02。</p>
 </div>
 <div class="drill">
@@ -42,7 +42,7 @@
 </div>
 <div class="drill">
   <p class="dq">2025 年版新增的兩個類別是？</p>
-  <ul class="dopts"><li>注入與跨網站指令碼（XSS），兩者在 2021 年版還被列在同一類裡</li><li data-ok>軟體供應鏈失效與例外狀況處理不當</li><li>認證失效與密碼學失效</li><li>SSRF 與 CSRF</li></ul>
+  <ul class="dopts"><li>注入與跨網站指令碼（XSS）</li><li data-ok>軟體供應鏈失效與例外狀況處理不當</li><li>認證失效與密碼學失效</li><li>SSRF 與 CSRF</li></ul>
   <p class="dexp">導言寫 two new categories and one consolidation：新的是 A03 供應鏈與 A10 例外狀況，合併的是 SSRF 併進 A01。</p>
 </div>
 <div class="drill">
@@ -52,7 +52,7 @@
 </div>
 <div class="drill">
   <p class="dq">系統只記錄成功的登入，失敗的登入沒有記。攻擊者用外洩的帳密試了一整晚都沒人發現。主要是哪一類的問題？</p>
-  <ul class="dopts"><li data-ok>A09 安全記錄與告警失效</li><li>A01 存取控制失效，因為攻擊者存取了不屬於他的帳戶</li><li>A06 不安全的設計</li><li>A03 軟體供應鏈失效</li></ul>
+  <ul class="dopts"><li>A01 存取控制失效，因為攻擊者存取了不屬於他的帳戶</li><li>A06 不安全的設計</li><li>A03 軟體供應鏈失效</li><li data-ok>A09 安全記錄與告警失效</li></ul>
   <p class="dexp">A09 的描述直接舉了「只記成功登入、沒記失敗」這個例子。允許大量試登入本身則是 A07 的問題，兩者常常一起出現。</p>
 </div>
 <div class="drill">
@@ -128,7 +128,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/accounts' --data-urlencode "owner=alice' 
 </div>
 <div class="drill">
   <p class="dq">同樣的輸入送給 <code>PreparedStatement</code> 版本的 <code>/safe/accounts</code>，結果是？</p>
-  <ul class="dopts"><li data-ok>空的</li><li>3 個帳戶，因為單引號在參數裡一樣會結束字串</li><li>只有 alice</li><li>資料庫報語法錯誤</li></ul>
+  <ul class="dopts"><li data-ok>空的，沒有帳戶叫這一整串</li><li>3 個帳戶，因為單引號在參數裡一樣會結束字串</li><li>只有 alice</li><li>資料庫報語法錯誤</li></ul>
   <p class="dexp">整段輸入只是 owner 要比對的值，SQL 結構早就固定了。實跑回傳 []。</p>
 </div>
 <div class="drill">
@@ -153,7 +153,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/accounts' --data-urlencode "owner=alice' 
 </div>
 <div class="drill">
   <p class="dq">用 Spring 的 <code>JdbcTemplate</code> 寫 <code>jdbc.queryForList("select * from account where owner = ?", owner)</code>，對注入來說是？</p>
-  <ul class="dopts"><li data-ok>安全</li><li>危險，因為 JdbcTemplate 內部也是拼字串，只是把加號藏起來而已</li><li>危險，要先把 owner 轉成大寫</li><li>只有 owner 是數字時才安全，字串一樣會被注入</li></ul>
+  <ul class="dopts"><li>危險，內部也是拼字串</li><li>危險，要先把 owner 轉成大寫</li><li>只有 owner 是數字時才安全</li><li data-ok>安全，問號會綁成參數</li></ul>
   <p class="dexp">問號是參數佔位，JdbcTemplate 底下用的就是 PreparedStatement，owner 只當成值傳入。</p>
 </div>
 <div class="drill">
@@ -189,7 +189,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 <p>只看文字不夠，用真的瀏覽器（Playwright 開的 Chromium）打開兩個網址，輸入改成 <code>&lt;script&gt;document.title='XSS 執行了'&lt;/script&gt;</code>，看指令碼有沒有跑：</p>
 <pre><code>預設設定 /unsafe/greet：document.title = 'XSS 執行了'
 預設設定 /safe/greet：document.title = ''</code></pre>
-<p>沒編碼的版本，攻擊者的程式真的執行了；編碼後，<code>&lt;</code> 變成 <code>&amp;lt;</code>，瀏覽器只當成文字顯示。OWASP 的 XSS 防範速查表：「要把資料照使用者輸入的樣子安全顯示時，建議用輸出編碼」，變數「不應被當成程式碼，而是文字」；而且先用框架內建的自動編碼，現代框架「靠樣板與自動跳脫」讓 XSS 少很多。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> Thymeleaf 的 <code>th:text</code>、Angular 的插值預設都會編碼；自己拼 HTML 字串、或用 <code>th:utext</code>、<code>innerHTML</code> 這類不編碼的寫法時，才要自己處理。</p>
+<p>沒編碼的版本，攻擊者的程式真的執行了；編碼後，<code>&lt;</code> 變成 <code>&amp;lt;</code>，瀏覽器只當成文字顯示。OWASP 的 XSS 防範速查表：「要把資料照使用者輸入的樣子安全顯示時，建議用輸出編碼」，變數「不應被當成程式碼，而是文字」；而且先用框架內建的自動編碼，現代框架「靠樣板與自動跳脫」讓 XSS 少很多。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> Thymeleaf 的教學說 <code>th:text</code> 把標籤跳脫掉「是 th:text 屬性的預設行為」（This is the default behaviour of the th:text attribute.），不要跳脫才改用 <code>th:utext</code>（unescaped text）<a class="fixsrc" href="https://www.thymeleaf.org/doc/tutorials/3.1/usingthymeleaf.html#unescaped-text" target="_blank" rel="noopener">出處</a>；Angular 的安全指南說它「預設把所有值都當成不受信任」，透過樣板綁定或插值放進頁面時「會淨化並跳脫不受信任的值」（Angular sanitizes and escapes untrusted values）<a class="fixsrc" href="https://angular.dev/best-practices/security" target="_blank" rel="noopener">出處</a>。但框架都留了跳脫出口，例如 Angular 的 <code>bypassSecurityTrust…</code> 系列、Thymeleaf 的 <code>th:utext</code>、直接設定 <code>innerHTML</code>，用了就等於關掉這層保護；XSS 速查表也提醒，「熱門框架像 React 與 Angular 仍然有安全缺口」（security gaps still exist in popular frameworks like React and Angular）。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></p>
 <p>要注意<strong>編碼要對位置</strong>：放進 HTML 內文、HTML 屬性、JavaScript、網址，各有不同的編碼規則，速查表也提醒「輸出編碼不是萬能的」，像直接放進 <code>&lt;script&gt;</code> 裡、CSS 裡這些「危險的位置」，編碼也救不了，根本不該放使用者資料。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 240" role="img" aria-label="防 XSS 的兩道牆：使用者輸入要放進頁面前，第一道是輸出編碼，把角括號這類字元換成實體，讓瀏覽器當成文字顯示；萬一漏了，第二道是 CSP 標頭，瀏覽器拒絕執行不被允許的指令碼">
@@ -215,7 +215,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 
 <div class="drill">
   <p class="dq">把 <code>&lt;script&gt;alert('XSS')&lt;/<wbr>script&gt;</code> 經過 <code>HtmlUtils.htmlEscape</code> 後放進頁面，瀏覽器會怎樣？</p>
-  <ul class="dopts"><li>跳出 alert 視窗，因為 htmlEscape 只處理單引號與雙引號</li><li data-ok>把整段當成文字顯示出來，不會執行</li><li>什麼都不顯示</li><li>頁面報錯打不開</li></ul>
+  <ul class="dopts"><li>跳出 alert 視窗</li><li data-ok>把整段當成文字顯示出來，不會執行</li><li>什麼都不顯示</li><li>頁面報錯打不開</li></ul>
   <p class="dexp">角括號被換成 &amp;lt; &amp;gt;，瀏覽器看到的是文字不是標籤。實跑時 document.title 沒被改。</p>
 </div>
 <div class="drill">
@@ -236,7 +236,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 <div class="drill">
   <p class="dq">XSS 被打中時，攻擊者的程式碼在哪裡執行？</p>
   <ul class="dopts"><li>攻擊者自己的電腦</li><li>你的資料庫</li><li data-ok>受害者的瀏覽器</li><li>你的伺服器的作業系統</li></ul>
-  <p class="dexp">它跑在受害者打開的頁面裡，所以能讀頁面上的資料、用受害者的身分送請求。這也是為什麼權杖不建議放 localStorage（面試集〈認證與安全面試題〉）。</p>
+  <p class="dexp">它跑在受害者打開的頁面裡，所以能讀頁面上的資料、用受害者的身分送請求。這也是為什麼權杖不建議放 localStorage（面試集〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉）。</p>
 </div>
 <div class="drill">
   <p class="dq">要在頁面上安全顯示使用者打的留言（原樣顯示、不允許任何格式），第一選擇是？</p>
@@ -285,7 +285,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 </div>
 <div class="drill">
   <p class="dq">雲端上的 SSRF 最常被拿來偷什麼？</p>
-  <ul class="dopts"><li data-ok>中繼資料服務裡的憑證</li><li>使用者的瀏覽器 Cookie</li><li>網站的 CSS 檔</li><li>DNS 紀錄</li></ul>
+  <ul class="dopts"><li>使用者的瀏覽器 Cookie</li><li>網站的 CSS 檔</li><li>DNS 紀錄</li><li data-ok>中繼資料服務裡的憑證</li></ul>
   <p class="dexp">速查表：SSRF is often used to access and steal credentials and access tokens from metadata services。拿到憑證就能用伺服器的身分操作雲端資源。</p>
 </div>
 <div class="drill">
@@ -340,28 +340,28 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 </div>
 <div class="drill">
   <p class="dq">已經設了很嚴格的 CSP，還需要做輸出編碼嗎？</p>
-  <ul class="dopts"><li>不用，CSP 會擋下所有 XSS</li><li>不用，兩個只能選一個</li><li>只有舊瀏覽器才需要</li><li data-ok>需要</li></ul>
+  <ul class="dopts"><li>不用，CSP 會擋下所有 XSS</li><li>不用，兩個只能選一個</li><li>只有舊瀏覽器才需要</li><li data-ok>需要，CSP 只是第二道牆</li></ul>
   <p class="dexp">OWASP XSS 速查表：Use a CSP as an additional layer of defense；MDN 也說設定 CSP 不能取代淨化輸入。政策很容易寫錯或被放寬。</p>
 </div>
 <div class="drill">
   <p class="dq">網站要加 CSP，又怕擋到既有功能，第一步建議怎麼做？</p>
-  <ul class="dopts"><li>直接上線，壞了再說</li><li data-ok>先用 Content-Security-Policy-Report-Only，只回報不擋，觀察一段時間</li><li>在政策裡加 'unsafe-inline' 與 *</li><li>只在開發環境加</li></ul>
+  <ul class="dopts"><li>直接上線，壞了再說</li><li data-ok>先用 Report-Only 版本，只回報不擋</li><li>在政策裡加 'unsafe-inline' 與 *</li><li>只在開發環境加</li></ul>
   <p class="dexp">MDN：report-only 模式下政策不強制執行，違規會送到回報端點。調整到沒有誤擋，再換成正式的標頭。</p>
 </div>
 <div class="drill">
   <p class="dq">頁面有少數幾段自己寫的行內指令碼要保留，比較安全的允許方式是？</p>
-  <ul class="dopts"><li data-ok>每次回應產生 nonce，放進 CSP 與那幾個 script 標籤</li><li>script-src 'unsafe-inline'，讓所有行內指令碼都能執行，最省事</li><li>script-src *</li><li>把 CSP 拿掉</li></ul>
+  <ul class="dopts"><li>script-src 'unsafe-inline'</li><li>script-src *</li><li>把 CSP 拿掉</li><li data-ok>每次回應產生 nonce</li></ul>
   <p class="dexp">'unsafe-inline' 會連被注入的行內指令碼一起放行，等於白設。nonce 每次都不同，攻擊者猜不到。</p>
 </div>
 <div class="drill">
   <p class="dq">CSP 的 <code>frame-ancestors 'none'</code>，效果類似哪個舊標頭？</p>
-  <ul class="dopts"><li>X-Content-Type-Options: nosniff</li><li data-ok>X-Frame-Options: DENY</li><li>Referrer-Policy: no-referrer</li><li>Strict-Transport-Security: max-age=0，讓瀏覽器忘記這個網站</li></ul>
+  <ul class="dopts"><li>X-Content-Type-Options: nosniff</li><li data-ok>X-Frame-Options: DENY</li><li>Referrer-Policy: no-referrer</li><li>Strict-Transport-Security: max-age=0</li></ul>
   <p class="dexp">MDN：Setting this directive to 'none' is similar to X-Frame-Options: deny。兩個都是不准任何網站用 iframe 嵌入這一頁。</p>
 </div>
 <div class="drill">
   <p class="dq">Google 首頁的回應實測帶的是 <code>content-security-policy-report-only</code>。這個標頭的效果是？</p>
   <ul class="dopts"><li>強制執行政策，違規的資源一律擋下，比一般的 CSP 更嚴格</li><li>只對舊瀏覽器有效</li><li data-ok>不擋任何東西，只把違反政策的情況回報給指定的網址</li><li>關閉瀏覽器的 CSP 功能</li></ul>
-  <p class="dexp">report-only 只回報、不強制，常用在調整新政策的期間。2026-10-02 實測 www.google.com 帶的就是這個版本。</p>
+  <p class="dexp">report-only 只回報、不強制，常用在調整新政策的期間。2026-10-03 實測 www.google.com 帶的就是這個版本。</p>
 </div>
 </section>
 
@@ -391,7 +391,7 @@ Content-Type: text/html;charset=UTF-8</code></pre>
 <p>跟文件一致，HSTS 沒出現，因為這次是 HTTP。CSP 與 Referrer-Policy 預設沒有，要自己加；加了之後（strict 設定）多出兩行：</p>
 <pre><code>Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'
 Referrer-Policy: strict-origin-when-cross-origin</code></pre>
-<p><strong>真實網站長什麼樣？</strong>2026-10-02 用 <code>curl -sI</code> 看本站和兩個大網站（只留安全相關的標頭，太長的 CSP 截斷）：</p>
+<p><strong>真實網站長什麼樣？</strong>2026-10-03 用 <code>curl -sI</code> 看本站和兩個大網站（只留安全相關的標頭，太長的 CSP 截斷）：</p>
 <pre><code>$ curl -sI https://hhtim.github.io/notes-platform/
 HTTP/2 200 
 strict-transport-security: max-age=31556952
@@ -401,6 +401,7 @@ HTTP/2 200
 strict-transport-security: max-age=31536000; includeSubdomains; preload
 x-frame-options: deny
 x-content-type-options: nosniff
+x-xss-protection: 0
 referrer-policy: origin-when-cross-origin, strict-origin-when-cross-origin
 content-security-policy: default-src 'none'; base-uri 'self'; child-src github.githubasset …（後略）
 
@@ -411,11 +412,11 @@ x-frame-options: DENY
 strict-transport-security: max-age=63072000
 x-content-type-options: nosniff
 referrer-policy: strict-origin-when-cross-origin</code></pre>
-<p>同一天 Google 首頁帶的是 <code>content-security-policy-report-only</code>（只回報、不強制的版本）。GitHub 與 MDN 該有的都有；本站目前只有 HSTS，回應標頭是託管平台送的。像本站這樣的純靜態網站沒有登入、沒有使用者輸入，風險比網銀低得多，但道理一樣：能加的標頭，加了都是多一層保護。</p>
+<p>同一天 Google 首頁帶的是 <code>content-security-policy-report-only</code>（只回報、不強制的版本）。GitHub 與 MDN 該有的都有，GitHub 還送了表格建議的 <code>x-xss-protection: 0</code>；本站目前只有 HSTS，回應標頭是託管平台送的。像本站這樣的純靜態網站沒有登入、沒有使用者輸入，能被利用的地方比較少，但道理一樣：能加的標頭，加了都是多一層保護。</p>
 
 <div class="drill">
   <p class="dq">OWASP HTTP 標頭速查表建議的 HSTS 值是？</p>
-  <ul class="dopts"><li>max-age=0</li><li>max-age=60，先試一分鐘看看，沒問題再逐步加長</li><li data-ok>max-age=63072000; includeSubDomains; preload</li><li>includeSubDomains，不需要寫 max-age，瀏覽器會自己記住</li></ul>
+  <ul class="dopts"><li>max-age=0</li><li>max-age=60; includeSubDomains</li><li data-ok>max-age=63072000; includeSubDomains; preload</li><li>includeSubDomains; preload</li></ul>
   <p class="dexp">63072000 秒是兩年；includeSubDomains 連子網域一起適用；preload 表示願意被列進瀏覽器內建的 HSTS 名單。max-age=0 反而是要瀏覽器取消 HSTS。</p>
 </div>
 <div class="drill">
@@ -440,17 +441,17 @@ referrer-policy: strict-origin-when-cross-origin</code></pre>
 </div>
 <div class="drill">
   <p class="dq">Spring Security 預設送出的 <code>X-XSS-Protection</code> 值是 0，這是什麼意思？</p>
-  <ul class="dopts"><li>Spring Security 忘了設定，要自己改成 1; mode=block 才有保護</li><li>XSS 防護是最高等級</li><li data-ok>刻意關掉舊的 XSS 過濾器</li><li>只對 IE 開啟</li></ul>
+  <ul class="dopts"><li>Spring Security 忘了設定</li><li>XSS 防護是最高等級</li><li data-ok>刻意關掉舊的 XSS 過濾器</li><li>只對 IE 開啟</li></ul>
   <p class="dexp">OWASP 速查表建議 X-XSS-Protection: 0，理由是這個過濾器在某些情況下會在安全的網站製造 XSS 漏洞。防 XSS 靠輸出編碼與 CSP。</p>
 </div>
 <div class="drill">
   <p class="dq">本機用 HTTP 跑 Spring Security 專案，回應裡沒有 <code>Strict-Transport-Security</code>。原因是？</p>
-  <ul class="dopts"><li>Spring Security 預設不送 HSTS，要自己在 headers() 裡打開</li><li>要加 Actuator 才有</li><li data-ok>Spring Security 只在 HTTPS 請求上加 HSTS</li><li>H2 資料庫擋掉了</li></ul>
+  <ul class="dopts"><li>Spring Security 預設不送 HSTS</li><li>要加 Actuator 才有</li><li data-ok>Spring Security 只在 HTTPS 請求上加 HSTS</li><li>H2 資料庫擋掉了</li></ul>
   <p class="dexp">官方文件：Strict-Transport-Security is added only on HTTPS requests。這個標頭本來就是要求「以後都用 HTTPS」，在 HTTPS 的回應裡送出才有意義。</p>
 </div>
 <div class="drill">
   <p class="dq">剛加了 Spring Security、沒有其他設定，下面哪個標頭<strong>不會</strong>出現在回應裡？</p>
-  <ul class="dopts"><li data-ok>Content-Security-Policy</li><li>X-Content-Type-Options: nosniff</li><li>X-Frame-Options: DENY</li><li>Cache-Control: no-cache, no-store, max-age=0, must-revalidate</li></ul>
+  <ul class="dopts"><li data-ok>Content-Security-Policy</li><li>X-Content-Type-Options: nosniff</li><li>X-Frame-Options: DENY</li><li>Cache-Control: no-cache, no-store</li></ul>
   <p class="dexp">實測與文件都一樣：CSP 要自己用 headers().contentSecurityPolicy(…) 加，因為每個網站允許載入的資源不同，沒辦法給一個通用的預設。</p>
 </div>
 <div class="drill">
@@ -460,8 +461,8 @@ referrer-policy: strict-origin-when-cross-origin</code></pre>
 </div>
 <div class="drill">
   <p class="dq">實測本站（GitHub Pages）的回應只有 HSTS，沒有 CSP 與 X-Frame-Options。下面哪一句最恰當？</p>
-  <ul class="dopts"><li>本站一定已經被入侵</li><li>本站的 HSTS 是多餘的</li><li data-ok>少了幾層保護，但風險比網銀低</li><li>靜態網站不可能有任何風險</li></ul>
-  <p class="dexp">少了標頭不等於被入侵，也不等於沒風險。安全標頭是「多一層」的觀念，風險高的系統更該補齊。</p>
+  <ul class="dopts"><li>本站一定已經被入侵</li><li>本站的 HSTS 是多餘的</li><li data-ok>少了幾層保護，但受影響的面比較小</li><li>靜態網站不可能有任何風險</li></ul>
+  <p class="dexp">少了標頭不等於被入侵，也不等於沒風險。本站沒有登入、Cookie 與使用者輸入，XSS 與點擊劫持能拿到的東西很少，所以受影響的面比較小；安全標頭是「多一層」的觀念，有登入與交易的系統更該補齊。</p>
 </div>
 </section>
 
@@ -470,16 +471,16 @@ referrer-policy: strict-origin-when-cross-origin</code></pre>
 <h3 class="head">伺服器加固與機密管理</h3>
 <p>A02 安全設定錯誤列的情況包括「啟用或安裝了不必要的功能，例如不必要的連接埠、服務、頁面、帳號」與「預設帳號與密碼仍然啟用、沒改過」，防法第一條是「一套可重複的加固流程」，而且開發、測試、正式環境「設定一致，各用不同的憑證」。<a class="fixsrc" href="https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/" target="_blank" rel="noopener">出處</a> 落到主機上，基本動作是這幾件：</p>
 <ul class="plainlist">
-<li><strong>SSH 用金鑰登入，關掉密碼登入。</strong>OpenSSH 的伺服器設定 <code>PasswordAuthentication</code>「指定是否允許密碼認證，預設是 yes」，要自己改成 no；<code>PermitRootLogin</code> 的預設是 <code>prohibit-password</code>，root 不能用密碼登入，能設成 no 就完全不准 root 直接登入。<a class="fixsrc" href="https://man.openbsd.org/sshd_config" target="_blank" rel="noopener">出處</a> 金鑰比密碼難猜得多，也不怕被大量試登入。</li>
-<li><strong>防火牆只開必要的埠。</strong>預設全部擋，只放行服務需要的（例如 443），管理用的 SSH 只開給公司的網段。這是 A01「預設拒絕」用在網路上。</li>
+<li><strong>SSH 用金鑰登入，關掉密碼登入。</strong>OpenSSH 的伺服器設定 <code>PasswordAuthentication</code>「指定是否允許密碼認證，預設是 yes」，要自己改成 no；<code>PermitRootLogin</code> 的預設是 <code>prohibit-password</code>，root 不能用密碼登入，能設成 no 就完全不准 root 直接登入。<a class="fixsrc" href="https://man.openbsd.org/sshd_config" target="_blank" rel="noopener">出處</a> 用金鑰登入，就不會被大量試密碼的方式破解。</li>
+<li><strong>防火牆只開必要的埠。</strong>A02 把「不必要的連接埠、服務」（unnecessary ports, services）列為安全設定錯誤的情況之一。<a class="fixsrc" href="https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/" target="_blank" rel="noopener">出處</a> 做法是預設全部擋，只放行服務需要的（例如 443），管理用的 SSH 只開給公司的網段。</li>
 <li><strong>最小權限。</strong>應用程式用一般帳號跑、不用 root；資料庫帳號只給需要的權限（查詢服務不需要刪表權限）。A01 第一條就是違反最小權限原則。<a class="fixsrc" href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>照現成的基準做。</strong>CIS Benchmarks 是「針對 25 個以上產品家族的規範性設定建議」，代表「全球資安專家的共識」，作業系統、雲端、資料庫都有，不用自己從零想加固項目。<a class="fixsrc" href="https://www.cisecurity.org/cis-benchmarks" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p><strong>機密管理。</strong>API 金鑰、資料庫密碼、SSH 私鑰這類「機密」（secret），OWASP 機密管理速查表說很多組織「把它們以明文寫死在原始碼裡，散落在設定檔與組態管理工具中」。它對機密的要求：只存在必要的時間（經常輪替，最好能自動輪替）、只給需要的人看（最小權限）、可以撤銷、絕不寫進日誌。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> 實務上就是不進程式碼、不進 git、不進映像檔，正式環境從集中式的機密管理服務取得；環境變數與 Vault 這類服務怎麼取捨，在面試集〈認證與安全面試題〉。</p>
+<p><strong>機密管理。</strong>API 金鑰、資料庫密碼、SSH 私鑰這類「機密」（secret），OWASP 機密管理速查表說很多組織「把它們以明文寫死在原始碼裡，散落在設定檔與組態管理工具中」。它對機密的要求：只存在必要的時間（經常輪替，最好能自動輪替）、只給需要的人看（最小權限）、可以撤銷、絕不寫進日誌。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> 實務上就是不進程式碼、不進 git、不進映像檔，正式環境從集中式的機密管理服務取得；環境變數與 Vault 這類服務怎麼取捨，在面試集〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉。</p>
 
 <div class="drill">
   <p class="dq">OpenSSH 伺服器沒改設定時，<code>PasswordAuthentication</code> 是什麼？</p>
-  <ul class="dopts"><li>no，新版 OpenSSH 預設只能用金鑰登入</li><li data-ok>yes</li><li>沒有這個設定</li><li>只允許 root 用密碼</li></ul>
+  <ul class="dopts"><li>no，新版 OpenSSH 預設只能用金鑰登入</li><li data-ok>yes，要自己改成 no</li><li>沒有這個設定</li><li>只允許 root 用密碼</li></ul>
   <p class="dexp">sshd_config 手冊：The default is yes。要只用金鑰登入，得自己改成 no。</p>
 </div>
 <div class="drill">
