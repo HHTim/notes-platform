@@ -1,0 +1,889 @@
+<!-- 來源：依 Java SE 25 API 文件（java.util.Arrays、Collections、List、Comparator）、OpenJDK jdk-25-ga 原始碼（Arrays.java、DualPivotQuicksort.java、TimSort.java、ArrayList.java）、普林斯頓 algs4.cs.princeton.edu 第 1.4、2.1、2.2、2.3、2.5 節與 introcs.cs.princeton.edu 第 4.2 節、MIT OpenCourseWare 6.006（2020 春）第 3、5 講與第 3、5 次習題課講義、Google Research 部落格〈Nearly All Binary Searches and Mergesorts are Broken〉新寫；程式碼與練習題全部自編並以 Java 21 實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出排序的「穩定」是什麼意思，知道什麼時候非要穩定不可（同金額的交易保持時間順序）</li><li>講出選擇、插入、氣泡排序的想法與 O(n²)，知道插入排序為什麼在「幾乎排好」時很快</li><li>畫出合併排序與快速排序的過程、寫出 Java 實作，比較兩者的時間、額外空間與穩定性</li><li>知道 Java 的 <code>Arrays.sort</code>、<code>Collections.sort</code>、<code>List.sort</code> 背後用什麼排序、誰保證穩定，並寫對 <code>Comparator</code></li><li>寫出不會出錯的二分搜尋（含「第一個 ≥ target 的位置」），看懂 <code>Arrays.binarySearch</code> 找不到時的回傳值，並會「在答案上二分」</li></ul></div>
+
+<section>
+<p class="era">排好之後，很多事變簡單</p>
+<h3 class="head">排序為什麼重要，以及什麼叫「穩定」</h3>
+<p>排序（sorting）就是把一堆資料照某個順序排好：金額由小到大、時間由早到晚、姓名照字母。排好本身常常就是需求（對帳單照時間列），但更常見的是<strong>排好之後，別的問題變簡單</strong>。普林斯頓的《Algorithms》課本網站舉了兩個例子：</p>
+<ul class="plainlist">
+<li><strong>找重複</strong>：「先排序，再掃過排好的陣列一次，留意連續出現的重複值」（first sort the array, then make a pass through the sorted array, taking note of duplicate values that appear consecutively in the ordered array.），這樣整題是 O(n log n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>找中位數</strong>（一半的值不比它大、一半不比它小的那個）：「排序之後就能輕鬆在線性對數時間內解決」（It is easy to solve the problem in linearithmic time by sorting.）。線性對數時間就是 O(n log n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>這課後半的二分搜尋、下一課的雙指標，前提也都是「已經排好」。</p>
+
+<h4>穩定性：相同的值，排完還維持原本的先後</h4>
+<p>algs4 的定義：「一種排序方法如果能保留陣列中相等鍵值的相對順序，就叫穩定」（A sorting method is stable if it preserves the relative order of equal keys in the array.）。課本自己舉的例子就是交易：交易依到達順序放進陣列，所以本來就照時間排好；之後要依地點分開處理，就依地點排序，但「如果排序不穩定，每個城市的交易排完後不一定還照時間排」（If the sort is unstable, the transactions for each city may not necessarily be in order by time after the sort.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a></p>
+<p>換成銀行的情境：四筆交易已經照時間排好，現在要依金額由小到大排，而且<strong>同金額的要保持時間順序</strong>（客服查帳時，同樣 500 元的兩筆，先發生的要在前面）。</p>
+<figure>
+<svg viewBox="0 0 760 288" role="img" aria-label="穩定性：四筆交易原本照時間排好，T1 與 T3 金額都是 500。依金額做穩定排序後 T1 仍在 T3 前面；不穩定排序後 T3 跑到 T1 前面">
+<defs><marker id="so-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="120" y="30" font-size="13" text-anchor="middle">原本：照時間排好</text><rect x="30" y="48" width="180" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="44" y="73" font-size="14" class="mono">T1</text><text x="122" y="73" font-size="14" text-anchor="middle" class="mono">500</text><text x="196" y="73" font-size="14" text-anchor="end" class="mono">09:00</text><rect x="30" y="92" width="180" height="40" fill="var(--surface)" stroke="currentColor"/><text x="44" y="117" font-size="14" class="mono">T2</text><text x="122" y="117" font-size="14" text-anchor="middle" class="mono">300</text><text x="196" y="117" font-size="14" text-anchor="end" class="mono">09:10</text><rect x="30" y="136" width="180" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="44" y="161" font-size="14" class="mono">T3</text><text x="122" y="161" font-size="14" text-anchor="middle" class="mono">500</text><text x="196" y="161" font-size="14" text-anchor="end" class="mono">09:20</text><rect x="30" y="180" width="180" height="40" fill="var(--surface)" stroke="currentColor"/><text x="44" y="205" font-size="14" class="mono">T4</text><text x="122" y="205" font-size="14" text-anchor="middle" class="mono">100</text><text x="196" y="205" font-size="14" text-anchor="end" class="mono">09:30</text><line x1="218" y1="128" x2="282" y2="128" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#so-m1)"/><text x="380" y="30" font-size="13" text-anchor="middle" fill="var(--gold-deep)">穩定排序（依金額）</text><rect x="290" y="48" width="180" height="40" fill="var(--surface)" stroke="currentColor"/><text x="304" y="73" font-size="14" class="mono">T4</text><text x="382" y="73" font-size="14" text-anchor="middle" class="mono">100</text><text x="456" y="73" font-size="14" text-anchor="end" class="mono">09:30</text><rect x="290" y="92" width="180" height="40" fill="var(--surface)" stroke="currentColor"/><text x="304" y="117" font-size="14" class="mono">T2</text><text x="382" y="117" font-size="14" text-anchor="middle" class="mono">300</text><text x="456" y="117" font-size="14" text-anchor="end" class="mono">09:10</text><rect x="290" y="136" width="180" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="304" y="161" font-size="14" class="mono">T1</text><text x="382" y="161" font-size="14" text-anchor="middle" class="mono">500</text><text x="456" y="161" font-size="14" text-anchor="end" class="mono">09:00</text><rect x="290" y="180" width="180" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="304" y="205" font-size="14" class="mono">T3</text><text x="382" y="205" font-size="14" text-anchor="middle" class="mono">500</text><text x="456" y="205" font-size="14" text-anchor="end" class="mono">09:20</text><line x1="478" y1="128" x2="542" y2="128" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#so-m1)"/><text x="640" y="30" font-size="13" text-anchor="middle" fill="var(--gold-deep)">不穩定排序（依金額）</text><rect x="550" y="48" width="180" height="40" fill="var(--surface)" stroke="currentColor"/><text x="564" y="73" font-size="14" class="mono">T4</text><text x="642" y="73" font-size="14" text-anchor="middle" class="mono">100</text><text x="716" y="73" font-size="14" text-anchor="end" class="mono">09:30</text><rect x="550" y="92" width="180" height="40" fill="var(--surface)" stroke="currentColor"/><text x="564" y="117" font-size="14" class="mono">T2</text><text x="642" y="117" font-size="14" text-anchor="middle" class="mono">300</text><text x="716" y="117" font-size="14" text-anchor="end" class="mono">09:10</text><rect x="550" y="136" width="180" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="564" y="161" font-size="14" class="mono">T3</text><text x="642" y="161" font-size="14" text-anchor="middle" class="mono">500</text><text x="716" y="161" font-size="14" text-anchor="end" class="mono">09:20</text><rect x="550" y="180" width="180" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="564" y="205" font-size="14" class="mono">T1</text><text x="642" y="205" font-size="14" text-anchor="middle" class="mono">500</text><text x="716" y="205" font-size="14" text-anchor="end" class="mono">09:00</text><text x="380" y="248" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">穩定：T1 仍在 T3 前面（09:00 早於 09:20）</text><text x="640" y="248" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">不穩定：T3 跑到 T1 前面</text><text x="30" y="274" font-size="12" opacity=".6">古銅格是金額同為 500 的兩筆；兩種排序的金額順序都對，差在同金額的兩筆誰先</text>
+</svg>
+<figcaption>穩定排序只保證一件事：比較起來相等的兩筆，排完還維持原本的先後。</figcaption>
+</figure>
+<p>下面用 Java 實際跑一次。<code>List.sort</code> 是穩定的（下面「Java 實際用什麼」一段有文件原文）；選擇排序是自己寫的，它不穩定，原因在下一段。</p>
+<pre><code>import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+public class Stability {
+    record Tx(String id, int amount, String time) {}
+
+    // 選擇排序：每一輪把剩下最小的換到前面（會遠距離交換，所以不穩定）
+    static void selectionSort(List&lt;Tx&gt; a, Comparator&lt;Tx&gt; c) {
+        for (int i = 0; i &lt; a.size(); i++) {
+            int min = i;
+            for (int j = i + 1; j &lt; a.size(); j++) {
+                if (c.compare(a.get(j), a.get(min)) &lt; 0) min = j;
+            }
+            Tx t = a.get(i); a.set(i, a.get(min)); a.set(min, t);
+        }
+    }
+
+    public static void main(String[] args) {
+        // 已經照時間排好的四筆交易
+        List&lt;Tx&gt; byTime = List.of(
+                new Tx("T1", 500, "09:00"),
+                new Tx("T2", 300, "09:10"),
+                new Tx("T3", 500, "09:20"),
+                new Tx("T4", 100, "09:30"));
+        Comparator&lt;Tx&gt; byAmount = Comparator.comparingInt(Tx::amount);
+
+        List&lt;Tx&gt; a = new ArrayList&lt;&gt;(byTime);
+        a.sort(byAmount);                       // List.sort：保證穩定
+        System.out.println("List.sort：");
+        a.forEach(t -&gt; System.out.println("  " + t.id() + " " + t.amount() + " " + t.time()));
+
+        List&lt;Tx&gt; b = new ArrayList&lt;&gt;(byTime);
+        selectionSort(b, byAmount);             // 選擇排序：不穩定
+        System.out.println("選擇排序：");
+        b.forEach(t -&gt; System.out.println("  " + t.id() + " " + t.amount() + " " + t.time()));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>List.sort：
+  T4 100 09:30
+  T2 300 09:10
+  T1 500 09:00
+  T3 500 09:20
+選擇排序：
+  T4 100 09:30
+  T2 300 09:10
+  T3 500 09:20
+  T1 500 09:00</code></pre>
+<p>兩種排法的金額順序都對（100、300、500、500），差別只在最後兩筆：穩定的 <code>List.sort</code> 讓 09:00 的 T1 留在 09:20 的 T3 前面；選擇排序把 T3 換到前面去了。</p>
+<p>穩定性還有一個實用的玩法：<strong>想照兩個條件排，可以排兩次，先排次要的、再用穩定排序排主要的</strong>。上面的例子就是這樣：先照時間（次要）排好，再穩定地照金額（主要）排，結果就是「金額為主、同金額照時間」。在 Java 裡也可以一次寫成 <code>thenComparing</code> 的比較器，下面會看到。</p>
+<p class="formula">穩定＝比較起來相等的兩筆，排完還維持原本的先後；基本型別的值分不出誰是誰，穩不穩定沒差</p>
+
+<div class="drill">
+  <p class="dq">四筆交易已經照時間排好：A（200 元，09:00）、B（100 元，09:05）、C（200 元，09:10）、D（100 元，09:15）。用<strong>穩定</strong>排序依金額由小到大排，結果是？</p>
+  <ul class="dopts"><li>D、B、A、C</li><li data-ok>B、D、A、C</li><li>B、D、C、A</li><li>A、C、B、D</li></ul>
+  <p class="dexp">金額 100 的 B、D 排前面，200 的 A、C 排後面；穩定排序讓同金額的保持原本順序，所以 B 在 D 前、A 在 C 前。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個排序法被稱為「穩定」，它保證的是哪一件事？</p>
+  <ul class="dopts"><li>最壞情況也是 O(n log n)</li><li>不需要額外的記憶體</li><li data-ok>比較起來相等的元素，排完後維持原本的相對順序</li><li>不管輸入長怎樣，比較次數都一樣</li></ul>
+  <p class="dexp">穩定性只講「相等的元素誰先誰後」，跟速度、記憶體無關。插入排序穩定但最壞 O(n²)；合併排序穩定但要額外 O(n) 的空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">排一個 <code>int[]</code>，排序法穩不穩定會不會影響結果？</p>
+  <ul class="dopts"><li data-ok>不會，兩個相等的 int 分不出誰是誰，怎麼排看起來都一樣</li><li>會，不穩定的排序可能把 3 排在 2 前面</li><li>會，不穩定的排序會讓相等的值消失</li><li>不會，因為 int 陣列一定用合併排序</li></ul>
+  <p class="dexp">穩定性要有意義，相等的元素必須「還帶著別的資料」（例如時間）。兩個 5 就是兩個 5，換了位置也看不出來。不穩定的排序一樣會把值排對。</p>
+</div>
+<div class="drill">
+  <p class="dq">交易清單要「依分行分組，同一分行內照時間由早到晚」。手上的排序是穩定的，打算排兩次。兩次的順序該怎麼安排？</p>
+  <ul class="dopts"><li>先依分行排，再依時間排</li><li>兩次的順序不影響結果</li><li>只依分行排一次就夠了，同分行內自然會照時間</li><li data-ok>先依時間排，再依分行排</li></ul>
+  <p class="dexp">最後一次排的是主要條件。先依時間排好，再穩定地依分行排：分行相同的交易保持上一次排出來的時間順序。反過來做，最後會變成全部照時間排、分行打散。只排分行一次的話，同分行內的順序是原始輸入的順序，不一定照時間。</p>
+</div>
+<div class="drill">
+  <p class="dq">algs4 說明排序的應用時，「找出陣列裡有沒有重複的值」它的做法是什麼？</p>
+  <ul class="dopts"><li>每一對都比一次，O(n²)</li><li>先算總和，再跟沒重複時的總和比</li><li>只看第一個和最後一個</li><li data-ok>先排序，再掃一遍看相鄰的有沒有一樣，O(n log n)</li></ul>
+  <p class="dexp">排好之後，相同的值一定擠在一起，掃一遍比相鄰兩格就知道。排序 O(n log n)、掃描 O(n)，合起來 O(n log n)。</p>
+</div>
+</section>
+
+<section>
+<p class="era">兩層迴圈，想法最直接</p>
+<h3 class="head">簡單排序：選擇、插入、氣泡</h3>
+<p>這三種排序面試很少要你寫，但它們的想法是後面所有排序的基礎，而且「為什麼是 O(n²)」可以從程式直接推出來。</p>
+<ul class="plainlist">
+<li><strong>選擇排序</strong>（selection sort）：每一輪從還沒排的那段裡找出最小的，跟那段的第一格交換。algs4：「這個方法叫選擇排序，因為它一再選出剩下的最小項」（This method is called selection sort because it works by repeatedly selecting the smallest remaining item.），並且「用約 n²/2 次比較與 n 次交換」（Selection sort uses ~n²/2 compares and n exchanges）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/21elementary/" target="_blank" rel="noopener">出處</a> 不管輸入長怎樣，每一輪都要把剩下的掃完才知道誰最小，所以就算本來就排好，也是 O(n²)。</li>
+<li><strong>插入排序</strong>（insertion sort）：像整理手上的牌，左邊一段永遠排好，每次拿右邊下一張，往左找到它的位置插進去，比它大的往右挪一格。</li>
+<li><strong>氣泡排序</strong>（bubble sort）：從頭到尾比相鄰兩格，前面比較大就交換。一輪走完，最大的會像氣泡一樣「浮」到最後一格；下一輪就少看一格。跟另外兩個一樣是兩層迴圈，最壞 O(n²)。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 366" role="img" aria-label="插入排序的五輪：陣列 5、2、4、6、1、3。每一輪把下一張插進前面已排好的那一段，比它大的往右挪一格。最後得到 1 到 6">
+<text x="30" y="45" font-size="13" class="mono">開始</text><rect x="100" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="128" y="45" font-size="14" text-anchor="middle" class="mono">5</text><rect x="156" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="184" y="45" font-size="14" text-anchor="middle" class="mono">2</text><rect x="212" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="240" y="45" font-size="14" text-anchor="middle" class="mono">4</text><rect x="268" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="296" y="45" font-size="14" text-anchor="middle" class="mono">6</text><rect x="324" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="352" y="45" font-size="14" text-anchor="middle" class="mono">1</text><rect x="380" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408" y="45" font-size="14" text-anchor="middle" class="mono">3</text><text x="454" y="45" font-size="12.5"></text><text x="30" y="99" font-size="13" class="mono">i = 1</text><rect x="100" y="74" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="128" y="99" font-size="14" text-anchor="middle" class="mono">2</text><rect x="156" y="74" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="184" y="99" font-size="14" text-anchor="middle" class="mono">5</text><rect x="212" y="74" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="240" y="99" font-size="14" text-anchor="middle" class="mono">4</text><rect x="268" y="74" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="296" y="99" font-size="14" text-anchor="middle" class="mono">6</text><rect x="324" y="74" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="352" y="99" font-size="14" text-anchor="middle" class="mono">1</text><rect x="380" y="74" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408" y="99" font-size="14" text-anchor="middle" class="mono">3</text><text x="454" y="99" font-size="12.5">2 比 5 小，5 右移，2 放到最前面</text><text x="30" y="153" font-size="13" class="mono">i = 2</text><rect x="100" y="128" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="128" y="153" font-size="14" text-anchor="middle" class="mono">2</text><rect x="156" y="128" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="184" y="153" font-size="14" text-anchor="middle" class="mono">4</text><rect x="212" y="128" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="240" y="153" font-size="14" text-anchor="middle" class="mono">5</text><rect x="268" y="128" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="296" y="153" font-size="14" text-anchor="middle" class="mono">6</text><rect x="324" y="128" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="352" y="153" font-size="14" text-anchor="middle" class="mono">1</text><rect x="380" y="128" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408" y="153" font-size="14" text-anchor="middle" class="mono">3</text><text x="454" y="153" font-size="12.5">4 插到 2 和 5 中間</text><text x="30" y="207" font-size="13" class="mono">i = 3</text><rect x="100" y="182" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="128" y="207" font-size="14" text-anchor="middle" class="mono">2</text><rect x="156" y="182" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="184" y="207" font-size="14" text-anchor="middle" class="mono">4</text><rect x="212" y="182" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="240" y="207" font-size="14" text-anchor="middle" class="mono">5</text><rect x="268" y="182" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="296" y="207" font-size="14" text-anchor="middle" class="mono">6</text><rect x="324" y="182" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="352" y="207" font-size="14" text-anchor="middle" class="mono">1</text><rect x="380" y="182" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408" y="207" font-size="14" text-anchor="middle" class="mono">3</text><text x="454" y="207" font-size="12.5">6 比前面都大，不用動</text><text x="30" y="261" font-size="13" class="mono">i = 4</text><rect x="100" y="236" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="128" y="261" font-size="14" text-anchor="middle" class="mono">1</text><rect x="156" y="236" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="184" y="261" font-size="14" text-anchor="middle" class="mono">2</text><rect x="212" y="236" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="240" y="261" font-size="14" text-anchor="middle" class="mono">4</text><rect x="268" y="236" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="296" y="261" font-size="14" text-anchor="middle" class="mono">5</text><rect x="324" y="236" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="352" y="261" font-size="14" text-anchor="middle" class="mono">6</text><rect x="380" y="236" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408" y="261" font-size="14" text-anchor="middle" class="mono">3</text><text x="454" y="261" font-size="12.5">前面四個都右移，1 放到最前面</text><text x="30" y="315" font-size="13" class="mono">i = 5</text><rect x="100" y="290" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="128" y="315" font-size="14" text-anchor="middle" class="mono">1</text><rect x="156" y="290" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="184" y="315" font-size="14" text-anchor="middle" class="mono">2</text><rect x="212" y="290" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="240" y="315" font-size="14" text-anchor="middle" class="mono">3</text><rect x="268" y="290" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="296" y="315" font-size="14" text-anchor="middle" class="mono">4</text><rect x="324" y="290" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="352" y="315" font-size="14" text-anchor="middle" class="mono">5</text><rect x="380" y="290" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="408" y="315" font-size="14" text-anchor="middle" class="mono">6</text><text x="454" y="315" font-size="12.5">4、5、6 右移，3 放到 2 後面</text><text x="30" y="352" font-size="12" opacity=".6">古銅格＝這一輪插進去的那張；灰藍格＝已經排好的前段；白格＝還沒處理</text>
+</svg>
+<figcaption>插入排序像整理手上的牌：左邊一段永遠排好，每次拿右邊下一張插進正確位置。</figcaption>
+</figure>
+<pre><code>import java.util.Arrays;
+
+public class InsertionSort {
+    static void insertionSort(int[] a) {
+        for (int i = 1; i &lt; a.length; i++) {
+            int key = a[i];                 // 這一輪要插進去的牌
+            int j = i - 1;
+            while (j &gt;= 0 &amp;&amp; a[j] &gt; key) {  // 比 key 大的往右挪一格
+                a[j + 1] = a[j];
+                j--;
+            }
+            a[j + 1] = key;                 // 空出來的位置放 key
+            System.out.println("i = " + i + "：" + Arrays.toString(a));
+        }
+    }
+
+    public static void main(String[] args) {
+        insertionSort(new int[] {5, 2, 4, 6, 1, 3});
+    }
+}</code></pre>
+<p>執行結果（每一輪結束印一次）：</p>
+<pre><code>i = 1：[2, 5, 4, 6, 1, 3]
+i = 2：[2, 4, 5, 6, 1, 3]
+i = 3：[2, 4, 5, 6, 1, 3]
+i = 4：[1, 2, 4, 5, 6, 3]
+i = 5：[1, 2, 3, 4, 5, 6]</code></pre>
+
+<h4>插入排序在「幾乎排好」時很快</h4>
+<p>algs4 把「順序顛倒的一對」叫<strong>反序對</strong>（inversion：前面的比後面的大，例如 5 在 2 前面），並證明插入排序「交換的次數等於陣列裡反序對的數目，比較的次數至少等於反序對數、最多是反序對數加上陣列長度」（The number of exchanges used by insertion sort is equal to the number of inversions in the array, and the number of compares is at least equal to the number of inversions and at most equal to the number of inversions plus the array size.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/21elementary/" target="_blank" rel="noopener">出處</a> 所以：</p>
+<ul class="plainlist">
+<li>亂序的陣列有很多反序對，平均約 n²/4 次比較（~N²/4 compares … on the average），是 O(n²)。</li>
+<li>已經排好的陣列沒有反序對，最好的情況「n−1 次比較、0 次交換」（the best case is N-1 compares and 0 exchanges），是 O(n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/21elementary/" target="_blank" rel="noopener">出處</a></li>
+<li>幾乎排好（只有少數幾筆跑錯位置）的陣列，反序對很少，花的時間接近 O(n)。每天新增幾筆交易到已排好的清單後面，就是這種情況。</li>
+</ul>
+<p>這也是為什麼實際的排序程式庫常在小段或接近排好的資料上改用插入排序：algs4 在合併排序與快速排序的改良裡都寫「小的子陣列改用插入排序」（Use insertion sort for small subarrays.）<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a>，Java 的 TimSort 原始碼也寫「小陣列直接原地用二分插入排序」（Small arrays are sorted in place, using a binary insertion sort.）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/TimSort.java" target="_blank" rel="noopener">出處</a></p>
+
+<h4>穩不穩定</h4>
+<p>MIT 6.006 的講義整理成一張表：插入排序 O(n²)、原地（in-place：只用常數個額外變數）、穩定；選擇排序 O(n²)、原地、<strong>不穩定</strong>。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/78a3c3444de1ff837f81e52991c24a86_MIT6_006S20_lec5.pdf" target="_blank" rel="noopener">出處</a> 插入排序穩定，是因為它只在「左邊比 key 大」時才往右挪，遇到相等的就停下來，所以相等的不會互相越過。選擇排序不穩定，是因為它會「遠距離交換」：把後面的最小值換到前面時，原本在前面的那個被丟到後面，可能越過跟它相等的元素。上一段的 T1、T3 就是這樣被換開的。</p>
+<p class="formula">選擇、插入、氣泡都是 O(n²)；插入排序穩定、幾乎排好時接近 O(n)；選擇排序不穩定、排好了也還是 O(n²)</p>
+
+<div class="drill">
+  <p class="dq">用選擇排序排 <code>[4, 2, 5, 1, 3]</code>，第一輪（找出最小的、換到索引 0）做完後，陣列是？</p>
+  <ul class="dopts"><li>[1, 4, 2, 5, 3]</li><li data-ok>[1, 2, 5, 4, 3]</li><li>[2, 4, 5, 1, 3]</li><li>[1, 2, 3, 4, 5]</li></ul>
+  <p class="dexp">最小的是索引 3 的 1，跟索引 0 的 4 交換，其他不動，得到 [1, 2, 5, 4, 3]。[1, 4, 2, 5, 3] 是把 1 插進最前面、其他往右挪，那是插入排序的動作。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的插入排序程式排 <code>[3, 7, 4, 9, 5]</code>，印出 <code>i = 2</code> 那一行時，陣列是？</p>
+  <ul class="dopts"><li>[3, 7, 4, 9, 5]</li><li>[3, 4, 5, 7, 9]</li><li data-ok>[3, 4, 7, 9, 5]</li><li>[3, 4, 7, 5, 9]</li></ul>
+  <p class="dexp">i = 1 時 7 比 3 大，不動；i = 2 時拿 4，7 往右挪，4 放到 3 後面，得到 [3, 4, 7, 9, 5]。後面的 9、5 還沒處理。</p>
+</div>
+<div class="drill">
+  <p class="dq">氣泡排序對 <code>[5, 1, 4, 2, 8]</code> 做完<strong>第一輪</strong>（從頭比到尾，前面比較大就交換）後，陣列是？</p>
+  <ul class="dopts"><li data-ok>[1, 4, 2, 5, 8]</li><li>[1, 2, 4, 5, 8]</li><li>[1, 5, 4, 2, 8]</li><li>[5, 1, 4, 2, 8]</li></ul>
+  <p class="dexp">5 和 1 換、5 和 4 換、5 和 2 換、5 和 8 不換，5 一路往後移到 8 前面：[1, 4, 2, 5, 8]。一輪只保證最大的到最後，前面還沒排好。</p>
+</div>
+<div class="drill">
+  <p class="dq">對一個<strong>已經排好</strong>、長度 n 的陣列跑插入排序，總共比較幾次？</p>
+  <ul class="dopts"><li>0 次</li><li>約 n²/2 次</li><li>約 n log n 次</li><li data-ok>n − 1 次</li></ul>
+  <p class="dexp">每一輪拿 key 跟左邊鄰居比一次，發現左邊沒有比它大就停，i 從 1 到 n − 1 共 n − 1 次比較、0 次移動。algs4 寫的最好情況就是 N−1 compares and 0 exchanges。</p>
+</div>
+<div class="drill">
+  <p class="dq">對一個<strong>已經排好</strong>、長度 n 的陣列跑選擇排序，時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)，因為不用交換</li><li data-ok>O(n²)，每一輪還是要把剩下的掃完才知道誰最小</li><li>O(log n)</li><li>O(n log n)</li></ul>
+  <p class="dexp">選擇排序不會因為「已經排好」而提早停：第一輪要看 n − 1 個、第二輪 n − 2 個……加起來約 n²/2 次比較。這是它跟插入排序最大的差別。</p>
+</div>
+<div class="drill">
+  <p class="dq">用插入排序排 <code>[2, 1, 3, 5, 4]</code>，元素總共要「往右挪一格」幾次？</p>
+  <ul class="dopts"><li>0 次</li><li>1 次</li><li>4 次</li><li data-ok>2 次</li></ul>
+  <p class="dexp">挪動次數等於反序對數。順序顛倒的只有 (2, 1) 和 (5, 4) 兩對：拿 1 時 2 挪一次，拿 4 時 5 挪一次，共 2 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">每天收盤後，一份已照金額排好的 10 萬筆清單，尾端會再加上當天新進的 20 筆（沒排好）。只能從這三種簡單排序選一個，該選哪個？</p>
+  <ul class="dopts"><li data-ok>插入排序，前面已經排好，只有新的 20 筆要往前插</li><li>選擇排序，因為交換次數最少</li><li>氣泡排序，因為最好寫</li><li>三個都一樣，都是 O(n²)</li></ul>
+  <p class="dexp">插入排序的工作量跟反序對數成正比。前面 10 萬筆已排好，只有新加的 20 筆會產生反序對，花的時間接近 O(n)。選擇排序不管怎樣都要約 n²/2 次比較。</p>
+</div>
+<div class="drill">
+  <p class="dq">用選擇排序排 <code>[2甲, 2乙, 1]</code>（甲、乙只是標記，兩個 2 一樣大），第一輪把最小的 1 換到最前面之後，結果是？</p>
+  <ul class="dopts"><li>[1, 2甲, 2乙]</li><li data-ok>[1, 2乙, 2甲]</li><li>[2甲, 2乙, 1]</li><li>[1, 2甲, 2甲]</li></ul>
+  <p class="dexp">1 在索引 2，跟索引 0 的 2甲 交換：2甲 被丟到最後，越過了 2乙，變成 [1, 2乙, 2甲]。第二輪兩個 2 一樣大，不再交換。原本甲在乙前，排完乙在甲前，這就是不穩定。</p>
+</div>
+</section>
+
+<section>
+<p class="era">切成兩半，各自排好，再合起來</p>
+<h3 class="head">合併排序：分治的第一個例子</h3>
+<p>algs4 的描述：合併排序建立在<strong>合併</strong>（merging）這個動作上，也就是「把兩個排好的陣列合成一個更大的排好的陣列」（combining two ordered arrays to make one larger ordered array）。排序的方法是「把陣列切成兩半，（遞迴地）把兩半各自排好，再把結果合併」（divide it into two halves, sort the two halves (recursively), and then merge the results.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a></p>
+<p>這種「把大問題切成同樣形狀的小問題、各自解完再合起來」的做法叫<strong>分治</strong>（divide and conquer）。切到只剩一個元素時，一個元素本來就是排好的，這就是遞迴的終止條件（遞迴的寫法見〈遞迴與回溯〉）。</p>
+<figure>
+<svg viewBox="0 0 760 390" role="img" aria-label="合併排序：38、27、43、3、9、82、10 先一直對半切，再兩兩合併。27、38 與 3、43 合成 3、27、38、43；9、82 與 10 合成 9、10、82；最後合成 3、9、10、27、38、43、82">
+<defs><marker id="so-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="30" y="45" font-size="13">原始</text><rect x="204.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="232" y="45" font-size="14" text-anchor="middle" class="mono">38</text><rect x="260.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="288" y="45" font-size="14" text-anchor="middle" class="mono">27</text><rect x="316.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="344" y="45" font-size="14" text-anchor="middle" class="mono">43</text><rect x="372.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="400" y="45" font-size="14" text-anchor="middle" class="mono">3</text><rect x="428.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="456" y="45" font-size="14" text-anchor="middle" class="mono">9</text><rect x="484.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="512" y="45" font-size="14" text-anchor="middle" class="mono">82</text><rect x="540.0" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="568" y="45" font-size="14" text-anchor="middle" class="mono">10</text><text x="30" y="103" font-size="13">切成兩半</text><rect x="193.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="221" y="103" font-size="14" text-anchor="middle" class="mono">38</text><rect x="249.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="277" y="103" font-size="14" text-anchor="middle" class="mono">27</text><rect x="305.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="333" y="103" font-size="14" text-anchor="middle" class="mono">43</text><rect x="361.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="389" y="103" font-size="14" text-anchor="middle" class="mono">3</text><rect x="439.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="467" y="103" font-size="14" text-anchor="middle" class="mono">9</text><rect x="495.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="523" y="103" font-size="14" text-anchor="middle" class="mono">82</text><rect x="551.0" y="78" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="579" y="103" font-size="14" text-anchor="middle" class="mono">10</text><text x="30" y="161" font-size="13">再切一次</text><rect x="171.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="199" y="161" font-size="14" text-anchor="middle" class="mono">38</text><rect x="227.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="255" y="161" font-size="14" text-anchor="middle" class="mono">27</text><rect x="305.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="333" y="161" font-size="14" text-anchor="middle" class="mono">43</text><rect x="361.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="389" y="161" font-size="14" text-anchor="middle" class="mono">3</text><rect x="439.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="467" y="161" font-size="14" text-anchor="middle" class="mono">9</text><rect x="495.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="523" y="161" font-size="14" text-anchor="middle" class="mono">82</text><rect x="573.0" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="601" y="161" font-size="14" text-anchor="middle" class="mono">10</text><text x="30" y="219" font-size="13">兩兩合併</text><rect x="171.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="199" y="219" font-size="14" text-anchor="middle" class="mono">27</text><rect x="227.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="255" y="219" font-size="14" text-anchor="middle" class="mono">38</text><rect x="305.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="333" y="219" font-size="14" text-anchor="middle" class="mono">3</text><rect x="361.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="389" y="219" font-size="14" text-anchor="middle" class="mono">43</text><rect x="439.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="467" y="219" font-size="14" text-anchor="middle" class="mono">9</text><rect x="495.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="523" y="219" font-size="14" text-anchor="middle" class="mono">82</text><rect x="573.0" y="194" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="601" y="219" font-size="14" text-anchor="middle" class="mono">10</text><text x="30" y="277" font-size="13">再合併</text><rect x="193.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="221" y="277" font-size="14" text-anchor="middle" class="mono">3</text><rect x="249.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="277" y="277" font-size="14" text-anchor="middle" class="mono">27</text><rect x="305.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="333" y="277" font-size="14" text-anchor="middle" class="mono">38</text><rect x="361.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="389" y="277" font-size="14" text-anchor="middle" class="mono">43</text><rect x="439.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="467" y="277" font-size="14" text-anchor="middle" class="mono">9</text><rect x="495.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="523" y="277" font-size="14" text-anchor="middle" class="mono">10</text><rect x="551.0" y="252" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="579" y="277" font-size="14" text-anchor="middle" class="mono">82</text><text x="30" y="335" font-size="13" fill="var(--gold-deep)">合併完成</text><rect x="204.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="232" y="335" font-size="14" text-anchor="middle" class="mono">3</text><rect x="260.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="288" y="335" font-size="14" text-anchor="middle" class="mono">9</text><rect x="316.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="344" y="335" font-size="14" text-anchor="middle" class="mono">10</text><rect x="372.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="400" y="335" font-size="14" text-anchor="middle" class="mono">27</text><rect x="428.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="456" y="335" font-size="14" text-anchor="middle" class="mono">38</text><rect x="484.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="512" y="335" font-size="14" text-anchor="middle" class="mono">43</text><rect x="540.0" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="568" y="335" font-size="14" text-anchor="middle" class="mono">82</text><line x1="720" y1="30" x2="720" y2="128" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#so-m2)"/><text x="732" y="82" font-size="13">切</text><line x1="720" y1="330" x2="720" y2="200" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#so-m2)"/><text x="732" y="270" font-size="13" fill="var(--slate-deep)">合</text><text x="30" y="376" font-size="12" opacity=".6">切到只剩一個就算排好（圖省略那一層）；灰藍格＝合併好的段，每一段內部都已排序</text>
+</svg>
+<figcaption>合併排序先切到不能再切，再一層一層把兩段排好的合起來；切 log n 層，每層合併共 n 筆。</figcaption>
+</figure>
+
+<h4>合併：兩根手指</h4>
+<p>MIT 6.006 的講義把合併叫「兩根手指的演算法」（two finger algorithm）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/6d1ae5278d02bbecb5c4428928b24194_MIT6_006S20_lec3.pdf" target="_blank" rel="noopener">出處</a> 兩段各放一根手指在最前面（也就是各自最小的那個），每次比兩根手指指的值，把小的那個放進結果、那根手指往右一格；有一段用完了，另一段剩下的直接照順序接上。下一課的雙指標，就是這兩根手指的延伸。</p>
+<figure>
+<svg viewBox="0 0 760 304" role="img" aria-label="合併兩段已排好的陣列：左半 3、27、38、43，右半 9、10、82。3、9、10 已經放進結果；現在 i 指著 27、j 指著 82，27 比較小，放進結果的第 3 格">
+<defs><marker id="so-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="172" y="30" font-size="13" text-anchor="middle">左半（已排好）</text><text x="524" y="30" font-size="13" text-anchor="middle">右半（已排好）</text><rect x="60" y="70" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="88" y="95" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><rect x="116" y="70" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="144" y="95" font-size="14" text-anchor="middle" class="mono">27</text><rect x="172" y="70" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="200" y="95" font-size="14" text-anchor="middle" class="mono">38</text><rect x="228" y="70" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="256" y="95" font-size="14" text-anchor="middle" class="mono">43</text><rect x="440" y="70" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="468" y="95" font-size="14" text-anchor="middle" class="mono" opacity=".35">9</text><rect x="496" y="70" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="524" y="95" font-size="14" text-anchor="middle" class="mono" opacity=".35">10</text><rect x="552" y="70" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="580" y="95" font-size="14" text-anchor="middle" class="mono">82</text><path d="M138 56 L150 56 L144 66z" fill="var(--gold-deep)"/><text x="144" y="50" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">i</text><path d="M574 56 L586 56 L580 66z" fill="var(--gold-deep)"/><text x="580" y="50" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">j</text><text x="172" y="225" font-size="13" text-anchor="end">合併結果</text><rect x="184" y="200" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="212" y="225" font-size="14" text-anchor="middle" class="mono">3</text><text x="212" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="240" y="200" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="268" y="225" font-size="14" text-anchor="middle" class="mono">9</text><text x="268" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="296" y="200" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="324" y="225" font-size="14" text-anchor="middle" class="mono">10</text><text x="324" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="352" y="200" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="408" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="436" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="464" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="492" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="520" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="548" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><text x="380" y="225" font-size="14" text-anchor="middle" class="mono">27</text><path d="M144 114 Q144 170 372 196" fill="none" stroke="var(--gold-deep)" stroke-width="1.5" marker-end="url(#so-m3)"/><text x="250" y="150" font-size="12.5" fill="var(--gold-deep)">比 27 和 82：27 小，拿 27，i 往右一格</text><text x="30" y="290" font-size="12" opacity=".6">虛線格＝已經拿走的；灰藍格＝已經放好的。每一步只比兩根手指指著的那兩個，所以合併 n 筆是 O(n)</text>
+</svg>
+<figcaption>合併只看兩段的「目前最小」：兩根手指各指一段，每次拿小的那個，相等時拿左邊（這樣才穩定）。</figcaption>
+</figure>
+<pre><code>import java.util.Arrays;
+
+public class MergeSort {
+    static void sort(int[] a, int[] tmp, int lo, int hi) {   // 排 a[lo..hi]
+        if (lo &gt;= hi) return;                             // 一個元素：已經排好
+        int mid = lo + (hi - lo) / 2;
+        sort(a, tmp, lo, mid);                            // 排左半
+        sort(a, tmp, mid + 1, hi);                        // 排右半
+        merge(a, tmp, lo, mid, hi);                       // 合併
+    }
+
+    static void merge(int[] a, int[] tmp, int lo, int mid, int hi) {
+        for (int k = lo; k &lt;= hi; k++) tmp[k] = a[k];     // 先複製一份
+        int i = lo, j = mid + 1;                          // 兩疊各一根手指
+        for (int k = lo; k &lt;= hi; k++) {
+            if (i &gt; mid)              a[k] = tmp[j++];    // 左疊用完
+            else if (j &gt; hi)          a[k] = tmp[i++];    // 右疊用完
+            else if (tmp[j] &lt; tmp[i]) a[k] = tmp[j++];    // 右邊比較小才拿右邊
+            else                      a[k] = tmp[i++];    // 相等時拿左邊：穩定
+        }
+        System.out.println("合併 [" + lo + ".." + hi + "]：" + Arrays.toString(Arrays.copyOfRange(a, lo, hi + 1)));
+    }
+
+    public static void main(String[] args) {
+        int[] a = {38, 27, 43, 3, 9, 82, 10};
+        sort(a, new int[a.length], 0, a.length - 1);
+        System.out.println("結果：" + Arrays.toString(a));
+    }
+}</code></pre>
+<p>執行結果（每合併完一段印一次，<code>[lo..hi]</code> 是那段的索引範圍）：</p>
+<pre><code>合併 [0..1]：[27, 38]
+合併 [2..3]：[3, 43]
+合併 [0..3]：[3, 27, 38, 43]
+合併 [4..5]：[9, 82]
+合併 [4..6]：[9, 10, 82]
+合併 [0..6]：[3, 9, 10, 27, 38, 43, 82]
+結果：[3, 9, 10, 27, 38, 43, 82]</code></pre>
+<p>印出來的順序就是遞迴的順序：先把左半 [0..3] 整個做完（裡面先合 [0..1]、再合 [2..3]、再合成 [0..3]），才輪到右半。</p>
+
+<h4>多快、多佔空間、穩不穩定</h4>
+<ul class="plainlist">
+<li><strong>時間 O(n log n)，最壞也是。</strong>每層都把 n 個元素合併一次，花 O(n)；每切一次長度減半，共 log n 層（複雜度的推法見〈複雜度：程式跑多快、吃多少記憶體〉）。MIT 講義寫成遞迴式 T(n) = 2T(n/2) + Θ(n)，「解出來是 T(n) = Θ(n log n)」（which solves to T(n) = Θ(n log n)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/1869dbf640ded6b31f1bd369d2001ef5_MIT6_006S20_r03.pdf" target="_blank" rel="noopener">出處</a> algs4 強調它「不管輸入長怎樣」都保證這個速度（guarantees to sort an array of N items in time proportional to N log N, no matter what the input.）。</li>
+<li><strong>額外空間 O(n)。</strong>同一句接著說：「主要缺點是要用跟 N 成正比的額外空間」（Its prime disadvantage is that it uses extra space proportional to N.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a> 上面程式的 <code>tmp</code> 陣列就是這塊空間。</li>
+<li><strong>穩定，但要寫對。</strong>MIT 習題課講義提醒：「合併排序穩不穩定，取決於實作在合併時怎麼處理相等的情況」（Whether merge sort is stable depends on how an implementation breaks ties when merging.）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/1869dbf640ded6b31f1bd369d2001ef5_MIT6_006S20_r03.pdf" target="_blank" rel="noopener">出處</a> 上面的程式只有「右邊<strong>嚴格</strong>比較小」才拿右邊，相等時拿左邊，左邊的元素原本就在前面，所以穩定。</li>
+</ul>
+<p>還有一個理論上的界線：algs4 證明「任何靠比較的排序法，都無法保證用少於 lg(N!) ~ N lg N 次比較排好 N 個元素」（No compare-based sorting algorithm can guarantee to sort N items with fewer than lg(N!) ~ N lg N compares.），所以合併排序在「只靠比大小」的排序裡已經是最好的等級。<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a> 要比 n log n 更快，就得不靠比較，例如後面的計數排序。</p>
+<p class="formula">合併排序：切 log n 層、每層合併 O(n)，最壞也是 O(n log n)；額外空間 O(n)；相等時拿左邊才穩定</p>
+
+<div class="drill">
+  <p class="dq">合併 <code>[1, 4, 7]</code> 與 <code>[2, 3, 9]</code>，結果的前三個依序是？</p>
+  <ul class="dopts"><li>1、4、7</li><li>1、2、4</li><li>2、3、9</li><li data-ok>1、2、3</li></ul>
+  <p class="dexp">比 1 和 2，拿 1；比 4 和 2，拿 2；比 4 和 3，拿 3。每次都拿兩根手指中比較小的那個，所以是 1、2、3，接著才是 4。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 MergeSort 程式排 <code>{38, 27, 43, 3, 9, 82, 10}</code>，<strong>第一次</strong>印出的合併是哪一段？</p>
+  <ul class="dopts"><li data-ok>合併 [0..1]：[27, 38]</li><li>合併 [0..3]：[3, 27, 38, 43]</li><li>合併 [4..5]：[9, 82]</li><li>合併 [0..6]：[3, 9, 10, 27, 38, 43, 82]</li></ul>
+  <p class="dexp">遞迴先一路往左切到 [0..0] 和 [1..1]，它們都只有一個元素、直接回傳，第一個真正發生的合併就是 [0..1]，得到 [27, 38]。</p>
+</div>
+<div class="drill">
+  <p class="dq">合併排序在<strong>最壞情況</strong>下的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n²)</li><li data-ok>O(n log n)</li><li>O(n)</li><li>O(log n)</li></ul>
+  <p class="dexp">不管輸入長怎樣，切法都一樣（每次對半），每層合併都是 O(n)，共 log n 層。algs4 說它 no matter what the input 都是 N log N。</p>
+</div>
+<div class="drill">
+  <p class="dq">合併排序需要多少額外空間（不算遞迴本身）？</p>
+  <ul class="dopts"><li>O(1)</li><li>O(log n)</li><li data-ok>O(n)</li><li>O(n²)</li></ul>
+  <p class="dexp">合併時要一塊跟原陣列一樣長的暫存區（程式裡的 tmp），所以是 O(n)。algs4 說這是它的主要缺點。</p>
+</div>
+<div class="drill">
+  <p class="dq">8 個元素做合併排序，從整段開始一直對半切，切到每段只剩 1 個，總共要切幾層？</p>
+  <ul class="dopts"><li>8 層</li><li>4 層</li><li>2 層</li><li data-ok>3 層</li></ul>
+  <p class="dexp">8 → 4 → 2 → 1，切了 3 次，也就是 log₂ 8 = 3。每層都要把 8 個合併一次，總工作量約 8 × 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">合併兩段已排好、長度分別是 m 和 n 的陣列，<strong>最多</strong>要比較幾次？</p>
+  <ul class="dopts"><li data-ok>m + n − 1 次</li><li>m × n 次</li><li>max(m, n) 次</li><li>log(m + n) 次</li></ul>
+  <p class="dexp">每比一次就放一個進結果。最壞情況是兩段交錯到最後一刻才有一段用完，那時放了 m + n − 1 個，剩下最後一個不用比直接放。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 merge 裡的 <code>tmp[j] &lt; tmp[i]</code> 改成 <code>tmp[j] &lt;= tmp[i]</code>，會發生什麼事？</p>
+  <ul class="dopts"><li>排序結果會錯</li><li>會無窮迴圈</li><li data-ok>還是排得對，但相等時改拿右邊，排序不再穩定</li><li>變得比較快，因為少比一次</li></ul>
+  <p class="dexp">相等時拿右邊或左邊，數值順序都對。但右邊的元素原本在後面，相等時先拿它，就讓它越過了左邊相等的元素，穩定性就沒了。</p>
+</div>
+<div class="drill">
+  <p class="dq">合併排序把問題切成兩半、各自遞迴解完、再合起來。這種設計方法叫什麼？</p>
+  <ul class="dopts"><li>回溯法</li><li>貪婪法</li><li>雙指標</li><li data-ok>分治</li></ul>
+  <p class="dexp">切成同樣形狀的小問題、各自解、再合併，就是分治（divide and conquer）。回溯法是一路試選擇、走不通就撤銷，見〈遞迴與回溯〉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">挑一個基準，小的放左、大的放右</p>
+<h3 class="head">快速排序：分割之後各自遞迴</h3>
+<p>快速排序（quicksort）也是分治，但工夫花在「切」而不是「合」。algs4：「它把陣列分割成兩部分，再各自獨立排序」（It works by partitioning an array into two parts, then sorting the parts independently.）。關鍵是<strong>分割</strong>（partition）：挑一個元素當<strong>基準值</strong>（pivot），把陣列整理成三個條件都成立（the partitioning process, which rearranges the array to make the following three conditions hold）：<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>pivot 站在某個位置 j，而那就是它排好後的最終位置（The entry a[j] is in its final place in the array, for some j.）。</li>
+<li>a[lo] 到 a[j−1] 沒有一個比 a[j] 大（No entry in a[lo] through a[j-1] is greater than a[j].）。</li>
+<li>a[j+1] 到 a[hi] 沒有一個比 a[j] 小（No entry in a[j+1] through a[hi] is less than a[j].）。</li>
+</ul>
+<p>分割完，pivot 就不用再動了，左右兩群各自遞迴排好，整個陣列自然排好，<strong>不需要合併</strong>。</p>
+<p>分割有好幾種寫法。algs4 的版本拿最左邊那格當 pivot、從兩頭往中間掃；下面的程式用另一種比較好追蹤的寫法：<strong>拿最後一格當 pivot</strong>，一個索引 <code>j</code> 從左掃到右，另一個索引 <code>i</code> 記「比 pivot 小的那群」的下一格。<code>j</code> 遇到比 pivot 小的，就跟 <code>i</code> 那格交換、<code>i</code> 往右一格；掃完後把 pivot 換到 <code>i</code>。</p>
+<figure>
+<svg viewBox="0 0 760 392" role="img" aria-label="快速排序的分割：陣列 7、2、1、8、6、3、5、4，拿最後一格 4 當 pivot。j 從左掃到右，遇到比 4 小的就跟 i 那格交換、i 往右一格。掃完後把 4 換到 i 的位置，4 左邊都比它小、右邊都不比它小">
+<text x="30" y="75" font-size="13">開始</text><rect x="150" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="178" y="75" font-size="14" text-anchor="middle" class="mono">7</text><text x="178" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="206" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="234" y="75" font-size="14" text-anchor="middle" class="mono">2</text><text x="234" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="262" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="290" y="75" font-size="14" text-anchor="middle" class="mono">1</text><text x="290" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="318" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="346" y="75" font-size="14" text-anchor="middle" class="mono">8</text><text x="346" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="374" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="402" y="75" font-size="14" text-anchor="middle" class="mono">6</text><text x="402" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="430" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="458" y="75" font-size="14" text-anchor="middle" class="mono">3</text><text x="458" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="486" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="514" y="75" font-size="14" text-anchor="middle" class="mono">5</text><text x="514" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="542" y="50" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="570" y="75" font-size="14" text-anchor="middle" class="mono">4</text><text x="570" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><path d="M172 36 L184 36 L178 46z" fill="var(--gold-deep)"/><text x="178" y="30" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">i, j</text><text x="614" y="75" font-size="12.5" fill="var(--gold-deep)">pivot = 4（最後一格）</text><text x="30" y="193" font-size="13">掃到一半</text><rect x="150" y="168" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="178" y="193" font-size="14" text-anchor="middle" class="mono">2</text><text x="178" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="206" y="168" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="234" y="193" font-size="14" text-anchor="middle" class="mono">1</text><text x="234" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="262" y="168" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="290" y="193" font-size="14" text-anchor="middle" class="mono">3</text><text x="290" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="318" y="168" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="346" y="193" font-size="14" text-anchor="middle" class="mono">8</text><text x="346" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="374" y="168" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="402" y="193" font-size="14" text-anchor="middle" class="mono">6</text><text x="402" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="430" y="168" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="458" y="193" font-size="14" text-anchor="middle" class="mono">7</text><text x="458" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="486" y="168" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="514" y="193" font-size="14" text-anchor="middle" class="mono">5</text><text x="514" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="542" y="168" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="570" y="193" font-size="14" text-anchor="middle" class="mono">4</text><text x="570" y="224" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><path d="M340 154 L352 154 L346 164z" fill="var(--gold-deep)"/><text x="346" y="148" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">i</text><path d="M508 154 L520 154 L514 164z" fill="var(--gold-deep)"/><text x="514" y="148" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">j</text><text x="614" y="186" font-size="12.5" fill="var(--slate-deep)">i 左邊都 &lt; 4</text><text x="614" y="204" font-size="12.5">i 到 j 之前都 ≥ 4</text><text x="30" y="311" font-size="13">結束</text><rect x="150" y="286" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="178" y="311" font-size="14" text-anchor="middle" class="mono">2</text><text x="178" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="206" y="286" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="234" y="311" font-size="14" text-anchor="middle" class="mono">1</text><text x="234" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="262" y="286" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="290" y="311" font-size="14" text-anchor="middle" class="mono">3</text><text x="290" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="318" y="286" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="346" y="311" font-size="14" text-anchor="middle" class="mono">4</text><text x="346" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="374" y="286" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="402" y="311" font-size="14" text-anchor="middle" class="mono">6</text><text x="402" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="430" y="286" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="458" y="311" font-size="14" text-anchor="middle" class="mono">7</text><text x="458" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="486" y="286" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="514" y="311" font-size="14" text-anchor="middle" class="mono">5</text><text x="514" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="542" y="286" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="570" y="311" font-size="14" text-anchor="middle" class="mono">8</text><text x="570" y="342" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><text x="614" y="304" font-size="12.5" fill="var(--gold-deep)">a[i] 和 pivot 交換</text><text x="614" y="322" font-size="12.5" fill="var(--gold-deep)">4 到了最終位置 3</text><text x="30" y="378" font-size="12" opacity=".6">灰藍＝比 pivot 小的一群；白格＝大於等於 pivot；之後左右兩群各自再分割</text>
+</svg>
+<figcaption>分割一次，pivot 就站到最終位置；左邊都比它小、右邊都不比它小，兩邊再各自遞迴。</figcaption>
+</figure>
+<pre><code>import java.util.Arrays;
+
+public class QuickSort {
+    static void sort(int[] a, int lo, int hi) {
+        if (lo &gt;= hi) return;
+        int p = partition(a, lo, hi);       // pivot 放到最終位置 p
+        sort(a, lo, p - 1);                 // 排 pivot 左邊
+        sort(a, p + 1, hi);                 // 排 pivot 右邊
+    }
+
+    // 拿最後一格當 pivot；i 左邊（不含 i）都是比 pivot 小的
+    static int partition(int[] a, int lo, int hi) {
+        int pivot = a[hi];
+        int i = lo;
+        for (int j = lo; j &lt; hi; j++) {
+            if (a[j] &lt; pivot) {
+                swap(a, i, j);
+                i++;
+            }
+        }
+        swap(a, i, hi);                     // pivot 換到小的那群後面
+        System.out.println("pivot " + pivot + " → 索引 " + i + "：" + Arrays.toString(a));
+        return i;
+    }
+
+    static void swap(int[] a, int x, int y) { int t = a[x]; a[x] = a[y]; a[y] = t; }
+
+    public static void main(String[] args) {
+        int[] a = {7, 2, 1, 8, 6, 3, 5, 4};
+        sort(a, 0, a.length - 1);
+        System.out.println("結果：" + Arrays.toString(a));
+    }
+}</code></pre>
+<p>執行結果（每分割完一次印一次）：</p>
+<pre><code>pivot 4 → 索引 3：[2, 1, 3, 4, 6, 7, 5, 8]
+pivot 3 → 索引 2：[2, 1, 3, 4, 6, 7, 5, 8]
+pivot 1 → 索引 0：[1, 2, 3, 4, 6, 7, 5, 8]
+pivot 8 → 索引 7：[1, 2, 3, 4, 6, 7, 5, 8]
+pivot 5 → 索引 4：[1, 2, 3, 4, 5, 7, 6, 8]
+pivot 6 → 索引 5：[1, 2, 3, 4, 5, 6, 7, 8]
+結果：[1, 2, 3, 4, 5, 6, 7, 8]</code></pre>
+<p>第一次分割後 4 站到索引 3，從此不動；接著遞迴處理左邊 [2, 1, 3]（pivot 3、再來 pivot 1）與右邊 [6, 7, 5, 8]（pivot 8、5、6）。</p>
+
+<h4>平均 O(n log n)，最壞 O(n²)</h4>
+<p>algs4：快速排序「排 N 個元素平均只要跟 N log N 成正比的時間」（requires time proportional to N log N on the average to sort N items），「最壞情況約 N²/2 次比較，但先隨機洗牌可以避開這種情況」（Quicksort uses ~N²/2 compares in the worst case, but random shuffling protects against this case.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>好的情況</strong>：pivot 剛好落在中間附近，每次切成差不多的兩半，跟合併排序一樣是 log n 層、每層 O(n)。</li>
+<li><strong>壞的情況</strong>：pivot 每次都是最大或最小。上面「拿最後一格」的寫法遇到<strong>已經排好</strong>的陣列就是這樣：每次分割只切掉 pivot 自己，剩 n − 1 個再分割，比較次數是 (n−1) + (n−2) + … + 1 ≈ n²/2，也就是 O(n²)，遞迴也會深到 n 層。</li>
+<li><strong>怎麼避開</strong>：algs4 的做法是排之前先隨機洗牌（It is a randomized algorithm, because it randomly shuffles the array before sorting it.）<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a>；另一種做法是隨機挑 pivot。目的都是讓「pivot 每次都挑到最邊邊」幾乎不可能發生。</li>
+</ul>
+
+<h4>原地、不穩定</h4>
+<p>快速排序只在原陣列裡交換，algs4 說它「是原地的（只用一個很小的輔助堆疊）」（It is in-place (uses only a small auxiliary stack)），那個堆疊就是遞迴的呼叫堆疊，平均深度 O(log n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a> 代價是<strong>不穩定</strong>：algs4 把快速排序列在不穩定的那一邊（many are not (selection sort, shellsort, quicksort, and heapsort).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> 原因跟選擇排序一樣：分割時的交換會把元素丟到很遠的地方，越過跟它相等的元素。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>合併排序</th><th>快速排序</th></tr></thead><tbody>
+<tr><th>工夫花在</th><td>合：兩段排好的合起來</td><td>切：分割，pivot 站到最終位置</td></tr>
+<tr><th>平均時間</th><td>O(n log n)</td><td>O(n log n)</td></tr>
+<tr><th>最壞時間</th><td>O(n log n)</td><td>O(n²)（pivot 每次都挑到最邊邊）</td></tr>
+<tr><th>額外空間</th><td>O(n) 暫存陣列</td><td>只有遞迴堆疊，平均 O(log n)</td></tr>
+<tr><th>穩定</th><td>是（相等時拿左邊）</td><td>否</td></tr>
+</tbody></table></div>
+<p>algs4 的結論是：「在大多數實際情況下，快速排序是首選」（In most practical situations, quicksort is the method of choice.），「如果穩定性重要、空間也夠，合併排序可能最好」（If stability is important and space is available, mergesort might be best.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> Java 的選擇剛好就是這樣分的，見下一段。</p>
+<p class="formula">快速排序：分割讓 pivot 站定，左右各自遞迴；平均 O(n log n)、最壞 O(n²)；原地、不穩定</p>
+
+<div class="drill">
+  <p class="dq">用上面的 <code>partition</code>（拿最後一格當 pivot）分割 <code>[5, 3, 8, 1, 6, 4]</code>，分割完 pivot 4 站在哪個索引？</p>
+  <ul class="dopts"><li data-ok>索引 2</li><li>索引 0</li><li>索引 5</li><li>索引 3</li></ul>
+  <p class="dexp">比 4 小的只有 3 和 1 兩個，它們會被換到最前面兩格，pivot 接在它們後面，就是索引 2。pivot 的最終位置＝比它小的元素個數。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一題，分割完整個陣列長什麼樣？</p>
+  <ul class="dopts"><li>[1, 3, 4, 5, 6, 8]</li><li data-ok>[3, 1, 4, 5, 6, 8]</li><li>[3, 1, 4, 8, 6, 5]</li><li>[5, 3, 4, 1, 6, 8]</li></ul>
+  <p class="dexp">j 掃到 3（比 4 小）跟索引 0 的 5 交換：[3, 5, 8, 1, 6, 4]；掃到 1 跟索引 1 的 5 交換：[3, 1, 8, 5, 6, 4]；最後 pivot 跟索引 2 的 8 交換：[3, 1, 4, 5, 6, 8]。分割只保證左右兩群的大小關係，左邊的 3、1 還沒排。</p>
+</div>
+<div class="drill">
+  <p class="dq">分割做完之後，下面哪一句<strong>一定</strong>成立？</p>
+  <ul class="dopts"><li>整個陣列已經排好</li><li>pivot 左邊那群已經排好</li><li data-ok>pivot 已經在它最終的位置，左邊沒有比它大的、右邊沒有比它小的</li><li>pivot 一定在正中間</li></ul>
+  <p class="dexp">這就是 algs4 列的三個條件。左右兩群內部還是亂的，要再各自遞迴；pivot 在哪裡取決於有幾個比它小，不一定在中間。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面「拿最後一格當 pivot」的快速排序，遇到哪一種輸入會跑出 O(n²)？</p>
+  <ul class="dopts"><li data-ok>已經排好的陣列</li><li>完全隨機的陣列</li><li>只有 2 個元素的陣列</li><li>沒有重複值的陣列</li></ul>
+  <p class="dexp">已排好時，最後一格永遠是最大的，每次分割左邊剩 n − 1 個、右邊 0 個，比較次數 (n−1) + (n−2) + … ≈ n²/2。隨機陣列的 pivot 通常落在中間附近，平均 O(n log n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">algs4 的快速排序在排序前先把陣列隨機洗牌一次，目的是？</p>
+  <ul class="dopts"><li>讓排序變穩定</li><li>減少額外記憶體</li><li>讓比較次數變成固定的 n log n</li><li data-ok>讓「pivot 每次都挑到最邊邊」的最壞情況幾乎不可能發生</li></ul>
+  <p class="dexp">algs4 寫最壞約 N²/2 次比較，但 random shuffling protects against this case。洗牌不改變穩定性，也不保證每次剛好 n log n，只是讓壞情況的機率小到可以忽略。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 QuickSort 程式排 <code>[2甲, 2乙, 3]</code>（甲、乙只是標記，兩個 2 一樣大），結果是？</p>
+  <ul class="dopts"><li>[2甲, 2乙, 3]</li><li>[3, 2甲, 2乙]</li><li data-ok>[2乙, 2甲, 3]</li><li>[3, 2乙, 2甲]</li></ul>
+  <p class="dexp">第一次 pivot 是 3，兩個 2 都比它小，各自跟自己交換、原地不動，3 留在最後。接著分割 [2甲, 2乙]：pivot 是最後的 2乙，2甲 不比它小、不動，最後 pivot 2乙 跟索引 0 的 2甲 交換，變成 [2乙, 2甲, 3]。甲乙順序反了，所以快速排序不穩定。</p>
+</div>
+<div class="drill">
+  <p class="dq">記憶體很緊、資料是一大筆 <code>int</code>、不在乎穩定性。合併排序和快速排序，哪個比較合適？</p>
+  <ul class="dopts"><li>合併排序，因為最壞也是 O(n log n)</li><li data-ok>快速排序，它原地交換，只多用遞迴堆疊；int 也沒有穩定性的問題</li><li>合併排序，因為它不用遞迴</li><li>兩個都要 O(n) 額外空間，沒差</li></ul>
+  <p class="dexp">合併排序要 O(n) 的暫存陣列，快速排序只多用平均 O(log n) 的遞迴堆疊。int 相等的值分不出誰是誰，不穩定也沒關係。合併排序其實也是遞迴的。</p>
+</div>
+<div class="drill">
+  <p class="dq">快速排序最壞時約比較 n²/2 次。n = 1,000 時大約是幾次？</p>
+  <ul class="dopts"><li data-ok>約 50 萬次</li><li>約 1 萬次</li><li>約 2,000 次</li><li>約 100 萬次</li></ul>
+  <p class="dexp">1,000² / 2 = 500,000。對照平均情況約 2n ln n ≈ 2 × 1,000 × 6.9 ≈ 1.4 萬次，最壞多了三十幾倍；n 越大差距越大。</p>
+</div>
+</section>
+
+<section>
+<p class="era">基本型別一套，物件另一套</p>
+<h3 class="head">Java 實際用什麼：<code>Arrays.sort</code>、<code>Collections.sort</code>、<code>List.sort</code></h3>
+<p>面試寫程式時，除非題目要你自己實作排序，否則直接用內建的。重點是知道它們背後是什麼、保證了什麼。</p>
+
+<h4>基本型別陣列：雙軸快速排序</h4>
+<p><code>Arrays.sort(int[])</code> 的文件：「排序演算法是 Vladimir Yaroslavskiy、Jon Bentley、Joshua Bloch 的雙軸快速排序。這個演算法在所有資料上都提供 O(n log(n)) 的效能，而且通常比傳統（單一 pivot）的快速排序快」（The sorting algorithm is a Dual-Pivot Quicksort by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm offers O(n log(n)) performance on all data sets, and is typically faster than traditional (one-pivot) Quicksort implementations.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#sort(int%5B%5D)" target="_blank" rel="noopener">出處</a> <strong>雙軸</strong>就是一次挑兩個 pivot，把陣列分成三群。</p>
+<p>「所有資料上都 O(n log n)」跟上一段「快速排序最壞 O(n²)」不衝突：OpenJDK 的 <code>DualPivotQuicksort</code> 原始碼在分割遞迴太深時會改用堆積排序，註解寫「執行時間開始變成平方等級時，改用堆積排序」（Switch to heap sort if execution time is becoming quadratic.）；它的類別說明也列出會從雙軸快速排序呼叫的其他演算法：「混合插入排序、合併有序段與堆積排序、計數排序與平行合併排序」（such as mixed insertion sort, merging of runs and heap sort, counting sort and parallel merge sort.）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/DualPivotQuicksort.java" target="_blank" rel="noopener">出處</a> 也就是說，Java 的基本型別排序是「以快速排序為主、遇到壞情況就換手」的組合。堆積（heap）這種結構在〈堆積與優先佇列〉。</p>
+
+<h4>物件：TimSort，保證穩定</h4>
+<p>物件陣列（例如 <code>Integer[]</code>、<code>String[]</code>、自訂類別）用的是另一套。<code>Arrays.sort(Object[])</code> 的文件：「這個排序保證穩定：相等的元素不會因為排序而改變順序」（This sort is guaranteed to be stable: equal elements will not be reordered as a result of the sort.）；實作是「穩定、自適應（會利用輸入裡已經排好的部分）、迭代的合併排序，輸入部分排好時比 n lg(n) 次比較少得多」，而且「輸入幾乎排好時，大約只要 n 次比較」（If the input array is nearly sorted, the implementation requires approximately n comparisons.）；額外空間「從幾乎排好時的一個小常數，到隨機順序時的 n/2 個物件參考」；這個實作「改編自 Tim Peters 為 Python 寫的串列排序（TimSort）」（The implementation was adapted from Tim Peters's list sort for Python ( TimSort ).）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#sort(java.lang.Object%5B%5D)" target="_blank" rel="noopener">出處</a> TimSort 的原始碼開頭也寫它「像所有正規的合併排序一樣是穩定的，最壞情況是 O(n log n)」（Like all proper mergesorts, this sort is stable and runs O(n log n) time (worst case).）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/TimSort.java" target="_blank" rel="noopener">出處</a></p>
+<p>為什麼分兩套？物件常常帶著別的欄位（交易的時間、編號），相等的兩筆要分得出先後，所以需要穩定；基本型別的兩個 5 分不出誰是誰，不必付穩定的代價，可以用通常更快、又不用額外空間的快速排序。</p>
+
+<h4>清單：<code>Collections.sort</code> 與 <code>List.sort</code> 其實是同一件事</h4>
+<ul class="plainlist">
+<li><code>Collections.sort(list)</code> 的文件：「保證穩定」（This sort is guaranteed to be stable），而實作「交給 <code>List.sort(Comparator)</code>，傳入這個清單與 null 比較器」（This implementation defers to the List.sort(Comparator) method using the specified list and a null comparator.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collections.html#sort(java.util.List)" target="_blank" rel="noopener">出處</a> null 比較器就是「用元素自己的自然順序」。</li>
+<li><code>List.sort(c)</code> 的文件：「這個排序是穩定的：這個方法不可以重排相等的元素」（The sort is stable: this method must not reorder equal elements.）。預設實作是「取出包含所有元素的陣列、排序那個陣列，再逐一把元素寫回清單」，這樣做是為了「避免直接在鏈結串列上原地排序會造成的 n² log(n) 效能」（This avoids the n² log(n) performance that would result from attempting to sort a linked list in place.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/List.html#sort(java.util.Comparator)" target="_blank" rel="noopener">出處</a></li>
+<li><code>ArrayList</code> 自己覆寫了 <code>sort</code>，直接對內部陣列呼叫 <code>Arrays.<wbr>sort(<wbr>elementData, 0, size, c)</code>，連複製都省了。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayList.java" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<pre><code>import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+public class JavaSorts {
+    record Tx(String id, long amount, String time) {}
+
+    public static void main(String[] args) {
+        int[] nums = {5, 3, 9, 1};
+        Arrays.sort(nums);                                   // 基本型別：雙軸快速排序
+        System.out.println(Arrays.toString(nums));
+
+        Integer[] boxed = {5, 3, 9, 1};
+        Arrays.sort(boxed, Comparator.reverseOrder());       // 物件陣列才能傳 Comparator
+        System.out.println(Arrays.toString(boxed));
+
+        List&lt;String&gt; names = new ArrayList&lt;&gt;(List.of("Carol", "alice", "Bob"));
+        Collections.sort(names);                             // 自然順序：大寫字母排在小寫前面
+        System.out.println(names);
+        names.sort(String.CASE_INSENSITIVE_ORDER);           // 等同 Collections.sort(names, 比較器)
+        System.out.println(names);
+
+        List&lt;Tx&gt; txs = new ArrayList&lt;&gt;(List.of(
+                new Tx("T1", 3000, "09:30"),
+                new Tx("T2", 5000, "10:15"),
+                new Tx("T3", 3000, "09:05")));
+        txs.sort(Comparator.comparingLong(Tx::amount).reversed()
+                .thenComparing(Tx::time));                  // 金額大到小，同金額時間早到晚
+        txs.forEach(t -&gt; System.out.println(t.id() + " " + t.amount() + " " + t.time()));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[1, 3, 5, 9]
+[9, 5, 3, 1]
+[Bob, Carol, alice]
+[alice, Bob, Carol]
+T2 5000 10:15
+T3 3000 09:05
+T1 3000 09:30</code></pre>
+<p>幾個要注意的地方：</p>
+<ul class="plainlist">
+<li><strong><code>int[]</code> 不能傳 <code>Comparator</code>。</strong><code>Arrays.sort</code> 收 <code>Comparator</code> 的版本參數是 <code>T[]</code>（物件陣列），<code>int</code> 不是物件。想由大到小排 <code>int</code>，要嘛換成 <code>Integer[]</code>，要嘛先由小到大排、再反著讀。</li>
+<li><strong>字串的自然順序是照字元的編碼</strong>，大寫字母排在小寫前面，所以 <code>"Carol"</code> 在 <code>"alice"</code> 前面。不分大小寫要明講 <code>String.<wbr>CASE_INSENSITIVE_ORDER</code>。</li>
+<li><strong>多個條件</strong>用 <code>Comparator.comparing…</code> 接 <code>thenComparing</code>、<code>reversed</code>，寫法與 <code>reversed()</code> 放哪裡的差別見〈Lambda 與函式介面〉；<code>Comparable</code> 與 <code>Comparator</code> 的分工見〈集合與泛型〉。</li>
+</ul>
+
+<h4>常見錯誤：用相減寫比較器</h4>
+<p>比較器要回傳「負數、0、正數」表示前者比較小、相等、比較大，很多人順手寫 <code>(x, y) -&gt; x - y</code>。數字小的時候沒事，但相減可能<strong>溢位</strong>（超過 <code>int</code> 能裝的範圍後繞回負數，見〈陣列與字串〉），比較結果就反了：</p>
+<pre><code>import java.util.Arrays;
+
+public class CompareTrap {
+    public static void main(String[] args) {
+        Integer[] a = {Integer.MIN_VALUE, 1, -1};
+        Integer[] b = a.clone();
+
+        Arrays.sort(a, (x, y) -&gt; x - y);                 // 相減：會溢位
+        Arrays.sort(b, (x, y) -&gt; Integer.compare(x, y)); // 正確寫法
+        System.out.println("相減：" + Arrays.toString(a));
+        System.out.println("compare：" + Arrays.toString(b));
+        System.out.println("1 - MIN_VALUE = " + (1 - Integer.MIN_VALUE));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>相減：[-1, 1, -2147483648]
+compare：[-2147483648, -1, 1]
+1 - MIN_VALUE = -2147483647</code></pre>
+<p><code>1 - Integer.MIN_VALUE</code> 應該是很大的正數，溢位後變成負數，比較器就以為 1 比 <code>MIN_VALUE</code> 小，排出來的順序是錯的。改用 <code>Integer.compare(x, y)</code>（或 <code>Comparator.comparingInt</code>、<code>Comparator.naturalOrder()</code>）就不會有這個問題。</p>
+<p class="formula">int[] 等基本型別：雙軸快速排序，不穩定但沒差；物件與清單：TimSort，保證穩定；比較器用 Integer.compare，不要相減</p>
+
+<div class="drill">
+  <p class="dq"><code>Arrays.sort(int[])</code> 用的是哪一種排序？</p>
+  <ul class="dopts"><li>TimSort</li><li data-ok>雙軸快速排序</li><li>插入排序</li><li>計數排序</li></ul>
+  <p class="dexp">文件寫 The sorting algorithm is a Dual-Pivot Quicksort。TimSort 是物件陣列與清單用的。原始碼裡在特定情況也會呼叫插入排序、計數排序，但主體是雙軸快速排序。</p>
+</div>
+<div class="drill">
+  <p class="dq">一份 <code>List&lt;Transaction&gt;</code> 已經照時間排好，再呼叫 <code>list.<wbr>sort(<wbr>Comparator.<wbr>comparingLong(<wbr>Transaction::amount))</code>。同金額的兩筆會怎樣？</p>
+  <ul class="dopts"><li>順序不保證，要再加 thenComparing 才行</li><li>會依物件的記憶體位置排</li><li data-ok>保持原本的時間順序，因為 List.sort 文件保證穩定</li><li>會被當成重複，只留一筆</li></ul>
+  <p class="dexp">List.sort 的文件寫 The sort is stable: this method must not reorder equal elements。原本照時間排好，同金額的就維持時間順序。排序不會刪除元素。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這行能不能編譯？（<code>nums</code> 是 <code>int[]</code>）</p>
+<pre><code>Arrays.sort(nums, Comparator.reverseOrder());</code></pre>
+  <ul class="dopts"><li>可以，結果由大到小</li><li>可以，但 Comparator 會被忽略</li><li>可以，但執行時丟出 ClassCastException</li><li data-ok>不行，收 Comparator 的 sort 參數是物件陣列 T[]，int[] 不符合</li></ul>
+  <p class="dexp">Arrays.sort 收 Comparator 的版本是 sort(T[] a, Comparator c)，T 必須是參考型別，int[] 傳不進去，javac 會報找不到合適的方法。要用 Integer[]。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Collections.sort(list)</code> 實際上做了什麼？</p>
+  <ul class="dopts"><li data-ok>交給 list.sort(null)，也就是用元素的自然順序、穩定地排</li><li>把清單轉成 int[] 再用雙軸快速排序</li><li>用插入排序，因為清單可能是鏈結串列</li><li>建一棵 TreeSet 再倒回去</li></ul>
+  <p class="dexp">文件寫 This implementation defers to the List.sort(Comparator) method using the specified list and a null comparator。null 比較器表示用自然順序；List.sort 保證穩定。</p>
+</div>
+<div class="drill">
+  <p class="dq">比較器寫成 <code>(x, y) -&gt; x - y</code>，排 <code>Integer[] {Integer.<wbr>MIN_VALUE, 1, -1}</code>，為什麼結果會錯？</p>
+  <ul class="dopts"><li>因為 Integer 不能相減</li><li>因為比較器一定要回傳 -1、0、1 三個值之一</li><li data-ok>1 − MIN_VALUE 超過 int 範圍，溢位成負數，比較器以為 1 比較小</li><li>因為 TimSort 不支援負數</li></ul>
+  <p class="dexp">比較器只看正負號，不必剛好是 ±1。問題是相減會溢位：實跑 1 − MIN_VALUE 得到 −2147483647，正負號反了。改用 Integer.compare(x, y)。</p>
+</div>
+<div class="drill">
+  <p class="dq">教科書的快速排序最壞是 O(n²)。<code>Arrays.sort(int[])</code> 的文件怎麼描述它的效能？</p>
+  <ul class="dopts"><li data-ok>在所有資料上都提供 O(n log(n)) 的效能</li><li>平均 O(n log n)，最壞 O(n²)</li><li>永遠 O(n)</li><li>文件沒有寫</li></ul>
+  <p class="dexp">文件寫 offers O(n log(n)) performance on all data sets。原始碼在遞迴太深、時間開始變成平方等級時改用堆積排序，所以不會落到 O(n²)。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 <code>String[]</code> 已經幾乎排好，只有少數幾個放錯位置。<code>Arrays.sort</code> 大約要比較幾次？</p>
+  <ul class="dopts"><li>約 n² 次</li><li>約 n log n 次，不管輸入</li><li>0 次</li><li data-ok>約 n 次</li></ul>
+  <p class="dexp">物件陣列用 TimSort，文件寫 If the input array is nearly sorted, the implementation requires approximately n comparisons。它會利用輸入裡已經排好的段落。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？</p>
+<pre><code>List&lt;String&gt; names = new ArrayList&lt;&gt;(List.of("Carol", "alice", "Bob"));
+Collections.sort(names);
+System.out.println(names);</code></pre>
+  <ul class="dopts"><li>[alice, Bob, Carol]</li><li data-ok>[Bob, Carol, alice]</li><li>[Carol, Bob, alice]</li><li>[alice, Carol, Bob]</li></ul>
+  <p class="dexp">字串的自然順序照字元編碼比，大寫 B、C 的編碼比小寫 a 小，所以 Bob、Carol 排在 alice 前面。要不分大小寫得傳 String.CASE_INSENSITIVE_ORDER。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>List.sort</code> 的預設實作先把元素複製到陣列、排好再寫回清單。文件說這樣做是為了避免什麼？</p>
+  <ul class="dopts"><li>避免排序不穩定</li><li>避免清單被別的執行緒修改</li><li>避免用掉額外的記憶體</li><li data-ok>避免直接在鏈結串列上原地排序造成的 n² log(n) 效能</li></ul>
+  <p class="dexp">文件寫 This avoids the n² log(n) performance that would result from attempting to sort a linked list in place。鏈結串列不能一步跳到第 i 個，直接在上面排會很慢；複製到陣列反而多用了記憶體。</p>
+</div>
+</section>
+
+<section>
+<p class="era">不比大小，用數的</p>
+<h3 class="head">計數排序：範圍小的整數可以 O(n + k)</h3>
+<p>前面說「靠比較的排序最快 n log n」，前提是<strong>只能比大小</strong>。如果值是範圍不大的整數（年齡 0〜120、考試分數 0〜100、評等 1〜5），可以完全不比較：開一個長度 k 的計數陣列（k 是值的範圍大小），數每個值出現幾次，再由小到大照次數倒回去。</p>
+<pre><code>import java.util.Arrays;
+
+public class CountingSort {
+    // 值都在 0..k-1 之間（例如年齡、分數）
+    static int[] countingSort(int[] a, int k) {
+        int[] count = new int[k];
+        for (int x : a) count[x]++;              // 數每個值出現幾次：O(n)
+        int[] out = new int[a.length];
+        int idx = 0;
+        for (int v = 0; v &lt; k; v++) {            // 由小到大把值倒回去：O(n + k)
+            for (int c = 0; c &lt; count[v]; c++) out[idx++] = v;
+        }
+        return out;
+    }
+
+    public static void main(String[] args) {
+        int[] scores = {3, 1, 4, 1, 5, 0, 2, 3};
+        System.out.println(Arrays.toString(countingSort(scores, 6)));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[0, 1, 1, 2, 3, 3, 4, 5]</code></pre>
+<p>數一遍是 O(n)，倒回去要走過 k 個值、放回 n 個元素，合起來是 <strong>O(n + k)</strong>。MIT 6.006 的習題課講義寫計數排序「執行時間是 O(n + u)」（the algorithm runs in O(n + u) time），u 是值的範圍，「當 u = O(n) 時，計數排序是線性時間」（when u = O(n), then counting sort runs in … linear time）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/cda4cc0c0e626bfbd30bc15fb78c3994_MIT6_006S20_r05.pdf" target="_blank" rel="noopener">出處</a> 反過來，值的範圍很大（例如帳號、金額可到十億）時，光是開計數陣列就裝不下，就不適用。Java 的 <code>DualPivotQuicksort</code> 對夠大的 <code>byte[]</code>、<code>short[]</code>、<code>char[]</code> 就會改用計數排序，因為這些型別的值範圍本來就小（Min size of a byte array to use counting sort.）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/DualPivotQuicksort.java" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">上面這個寫法只有整數本身、沒帶別的資料，所以不用管穩定性。要排「帶著分數的學生」時，計數排序有另一種寫法可以做到穩定，MIT 的講義把它列為穩定的排序。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/78a3c3444de1ff837f81e52991c24a86_MIT6_006S20_lec5.pdf" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">n 個整數、值都在 0 到 k−1 之間，計數排序的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n log n)</li><li>O(n × k)</li><li data-ok>O(n + k)</li><li>O(k log k)</li></ul>
+  <p class="dexp">數一遍 O(n)，再走過 k 個可能的值把元素倒回去，共 O(n + k)。它不靠比較，所以不受 n log n 的下限限制。</p>
+</div>
+<div class="drill">
+  <p class="dq">要排 100 萬筆交易的金額，金額從 1 元到 10 億元都有。計數排序適合嗎？</p>
+  <ul class="dopts"><li>適合，因為 n 很大時計數排序最快</li><li data-ok>不適合，值的範圍 k 約 10 億，計數陣列太大，O(n + k) 被 k 拖垮</li><li>適合，只要用 long 陣列計數</li><li>不適合，因為計數排序只能排負數</li></ul>
+  <p class="dexp">計數陣列長度要等於值的範圍，10 億格的 int 陣列就要約 4 GB。k 遠大於 n 時，O(n + k) 比 O(n log n) 還差。</p>
+</div>
+<div class="drill">
+  <p class="dq">對 <code>[3, 1, 4, 1, 5]</code> 用 k = 6 做計數排序，數完之後的計數陣列 <code>count</code> 是？</p>
+  <ul class="dopts"><li>[3, 1, 4, 1, 5, 0]</li><li>[1, 1, 3, 4, 5, 0]</li><li>[0, 1, 0, 1, 1, 1]</li><li data-ok>[0, 2, 0, 1, 1, 1]</li></ul>
+  <p class="dexp">count[v] 是 v 出現的次數：0 沒出現、1 出現兩次、2 沒出現、3、4、5 各一次。由小到大倒回去就是 [1, 1, 3, 4, 5]。</p>
+</div>
+</section>
+
+<section>
+<p class="era">排好之後，每次砍一半</p>
+<h3 class="head">二分搜尋：寫對比想像中難</h3>
+<p>普林斯頓的 introcs 課本這樣描述在排好的陣列裡找東西：「看正中間那個元素。如果就是要找的，結束；否則丟掉中間之前或之後那一段，重複這個動作」（look at the array element in the middle. If it contains the item you are seeking, you are done; otherwise, you eliminate either the subarray before or after the middle element from consideration and repeat.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/42sort/" target="_blank" rel="noopener">出處</a> 每比一次範圍就剩一半，n 筆資料最多比約 log₂ n 次：100 萬筆約 20 次（為什麼是 log n 見〈複雜度：程式跑多快、吃多少記憶體〉）。<strong>前提是資料已經排好</strong>，沒排好時「丟掉一半」就沒有根據。</p>
+<figure>
+<svg viewBox="0 0 760 418" role="img" aria-label="二分搜尋在 2、5、8、12、16、23、38、56、72、91 裡找 23：第一次比索引 4 的 16，太小，丟掉左半；第二次比索引 7 的 56，太大，丟掉右邊；第三次比索引 5，就是 23">
+<text x="20" y="73" font-size="13">第 1 次</text><rect x="130" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="158" y="73" font-size="14" text-anchor="middle" class="mono">2</text><text x="158" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="214" y="73" font-size="14" text-anchor="middle" class="mono">5</text><text x="214" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="270" y="73" font-size="14" text-anchor="middle" class="mono">8</text><text x="270" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="326" y="73" font-size="14" text-anchor="middle" class="mono">12</text><text x="326" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="48" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="382" y="73" font-size="14" text-anchor="middle" class="mono">16</text><text x="382" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="438" y="73" font-size="14" text-anchor="middle" class="mono">23</text><text x="438" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="466" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="494" y="73" font-size="14" text-anchor="middle" class="mono">38</text><text x="494" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="522" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="550" y="73" font-size="14" text-anchor="middle" class="mono">56</text><text x="550" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><rect x="578" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="606" y="73" font-size="14" text-anchor="middle" class="mono">72</text><text x="606" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">8</text><rect x="634" y="48" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="662" y="73" font-size="14" text-anchor="middle" class="mono">91</text><text x="662" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">9</text><path d="M152 34 L164 34 L158 44z" fill="var(--gold-deep)"/><text x="158" y="28" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo</text><path d="M376 34 L388 34 L382 44z" fill="var(--gold-deep)"/><text x="382" y="28" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">mid</text><path d="M656 34 L668 34 L662 44z" fill="var(--gold-deep)"/><text x="662" y="28" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">hi</text><text x="130" y="124" font-size="12.5" fill="var(--gold-deep)">a[4] = 16 &lt; 23：答案在右邊，lo = mid + 1</text><text x="20" y="197" font-size="13">第 2 次</text><rect x="130" y="172" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="158" y="197" font-size="14" text-anchor="middle" class="mono" opacity=".35">2</text><text x="158" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="172" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="214" y="197" font-size="14" text-anchor="middle" class="mono" opacity=".35">5</text><text x="214" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="172" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="270" y="197" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><text x="270" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="172" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="326" y="197" font-size="14" text-anchor="middle" class="mono" opacity=".35">12</text><text x="326" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="172" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="382" y="197" font-size="14" text-anchor="middle" class="mono" opacity=".35">16</text><text x="382" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="172" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="438" y="197" font-size="14" text-anchor="middle" class="mono">23</text><text x="438" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="466" y="172" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="494" y="197" font-size="14" text-anchor="middle" class="mono">38</text><text x="494" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="522" y="172" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="550" y="197" font-size="14" text-anchor="middle" class="mono">56</text><text x="550" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><rect x="578" y="172" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="606" y="197" font-size="14" text-anchor="middle" class="mono">72</text><text x="606" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">8</text><rect x="634" y="172" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="662" y="197" font-size="14" text-anchor="middle" class="mono">91</text><text x="662" y="228" font-size="12" text-anchor="middle" class="mono" opacity=".6">9</text><path d="M432 158 L444 158 L438 168z" fill="var(--gold-deep)"/><text x="438" y="152" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo</text><path d="M544 158 L556 158 L550 168z" fill="var(--gold-deep)"/><text x="550" y="152" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">mid</text><path d="M656 158 L668 158 L662 168z" fill="var(--gold-deep)"/><text x="662" y="152" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">hi</text><text x="130" y="248" font-size="12.5" fill="var(--gold-deep)">a[7] = 56 &gt; 23：答案在左邊，hi = mid - 1</text><text x="20" y="321" font-size="13">第 3 次</text><rect x="130" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="158" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">2</text><text x="158" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="214" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">5</text><text x="214" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="270" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><text x="270" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="326" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">12</text><text x="326" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="382" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">16</text><text x="382" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="296" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="438" y="321" font-size="14" text-anchor="middle" class="mono">23</text><text x="438" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="466" y="296" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="494" y="321" font-size="14" text-anchor="middle" class="mono">38</text><text x="494" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="522" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="550" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">56</text><text x="550" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text><rect x="578" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="606" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">72</text><text x="606" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">8</text><rect x="634" y="296" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="662" y="321" font-size="14" text-anchor="middle" class="mono" opacity=".35">91</text><text x="662" y="352" font-size="12" text-anchor="middle" class="mono" opacity=".6">9</text><path d="M432 282 L444 282 L438 292z" fill="var(--gold-deep)"/><text x="438" y="276" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo mid</text><path d="M488 282 L500 282 L494 292z" fill="var(--gold-deep)"/><text x="494" y="276" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">hi</text><text x="130" y="372" font-size="12.5" fill="var(--gold-deep)">a[5] = 23：找到，回傳 5</text><text x="20" y="404" font-size="12" opacity=".6">找 23。虛線格＝已經丟掉的範圍；古銅格＝這次比的 mid。10 格最多比 4 次</text>
+</svg>
+<figcaption>每比一次就丟掉一半：範圍從 10 格變 5 格、再變 2 格，第三次就找到。</figcaption>
+</figure>
+<p>想法很簡單，寫起來卻很容易錯。introcs 引 Knuth 的說法：「第一個二分搜尋演算法在 1946 年發表，但第一個沒有錯誤的版本到 1962 年才出現」（the first binary search algorithm was published in 1946, but the first published binary search without bugs did not appear until 1962.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/42sort/" target="_blank" rel="noopener">出處</a> 錯誤幾乎都出在三個地方：中間值怎麼算、迴圈條件、左右界怎麼移。</p>
+<pre><code>import java.util.Arrays;
+
+public class BinarySearch {
+    // 找 target 的索引；找不到回傳 -1
+    static int search(int[] a, int target) {
+        int lo = 0, hi = a.length - 1;          // 搜尋範圍 [lo, hi]，兩端都包含
+        while (lo &lt;= hi) {                      // 範圍裡還有東西就繼續
+            int mid = lo + (hi - lo) / 2;       // 不寫 (lo + hi) / 2，避免溢位
+            if (a[mid] == target) return mid;
+            if (a[mid] &lt; target) lo = mid + 1;  // 中間太小：答案在右半
+            else hi = mid - 1;                  // 中間太大：答案在左半
+        }
+        return -1;
+    }
+
+    // 找第一個 &gt;= target 的位置；全部都比 target 小就回傳 a.length
+    static int lowerBound(int[] a, int target) {
+        int lo = 0, hi = a.length;              // 答案範圍 [lo, hi)，hi 不包含
+        while (lo &lt; hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (a[mid] &lt; target) lo = mid + 1;  // mid 太小，不可能是答案
+            else hi = mid;                      // mid 可能就是答案，留著
+        }
+        return lo;
+    }
+
+    public static void main(String[] args) {
+        int[] a = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};
+        System.out.println(search(a, 23));      // 5
+        System.out.println(search(a, 7));       // -1
+
+        int[] b = {1, 3, 3, 3, 5, 8};
+        System.out.println(lowerBound(b, 3));   // 1：第一個 3
+        System.out.println(lowerBound(b, 4));   // 4：第一個 &gt;= 4 的是 5
+        System.out.println(lowerBound(b, 9));   // 6：沒有，回傳長度
+
+        System.out.println(Arrays.binarySearch(a, 23));   // 5
+        System.out.println(Arrays.binarySearch(a, 7));    // -(2) - 1 = -3
+        System.out.println(Arrays.binarySearch(a, 1));    // -(0) - 1 = -1
+        System.out.println(Arrays.binarySearch(a, 100));  // -(10) - 1 = -11
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>5
+-1
+1
+4
+6
+5
+-3
+-1
+-11</code></pre>
+
+<h4>三個細節</h4>
+<ul class="plainlist">
+<li><strong>中間值寫 <code>lo + (hi - lo) / 2</code>。</strong>寫 <code>(lo + hi) / 2</code> 的話，lo 和 hi 都很大時相加會超過 <code>int</code> 上限、變成負數。寫 JDK 二分搜尋的 Joshua Bloch 在 Google 的部落格自承：他寫進 <code>java.util.Arrays</code> 的版本就有這個錯，「lo 與 hi 的和大於 int 的最大正值（2³¹ − 1）時就會出錯，和溢位成負數，除以二之後還是負數」，在 Java 會丟 <code>ArrayIndexOutOfBoundsException</code>，陣列長度到 2³⁰（約十億）以上就可能發生；修法之一就是 <code>int mid = low + (<wbr>(<wbr>high - low) / 2);</code>。<a class="fixsrc" href="https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/" target="_blank" rel="noopener">出處</a> 現在的 JDK 原始碼用的是另一個修法 <code>(low + high) &gt;&gt;&gt; 1</code>（無號右移，把溢位的那一位當正數看）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/Arrays.java" target="_blank" rel="noopener">出處</a> 面試時寫第一種最不會被追問。</li>
+<li><strong>迴圈條件跟著範圍的定義走。</strong>上面的 <code>search</code> 把範圍定成 <code>[lo, hi]</code>，兩端<strong>都包含</strong>，所以 <code>lo == hi</code> 時範圍裡還有一格要看，條件是 <code>lo &lt;= hi</code>；寫成 <code>lo &lt; hi</code> 會漏掉最後一格。</li>
+<li><strong>移動時要跳過 mid。</strong>mid 已經比過了，不是答案，所以寫 <code>lo = mid + 1</code>、<code>hi = mid - 1</code>。寫成 <code>lo = mid</code> 的話，lo 和 hi 相鄰時 mid 永遠等於 lo，範圍縮不下去，變成無窮迴圈。</li>
+</ul>
+
+<h4>找第一個 ≥ target 的位置</h4>
+<p>面試更常用的變形：陣列有重複值，要找<strong>第一個大於等於 target 的位置</strong>（如果 target 存在，就是它第一次出現的地方；不存在，就是它該插入的地方）。上面的 <code>lowerBound</code> 換了一套範圍定義：</p>
+<ul class="plainlist">
+<li>範圍是 <code>[lo, hi)</code>，<strong>hi 不包含</strong>，一開始 <code>hi = a.length</code>（答案可能是「全部都比 target 小，該插在最後面」）。</li>
+<li><code>a[mid] &lt; target</code>：mid 和它左邊都不可能是答案，<code>lo = mid + 1</code>。</li>
+<li>否則 <code>a[mid] &gt;= target</code>：mid <strong>可能就是答案</strong>，不能丟，所以 <code>hi = mid</code>（不是 mid − 1）。</li>
+<li>迴圈條件 <code>lo &lt; hi</code>，結束時 <code>lo == hi</code>，就是答案。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 536" role="img" aria-label="找第一個大於等於 3 的位置：陣列 1、3、3、3、5、8。lo 從 0、hi 從 6 開始；比索引 3 得 3，hi 變 3；比索引 1 得 3，hi 變 1；比索引 0 得 1，lo 變 1；lo 等於 hi，答案是索引 1">
+<text x="20" y="71" font-size="13">第 1 次</text><rect x="130" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="158" y="71" font-size="14" text-anchor="middle" class="mono">1</text><text x="158" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="214" y="71" font-size="14" text-anchor="middle" class="mono">3</text><text x="214" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="270" y="71" font-size="14" text-anchor="middle" class="mono">3</text><text x="270" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="46" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="326" y="71" font-size="14" text-anchor="middle" class="mono">3</text><text x="326" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="382" y="71" font-size="14" text-anchor="middle" class="mono">5</text><text x="382" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="438" y="71" font-size="14" text-anchor="middle" class="mono">8</text><text x="438" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="466" y="46" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="2 3"/><text x="494" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><path d="M152 32 L164 32 L158 42z" fill="var(--gold-deep)"/><text x="158" y="26" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo</text><path d="M320 32 L332 32 L326 42z" fill="var(--gold-deep)"/><text x="326" y="26" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">mid</text><path d="M488 32 L500 32 L494 42z" fill="var(--gold-deep)"/><text x="494" y="26" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">hi</text><text x="130" y="122" font-size="12.5" fill="var(--gold-deep)">a[3] = 3，不小於 3：答案在 mid 或左邊，hi = mid</text><text x="20" y="195" font-size="13">第 2 次</text><rect x="130" y="170" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="158" y="195" font-size="14" text-anchor="middle" class="mono">1</text><text x="158" y="226" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="170" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="214" y="195" font-size="14" text-anchor="middle" class="mono">3</text><text x="214" y="226" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="170" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="270" y="195" font-size="14" text-anchor="middle" class="mono">3</text><text x="270" y="226" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="170" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="326" y="195" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><text x="326" y="226" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="170" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="382" y="195" font-size="14" text-anchor="middle" class="mono" opacity=".35">5</text><text x="382" y="226" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="170" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="438" y="195" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><text x="438" y="226" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M152 156 L164 156 L158 166z" fill="var(--gold-deep)"/><text x="158" y="150" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo</text><path d="M208 156 L220 156 L214 166z" fill="var(--gold-deep)"/><text x="214" y="150" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">mid</text><path d="M320 156 L332 156 L326 166z" fill="var(--gold-deep)"/><text x="326" y="150" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">hi</text><text x="130" y="246" font-size="12.5" fill="var(--gold-deep)">a[1] = 3，不小於 3：hi = mid</text><text x="20" y="319" font-size="13">第 3 次</text><rect x="130" y="294" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="158" y="319" font-size="14" text-anchor="middle" class="mono">1</text><text x="158" y="350" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="294" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="214" y="319" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><text x="214" y="350" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="294" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="270" y="319" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><text x="270" y="350" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="294" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="326" y="319" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><text x="326" y="350" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="294" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="382" y="319" font-size="14" text-anchor="middle" class="mono" opacity=".35">5</text><text x="382" y="350" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="294" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="438" y="319" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><text x="438" y="350" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M152 280 L164 280 L158 290z" fill="var(--gold-deep)"/><text x="158" y="274" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo mid</text><path d="M208 280 L220 280 L214 290z" fill="var(--gold-deep)"/><text x="214" y="274" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">hi</text><text x="130" y="370" font-size="12.5" fill="var(--gold-deep)">a[0] = 1 &lt; 3：答案在右邊，lo = mid + 1</text><text x="20" y="443" font-size="13">結束</text><rect x="130" y="418" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="158" y="443" font-size="14" text-anchor="middle" class="mono" opacity=".35">1</text><text x="158" y="474" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="186" y="418" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="214" y="443" font-size="14" text-anchor="middle" class="mono">3</text><text x="214" y="474" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="242" y="418" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="270" y="443" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><text x="270" y="474" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="298" y="418" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="326" y="443" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><text x="326" y="474" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="354" y="418" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="382" y="443" font-size="14" text-anchor="middle" class="mono" opacity=".35">5</text><text x="382" y="474" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="410" y="418" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="438" y="443" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><text x="438" y="474" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M208 404 L220 404 L214 414z" fill="var(--gold-deep)"/><text x="214" y="398" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">lo hi</text><text x="130" y="494" font-size="12.5" fill="var(--gold-deep)">lo == hi，迴圈結束：第一個 ≥ 3 在索引 1</text><text x="20" y="522" font-size="12" opacity=".6">找第一個 ≥ 3 的位置。範圍是 [lo, hi)，hi 那格不算在內，一開始 hi = 6 指在陣列外面</text>
+</svg>
+<figcaption>找「第一個 ≥ target」時，mid 符合條件也不能丟，所以寫 hi = mid；lo 和 hi 碰在一起的地方就是答案。</figcaption>
+</figure>
+<p>有了它，很多問題一行解決：x 出現幾次＝<code>lowerBound(<wbr>x + 1) - lowerBound(<wbr>x)</code>；「最後一個 ≤ x 的位置」＝<code>lowerBound(x + 1) - 1</code>。</p>
+
+<h4><code>Arrays.binarySearch</code> 找不到時回傳什麼</h4>
+<p>文件：陣列「必須在呼叫前排好……沒排好的話結果沒有定義。如果陣列裡有多個元素等於要找的值，不保證找到的是哪一個」（The array must be sorted … prior to making this call. If it is not sorted, the results are undefined. If the array contains multiple elements with the specified value, there is no guarantee which one will be found.）。回傳值是「找到時回傳它的索引；否則回傳 (-(插入點) - 1)。插入點是這個值該插入的位置：第一個比它大的元素的索引，如果全部都比它小就是 a.length。這保證了只有找到時回傳值才會 ≥ 0」（index of the search key, if it is contained in the array; otherwise, (-(insertion point) - 1). … Note that this guarantees that the return value will be >= 0 if and only if the key is found.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#binarySearch(int%5B%5D,int)" target="_blank" rel="noopener">出處</a></p>
+<p>為什麼要減 1？如果只回傳 −(插入點)，插入點是 0 時會回傳 0，就跟「在索引 0 找到」分不開了。多減 1 之後，找不到一定是負數。要還原插入點：<code>int ins = -(r + 1);</code>。上面的程式找 7 回傳 −3，代表 7 該插在索引 2（8 的前面）。</p>
+<p class="formula">二分搜尋：先排好；mid = lo + (hi − lo) / 2；[lo, hi] 配 lo &lt;= hi 與 mid ± 1，[lo, hi) 配 lo &lt; hi 與 hi = mid</p>
+
+<div class="drill">
+  <p class="dq">在 <code>{1, 3, 5, 7, 9, 11, 13}</code> 用上面的 <code>search</code> 找 11。第一次比完之後，lo 和 hi 是？</p>
+  <ul class="dopts"><li>lo = 0，hi = 2</li><li data-ok>lo = 4，hi = 6</li><li>lo = 3，hi = 6</li><li>lo = 4，hi = 5</li></ul>
+  <p class="dexp">一開始 lo = 0、hi = 6，mid = 3，a[3] = 7 &lt; 11，答案在右邊，lo = mid + 1 = 4，hi 不變還是 6。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，第二次比的是哪個索引？結果如何？</p>
+  <ul class="dopts"><li>索引 4，a[4] = 9 太小</li><li>索引 6，a[6] = 13 太大</li><li data-ok>索引 5，a[5] = 11，找到</li><li>索引 5，a[5] = 11，但還要繼續比</li></ul>
+  <p class="dexp">lo = 4、hi = 6，mid = 4 + (6 − 4) / 2 = 5，a[5] = 11 等於 target，回傳 5。7 個元素只比了 2 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">在排好的 100 萬筆資料裡用二分搜尋找一個值，最多大約要比幾次？</p>
+  <ul class="dopts"><li>約 1,000 次</li><li>約 50 萬次</li><li>約 100 次</li><li data-ok>約 20 次</li></ul>
+  <p class="dexp">每比一次剩一半，100 萬約是 2²⁰，砍 20 次就剩 1 筆。一個一個找最壞要 100 萬次。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼中間值要寫 <code>lo + (hi - lo) / 2</code>，而不是 <code>(lo + hi) / 2</code>？</p>
+  <ul class="dopts"><li>因為 (lo + hi) / 2 在 lo、hi 都是奇數時會算錯</li><li data-ok>lo + hi 可能超過 int 上限而溢位成負數，lo + (hi − lo) / 2 不會</li><li>因為 Java 的除法會四捨五入</li><li>兩種寫法完全等價，只是習慣</li></ul>
+  <p class="dexp">數學上兩者相等，但 int 有上限。陣列很大時 lo + hi 可能超過 2³¹ − 1、繞回負數，當索引用就丟 ArrayIndexOutOfBoundsException。hi − lo 不會超過陣列長度，安全。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>search</code> 的迴圈條件從 <code>lo &lt;= hi</code> 改成 <code>lo &lt; hi</code>，在只有一個元素的陣列 <code>{5}</code> 裡找 5，會回傳什麼？</p>
+  <ul class="dopts"><li data-ok>−1，迴圈一次都沒跑</li><li>0，正常找到</li><li>無窮迴圈</li><li>丟出 ArrayIndexOutOfBoundsException</li></ul>
+  <p class="dexp">lo = 0、hi = 0，0 &lt; 0 不成立，迴圈直接跳過，回傳 −1。範圍 [lo, hi] 兩端都包含時，lo == hi 還有一格要看，條件必須是 &lt;=。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>search</code> 裡如果把 <code>lo = mid + 1</code> 寫成 <code>lo = mid</code>，在 <code>{1, 3}</code> 找 3 會怎樣？</p>
+  <ul class="dopts"><li data-ok>無窮迴圈：mid 一直是 0，lo 一直是 0</li><li>正常回傳 1</li><li>回傳 −1</li><li>回傳 0</li></ul>
+  <p class="dexp">lo = 0、hi = 1，mid = 0，a[0] = 1 &lt; 3，lo = mid 還是 0，下一輪一模一樣，永遠停不下來。mid 比過了就要跳過它。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>lowerBound</code> 在 <code>{2, 4, 4, 4, 7}</code> 找 4，回傳什麼？</p>
+  <ul class="dopts"><li>2</li><li>3</li><li>−1</li><li data-ok>1</li></ul>
+  <p class="dexp">第一個大於等於 4 的是索引 1 的那個 4。lowerBound 不會停在中間那個 4，因為 a[mid] &gt;= target 時它繼續往左找（hi = mid）。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個陣列 <code>{2, 4, 4, 4, 7}</code>，<code>lowerBound(a, 5)</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>4</li><li>3</li><li>−5</li><li>5</li></ul>
+  <p class="dexp">5 不在陣列裡；第一個大於等於 5 的是索引 4 的 7，所以回傳 4，也就是 5 該插入的位置。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個陣列，<code>lowerBound(a, 10)</code> 回傳什麼？</p>
+  <ul class="dopts"><li>4</li><li>−1</li><li data-ok>5</li><li>丟出 ArrayIndexOutOfBoundsException</li></ul>
+  <p class="dexp">全部都比 10 小，沒有任何位置符合，lo 一路往右走到 hi 的初始值 a.length = 5。這就是 hi 一開始要設成 a.length 而不是 a.length − 1 的原因。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>lowerBound</code> 在 <code>a[mid] &gt;= target</code> 時寫 <code>hi = mid</code>，而不是 <code>hi = mid - 1</code>，原因是？</p>
+  <ul class="dopts"><li>為了避免溢位</li><li data-ok>mid 本身可能就是第一個 ≥ target 的位置，不能把它丟掉</li><li>為了讓迴圈跑快一點</li><li>因為 hi 不能是負數</li></ul>
+  <p class="dexp">a[mid] 已經 ≥ target，它可能就是答案；寫 mid − 1 就把答案排除在範圍外了。範圍 [lo, hi) 的 hi 本來就不包含，所以 hi = mid 剛好表示「答案在 mid 或它左邊」。</p>
+</div>
+<div class="drill">
+  <p class="dq">在排好的 <code>{1, 3, 3, 3, 5, 8}</code> 裡，用 <code>lowerBound(<wbr>a, 4) - lowerBound(<wbr>a, 3)</code> 算 3 出現幾次。結果是？</p>
+  <ul class="dopts"><li>1</li><li>4</li><li data-ok>3</li><li>2</li></ul>
+  <p class="dexp">lowerBound(a, 3) = 1（第一個 3），lowerBound(a, 4) = 4（第一個 ≥ 4 的是 5），4 − 1 = 3。兩次二分搜尋，O(log n)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Arrays.<wbr>binarySearch(<wbr>new int[] {10, 20, 30, 40}, 25)</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>−3</li><li>−1</li><li>−2</li><li>2</li></ul>
+  <p class="dexp">25 不在陣列裡，插入點是第一個比它大的 30 的索引 2，回傳 −(2) − 1 = −3。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Arrays.binarySearch</code> 回傳 −1，代表什麼？</p>
+  <ul class="dopts"><li>陣列沒排好</li><li data-ok>找不到，而且它比陣列裡所有元素都小（插入點是 0）</li><li>找不到，而且它比所有元素都大</li><li>在索引 1 找到</li></ul>
+  <p class="dexp">−1 = −(0) − 1，插入點是 0，表示該插在最前面。比所有元素都大時，插入點是 a.length，回傳 −(a.length) − 1。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Arrays.<wbr>binarySearch(<wbr>new int[] {3, 3, 3}, 3)</code>，文件保證回傳哪個索引？</p>
+  <ul class="dopts"><li>0，第一個</li><li>2，最後一個</li><li>1，中間那個</li><li data-ok>只保證是 0、1、2 其中一個，不保證是哪一個</li></ul>
+  <p class="dexp">文件寫 there is no guarantee which one will be found。要「第一個」就自己寫 lowerBound。</p>
+</div>
+<div class="drill">
+  <p class="dq">對一個<strong>沒排好</strong>的陣列呼叫 <code>Arrays.binarySearch</code>，文件怎麼說？</p>
+  <ul class="dopts"><li>會自動先排序再找</li><li>會丟出 IllegalArgumentException</li><li data-ok>結果沒有定義，可能找不到明明存在的值</li><li>會退回一個一個找，結果一樣正確</li></ul>
+  <p class="dexp">文件寫 If it is not sorted, the results are undefined。二分搜尋不檢查有沒有排好（檢查就要 O(n)），丟掉一半的判斷也就沒有根據。</p>
+</div>
+</section>
+
+<section>
+<p class="era">答案本身有序，也能二分</p>
+<h3 class="head">在答案上二分：最小運送容量</h3>
+<p>二分搜尋不一定要在陣列裡找。只要能把問題問成「<strong>答案是 x 做不做得到？</strong>」，而且 x 越大越容易做到（做不到、做不到……做得到、做得到，只翻面一次），就能對 x 的範圍二分，找第一個做得到的 x。</p>
+<p>例子：一批貨照順序裝船，重量是 <code>3, 2, 2, 4, 1, 4</code>，船一天跑一趟，要在 3 天內運完，船的容量最小要多少？</p>
+<ul class="plainlist">
+<li><strong>答案的範圍</strong>：容量至少要等於最重的那件（4），不然那件永遠裝不上去；最多是全部的總和（16），一天就運完。</li>
+<li><strong>做不做得到</strong>：給一個容量，照順序裝、裝不下就換下一天，數要幾天，O(n)。</li>
+<li><strong>單調</strong>：容量越大，每天裝得越多，天數只會變少或不變。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 204" role="img" aria-label="在答案上二分：容量 4 到 12 各要幾天運完。容量 4 要 5 天、5 要 4 天，都超過 3 天；從容量 6 開始只要 3 天以內。第一個做得到的容量 6 就是答案">
+<rect x="110" y="60" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="138" y="85" font-size="14" text-anchor="middle" class="mono">4</text><text x="138" y="120" font-size="12.5" text-anchor="middle">5 天</text><text x="138" y="140" font-size="13" text-anchor="middle">✗</text><rect x="166" y="60" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="85" font-size="14" text-anchor="middle" class="mono">5</text><text x="194" y="120" font-size="12.5" text-anchor="middle">4 天</text><text x="194" y="140" font-size="13" text-anchor="middle">✗</text><rect x="222" y="60" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="250" y="85" font-size="14" text-anchor="middle" class="mono">6</text><text x="250" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">3 天</text><text x="250" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><rect x="278" y="60" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="306" y="85" font-size="14" text-anchor="middle" class="mono">7</text><text x="306" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">3 天</text><text x="306" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><rect x="334" y="60" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="362" y="85" font-size="14" text-anchor="middle" class="mono">8</text><text x="362" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">3 天</text><text x="362" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><rect x="390" y="60" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="85" font-size="14" text-anchor="middle" class="mono">9</text><text x="418" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">2 天</text><text x="418" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><rect x="446" y="60" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="474" y="85" font-size="14" text-anchor="middle" class="mono">10</text><text x="474" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">2 天</text><text x="474" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><rect x="502" y="60" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="530" y="85" font-size="14" text-anchor="middle" class="mono">11</text><text x="530" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">2 天</text><text x="530" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><rect x="558" y="60" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="586" y="85" font-size="14" text-anchor="middle" class="mono">12</text><text x="586" y="120" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">2 天</text><text x="586" y="140" font-size="13" text-anchor="middle" fill="var(--slate-deep)">✓</text><text x="630" y="85" font-size="14" class="mono">… 16</text><text x="30" y="85" font-size="13">容量</text><text x="30" y="120" font-size="13">要幾天</text><text x="30" y="140" font-size="13">3 天內</text><path d="M244 46 L256 46 L250 56z" fill="var(--gold-deep)"/><text x="250" y="40" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">答案 6</text><text x="30" y="190" font-size="12" opacity=".6">貨物重量 3、2、2、4、1、4，要在 3 天內運完。容量越大天數越少：左邊一段都做不到，右邊一段都做得到</text>
+</svg>
+<figcaption>答案（容量）越大越容易做到，「做不到、做不到、做得到、做得到……」只會翻面一次，就能二分找翻面的那一格。</figcaption>
+</figure>
+<pre><code>public class ShipCapacity {
+    // 船的容量是 cap 時，照順序裝貨，要幾天才運完？
+    static int daysNeeded(int[] weights, int cap) {
+        int days = 1, load = 0;
+        for (int w : weights) {
+            if (load + w &gt; cap) {               // 今天裝不下了，明天再裝
+                days++;
+                load = 0;
+            }
+            load += w;
+        }
+        return days;
+    }
+
+    static int minCapacity(int[] weights, int days) {
+        int lo = 0, hi = 0;
+        for (int w : weights) {
+            lo = Math.max(lo, w);               // 至少要裝得下最重的那件
+            hi += w;                            // 最多一天全部運完
+        }
+        while (lo &lt; hi) {                       // 找第一個「做得到」的容量
+            int mid = lo + (hi - lo) / 2;
+            if (daysNeeded(weights, mid) &lt;= days) hi = mid;   // 做得到：試更小的
+            else lo = mid + 1;                                // 做不到：要更大
+        }
+        return lo;
+    }
+
+    public static void main(String[] args) {
+        int[] weights = {3, 2, 2, 4, 1, 4};
+        System.out.println(minCapacity(weights, 3));          // 6
+        System.out.println(daysNeeded(weights, 5) + " 天");   // 容量 5 要幾天
+        System.out.println(daysNeeded(weights, 6) + " 天");
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>6
+4 天
+3 天</code></pre>
+<p>迴圈的寫法就是上面的 <code>lowerBound</code>：做得到就 <code>hi = mid</code>（mid 可能是答案）、做不到就 <code>lo = mid + 1</code>。答案範圍大小是 S（總重），每次檢查 O(n)，總共 O(n log S)。比起從 4 試到 16 的 O(n × S) 快很多。</p>
+<p class="formula">在答案上二分：先確認「x 越大越容易做到」，再對答案範圍找第一個做得到的 x</p>
+
+<div class="drill">
+  <p class="dq">重量 <code>3, 2, 2, 4, 1, 4</code>，船的容量是 7，照上面的 <code>daysNeeded</code> 要幾天？</p>
+  <ul class="dopts"><li>2 天</li><li data-ok>3 天</li><li>4 天</li><li>6 天</li></ul>
+  <p class="dexp">第一天 3 + 2 + 2 = 7，再加 4 就超過；第二天 4 + 1 = 5，再加 4 超過；第三天 4。共 3 天。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>minCapacity</code> 裡 <code>lo</code> 的初始值是最重那件的重量，而不是 1。為什麼？</p>
+  <ul class="dopts"><li>只是為了少跑幾輪，對任何輸入設成 1 結果都一樣</li><li>因為容量不能是奇數</li><li data-ok>容量比最重的那件小時，那件根本裝不上船；daysNeeded 卻會把它算成獨佔一天，天數限制寬鬆時會誤判成做得到</li><li>因為二分搜尋的 lo 不能是 1</li></ul>
+  <p class="dexp">容量小於某件貨，那件根本運不了，答案不可能在那裡。daysNeeded 遇到這種情況只會把它算成獨佔一天：例如允許 7 天、容量設 1，它算出 7 天、以為做得到，答案就錯了。所以範圍要從最重的那件開始。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一批貨、3 天內運完：lo = 4、hi = 16。第一輪 mid 是多少？之後 lo、hi 變成什麼？</p>
+  <ul class="dopts"><li>mid = 10，做不到，lo = 11、hi = 16</li><li data-ok>mid = 10，2 天就運完、做得到，lo = 4、hi = 10</li><li>mid = 8，做得到，lo = 4、hi = 8</li><li>mid = 10，做得到，lo = 4、hi = 9</li></ul>
+  <p class="dexp">mid = 4 + (16 − 4) / 2 = 10。容量 10 只要 2 天，≤ 3 天，做得到；10 可能就是答案，所以 hi = mid = 10，不是 9。</p>
+</div>
+<div class="drill">
+  <p class="dq">n 件貨、總重 S，「在答案上二分」找最小容量的時間複雜度是？</p>
+  <ul class="dopts"><li>O(log S)</li><li>O(n × S)</li><li>O(n log n)</li><li data-ok>O(n log S)</li></ul>
+  <p class="dexp">答案範圍最多 S 個值，二分要 log S 輪；每輪用 daysNeeded 掃過 n 件貨，O(n)。相乘是 O(n log S)。O(n × S) 是從小到大一個一個試。</p>
+</div>
+<div class="drill">
+  <p class="dq">「在答案上二分」能用的關鍵條件是什麼？</p>
+  <ul class="dopts"><li data-ok>「x 做不做得到」隨 x 單調變化，只翻面一次</li><li>輸入陣列必須先排好</li><li>答案一定是整數</li><li>n 要小於 1,000</li></ul>
+  <p class="dexp">貨物的順序不能動、也不用排序；需要的是「容量越大越容易做到」這種單調性，才能每次丟掉一半的答案。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，先易後難</p>
+<h3 class="head">動手練</h3>
+<p>以下是 LeetCode 上考這課招式的題目，由易到難排。題目敘述請到題目頁看。</p>
+<div class="tablewrap"><table><thead><tr><th>題號與題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/search-insert-position/" target="_blank" rel="noopener">35. Search Insert Position</a></td><td>找第一個 ≥ target 的位置（lowerBound）</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/merge-sorted-array/" target="_blank" rel="noopener">88. Merge Sorted Array</a></td><td>合併兩段排好的陣列（從尾端倒著合）</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/sort-colors/" target="_blank" rel="noopener">75. Sort Colors</a></td><td>只有三種值：計數排序的想法</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/sort-an-array/" target="_blank" rel="noopener">912. Sort an Array</a></td><td>自己寫合併排序或快速排序</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/" target="_blank" rel="noopener">34. Find First and Last Position of Element in Sorted Array</a></td><td>lowerBound(x) 與 lowerBound(x + 1) − 1</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/merge-intervals/" target="_blank" rel="noopener">56. Merge Intervals</a></td><td>先用 Comparator 依起點排序，再掃一遍</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/" target="_blank" rel="noopener">1011. Capacity To Ship Packages Within D Days</a></td><td>在答案上二分</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/koko-eating-bananas/" target="_blank" rel="noopener">875. Koko Eating Bananas</a></td><td>在答案上二分（換一個情境）</td><td>Medium</td></tr>
+</tbody></table></div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>穩定＝相等的元素排完維持原本先後；同金額交易要保持時間順序時必須用穩定排序。基本型別的值分不出誰是誰，穩不穩定沒差。</li><li>選擇、插入、氣泡都是 O(n²)；插入排序穩定，工作量跟反序對數成正比，幾乎排好時接近 O(n)；選擇排序不穩定。</li><li>合併排序：對半切、兩根手指合併，最壞也是 O(n log n)，額外空間 O(n)，相等時拿左邊才穩定。</li><li>快速排序：分割讓 pivot 站到最終位置，左右各自遞迴；平均 O(n log n)、最壞 O(n²)（先洗牌或隨機挑 pivot 避開），原地、不穩定。</li><li>Java：<code>int[]</code> 等基本型別用雙軸快速排序（文件寫所有資料上都 O(n log n)）；物件陣列、<code>Collections.sort</code>、<code>List.sort</code> 用 TimSort，保證穩定。比較器用 <code>Integer.compare</code>，不要相減。</li><li>計數排序不靠比較，O(n + k)，只適合值的範圍 k 小的整數。</li><li>二分搜尋要先排好；mid = lo + (hi − lo) / 2；[lo, hi] 配 <code>lo &lt;= hi</code>，找第一個 ≥ target 用 [lo, hi) 配 <code>hi = mid</code>。<code>Arrays.binarySearch</code> 找不到回傳 −(插入點) − 1。答案單調時可以在答案上二分。</li></ul></div>
