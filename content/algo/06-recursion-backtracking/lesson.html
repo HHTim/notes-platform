@@ -1,0 +1,660 @@
+<!-- 來源：依普林斯頓 introcs.cs.princeton.edu 第 2.3 節（Recursion，含 Queens.java）與第 4.3 節、Java 虛擬機規格 SE 25 第 2.5.2 與 2.6 節、Java SE 25 API 文件（java.lang.StackOverflowError、java.util.ArrayList）新寫；程式碼與練習題全部自編並以 Java 21 實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出遞迴的兩個要素（終止條件、縮小問題），看得懂一段遞迴程式會印出什麼、呼叫幾次</li><li>畫出呼叫堆疊，知道每一層有自己的變數，以及遞迴太深為什麼會丟 <code>StackOverflowError</code></li><li>用呼叫樹算遞迴的時間與空間複雜度，說明天真的費氏數列為什麼是 O(2ⁿ)、加備忘錄怎麼降到 O(n)</li><li>照「選擇、遞迴、撤銷選擇」的模板寫出子集、排列、組合，會剪枝，也避開三個常見錯誤</li></ul></div>
+
+<section>
+<p class="era">自己呼叫自己，但每次問題都變小</p>
+<h3 class="head">遞迴的兩個要素</h3>
+<p>電影院裡很暗，你想知道自己坐第幾排，就問前一排的人「你是第幾排？」，他也不知道，再往前問……一直問到第一排的人，他回答「我是第 1 排」。答案再一排一排往回傳：前一排說 1，我就是 2；我說 2，後面的人就是 3。這種「把問題交給一個比較小的自己，等它回答再加工」的寫法叫<strong>遞迴</strong>（recursion）：一個方法在裡面呼叫自己。</p>
+<p>普林斯頓《Computer Science》課本網站用階乘（n! = n × (n − 1) × … × 1）當遞迴的第一個例子，並說每個遞迴函式都需要兩個主要部分（the two main components that are required for every recursive function）：<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>終止條件</strong>（base case）：「不再做任何遞迴呼叫就直接回傳值」（The base case returns a value without making any subsequent recursive calls.）。電影院裡的第一排。</li>
+<li><strong>縮小問題</strong>（課本叫 reduction step，化簡的那一步）：把這個輸入的答案，接到另一個輸入的答案上；而且「輸入的序列必須收斂到終止條件」（the sequence of input values must converge to the base case.）。每問一次就往前一排，一定會走到第一排。</li>
+</ul>
+<pre><code>public class Factorial {
+    static long factorial(int n, String indent) {
+        System.out.println(indent + "呼叫 factorial(" + n + ")");
+        if (n == 1) {                                   // 終止條件：不再呼叫自己
+            System.out.println(indent + "回傳 1");
+            return 1;
+        }
+        long sub = factorial(n - 1, indent + "  ");    // 縮小問題：n 變成 n - 1
+        System.out.println(indent + "回傳 " + n + " * " + sub + " = " + n * sub);
+        return n * sub;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("答案：" + factorial(4, ""));
+    }
+}</code></pre>
+<p>執行結果（多一層呼叫就多縮排兩格）：</p>
+<pre><code>呼叫 factorial(4)
+  呼叫 factorial(3)
+    呼叫 factorial(2)
+      呼叫 factorial(1)
+      回傳 1
+    回傳 2 * 1 = 2
+  回傳 3 * 2 = 6
+回傳 4 * 6 = 24
+答案：24</code></pre>
+<p>上半段一路往下呼叫，叫「遞」；碰到終止條件之後一路往回傳，叫「迴」。寫遞迴時不要試著在腦中展開每一層，只要確認兩件事：<strong>終止條件對不對、縮小之後的那一步交給同一個方法能不能算對</strong>。課本把這叫做跟數學歸納法直接相關（Recursive programming is directly related to mathematical induction）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">遞迴兩要素：終止條件（不再呼叫自己）＋ 縮小問題（每次都更靠近終止條件）</p>
+
+<div class="drill">
+  <p class="dq">在上面的 <code>factorial</code> 裡，哪一行是終止條件？</p>
+  <ul class="dopts"><li><code>long sub = factorial(n - 1, …)</code></li><li data-ok><code>if (n == 1) { … return 1; }</code></li><li><code>return n * sub;</code></li><li><code>System.out.println(…)</code></li></ul>
+  <p class="dexp">終止條件是不再呼叫自己、直接回傳值的那一段：n 等於 1 時回傳 1。factorial(n - 1) 那行是縮小問題。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>sum(4)</code> 回傳多少？</p>
+<pre><code>static int sum(int n) {
+    if (n == 0) return 0;
+    return n + sum(n - 1);
+}</code></pre>
+  <ul class="dopts"><li>4</li><li>24</li><li data-ok>10</li><li>0</li></ul>
+  <p class="dexp">sum(4) = 4 + sum(3) = 4 + 3 + sum(2) = … = 4 + 3 + 2 + 1 + 0 = 10。加法版的階乘。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>pow(2, 5)</code> 回傳多少？</p>
+<pre><code>static int pow(int b, int e) {
+    if (e == 0) return 1;
+    return b * pow(b, e - 1);
+}</code></pre>
+  <ul class="dopts"><li data-ok>32</li><li>10</li><li>25</li><li>64</li></ul>
+  <p class="dexp">每一層乘一次 b、e 減 1，乘了 5 次 2：2 × 2 × 2 × 2 × 2 × 1 = 32。終止條件 e 等於 0 回傳 1。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>digits(4096)</code> 回傳多少？</p>
+<pre><code>static int digits(int n) {
+    if (n &lt; 10) return 1;
+    return 1 + digits(n / 10);
+}</code></pre>
+  <ul class="dopts"><li>1</li><li>3</li><li>4096</li><li data-ok>4</li></ul>
+  <p class="dexp">4096 → 409 → 40 → 4，每次除以 10 拿掉最後一位，到個位數回傳 1，一路加回來是 1 + 1 + 1 + 1 = 4，也就是位數。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>rev("abc")</code> 回傳什麼？</p>
+<pre><code>static String rev(String s) {
+    if (s.isEmpty()) return "";
+    return rev(s.substring(1)) + s.charAt(0);
+}</code></pre>
+  <ul class="dopts"><li>abc</li><li data-ok>cba</li><li>bca</li><li>a</li></ul>
+  <p class="dexp">rev("abc") = rev("bc") + 'a' = (rev("c") + 'b') + 'a' = ((rev("") + 'c') + 'b') + 'a' = "cba"。第一個字被放到最後面。</p>
+</div>
+<div class="drill">
+  <p class="dq">呼叫 <code>f(3)</code> 會怎樣？</p>
+<pre><code>static int f(int n) {
+    if (n == 1) return 1;
+    return f(n) + 1;
+}</code></pre>
+  <ul class="dopts"><li>回傳 3：每一層加 1，加到 n 等於 1 為止</li><li>回傳 1：一進來就碰到終止條件</li><li data-ok>一直呼叫自己，最後丟出 StackOverflowError</li><li>編譯錯誤：方法不能呼叫自己</li></ul>
+  <p class="dexp">有終止條件，但遞迴呼叫傳的還是 n，問題沒有變小，永遠到不了 n 等於 1。課本把這列為「不保證收斂」（No guarantee of convergence）的錯誤。</p>
+</div>
+<div class="drill">
+  <p class="dq">呼叫 <code>skip(5)</code> 會怎樣？</p>
+<pre><code>static int skip(int n) {
+    if (n == 0) return 0;
+    return skip(n - 2);
+}</code></pre>
+  <ul class="dopts"><li>回傳 0：一路減 2 會碰到 0</li><li>回傳 1：減到 1 就停了</li><li>回傳 -1：減過頭一次就停</li><li data-ok>丟出 StackOverflowError</li></ul>
+  <p class="dexp">5 → 3 → 1 → -1 → -3 …，每次都變小，卻跳過了 0，永遠碰不到終止條件。skip(6) 就沒事。終止條件寫成 n &lt;= 0 才擋得住奇數。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每呼叫一次，堆疊就多一框</p>
+<h3 class="head">呼叫堆疊：遞迴在記憶體裡長什麼樣</h3>
+<p>上一課〈堆疊與佇列〉最後提到，方法呼叫本身就是用堆疊實作的。Java 虛擬機規格寫：「每次呼叫方法就建立一個新的框（frame）。方法呼叫結束時框就被銷毀，不管是正常結束還是丟出例外」（A new frame is created each time a method is invoked. A frame is destroyed when its method invocation completes, whether that completion is normal or abrupt），框配置在執行緒的 JVM 堆疊上，而且「每個框有自己的區域變數陣列」（Each frame has its own array of local variables）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.6" target="_blank" rel="noopener">出處</a></p>
+<p>所以遞迴的每一層都有<strong>自己的 n</strong>，互不干擾。<code>factorial(4)</code> 遞迴到最深的那一刻，呼叫堆疊長這樣：</p>
+<figure>
+<svg viewBox="0 0 760 334" role="img" aria-label="呼叫堆疊：factorial(4) 遞迴到最深時，由下往上依序是 main、factorial(4)、factorial(3)、factorial(2)、factorial(1)，每一框各有自己的 n。最上面的 factorial(1) 碰到終止條件回傳 1，接著右邊的箭頭一層一層往下回傳 2、6、24">
+<defs><marker id="rc-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="60" y="28" font-size="13" fill="var(--gold-deep)">呼叫堆疊（最深的那一刻）</text><rect x="60" y="254" width="330" height="40" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="74" y="279" font-size="14" class="mono">main</text><text x="192" y="279" font-size="13" class="mono" fill="var(--gold-deep)"></text><text x="256" y="279" font-size="12" opacity=".75">等 factorial(4) 回傳</text><rect x="60" y="208" width="330" height="40" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="74" y="233" font-size="14" class="mono">factorial(4)</text><text x="192" y="233" font-size="13" class="mono" fill="var(--gold-deep)">n = 4</text><text x="256" y="233" font-size="12" opacity=".75">等 factorial(3) 回傳</text><rect x="60" y="162" width="330" height="40" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="74" y="187" font-size="14" class="mono">factorial(3)</text><text x="192" y="187" font-size="13" class="mono" fill="var(--gold-deep)">n = 3</text><text x="256" y="187" font-size="12" opacity=".75">等 factorial(2) 回傳</text><rect x="60" y="116" width="330" height="40" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="74" y="141" font-size="14" class="mono">factorial(2)</text><text x="192" y="141" font-size="13" class="mono" fill="var(--gold-deep)">n = 2</text><text x="256" y="141" font-size="12" opacity=".75">等 factorial(1) 回傳</text><rect x="60" y="70" width="330" height="40" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="74" y="95" font-size="14" class="mono">factorial(1)</text><text x="192" y="95" font-size="13" class="mono" fill="var(--gold-deep)">n = 1</text><text x="256" y="95" font-size="12" opacity=".75">終止條件：直接回傳 1</text><text x="60" y="322" font-size="12" opacity=".6">每呼叫一次就在頂端多一框；每一框有自己的 n</text><path d="M396 90 Q436 113.0 398 136" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#rc-m1)"/><text x="444" y="118.0" font-size="13" fill="var(--slate-deep)">回傳 1</text><path d="M396 136 Q436 159.0 398 182" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#rc-m1)"/><text x="444" y="164.0" font-size="13" fill="var(--slate-deep)">回傳 2 × 1 = 2</text><path d="M396 182 Q436 205.0 398 228" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#rc-m1)"/><text x="444" y="210.0" font-size="13" fill="var(--slate-deep)">回傳 3 × 2 = 6</text><path d="M396 228 Q436 251.0 398 274" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#rc-m1)"/><text x="444" y="256.0" font-size="13" fill="var(--slate-deep)">回傳 4 × 6 = 24</text><text x="444" y="28" font-size="13" fill="var(--slate-deep)">回傳時一框一框拿掉</text>
+</svg>
+<figcaption>遞的時候一框一框往上疊，迴的時候從頂端開始一框一框拿掉，跟上一課的堆疊是同一件事。</figcaption>
+</figure>
+<p>這張圖解釋了兩件事。第一，<strong>遞迴的空間複雜度看最深有幾層</strong>：<code>factorial(n)</code> 最深同時有 n 框，空間 O(n)，就算程式裡沒有開任何陣列。第二，<strong>印的位置決定順序</strong>：寫在遞迴呼叫之前的，「遞」的時候執行，由外往內；寫在之後的，「迴」的時候執行，由內往外。</p>
+<pre><code>public class Order {
+    static void down(int n) {
+        if (n == 0) return;
+        System.out.print(n + " ");   // 在遞迴呼叫「之前」印
+        down(n - 1);
+    }
+
+    static void up(int n) {
+        if (n == 0) return;
+        up(n - 1);
+        System.out.print(n + " ");   // 在遞迴呼叫「之後」印
+    }
+
+    public static void main(String[] args) {
+        down(3);
+        System.out.println();
+        up(3);
+        System.out.println();
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>3 2 1 
+1 2 3 </code></pre>
+<h4>遞迴太深：<code>StackOverflowError</code></h4>
+<p>JVM 堆疊的大小有上限。規格寫：「如果執行緒的計算需要比允許的更大的 JVM 堆疊，JVM 丟出 <code>StackOverflowError</code>」（If the computation in a thread requires a larger Java Virtual Machine stack than is permitted, the Java Virtual Machine throws a StackOverflowError.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> API 文件對它的描述就一句：「應用程式遞迴太深造成堆疊溢位時丟出」（Thrown when a stack overflow occurs because an application recurses too deeply.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StackOverflowError.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>public class Overflow {
+    static int depth = 0;
+
+    static void noBase(int n) {
+        depth++;
+        noBase(n - 1);   // 沒有終止條件：永遠不會停
+    }
+
+    public static void main(String[] args) {
+        try {
+            noBase(10);
+        } catch (StackOverflowError e) {
+            System.out.println("丟出 " + e.getClass().getSimpleName());
+            System.out.println("深度超過一千層：" + (depth > 1000));
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>丟出 StackOverflowError
+深度超過一千層：true</code></pre>
+<p>實際能疊幾層跟堆疊大小、每一框多大有關，每台機器、每次執行都可能不同，所以程式只印「超過一千層」。堆疊大小用哪個參數調、它跟 <code>OutOfMemoryError</code> 怎麼分，見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+<p>面試時常被追問的解法是<strong>改成迴圈</strong>。課本的問答寫：「任何遞迴函式都可以換成迭代的寫法」（any recursive function can be replaced by an iterative counterpart.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 例如階乘用一個 <code>for</code> 迴圈乘上去，就只需要固定幾個變數；比較複雜的遞迴可以自己開一個 <code>ArrayDeque</code> 當堆疊，模擬呼叫堆疊在做的事。</p>
+<p class="formula">每一層呼叫一框、各有自己的變數；空間看最深幾層；太深就 StackOverflowError，解法是改迴圈或自己開堆疊</p>
+
+<div class="drill">
+  <p class="dq">上面的 <code>down(3)</code> 印出什麼？</p>
+  <ul class="dopts"><li>1 2 3</li><li>3</li><li data-ok>3 2 1</li><li>3 2 1 0</li></ul>
+  <p class="dexp">print 在遞迴呼叫之前，「遞」的時候就印：先印 3 再呼叫 down(2)，以此類推。n 等於 0 時直接 return，不印。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>up(3)</code> 印出什麼？</p>
+  <ul class="dopts"><li data-ok>1 2 3</li><li>3 2 1</li><li>0 1 2 3</li><li>3</li></ul>
+  <p class="dexp">print 在遞迴呼叫之後，要等 up(n - 1) 整個做完才印。最深的 up(1) 最先做完，所以先印 1。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>both(2)</code> 印出什麼？</p>
+<pre><code>static void both(int n) {
+    if (n == 0) return;
+    System.out.print(n + " ");
+    both(n - 1);
+    System.out.print(n + " ");
+}</code></pre>
+  <ul class="dopts"><li>2 1</li><li>1 2 2 1</li><li>2 1 2 1</li><li data-ok>2 1 1 2</li></ul>
+  <p class="dexp">遞的時候印 2、1，碰到 0 回頭；迴的時候先回到 n 為 1 那層印 1，再回到 n 為 2 那層印 2。合起來是 2 1 1 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">那 <code>both(3)</code> 印出什麼？</p>
+  <ul class="dopts"><li>3 2 1 3 2 1</li><li data-ok>3 2 1 1 2 3</li><li>1 2 3 3 2 1</li><li>3 2 1 1 2</li></ul>
+  <p class="dexp">前半是遞的時候由外往內印 3 2 1，後半是迴的時候由內往外印 1 2 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">執行 <code>factorial(4)</code>，遞迴到最深時，呼叫堆疊上同時有幾個 <code>factorial</code> 的框？</p>
+  <ul class="dopts"><li>1 個</li><li>2 個</li><li data-ok>4 個</li><li>24 個</li></ul>
+  <p class="dexp">factorial(4)、(3)、(2)、(1) 都還沒結束，各占一框，共 4 個（底下還有 main 那一框）。24 是答案，不是框數。</p>
+</div>
+<div class="drill">
+  <p class="dq">執行 <code>factorial(4)</code> 時，哪一次呼叫<strong>最先</strong>回傳？</p>
+  <ul class="dopts"><li>factorial(4)</li><li>factorial(3)</li><li>同時回傳</li><li data-ok>factorial(1)</li></ul>
+  <p class="dexp">factorial(1) 最後被呼叫、碰到終止條件馬上回傳，是最先結束的。後呼叫的先結束，正是堆疊的後進先出。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>factorial(3)</code> 在等 <code>factorial(2)</code> 回傳的時候，<code>factorial(3)</code> 那一框裡的 n 是多少？</p>
+  <ul class="dopts"><li data-ok>還是 3</li><li>變成 2</li><li>變成 1</li><li>不確定，看 JVM 怎麼排程</li></ul>
+  <p class="dexp">每一框有自己的區域變數，factorial(2) 的 n 是另一個變數。等它回傳之後，factorial(3) 拿自己的 n（3）去乘。</p>
+</div>
+<div class="drill">
+  <p class="dq">遞迴版 <code>sum(n)</code>（每層 n 減 1）沒有開任何陣列，它的空間複雜度是？</p>
+  <ul class="dopts"><li>O(1)</li><li data-ok>O(n)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">最深時呼叫堆疊上同時有 n 框，每框固定大小，所以是 O(n)。沒開陣列不代表空間是 O(1)，呼叫堆疊也算。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個遞迴方法沒有終止條件，執行後最可能丟出什麼？</p>
+  <ul class="dopts"><li>OutOfMemoryError: Java heap space</li><li>NullPointerException</li><li data-ok>StackOverflowError</li><li>不會出錯，只是跑很久</li></ul>
+  <p class="dexp">每次呼叫都在 JVM 堆疊上多一框，框不會被釋放，最後超過堆疊上限，丟 StackOverflowError。heap space 是物件太多把堆塞滿，是另一回事。</p>
+</div>
+<div class="drill">
+  <p class="dq">某個遞迴在資料量大時會 <code>StackOverflowError</code>，演算法本身沒錯。最根本的改法是？</p>
+  <ul class="dopts"><li data-ok>改寫成迴圈，或自己開一個 ArrayDeque 當堆疊來模擬</li><li>在外面包 try-catch，抓到 StackOverflowError 就重試一次</li><li>把區域變數都改成 static，框就不用存它們了</li><li>改用 HashMap 存每一層的參數</li></ul>
+  <p class="dexp">問題出在呼叫堆疊的層數，改成迴圈就不再一層一層疊框；複雜的遞迴可以自己用 ArrayDeque 模擬。重試還是一樣深，調大堆疊參數只是延後。</p>
+</div>
+</section>
+
+<section>
+<p class="era">畫出呼叫樹，數節點、量高度</p>
+<h3 class="head">遞迴的複雜度：費氏數列為什麼會爆炸</h3>
+<p>〈複雜度：程式跑多快、吃多少記憶體〉說過，遞迴的時間要數「總共呼叫幾次 × 每次做多少」。呼叫一多就數不清，這時把呼叫畫成一棵樹：每次呼叫是一個節點，它呼叫的那幾次是它下面的子節點。這叫<strong>呼叫樹</strong>（也叫遞迴樹）。</p>
+<ul class="plainlist">
+<li><strong>時間</strong>：數節點。每個節點分出幾個子節點叫<strong>分支數</strong>，樹有幾層叫<strong>深度</strong>。分支數 b、深度 d，節點最多大約 b 的 d 次方個。</li>
+<li><strong>空間</strong>：量高度。同一時間呼叫堆疊上只有「從根走到目前節點」那一條路，所以空間看深度，不看節點總數。</li>
+</ul>
+<p>費氏數列是 0、1、1、2、3、5、8、13……，每一項是前兩項相加：F(n) = F(n − 1) + F(n − 2)，F(0) = 0、F(1) = 1。照定義直接寫：</p>
+<pre><code>import java.util.HashMap;
+import java.util.Map;
+
+public class Fib {
+    static long calls = 0;
+
+    // 天真寫法：同一個 fib(k) 被重算很多次
+    static long fib(int n) {
+        calls++;
+        if (n &lt;= 1) return n;
+        return fib(n - 1) + fib(n - 2);
+    }
+
+    // 加備忘錄：算過的存起來，下次直接查
+    static long fibMemo(int n, Map&lt;Integer, Long&gt; memo) {
+        calls++;
+        if (n &lt;= 1) return n;
+        Long saved = memo.get(n);
+        if (saved != null) return saved;
+        long ans = fibMemo(n - 1, memo) + fibMemo(n - 2, memo);
+        memo.put(n, ans);
+        return ans;
+    }
+
+    public static void main(String[] args) {
+        for (int n : new int[] {5, 10, 20, 30}) {
+            calls = 0;
+            long a = fib(n);
+            long naive = calls;
+            calls = 0;
+            long b = fibMemo(n, new HashMap&lt;&gt;());
+            System.out.println("fib(" + n + ") = " + a + "，天真寫法呼叫 " + naive + " 次，加備忘錄呼叫 " + calls + " 次");
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>fib(5) = 5，天真寫法呼叫 15 次，加備忘錄呼叫 9 次
+fib(10) = 55，天真寫法呼叫 177 次，加備忘錄呼叫 19 次
+fib(20) = 6765，天真寫法呼叫 21891 次，加備忘錄呼叫 39 次
+fib(30) = 832040，天真寫法呼叫 2692537 次，加備忘錄呼叫 59 次</code></pre>
+<p>n 從 20 到 30 只多 10，天真寫法的呼叫次數卻從兩萬多跳到兩百六十多萬。畫出 <code>fib(5)</code> 的呼叫樹就看得出原因：</p>
+<figure>
+<svg viewBox="0 0 760 370" role="img" aria-label="fib(5) 的呼叫樹：f(5) 分出 f(4) 與 f(3)，每個 f(n) 再分出 f(n−1) 與 f(n−2)，直到 f(1) 或 f(0)。整棵樹共 15 個節點，f(2) 出現 3 次、f(3) 出現 2 次，都是重複計算">
+<line x1="456.6" y1="64" x2="273.9" y2="90" stroke="currentColor" stroke-opacity=".45"/><line x1="273.9" y1="130" x2="167.9" y2="156" stroke="currentColor" stroke-opacity=".45"/><line x1="167.9" y1="196" x2="97.1" y2="222" stroke="currentColor" stroke-opacity=".45"/><line x1="97.1" y1="262" x2="50.0" y2="288" stroke="currentColor" stroke-opacity=".45"/><line x1="97.1" y1="262" x2="144.3" y2="288" stroke="currentColor" stroke-opacity=".45"/><line x1="167.9" y1="196" x2="238.6" y2="222" stroke="currentColor" stroke-opacity=".45"/><line x1="273.9" y1="130" x2="380.0" y2="156" stroke="currentColor" stroke-opacity=".45"/><line x1="380.0" y1="196" x2="332.9" y2="222" stroke="currentColor" stroke-opacity=".45"/><line x1="380.0" y1="196" x2="427.1" y2="222" stroke="currentColor" stroke-opacity=".45"/><line x1="456.6" y1="64" x2="639.3" y2="90" stroke="currentColor" stroke-opacity=".45"/><line x1="639.3" y1="130" x2="568.6" y2="156" stroke="currentColor" stroke-opacity=".45"/><line x1="568.6" y1="196" x2="521.4" y2="222" stroke="currentColor" stroke-opacity=".45"/><line x1="568.6" y1="196" x2="615.7" y2="222" stroke="currentColor" stroke-opacity=".45"/><line x1="639.3" y1="130" x2="710.0" y2="156" stroke="currentColor" stroke-opacity=".45"/><circle cx="456.6" cy="44" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="456.6" y="48.5" font-size="12.5" text-anchor="middle" class="mono">f(5)</text><circle cx="273.9" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="273.9" y="114.5" font-size="12.5" text-anchor="middle" class="mono">f(4)</text><circle cx="167.9" cy="176" r="20" fill="var(--surface)" stroke="currentColor"/><text x="167.9" y="180.5" font-size="12.5" text-anchor="middle" class="mono">f(3)</text><circle cx="97.1" cy="242" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="97.1" y="246.5" font-size="12.5" text-anchor="middle" class="mono">f(2)</text><circle cx="50.0" cy="308" r="20" fill="var(--surface)" stroke="currentColor"/><text x="50.0" y="312.5" font-size="12.5" text-anchor="middle" class="mono">f(1)</text><circle cx="144.3" cy="308" r="20" fill="var(--surface)" stroke="currentColor"/><text x="144.3" y="312.5" font-size="12.5" text-anchor="middle" class="mono">f(0)</text><circle cx="238.6" cy="242" r="20" fill="var(--surface)" stroke="currentColor"/><text x="238.6" y="246.5" font-size="12.5" text-anchor="middle" class="mono">f(1)</text><circle cx="380.0" cy="176" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380.0" y="180.5" font-size="12.5" text-anchor="middle" class="mono">f(2)</text><circle cx="332.9" cy="242" r="20" fill="var(--surface)" stroke="currentColor"/><text x="332.9" y="246.5" font-size="12.5" text-anchor="middle" class="mono">f(1)</text><circle cx="427.1" cy="242" r="20" fill="var(--surface)" stroke="currentColor"/><text x="427.1" y="246.5" font-size="12.5" text-anchor="middle" class="mono">f(0)</text><circle cx="639.3" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="639.3" y="114.5" font-size="12.5" text-anchor="middle" class="mono">f(3)</text><circle cx="568.6" cy="176" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="568.6" y="180.5" font-size="12.5" text-anchor="middle" class="mono">f(2)</text><circle cx="521.4" cy="242" r="20" fill="var(--surface)" stroke="currentColor"/><text x="521.4" y="246.5" font-size="12.5" text-anchor="middle" class="mono">f(1)</text><circle cx="615.7" cy="242" r="20" fill="var(--surface)" stroke="currentColor"/><text x="615.7" y="246.5" font-size="12.5" text-anchor="middle" class="mono">f(0)</text><circle cx="710.0" cy="176" r="20" fill="var(--surface)" stroke="currentColor"/><text x="710.0" y="180.5" font-size="12.5" text-anchor="middle" class="mono">f(1)</text><text x="40" y="354" font-size="12" opacity=".6">共 15 個節點＝呼叫 15 次；灰藍的 f(2) 出現 3 次，每次都從頭重算；深度只有 5 層</text>
+</svg>
+<figcaption>每個節點是一次呼叫；同一個 f(2) 在三個地方各算一次。樹的節點數就是時間，樹的高度就是呼叫堆疊最深的時候。</figcaption>
+</figure>
+<p>每個節點分兩支、深度大約 n 層，節點數的上界是 2 的 n 次方，所以天真寫法的時間是 <strong>O(2ⁿ)</strong>，指數級。課本的說法是：簡單的遞迴程式「可能因為過度重複計算而需要（不必要的）指數時間」（a simple program might require exponential time (unnecessarily), due to excessive recomputation），並指出計算 fibonacci(n) 時，fibonacci(1) 被算的次數「恰好是 F(n)」（The number of times this program computes fibonacci(1) when computing fibonacci(n) is precisely F n.），也就是跟答案本身一樣快速長大。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 空間只看深度，是 O(n)。</p>
+<h4>加備忘錄：算過的不要再算</h4>
+<p><strong>備忘錄</strong>（memoization）就是把每個子問題的答案存起來，下次遇到同一個子問題直接查。課本把它叫做由上而下的動態規劃：「把解過的每個子問題的結果存起來或快取起來，下次需要同一個子問題時就用快取的值，不用從頭再解」（we store or cache the result of each subproblem that we solve, so that the next time we need to solve the same subproblem, we can use the cached values instead of solving the subproblem from scratch.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p>上面的 <code>fibMemo</code> 用 <code>HashMap</code> 存（為什麼查詢幾乎一步完成見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉）。每個 n 只會真的計算一次，呼叫次數從 2692537 降到 59，時間從 O(2ⁿ) 降到 <strong>O(n)</strong>，空間是備忘錄加呼叫堆疊，O(n)。這招再往下延伸，就是〈動態規劃入門〉的主題。</p>
+<p>同一套數法也能算其他遞迴：課本的河內塔（把 n 個盤子從一根柱子搬到另一根，每次搬一個、大的不能壓小的）每一層呼叫自己兩次、n 減 1，步數滿足 T(n) = 2T(n − 1) + 1，結果是 2ⁿ − 1（In general, T(n) = 2^n − 1.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>遞迴長相</th><th>呼叫樹</th><th>時間</th><th>空間（深度）</th></tr></thead><tbody>
+<tr><td>呼叫自己一次，n 減 1（階乘、sum）</td><td>一條直線，n 個節點</td><td>O(n)</td><td>O(n)</td></tr>
+<tr><td>呼叫自己一次，n 減半</td><td>一條直線，log n 個節點</td><td>O(log n)</td><td>O(log n)</td></tr>
+<tr><td>呼叫自己兩次，n 減 1（天真費氏、河內塔）</td><td>每層加倍，最多 2ⁿ 個節點</td><td>O(2ⁿ)</td><td>O(n)</td></tr>
+<tr><td>同上但加備忘錄</td><td>每個 n 只展開一次</td><td>O(n)</td><td>O(n)</td></tr>
+</tbody></table></div>
+<p class="formula">時間＝呼叫樹的節點數，空間＝呼叫樹的深度；重複的子問題用備忘錄存起來，指數就降成線性</p>
+
+<div class="drill">
+  <p class="dq">照上面的天真寫法，<code>fib(4)</code> 總共會呼叫 <code>fib</code> 幾次（包含 <code>fib(4)</code> 自己）？</p>
+  <ul class="dopts"><li>4</li><li>5</li><li>7</li><li data-ok>9</li></ul>
+  <p class="dexp">fib(4) 分出 fib(3) 與 fib(2)。fib(3) 自己加上它下面的節點共 5 次，fib(2) 共 3 次，再加 fib(4) 本身 1 次，總共 9 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">看 <code>fib(5)</code> 的呼叫樹，<code>f(2)</code> 被計算了幾次？</p>
+  <ul class="dopts"><li>1 次</li><li>2 次</li><li data-ok>3 次</li><li>5 次</li></ul>
+  <p class="dexp">f(4) 底下的 f(3) 有一個、f(4) 直接分出一個、f(5) 分出的 f(3) 底下又一個，共 3 次，每次都從頭算。</p>
+</div>
+<div class="drill">
+  <p class="dq">天真寫法的 <code>fib(n)</code> 時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)</li><li data-ok>O(2ⁿ)</li><li>O(n²)</li><li>O(log n)</li></ul>
+  <p class="dexp">每次呼叫分兩支、深度約 n，節點數上界是 2ⁿ，指數級。重複計算是元兇。</p>
+</div>
+<div class="drill">
+  <p class="dq">天真寫法的 <code>fib(n)</code> 空間複雜度是？</p>
+  <ul class="dopts"><li>O(2ⁿ)，因為有 2ⁿ 個節點</li><li>O(1)，因為沒開陣列</li><li data-ok>O(n)，因為呼叫堆疊最深 n 層</li><li>O(n²)</li></ul>
+  <p class="dexp">同一時間呼叫堆疊上只有從根走到目前節點的那條路，最長約 n 層。節點總數決定時間，深度決定空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">照上面的 <code>fibMemo</code>，算 <code>fib(30)</code> 時 <code>fibMemo</code> 被呼叫幾次？</p>
+  <ul class="dopts"><li>30</li><li data-ok>59</li><li>2692537</li><li>1</li></ul>
+  <p class="dexp">執行結果印的是 59。每個 n 從 2 到 30 只真的展開一次，各呼叫兩個子問題；後來遇到的直接查備忘錄回傳。2692537 是天真寫法的次數。</p>
+</div>
+<div class="drill">
+  <p class="dq">加了備忘錄的 <code>fib(n)</code> 時間複雜度是？</p>
+  <ul class="dopts"><li data-ok>O(n)</li><li>O(2ⁿ)</li><li>O(n²)</li><li>O(1)</li></ul>
+  <p class="dexp">每個 n 只真的計算一次，每次做固定幾步（加上 HashMap 平均常數時間的查與存），總共 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>t(3)</code> 總共會呼叫 <code>t</code> 幾次（包含 <code>t(3)</code> 自己）？</p>
+<pre><code>static void t(int n) {
+    if (n &lt;= 0) return;
+    t(n - 1);
+    t(n - 1);
+}</code></pre>
+  <ul class="dopts"><li>3</li><li>6</li><li>8</li><li data-ok>15</li></ul>
+  <p class="dexp">每層加倍：t(3) 1 次、t(2) 2 次、t(1) 4 次、t(0) 8 次，共 1 + 2 + 4 + 8 = 15 次，也就是 2⁴ − 1。這就是 O(2ⁿ) 的長相。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>g(n)</code> 的時間複雜度是？</p>
+<pre><code>static void g(int n) {
+    if (n &lt;= 1) return;
+    g(n / 2);
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li>O(2ⁿ)</li><li data-ok>O(log n)</li><li>O(1)</li></ul>
+  <p class="dexp">每次只呼叫自己一次、n 減半，呼叫樹是一條長度約 log n 的直線。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>h(n)</code> 的時間複雜度是？</p>
+<pre><code>static void h(int n) {
+    if (n == 0) return;
+    for (int i = 0; i &lt; n; i++) System.out.print("*");
+    h(n - 1);
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li data-ok>O(n²)</li><li>O(2ⁿ)</li><li>O(n log n)</li></ul>
+  <p class="dexp">呼叫 n 次，但每次不是固定幾步：第一層印 n 個、第二層 n − 1 個……加起來 n + (n − 1) + … + 1，是 O(n²)。「呼叫幾次 × 每次做多少」兩個都要看。</p>
+</div>
+<div class="drill">
+  <p class="dq">河內塔要把 3 個盤子搬到另一根柱子，照課本的遞迴解法共要搬幾步？</p>
+  <ul class="dopts"><li>3</li><li>6</li><li data-ok>7</li><li>9</li></ul>
+  <p class="dexp">T(n) = 2T(n − 1) + 1、T(1) = 1，所以 T(2) = 3、T(3) = 7，也就是 2³ − 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個遞迴每次呼叫自己 3 次、n 減 1，沒有重複子問題可以存。時間複雜度大約是？</p>
+  <ul class="dopts"><li>O(3n)</li><li>O(n³)</li><li>O(n)</li><li data-ok>O(3ⁿ)</li></ul>
+  <p class="dexp">分支數 3、深度 n，節點數約 3 的 n 次方。O(3n) 其實就是 O(n)，O(n³) 是三層迴圈，都跟分支數無關。</p>
+</div>
+</section>
+
+<section>
+<p class="era">試一條路，走不通就退回來</p>
+<h3 class="head">回溯法：選擇、遞迴、撤銷選擇</h3>
+<p>走迷宮時，在岔路口選一條走下去；走到死路，就退回上一個岔路口，換另一條。這種「試一個選擇，走不通或走完了就退回來換下一個」的做法叫<strong>回溯法</strong>（backtracking）。它是遞迴的一種用法：每往下一層就是做一個選擇，遞迴回來就把這個選擇撤掉。題目要你列出「所有」的組合、排列、子集、擺法時，通常就是它。</p>
+<p>回溯的程式幾乎都長一樣：</p>
+<pre><code>void backtrack(目前走到哪, path, result) {
+    if (走到底了) { result.add(new ArrayList&lt;&gt;(path)); return; }   // 存一份複本
+    for (每一個可以做的選擇) {
+        path.add(選擇);                  // 選擇
+        backtrack(下一步, path, result);  // 遞迴
+        path.remove(path.size() - 1);    // 撤銷選擇：回到選之前的樣子
+    }
+}</code></pre>
+<p class="muted">上面是示意，不是能編譯的 Java；下面三段才是實際跑過的程式。</p>
+<h4>子集：每個節點都是答案</h4>
+<p>列出 [1, 2, 3] 的所有子集。從空的 path 開始，每一層從「還沒考慮過的數」裡挑一個加進去；為了不讓 [1, 2] 和 [2, 1] 重複出現，只往後面挑（下一層從 <code>i + 1</code> 開始）。</p>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class Subsets {
+    static void backtrack(int[] nums, int start, List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; result) {
+        result.add(new ArrayList&lt;&gt;(path));        // 每走到一個節點，目前的 path 就是一個子集；存「複本」
+        for (int i = start; i &lt; nums.length; i++) {
+            path.add(nums[i]);                    // 選擇
+            backtrack(nums, i + 1, path, result); // 遞迴：只往後面挑，避免 [1, 2] 和 [2, 1] 重複
+            path.remove(path.size() - 1);         // 撤銷選擇
+        }
+    }
+
+    public static void main(String[] args) {
+        List&lt;List&lt;Integer&gt;&gt; result = new ArrayList&lt;&gt;();
+        backtrack(new int[] {1, 2, 3}, 0, new ArrayList&lt;&gt;(), result);
+        System.out.println(result);
+        System.out.println("共 " + result.size() + " 個");
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]
+共 8 個</code></pre>
+<figure>
+<svg viewBox="0 0 760 340" role="img" aria-label="子集的回溯樹：根是空集合 []，往下分出 [1]、[2]、[3]；[1] 再分出 [1, 2]、[1, 3]；[2] 分出 [2, 3]；[1, 2] 分出 [1, 2, 3]。共 8 個節點，每個節點都是一個子集。存進答案的順序依序是 []、[1]、[1, 2]、[1, 2, 3]、[1, 3]、[2]、[2, 3]、[3]">
+<defs><marker id="rc-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><line x1="380" y1="56" x2="170" y2="103" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="265.0" y="84.0" font-size="12" text-anchor="end" class="mono" fill="var(--gold-deep)">+1</text><line x1="380" y1="56" x2="430" y2="103" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="415.0" y="84.0" font-size="12" text-anchor="start" class="mono" fill="var(--gold-deep)">+2</text><line x1="380" y1="56" x2="620" y2="103" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="510.0" y="84.0" font-size="12" text-anchor="start" class="mono" fill="var(--gold-deep)">+3</text><line x1="170" y1="136" x2="90" y2="183" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="120.0" y="164.0" font-size="12" text-anchor="end" class="mono" fill="var(--gold-deep)">+2</text><line x1="170" y1="136" x2="250" y2="183" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="220.0" y="164.0" font-size="12" text-anchor="start" class="mono" fill="var(--gold-deep)">+3</text><line x1="430" y1="136" x2="430" y2="183" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="440.0" y="164.0" font-size="12" text-anchor="start" class="mono" fill="var(--gold-deep)">+3</text><line x1="90" y1="216" x2="90" y2="263" stroke="currentColor" stroke-opacity=".5" marker-end="url(#rc-m3)"/><text x="100.0" y="244.0" font-size="12" text-anchor="start" class="mono" fill="var(--gold-deep)">+3</text><rect x="337.0" y="24" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="380" y="45" font-size="13" text-anchor="middle" class="mono">[]</text><circle cx="423.0" cy="24" r="9" fill="var(--slate)"/><text x="423.0" y="28" font-size="10.5" text-anchor="middle" fill="#FFFFFF">1</text><rect x="127.0" y="104" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="170" y="125" font-size="13" text-anchor="middle" class="mono">[1]</text><circle cx="213.0" cy="104" r="9" fill="var(--slate)"/><text x="213.0" y="108" font-size="10.5" text-anchor="middle" fill="#FFFFFF">2</text><rect x="387.0" y="104" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="430" y="125" font-size="13" text-anchor="middle" class="mono">[2]</text><circle cx="473.0" cy="104" r="9" fill="var(--slate)"/><text x="473.0" y="108" font-size="10.5" text-anchor="middle" fill="#FFFFFF">6</text><rect x="577.0" y="104" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="620" y="125" font-size="13" text-anchor="middle" class="mono">[3]</text><circle cx="663.0" cy="104" r="9" fill="var(--slate)"/><text x="663.0" y="108" font-size="10.5" text-anchor="middle" fill="#FFFFFF">8</text><rect x="47.0" y="184" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="90" y="205" font-size="13" text-anchor="middle" class="mono">[1, 2]</text><circle cx="133.0" cy="184" r="9" fill="var(--slate)"/><text x="133.0" y="188" font-size="10.5" text-anchor="middle" fill="#FFFFFF">3</text><rect x="207.0" y="184" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="250" y="205" font-size="13" text-anchor="middle" class="mono">[1, 3]</text><circle cx="293.0" cy="184" r="9" fill="var(--slate)"/><text x="293.0" y="188" font-size="10.5" text-anchor="middle" fill="#FFFFFF">5</text><rect x="387.0" y="184" width="86" height="32" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="430" y="205" font-size="13" text-anchor="middle" class="mono">[2, 3]</text><circle cx="473.0" cy="184" r="9" fill="var(--slate)"/><text x="473.0" y="188" font-size="10.5" text-anchor="middle" fill="#FFFFFF">7</text><rect x="47.0" y="264" width="86" height="32" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="90" y="285" font-size="13" text-anchor="middle" class="mono">[1, 2, 3]</text><circle cx="133.0" cy="264" r="9" fill="var(--slate)"/><text x="133.0" y="268" font-size="10.5" text-anchor="middle" fill="#FFFFFF">4</text><text x="300" y="282" font-size="12" opacity=".7">走到 [1, 2, 3] 沒路了，撤銷 3、撤銷 2，回到 [1] 再試 +3</text><text x="40" y="326" font-size="12" opacity=".6">灰藍圓圈的數字是存進答案的順序；每條邊上的 +k 是「選擇」，往回走就是「撤銷選擇」</text>
+</svg>
+<figcaption>回溯就是沿著這棵樹深度優先地走：往下一層是選擇一個數，走到底就退回上一層撤銷它，再試下一個。</figcaption>
+</figure>
+<p>每個數「選或不選」兩種，n 個數就有 2ⁿ 個子集，課本的組合練習題也寫「印出所有 2ⁿ 個任意大小的組合」（prints all 2^n combinations of any size）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 答案本身就有 2ⁿ 個，所以時間至少 O(2ⁿ)；每個子集複製一份要花到 n 步，總共 O(n · 2ⁿ)。</p>
+<h4>排列：走到底才是答案</h4>
+<p>列出 [1, 2, 3] 的所有排列。這次每個位置都可以從全部的數裡挑，但不能挑已經用過的，所以多一個 <code>used</code> 陣列記錄；path 滿了才是一個答案。</p>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class Permutations {
+    static void backtrack(int[] nums, boolean[] used, List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; result) {
+        if (path.size() == nums.length) {          // 終止條件：每個數都排進去了
+            result.add(new ArrayList&lt;&gt;(path));
+            return;
+        }
+        for (int i = 0; i &lt; nums.length; i++) {
+            if (used[i]) continue;                 // 已經在 path 裡的不能再用
+            used[i] = true;                        // 選擇
+            path.add(nums[i]);
+            backtrack(nums, used, path, result);   // 遞迴
+            path.remove(path.size() - 1);          // 撤銷選擇（兩個都要撤）
+            used[i] = false;
+        }
+    }
+
+    public static void main(String[] args) {
+        List&lt;List&lt;Integer&gt;&gt; result = new ArrayList&lt;&gt;();
+        backtrack(new int[] {1, 2, 3}, new boolean[3], new ArrayList&lt;&gt;(), result);
+        System.out.println(result);
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]</code></pre>
+<p>第一個位置 n 種、第二個 n − 1 種……排列共 n! 個（課本：all n! permutations）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 子集和排列的差別就在 for 迴圈從哪裡開始：子集從 <code>start</code>（只往後挑，順序不同算同一個），排列從 0（每個位置都重新挑，順序不同算不同）。</p>
+<h4>組合與剪枝：明知走不通的路不要走</h4>
+<p><strong>剪枝</strong>（pruning）是在往下走之前就判斷「這條路不可能有答案」，整段跳過，像修剪樹枝。例子：從 [2, 3, 5, 7] 挑數字（同一個數可以重複挑）湊出總和 10，列出所有組合。先把陣列排序，試到某個數已經比剩下要湊的還大時，後面的數只會更大，直接 <code>break</code>。</p>
+<pre><code>import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+public class CombinationSum {
+    static int calls = 0;
+
+    // 從 nums 挑數字（同一個數可以重複挑）湊出 target，列出所有組合
+    static void backtrack(int[] nums, int start, int remain, boolean prune,
+                          List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; result) {
+        calls++;
+        if (remain == 0) {
+            result.add(new ArrayList&lt;&gt;(path));
+            return;
+        }
+        if (remain &lt; 0) return;                     // 超過了，這條路走不通
+        for (int i = start; i &lt; nums.length; i++) {
+            if (prune &amp;&amp; nums[i] &gt; remain) break;   // 剪枝：已排序，這個太大，後面的更大，整段不用試
+            path.add(nums[i]);
+            backtrack(nums, i, remain - nums[i], prune, path, result);  // 傳 i 不是 i + 1：同一個數可以再挑
+            path.remove(path.size() - 1);
+        }
+    }
+
+    public static void main(String[] args) {
+        int[] nums = {2, 3, 5, 7};
+        Arrays.sort(nums);                          // 剪枝的前提：由小到大
+        for (boolean prune : new boolean[] {false, true}) {
+            calls = 0;
+            List&lt;List&lt;Integer&gt;&gt; result = new ArrayList&lt;&gt;();
+            backtrack(nums, 0, 10, prune, new ArrayList&lt;&gt;(), result);
+            System.out.println((prune ? "剪枝：" : "不剪枝：") + result + "，呼叫 " + calls + " 次");
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>不剪枝：[[2, 2, 2, 2, 2], [2, 2, 3, 3], [2, 3, 5], [3, 7], [5, 5]]，呼叫 52 次
+剪枝：[[2, 2, 2, 2, 2], [2, 2, 3, 3], [2, 3, 5], [3, 7], [5, 5]]，呼叫 23 次</code></pre>
+<p>答案一樣，呼叫次數少了一半多。剪枝不改變答案，只少走冤枉路；這裡能用 <code>break</code> 的前提是<strong>陣列已排序</strong>，沒排序就只能對這一個數 <code>continue</code>，不能把後面的也一起跳掉。</p>
+<p><strong>N 皇后</strong>（在 n × n 棋盤放 n 個皇后，任兩個不能在同一列、同一行或同一斜線上）是回溯加剪枝的代表題：一列一列放，每放一個就檢查會不會被前面的皇后吃到，會就不往下走。課本的 <code>Queens.java</code> 註解寫它「用遞迴與回溯解八皇后問題」（Solve the 8 queens problem using recursion and backtracing），並說回溯「剪掉了大部分」的擺法（the backtracing prunes off most of them）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/Queens.java.html" target="_blank" rel="noopener">出處</a> 用同樣的做法實際數過：4 皇后有 2 組解，8 皇后有 92 組解。</p>
+<p class="formula">回溯模板：選擇 → 遞迴 → 撤銷選擇；子集從 start 挑、排列從 0 挑加 used；能剪就剪，break 要先排序</p>
+
+<div class="drill">
+  <p class="dq">[1, 2, 3] 的子集總共有幾個（包含空集合）？</p>
+  <ul class="dopts"><li>3</li><li>6</li><li data-ok>8</li><li>9</li></ul>
+  <p class="dexp">每個數選或不選兩種，2 × 2 × 2 = 8，執行結果也印出共 8 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>Subsets</code> 程式，<code>result</code> 裡第 4 個存進去的子集是？</p>
+  <ul class="dopts"><li>[1, 3]</li><li data-ok>[1, 2, 3]</li><li>[2]</li><li>[3]</li></ul>
+  <p class="dexp">依序存的是 []、[1]、[1, 2]、[1, 2, 3]：先一路往下選到底，第 4 個就是 [1, 2, 3]，之後才退回來試 [1, 3]。</p>
+</div>
+<div class="drill">
+  <p class="dq">子集的程式遞迴時傳 <code>i + 1</code> 當下一層的 <code>start</code>，目的是？</p>
+  <ul class="dopts"><li>讓程式跑得比較快，結果完全不變</li><li data-ok>只往後面挑，[1, 2] 和 [2, 1] 才不會都出現</li><li>避免陣列索引超出範圍而丟出例外</li><li>讓同一個數可以重複挑，例如 [1, 1]</li></ul>
+  <p class="dexp">子集不看順序，[1, 2] 和 [2, 1] 是同一個。規定只能挑比自己後面的數，每個子集就只會以一種順序出現一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">n 個不同的數，子集共有幾個？</p>
+  <ul class="dopts"><li>n</li><li>n²</li><li>n!</li><li data-ok>2ⁿ</li></ul>
+  <p class="dexp">每個數選或不選，n 個數就是 2 自乘 n 次。n! 是排列的個數。</p>
+</div>
+<div class="drill">
+  <p class="dq">[1, 2, 3, 4] 的排列總共有幾個？</p>
+  <ul class="dopts"><li data-ok>24</li><li>16</li><li>12</li><li>4</li></ul>
+  <p class="dexp">第一個位置 4 種、第二個 3 種、第三個 2 種、最後 1 種，4! = 24。16 是子集的個數。</p>
+</div>
+<div class="drill">
+  <p class="dq">排列的程式裡 <code>used</code> 陣列的用途是？</p>
+  <ul class="dopts"><li data-ok>記錄哪些數已經在 path 裡，同一個數不會被排兩次</li><li>記錄哪些排列已經存進答案，避免同一組存兩次</li><li>讓 for 迴圈改從 start 開始，只往後挑</li><li>記錄遞迴目前走到第幾層</li></ul>
+  <p class="dexp">排列每個位置都從 0 開始挑，需要另外知道誰已經被用掉。選的時候設 true，撤銷時設回 false。</p>
+</div>
+<div class="drill">
+  <p class="dq">path 一開始是空的，依序做「選 1、選 2、撤銷、選 3」，這時 path 是？</p>
+  <ul class="dopts"><li>[1, 2, 3]</li><li>[3]</li><li data-ok>[1, 3]</li><li>[2, 3]</li></ul>
+  <p class="dexp">選 1、選 2 是 [1, 2]；撤銷拿掉最後加的 2，回到 [1]；再選 3，變成 [1, 3]。撤銷永遠是拿掉最後一個，跟堆疊的 pop 一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 1 到 4 挑 2 個數的組合（不看順序），共有幾個？</p>
+  <ul class="dopts"><li>4</li><li data-ok>6</li><li>8</li><li>12</li></ul>
+  <p class="dexp">[1, 2]、[1, 3]、[1, 4]、[2, 3]、[2, 4]、[3, 4]，共 6 個。12 是看順序的排法數。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>CombinationSum</code> 裡，把遞迴呼叫的 <code>i</code> 改成 <code>i + 1</code>（每個數最多挑一次），從 [2, 3, 5, 7] 湊 10 的答案變成？</p>
+  <ul class="dopts"><li>[[2, 2, 2, 2, 2], [5, 5]]</li><li>沒有任何組合</li><li>跟原本一樣五組</li><li data-ok>[[2, 3, 5], [3, 7]]</li></ul>
+  <p class="dexp">不能重複挑，[2, 2, 2, 2, 2]、[2, 2, 3, 3]、[5, 5] 都不行了，只剩 2 + 3 + 5 和 3 + 7。</p>
+</div>
+<div class="drill">
+  <p class="dq">剪枝那一行用 <code>break</code> 而不是 <code>continue</code>，能這樣做的前提是？</p>
+  <ul class="dopts"><li data-ok>陣列已經由小到大排好，這個數太大代表後面的都太大</li><li>陣列裡沒有重複的數，每個數只出現一次</li><li>target 是偶數，才能被平分</li><li>同一個數可以重複挑，後面還有機會</li></ul>
+  <p class="dexp">排序之後，nums[i] 已經超過剩下要湊的數，nums[i + 1] 以後只會更大，整段都不用試。沒排序時後面可能還有小的數，break 會漏掉答案。</p>
+</div>
+<div class="drill">
+  <p class="dq">剪枝之後 <code>CombinationSum</code> 的呼叫次數從 52 降到 23。答案有什麼變化？</p>
+  <ul class="dopts"><li>少了幾組比較長的組合，例如 [2, 2, 2, 2, 2]</li><li data-ok>完全一樣，只是少走了不可能有答案的路</li><li>多了幾組重複的組合，需要再去重</li><li>答案一樣，但順序被打亂</li></ul>
+  <p class="dexp">剪掉的只是「確定湊不出來」的分支，所以答案不變。剪枝若會改變答案，就是剪錯了。</p>
+</div>
+<div class="drill">
+  <p class="dq">N 皇后用回溯一列一列放皇后。剪枝剪的是哪一種情況？</p>
+  <ul class="dopts"><li>已經找到一組解，後面的擺法都不用再找</li><li data-ok>這一格會被前面已放的皇后吃到，就不往下放了</li><li>棋盤左右對稱，只試右半邊就能推出左半邊</li><li>放到一半就隨機換一列重新開始</li></ul>
+  <p class="dexp">每放一個皇后就檢查同一行與兩條斜線上有沒有前面的皇后，有就換下一格，不往下一列走，整個分支被剪掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">用回溯產生 n 對括號的所有合法排法（例如 n 等於 2 時是 <code>(())</code> 與 <code>()()</code>）。n 等於 3 時共有幾種？</p>
+  <ul class="dopts"><li>3</li><li>4</li><li data-ok>5</li><li>6</li></ul>
+  <p class="dexp">((()))、(()())、(())()、()(())、()()()，共 5 種。剪枝條件是左括號不超過 n、右括號不超過已放的左括號。</p>
+</div>
+<div class="drill">
+  <p class="dq">回溯模板三個步驟的正確順序是？</p>
+  <ul class="dopts"><li>遞迴 → 選擇 → 撤銷選擇</li><li>選擇 → 撤銷選擇 → 遞迴</li><li data-ok>選擇 → 遞迴 → 撤銷選擇</li><li>撤銷選擇 → 選擇 → 遞迴</li></ul>
+  <p class="dexp">先把選擇加進 path，帶著它往下走，回來之後再拿掉，讓 path 回到選之前的樣子，才能試下一個選擇。</p>
+</div>
+</section>
+
+<section>
+<p class="era">三個最常踩的坑</p>
+<h3 class="head">常見錯誤：忘記終止條件、共用清單沒複製、沒撤銷選擇</h3>
+<h4>忘記終止條件（或到不了終止條件）</h4>
+<p>課本的「遞迴的陷阱」（Pitfalls of recursion）第一條就是少了終止條件：方法「會一直呼叫自己，永遠不回傳」（it will repeatedly call itself and never return.）；第二條是遞迴呼叫的子問題沒有比原本小（No guarantee of convergence）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 兩種最後都是 <code>StackOverflowError</code>。費氏數列只寫 <code>if (n == 1) return 1;</code> 也是同一種錯：<code>fib(2)</code> 會呼叫 <code>fib(0)</code>，再往下是 <code>fib(-1)</code>，永遠停不下來。</p>
+<h4>共用清單沒複製</h4>
+<p>把 <code>result.add(new ArrayList&lt;&gt;(path))</code> 寫成 <code>result.add(path)</code>，結果會全部是空的：</p>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class Bugs {
+    // 錯誤一：存的是同一個 path，不是複本
+    static void noCopy(int[] nums, int start, List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; result) {
+        result.add(path);
+        for (int i = start; i &lt; nums.length; i++) {
+            path.add(nums[i]);
+            noCopy(nums, i + 1, path, result);
+            path.remove(path.size() - 1);
+        }
+    }
+
+    // 錯誤二：忘了撤銷選擇
+    static void noUndo(int[] nums, int start, List&lt;Integer&gt; path, List&lt;List&lt;Integer&gt;&gt; result) {
+        result.add(new ArrayList&lt;&gt;(path));
+        for (int i = start; i &lt; nums.length; i++) {
+            path.add(nums[i]);
+            noUndo(nums, i + 1, path, result);
+        }
+    }
+
+    public static void main(String[] args) {
+        int[] nums = {1, 2, 3};
+        List&lt;List&lt;Integer&gt;&gt; r1 = new ArrayList&lt;&gt;();
+        noCopy(nums, 0, new ArrayList&lt;&gt;(), r1);
+        System.out.println("沒複製：" + r1);
+        List&lt;List&lt;Integer&gt;&gt; r2 = new ArrayList&lt;&gt;();
+        noUndo(nums, 0, new ArrayList&lt;&gt;(), r2);
+        System.out.println("沒撤銷：" + r2);
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>沒複製：[[], [], [], [], [], [], [], []]
+沒撤銷：[[], [1], [1, 2], [1, 2, 3], [1, 2, 3, 3], [1, 2, 3, 3, 2], [1, 2, 3, 3, 2, 3], [1, 2, 3, 3, 2, 3, 3]]</code></pre>
+<figure>
+<svg viewBox="0 0 760 258" role="img" aria-label="左邊：result.add(path) 讓 result 的每一格都指向同一個 path 物件，path 在回溯結束時被撤銷成空的，所以每一格看起來都是 []。右邊：result.add(new ArrayList&lt;&gt;(path)) 讓每一格各自指向當下的複本 []、[1]、[1, 2]、[1, 2, 3]">
+<defs><marker id="rc-m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="24" font-size="13" fill="var(--gold-deep)">result.add(path)：存的是同一個清單</text><text x="88" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">0</text><rect x="60" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="88" cy="76" r="4" fill="currentColor"/><line x1="88" y1="80" x2="169" y2="146" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="152" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">1</text><rect x="124" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="152" cy="76" r="4" fill="currentColor"/><line x1="152" y1="80" x2="183" y2="146" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="216" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">2</text><rect x="188" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="216" cy="76" r="4" fill="currentColor"/><line x1="216" y1="80" x2="197" y2="146" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="280" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">3</text><rect x="252" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="280" cy="76" r="4" fill="currentColor"/><line x1="280" y1="80" x2="211" y2="146" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="330" y="82" font-size="14" class="mono" opacity=".6">…</text><rect x="140" y="150" width="100" height="36" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="190" y="173" font-size="13" text-anchor="middle" class="mono">path</text><text x="190" y="208" font-size="12" text-anchor="middle">回溯結束時已撤銷成 []</text><text x="420" y="24" font-size="13" fill="var(--slate-deep)">result.add(new ArrayList&lt;&gt;(path))：各存一份</text><text x="468" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">0</text><rect x="440" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="468" cy="76" r="4" fill="currentColor"/><line x1="468" y1="80" x2="468" y2="134" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="532" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">1</text><rect x="504" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="532" cy="76" r="4" fill="currentColor"/><line x1="532" y1="80" x2="532" y2="156" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="596" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">2</text><rect x="568" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="596" cy="76" r="4" fill="currentColor"/><line x1="596" y1="80" x2="596" y2="178" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><text x="660" y="50" font-size="12" text-anchor="middle" opacity=".6" class="mono">3</text><rect x="632" y="56" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><circle cx="660" cy="76" r="4" fill="currentColor"/><line x1="660" y1="80" x2="660" y2="200" stroke="currentColor" stroke-opacity=".55" marker-end="url(#rc-m4)"/><rect x="434" y="136" width="68" height="18" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="468" y="149" font-size="11" text-anchor="middle" class="mono">[]</text><rect x="498" y="158" width="68" height="18" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="532" y="171" font-size="11" text-anchor="middle" class="mono">[1]</text><rect x="562" y="180" width="68" height="18" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="596" y="193" font-size="11" text-anchor="middle" class="mono">[1, 2]</text><rect x="626" y="202" width="68" height="18" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="660" y="215" font-size="11" text-anchor="middle" class="mono">[1, 2, 3]</text><text x="40" y="244" font-size="12" opacity=".6">方格是 result 的每一格，上面的數字是索引；黑點出發的箭頭指向那一格存的清單物件</text>
+</svg>
+<figcaption>Java 的清單變數存的是物件的參考值；不複製，就是把同一個物件存了好幾次。</figcaption>
+</figure>
+<p>Java 的清單變數存的是物件的<strong>參考值</strong>（object reference，可以想成物件的取件號碼，見〈物件與類別〉），不是物件本身。<code>result.add(path)</code> 存進去的是「同一個 path 物件」八次；回溯結束時 path 已經被撤銷成空的，八格看起來就都是 <code>[]</code>。<code>new ArrayList&lt;&gt;(path)</code> 用的建構子會「建立一個清單，內含指定集合的元素」（Constructs a list containing the elements of the specified collection），是當下內容的複本，之後 path 再怎麼變都不影響它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
+<h4>沒撤銷選擇</h4>
+<p>少了 <code>path.remove(path.size() - 1)</code>，選過的數永遠留在 path 裡，下一個分支就帶著上一個分支的東西往下走，於是出現 <code>[1, 2, 3, 3]</code> 這種不可能的子集。排列的程式要撤銷兩樣東西（path 和 <code>used</code>），只撤一樣也會錯：忘了把 <code>used[i]</code> 設回 false，用過的數就再也不能出現在別的位置，[1, 2, 3] 的排列只會剩下一組 <code>[1, 2, 3]</code>。<strong>選擇時改了什麼，撤銷時就要原樣改回來。</strong></p>
+<p class="formula">存答案要複製（new ArrayList&lt;&gt;(path)）；選擇時改了幾樣，撤銷時就改回幾樣</p>
+
+<div class="drill">
+  <p class="dq">子集的程式把存答案那行寫成 <code>result.add(path)</code>，對 [1, 2, 3] 執行後印出 <code>result</code>，會看到什麼？</p>
+  <ul class="dopts"><li data-ok>[[], [], [], [], [], [], [], []]</li><li>[[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]</li><li>[[1, 2, 3]]</li><li>[]</li></ul>
+  <p class="dexp">八格存的都是同一個 path 物件，回溯結束時它已經被撤銷成空的，所以印出八個 []。</p>
+</div>
+<div class="drill">
+  <p class="dq">承上題，八格都是空的根本原因是？</p>
+  <ul class="dopts"><li>ArrayList 的 add 會把加進去的清單內容清空</li><li>遞迴太深，資料被垃圾回收清掉了</li><li data-ok>result 存的是同一個 path 的參考值，不是當下內容的複本</li><li>path 的型別宣告錯了</li></ul>
+  <p class="dexp">Java 存的是參考值。要保留當下的內容，就用 new ArrayList&lt;&gt;(path) 複製一份再存。</p>
+</div>
+<div class="drill">
+  <p class="dq">子集的程式少了 <code>path.remove(path.size() - 1)</code>，會出現哪一種結果？</p>
+  <ul class="dopts"><li data-ok>出現 [1, 2, 3, 3] 這種重複又不合理的子集</li><li>只印出空集合，其他子集都不見了</li><li>丟出 StackOverflowError，因為 path 越來越長</li><li>結果正確，只是多花一些時間</li></ul>
+  <p class="dexp">選過的數沒拿掉，下一個分支帶著上一個分支的東西往下加，path 越來越長。迴圈有上限，所以不會無限遞迴。</p>
+</div>
+<div class="drill">
+  <p class="dq">排列的程式撤銷時只做了 <code>path.remove(…)</code>，忘了 <code>used[i] = false</code>。對 [1, 2, 3] 執行，結果是？</p>
+  <ul class="dopts"><li>六組排列，但順序不同</li><li data-ok>只有 [[1, 2, 3]] 一組</li><li>出現 [1, 1, 1] 這種重複</li><li>空的 []</li></ul>
+  <p class="dexp">第一條路把 1、2、3 都標成用過，之後再也沒有數可以挑，其他分支全部走不下去，只留下第一組。</p>
+</div>
+<div class="drill">
+  <p class="dq">費氏數列只寫了 <code>if (n == 1) return 1;</code> 當終止條件，其他照天真寫法。呼叫 <code>fib(2)</code> 會怎樣？</p>
+  <ul class="dopts"><li data-ok>丟出 StackOverflowError</li><li>回傳 1：fib(1) 加上 fib(0)</li><li>回傳 2：fib(1) 加兩次</li><li>回傳 0：fib(0) 沒有終止條件，當成 0</li></ul>
+  <p class="dexp">fib(2) 呼叫 fib(1) 與 fib(0)。fib(0) 不等於 1，繼續呼叫 fib(-1)、fib(-2)……永遠碰不到終止條件。要寫成 n &lt;= 1 時回傳 n。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>fibMemo</code> 寫了 <code>memo.get(n)</code> 去查，但忘了 <code>memo.put(n, ans)</code>。時間複雜度會是？</p>
+  <ul class="dopts"><li>O(n)，因為每次都有先查備忘錄</li><li>O(1)，因為 HashMap 查詢是常數</li><li>O(n log n)</li><li data-ok>O(2ⁿ)，因為備忘錄永遠是空的，等於沒加</li></ul>
+  <p class="dexp">從來沒存，每次查都是 null，所有子問題照樣從頭算。實測 fib(20) 呼叫 21891 次，跟天真寫法一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪個題目最適合用回溯法？</p>
+  <ul class="dopts"><li>找出陣列裡的最大值與最小值</li><li data-ok>列出一組數字所有可能的排列</li><li>檢查一個字串的括號是否配對</li><li>計算兩個整數相加的結果</li></ul>
+  <p class="dexp">要列出「所有」排列、組合、子集、擺法，就是回溯的場合。最大值掃一遍就好；括號配對用堆疊。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，先易後難</p>
+<h3 class="head">動手練</h3>
+<p>以下是 LeetCode 上考這課招式的題目，由易到難排。題目敘述請到題目頁看。</p>
+<div class="tablewrap"><table><thead><tr><th>題號與題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/fibonacci-number/" target="_blank" rel="noopener">509. Fibonacci Number</a></td><td>遞迴兩要素；先寫天真版再加備忘錄</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/subsets/" target="_blank" rel="noopener">78. Subsets</a></td><td>回溯模板：每個節點都是答案，從 start 挑</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/combinations/" target="_blank" rel="noopener">77. Combinations</a></td><td>回溯：path 滿 k 個才存</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/permutations/" target="_blank" rel="noopener">46. Permutations</a></td><td>回溯：從 0 挑加 used，兩樣都要撤銷</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/letter-combinations-of-a-phone-number/" target="_blank" rel="noopener">17. Letter Combinations of a Phone Number</a></td><td>回溯：每一層換一組可選的字</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/combination-sum/" target="_blank" rel="noopener">39. Combination Sum</a></td><td>可重複挑（傳 i）、排序後 break 剪枝</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/generate-parentheses/" target="_blank" rel="noopener">22. Generate Parentheses</a></td><td>剪枝：左括號不超過 n、右括號不超過左括號</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/n-queens/" target="_blank" rel="noopener">51. N-Queens</a></td><td>一列一列放，被吃到就剪掉</td><td>Hard</td></tr>
+</tbody></table></div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>遞迴兩要素：終止條件（不再呼叫自己）與縮小問題（一定要收斂到終止條件）；少了任一個都是 <code>StackOverflowError</code>。</li><li>每次呼叫在 JVM 堆疊上一框、各有自己的區域變數；遞的時候往上疊，迴的時候從頂端拿掉。印在遞迴呼叫前面是由外往內，後面是由內往外。</li><li>時間＝呼叫樹的節點數（分支數的深度次方），空間＝呼叫樹的深度。天真費氏 O(2ⁿ) 時間、O(n) 空間。</li><li>備忘錄把子問題答案存起來，費氏降到 O(n)；這是〈動態規劃入門〉的起點。遞迴太深可以改迴圈或自己開 <code>ArrayDeque</code>。</li><li>回溯模板：選擇 → 遞迴 → 撤銷選擇。子集從 <code>start</code> 挑、每個節點都是答案（2ⁿ 個）；排列從 0 挑加 <code>used</code>、走到底才是答案（n! 個）。</li><li>剪枝：確定走不通就不往下走，答案不變；用 <code>break</code> 要先排序。</li><li>三個常見錯誤：忘記或到不了終止條件、存答案沒用 <code>new ArrayList&lt;&gt;(path)</code> 複製、選擇時改的東西沒有全部撤銷。</li></ul></div>
