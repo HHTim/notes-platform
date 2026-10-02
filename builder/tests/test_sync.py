@@ -16,3 +16,7 @@ class TestSyncJs(unittest.TestCase):
         r = subprocess.run(['node', str(ROOT / 'builder' / 'tests' / 'test_merge.js')],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_course_js_syntax(self):
+        subprocess.run(['node', '--check', str(ROOT / 'builder' / 'templates' / 'course.js')],
+                       check=True)

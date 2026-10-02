@@ -101,6 +101,32 @@ function renderQuiz(slug){
     }
   });
 }
+/* 課中練習：點一個選項就公布對錯與解析，不計分、不記錄 */
+function initDrills(){
+  document.querySelectorAll('.drill').forEach(function(d){
+    var exp=d.querySelector('.dexp');if(exp)exp.hidden=true;
+    var lis=d.querySelectorAll('.dopts li');
+    lis.forEach(function(li){
+      li.setAttribute('role','button');li.setAttribute('tabindex','0');
+      li.insertAdjacentHTML('afterbegin','<span class="dot"></span>');
+      function pick(){
+        if(d.classList.contains('answered'))return;
+        d.classList.add('answered');
+        var ok=li.hasAttribute('data-ok');
+        lis.forEach(function(x){
+          x.setAttribute('aria-disabled','true');x.removeAttribute('tabindex');
+          if(x.hasAttribute('data-ok'))x.classList.add('right');
+        });
+        if(!ok)li.classList.add('wrongpick');
+        if(exp){exp.hidden=false;exp.className='dexp'+(ok?'':' bad');
+          exp.insertAdjacentHTML('afterbegin',ok?'✓ 答對。':'✗ 正確答案是綠色那個。');}
+      }
+      li.addEventListener('click',pick);
+      li.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}});
+    });
+  });
+}
+initDrills();
 /* 路由 */
 var sidebar=document.getElementById('sidebar'),scrim=document.getElementById('scrim');
 document.getElementById('burger').addEventListener('click',function(){

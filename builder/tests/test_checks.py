@@ -94,3 +94,38 @@ class TestOverviewIntro(unittest.TestCase):
         html = builder.intro_html(['開場', ['第一點', '第二點'], '結尾'])
         self.assertEqual(html, '<p>開場</p>\n<ul class="ov-points">\n<li>第一點</li>\n<li>第二點</li>\n</ul>\n<p>結尾</p>\n')
 
+
+
+DRILL_OK = ('<div class="drill"><p class="dq">The order ______ yesterday.</p>'
+            '<ul class="dopts"><li>ship</li><li data-ok>shipped</li><li>shipping</li><li>has shipped</li></ul>'
+            '<p class="dexp">yesterday 是過去的時間點。</p></div>\n')
+
+
+class TestDrills(unittest.TestCase):
+    """課中練習：每題剛好一個正解、要有解析、選項 2〜5 個。寫錯會變成點了沒反應或永遠答錯，建置時抓。"""
+
+    def check(self, html):
+        return builder.drill_errors(html)
+
+    def test_good_drill_passes(self):
+        self.assertEqual(self.check(DRILL_OK), [])
+
+    def test_no_answer_fails(self):
+        errs = self.check(DRILL_OK.replace(' data-ok', ''))
+        self.assertEqual(len(errs), 1)
+        self.assertIn('正解', errs[0])
+
+    def test_two_answers_fail(self):
+        errs = self.check(DRILL_OK.replace('<li>ship</li>', '<li data-ok>ship</li>'))
+        self.assertIn('正解', errs[0])
+
+    def test_missing_explanation_fails(self):
+        errs = self.check(DRILL_OK.replace('<p class="dexp">yesterday 是過去的時間點。</p>', ''))
+        self.assertIn('解析', errs[0])
+
+    def test_build_stops_with_lesson_name(self):
+        bad = LESSON_OK + DRILL_OK.replace(' data-ok', '')
+        content, out = fake_site([('01-one', 'one', bad)])
+        with self.assertRaises(SystemExit) as cm:
+            builder.build(content_dir=content, out_dir=out)
+        self.assertIn('demo/01-one', str(cm.exception))

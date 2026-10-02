@@ -54,6 +54,55 @@ def check_tag_balance(html, where):
         raise SystemExit('建置中止：%s 的標籤沒配對\n  ' % where + '\n  '.join(p.errors))
 
 
+class DrillChecker(HTMLParser):
+    """課中練習 <div class="drill">：選項在 <ul class="dopts"> 的 <li>，正解那個帶 data-ok，
+    解析是 <p class="dexp">。正解不是剛好一個、沒有解析、選項不是 2〜5 個，就記一筆錯誤。"""
+
+    def __init__(self):
+        super().__init__()
+        self.errors = []
+        self.depth = 0       # 進到 drill 之後的 div 層數；0 表示不在 drill 裡
+        self.cur = None
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        classes = (a.get('class') or '').split()
+        if tag == 'div' and self.depth == 0 and 'drill' in classes:
+            self.depth = 1
+            self.cur = {'line': self.getpos()[0], 'opts': 0, 'ok': 0, 'exp': False}
+            return
+        if self.depth == 0:
+            return
+        if tag == 'div':
+            self.depth += 1
+        elif tag == 'li':
+            self.cur['opts'] += 1
+            if 'data-ok' in a:
+                self.cur['ok'] += 1
+        elif tag == 'p' and 'dexp' in classes:
+            self.cur['exp'] = True
+
+    def handle_endtag(self, tag):
+        if self.depth and tag == 'div':
+            self.depth -= 1
+            if self.depth == 0:
+                d = self.cur
+                if d['ok'] != 1:
+                    self.errors.append('第 %d 行的練習題正解有 %d 個，要剛好 1 個（在那個 <li> 加 data-ok）'
+                                       % (d['line'], d['ok']))
+                if not d['exp']:
+                    self.errors.append('第 %d 行的練習題沒有解析（<p class="dexp">）' % d['line'])
+                if not 2 <= d['opts'] <= 5:
+                    self.errors.append('第 %d 行的練習題有 %d 個選項，要 2〜5 個' % (d['line'], d['opts']))
+
+
+def drill_errors(html):
+    p = DrillChecker()
+    p.feed(html)
+    p.close()
+    return p.errors
+
+
 def load_templates(tpl_dir):
     names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html', 'favicon.svg')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
@@ -92,6 +141,10 @@ def load_site(content_dir):
             ldir = mdir / L['dir']
             L['html'] = (ldir / 'lesson.html').read_text(encoding='utf-8')
             check_tag_balance(L['html'], '%s/%s/lesson.html' % (entry['id'], L['dir']))
+            errs = drill_errors(L['html'])
+            if errs:
+                raise SystemExit('建置中止：%s/%s/lesson.html 的課中練習有問題\n  ' % (entry['id'], L['dir'])
+                                 + '\n  '.join(errs))
             L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             L['assets'] = ldir / 'assets'
         mods.append(mod)
