@@ -33,7 +33,7 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | 修正 `9442bb4`；範圍複審中（`review-algo-c`） | |
+| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | 修正 `9442bb4`；範圍複審 ✅ | ✅ 10-02 上線 `b45d58b`（總覽與行為面試複習表同步改成十六課） |
 | `web/09-git-branching` Git 分支與協作 | ✅ `08b2c08`（57 題、6 張圖、30 出處；mins 60） | 審查中（`review-algo-a`，09＋10 一起） | | |
 | `web/10-cicd-pipeline` CI/CD：從 push 到上線 | ✅ `4b74b0e`（60 題、6 張圖、53 出處；mins 80） | 同上 | | |
 
