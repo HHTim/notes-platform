@@ -30,7 +30,7 @@
 | `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | ✅ `e9b6a3e`＋`502d4b7`（49 題、4 圖；Boot 4.1.1／Hibernate 7.4.5 重跑；JOIN FETCH 加分頁在 7.4 改走子查詢） | ✅ 10-02 審完：Jackson 序列化那題其實是無限遞迴、手機撐到 501px、「聚合根」要換；縮到 mins 60 上下；清單 `.superpowers/audit/spring/findings-16.md`；修正交回 `fix-algo-1112` | | | |
 | `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | ✅ `9cae8a9`（49 題、5 圖；Boot 4.1.1 重跑） | ✅ 10-03 審完：無錯誤級；手機撐寬、圖少畫箭頭、仲裁佇列與冪等生產者說法、跟 13 課 AFTER_COMMIT 互相指路；清單 `.superpowers/audit/spring/findings-17.md`；修正交回 `fix-algo-0910` | | | |
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | ✅ `ee2f5c2`（48 題、4 圖；Boot 4.1.1） | 審查中（`review-java-a`） | | | |
-| `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
+| `k8s/22-deploy-strategy-probes` | 部署策略與探針 | ✅ `a654d17`（50 題、2 圖、16 網址；kind v1.36.4 實跑） | 審查中（`review-algo-c`） | | | |
 | `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | ✅ `1ed20d6`（47 題、4 圖、20 網址；Boot 4.1.1、Jaeger OTLP） | 審查中（`review-algo-b`） | | | |
 | `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | ✅ `a435e4f`（49 題、3 圖、25 網址；Boot 4.1.1、Framework 7 內建版本） | 審查中（`review-algo-d`） | | | |
 | `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | ✅ `d57361b`（47 題、3 圖、17 網址；mins 50） | ✅ 10-03 審完：無錯誤級；Thymeleaf／Angular 編碼補出處、「比網銀低」改成有理由的說法、選項長度；清單 `.superpowers/audit/web/findings-13.md`；修正 `579af10`（7 條全改、標頭重跑 10-03）；範圍複審 ✅ | ✅ 10-03 上線 `83c2471` | | | |
@@ -46,6 +46,8 @@
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
+
+**主控提醒（10-03）：** kubeconfig 所有代理共用，kubectl／istioctl 一律加 `--context`，不要切 current-context；Docker 資源吃緊，課寫完就刪自己的 kind 叢集。
 
 **主控提醒：** 主控 commit 只 add 指定檔案（`96cb2ff` 曾用 `git add content/web` 把別人的草稿一起帶進去）。
 
