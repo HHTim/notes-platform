@@ -27,7 +27,7 @@
 | 資料夾 | 課名 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|---|
 | `database/08-cache-redis` | 快取放哪裡、怎麼失效 | ✅ `4979bf7`（49 題、5 圖、30 出處；mins 60） | ✅ 10-02 審完：淘汰實驗兩個數不是同一次執行（加起來超過 3,000）、noeviction 預設找不到那一行；跟面試集〈系統設計：快取一致性與熱點〉大量重疊——主控決定本課留實跑、面試集留答題講法、互相指路、數字統一；清單 `.superpowers/audit/database/findings-08.md`；修正交給 `fix-db08` | | |
-| `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | ✅ `e9b6a3e`（49 題、4 圖；Boot 3.5 實跑）→ 升 Boot 4.1 重跑中 | | | |
+| `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | ✅ `e9b6a3e`＋`502d4b7`（49 題、4 圖；Boot 4.1.1／Hibernate 7.4.5 重跑；JOIN FETCH 加分頁在 7.4 改走子查詢） | 審查中（`review-java-a`） | | | |
 | `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | 撰寫中（`fix-algo-0910` 轉做） | | | |
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | 撰寫中（`fix-int17` 轉做） | | | |
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
@@ -36,6 +36,7 @@
 | `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | 撰寫中（`write-algo-a`） | | | |
 | `web/14-realtime-websocket-sse` | 即時通訊：WebSocket、SSE 與輪詢 | 撰寫中（`write-web-b`） | | | |
 | `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | 撰寫中（`write-algo-d`；先修 Spring 第 9 課手機版撐寬並掃全站） | | | |
+| `java/18-solid-antipatterns` | SOLID 與常見反模式 | 撰寫中（`fix-algo-1112` 轉做） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | 撰寫中（`fix-algo-0708` 轉做） | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
