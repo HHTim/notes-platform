@@ -1,14 +1,14 @@
 {
  "questions": [
   {
-   "q": "為什麼陣列用索引讀第 i 格是 O(1)？",
+   "q": "int[] a 的起點在位址 2000，每格 4 個位元組。照「起點 + i × 每格大小」，a[5] 在哪個位址？",
    "opts": [
-    "每格一樣大、一個接一個，第 i 格的位置可以用起點加 i 乘每格大小直接算出來",
-    "因為陣列的資料一定排好序，可以用二分搜尋",
-    "因為 JVM 會替每個陣列另外建一張雜湊索引表，用索引查表就能直接拿到那一格的值",
-    "因為陣列長度很短，從頭找也很快"
+    "2020",
+    "2005",
+    "2016",
+    "2009"
    ],
-   "exp": "位置直接算出來，不用從頭走，所以不管 i 多大都是固定幾步。"
+   "exp": "2000 + 5 × 4 = 2020。忘了乘每格大小會算成 2005；把索引當成從 1 開始（a[5] 當成第 5 格）會算成 2016；把乘號當加號是 2009。位置直接算出來，所以讀第 i 格是 O(1)。"
   },
   {
    "q": "陣列已有 n 個元素，在第 0 格插入一個新值，時間複雜度是？",
@@ -21,24 +21,24 @@
    "exp": "原本的 n 個都要往右搬一格才能空出第 0 格。"
   },
   {
-   "q": "List&lt;Integer&gt; ids = new ArrayList&lt;&gt;(List.of(5, 30, 10, 20)); ids.remove(1); 之後 ids 是？",
+   "q": "List&lt;Integer&gt; ids = new ArrayList&lt;&gt;(List.of(10, 2, 7, 1)); ids.remove(Integer.valueOf(1)); ids.remove(1); 之後 ids 是？",
    "opts": [
-    "[5, 10, 20]",
-    "[5, 30, 10, 20]",
-    "[30, 10, 20]",
-    "[5, 30, 10]"
+    "[10, 7]",
+    "[10, 2, 7]",
+    "[10, 1]",
+    "[2, 7, 1]"
    ],
-   "exp": "傳 int 呼叫的是 remove(int index)，刪掉索引 1 的 30；要刪值 1 要寫 remove(Integer.valueOf(1))。"
+   "exp": "第一次傳 Integer 物件，呼叫 remove(Object)，刪掉值 1，剩 [10, 2, 7]；第二次傳 int 1，呼叫 remove(int index)，刪掉索引 1 的 2，剩 [10, 7]。"
   },
   {
-   "q": "String s = \"abc\"; s.toUpperCase(); System.out.println(s); 印出什麼？",
+   "q": "String s = \" twd \"; s.trim(); s = s.toUpperCase(); System.out.println(\"[\" + s + \"]\"); 印出什麼？",
    "opts": [
-    "abc",
-    "ABC",
-    "Abc",
-    "編譯錯誤，toUpperCase 的回傳值沒有被使用"
+    "[ TWD ]",
+    "[TWD]",
+    "[ twd ]",
+    "[twd]"
    ],
-   "exp": "String 不可變，toUpperCase 回傳新字串；沒接住，s 還是 abc。"
+   "exp": "String 不可變：trim 回傳去掉前後空白的新字串，但沒接住，s 還是 \" twd \"；toUpperCase 有接住，所以印出 [ TWD ]，空白還在。"
   },
   {
    "q": "在迴圈裡用 s = s + \"x\" 串 n 次，跟改用 StringBuilder.append 串 n 次，時間複雜度各是多少？",
@@ -61,34 +61,34 @@
    "exp": "計數陣列固定 26 格，不會跟著字串變長。字元種類不固定時才改用 HashMap。"
   },
   {
-   "q": "List&lt;String&gt; codes = Arrays.asList(\"USD\", \"JPY\"); 之後呼叫 codes.add(\"EUR\") 會怎樣？",
+   "q": "List&lt;String&gt; list = Arrays.asList(\"USD\", \"JPY\"); 接著 list.set(0, \"EUR\"); 再 list.remove(\"JPY\"); 會怎樣？",
    "opts": [
-    "丟出 UnsupportedOperationException，因為 Arrays.asList 回傳固定大小的清單",
-    "codes 變成 [USD, JPY, EUR]",
-    "編譯錯誤",
-    "什麼都不做也不報錯，codes 維持 USD、JPY 兩個元素，因為 Arrays.asList 回傳的清單長度是固定的"
+    "set 成功，remove 丟出 UnsupportedOperationException",
+    "兩行都成功，list 變成 [EUR]",
+    "set 就丟出 UnsupportedOperationException，remove 不會執行",
+    "兩行都成功，但 list 維持 [USD, JPY]"
    ],
-   "exp": "API 文件寫會改變大小的方法會讓清單維持不變並丟出 UnsupportedOperationException；set 可以，add、remove 不行。"
+   "exp": "Arrays.asList 回傳固定大小的清單：set 不改變大小，可以做，list 變成 [EUR, JPY]；remove 會改變大小，API 文件寫這類方法會讓清單維持不變並丟出 UnsupportedOperationException。"
   },
   {
-   "q": "new String(\"TWD\") == new String(\"TWD\") 與 new String(\"TWD\").equals(new String(\"TWD\")) 各是什麼？",
+   "q": "String a = \"TW\"; String b = a + \"D\"; System.out.println((b == \"TWD\") + \" \" + b.equals(\"TWD\")); 印出什麼？",
    "opts": [
-    "false 與 true",
-    "true 與 true",
-    "true 與 false",
-    "false 與 false"
+    "false true",
+    "true true",
+    "true false",
+    "false false"
    ],
-   "exp": "== 比是不是同一個物件，new 兩次是兩個物件；equals 比內容，一樣所以是 true。"
+   "exp": "a 不是常數，a + \"D\" 是執行時才串接出來的字串，語言規格寫這種字串是新建立的，跟字面值 \"TWD\" 不是同一個物件，== 是 false；內容一樣，equals 是 true。"
   },
   {
-   "q": "int x = Integer.MAX_VALUE; x = x + 1; 之後 x 是？",
+   "q": "int x = Integer.MIN_VALUE; x = x - 1; 之後 x 是？",
    "opts": [
-    "-2147483648",
-    "2147483648",
+    "2147483647",
+    "-2147483649",
     "丟出 ArithmeticException",
-    "2147483647"
+    "-2147483648"
    ],
-   "exp": "Java 的整數運算不會表示溢位，超過上限就繞回最小值；要溢位時丟例外得用 Math.addExact。"
+   "exp": "整數運算不會表示溢位，低於下限就繞回最大值 2,147,483,647；-2147483649 超出 int 範圍，int 裝不下。要溢位時丟例外得用 Math.subtractExact。"
   },
   {
    "q": "對 {0, 7, 0, 3} 用 write 索引原地把 0 移到後面（非 0 保持原順序），結果與額外空間是？",

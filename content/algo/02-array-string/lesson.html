@@ -1,11 +1,11 @@
-<!-- 來源：依 https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html 新寫（另參考 Java SE 25 API 文件 ArrayList、String、StringBuilder、Integer、Math，Java 語言規格 SE 25 第 3.10.5、4.2、4.12.5、10、15.18.1、15.21.3 節，MIT 6.006 2020 春季第 2 講講義與第 1、2 次習題課講義 https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/；程式與練習題全部自編，程式以 Java 21 實際編譯執行） · 收錄日期：2026-10-02 -->
+<!-- 來源：依 https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html 新寫（另參考 Java SE 25 API 文件 ArrayList、String、StringBuilder、Integer、Math，Java 語言規格 SE 25 第 3.10.5、4.2、4.12.5、10、15.18.1、15.21.3 節，Java 虛擬機規格 SE 25 第 2.7 節，OpenJDK jdk-25-ga 的 AbstractStringBuilder.java，MIT 6.006 2020 春季第 2 講講義與第 1、2 次習題課講義 https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/；程式與練習題全部自編，程式以 Java 21 實際編譯執行） · 收錄日期：2026-10-02 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出陣列為什麼能用索引一步找到、插入與刪除為什麼要搬動，並寫出各操作的時間複雜度</li><li>分清 <code>int[]</code> 與 <code>ArrayList</code> 的用法與代價，避開 <code>remove(int)</code> 與 <code>remove(Object)</code> 的陷阱</li><li>說明 <code>String</code> 不可變對效能的影響，用 <code>StringBuilder</code> 與計數陣列處理字串</li><li>寫出反轉、迴文判斷、原地修改、二維陣列走訪，並避開 <code>Arrays.asList</code>、<code>==</code>、整數溢位這幾個常見陷阱</li></ul></div>
 
 <section>
 <p class="era">一排連在一起的格子</p>
 <h3 class="head">陣列在記憶體裡長什麼樣</h3>
 <p>把陣列想成一排編了號的置物櫃（正式名稱是陣列 array）：櫃子一個緊接一個，大小都一樣，從 0 開始編號。要拿 3 號櫃的東西，不用從 0 號一個一個數過去，直接走到 3 號就好。</p>
-<p>MIT 6.006 的習題課講義這樣描述最基本的陣列：「靜態陣列就是在記憶體裡保留的一段連續的字組」（A static array is simply a contiguous sequence of words reserved in memory），所以讀寫第 i 格都是 Θ(1)，原因是「陣列裡每一項的大小都一樣」（because each item in the array has the same size）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 每格一樣大，第 i 格的位置就能直接算出來：起點 + i × 每格大小。下圖用 <code>int</code>（Java 語言規格寫明是 32 位元，也就是 4 個位元組）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2" target="_blank" rel="noopener">出處</a>示意：</p>
+<p>MIT 6.006 的習題課講義這樣描述最基本的陣列：「靜態陣列就是在記憶體裡保留的一段連續的格子」（A static array is simply a contiguous sequence of words reserved in memory；一格講義叫 word：電腦一次處理的固定長度資料），所以讀寫第 i 格都是 O(1)（講義用的符號是 Θ(1)），原因是「陣列裡每一項的大小都一樣」（because each item in the array has the same size）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 每格一樣大，第 i 格的位置就能直接算出來：起點 + i × 每格大小。下圖用 <code>int</code>（Java 語言規格寫明是 32 位元，也就是 4 個位元組）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2" target="_blank" rel="noopener">出處</a>示意：</p>
 <figure>
 <svg viewBox="0 0 760 210" role="img" aria-label="一個長度 5 的 int 陣列：五個格子連在一起，索引從 0 到 4；每格 4 個位元組，假設起點在位址 1000，第 3 格的位址就是 1000 加 3 乘 4 等於 1012，算一次就到">
   <rect x="160" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
@@ -38,12 +38,12 @@
 </svg>
 <figcaption>位址是示意用的數字。重點是「每格一樣大、一個接一個」，所以第幾格的位置算一次就知道，不用一格一格找。</figcaption>
 </figure>
-<p class="muted">Java 語言規格沒有規定 JVM 要把陣列擺成什麼樣子，上面是演算法課用的記憶體模型，用來理解「為什麼索引是 O(1)」。物件陣列（例如 <code>String[]</code>）每一格放的是指向物件的參考，MIT 講義的說法是「把該格的字組當成指向另一塊記憶體的位址」（interpret the machine word at the index as a memory address to a larger piece of memory）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">Java 虛擬機規格寫「Java 虛擬機不規定物件在記憶體裡的內部結構」（The Java Virtual Machine does not mandate any particular internal structure for objects.），<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.7" target="_blank" rel="noopener">出處</a> 上面是演算法課用的記憶體模型，用來理解「為什麼索引是 O(1)」。物件陣列（例如 <code>String[]</code>）每一格放的是指向物件的參考（reference：記著物件放在哪裡，像門牌號碼），MIT 講義的說法是「把那一格的內容當成指向另一塊記憶體的位址」（interpret the machine word at the index as a memory address to a larger piece of memory）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
 <p>Java 陣列的四條規則，都寫在語言規格裡：</p>
 <ul class="plainlist">
 <li><strong>從 0 開始</strong>：「所有陣列都從 0 起算。長度 n 的陣列可以用整數 0 到 n−1 當索引」（All arrays are 0-origin. An array with length n can be indexed by the integers 0 to n-1.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
 <li><strong>超出範圍會丟例外</strong>：索引小於 0 或大於等於長度，「會丟出 <code>ArrayIndexOutOfBoundsException</code>」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
-<li><strong>長度固定</strong>：「陣列物件一旦建立，長度就不會再變」（Once an array object is created, its length never changes.）。要變長只能開一個新陣列。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>長度固定</strong>：「陣列物件一旦建立，長度就不會再變」（Once an array object is created, its length never changes.）。要變長只能開一個新陣列。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.2" target="_blank" rel="noopener">出處</a></li>
 <li><strong>有預設值</strong>：陣列的每一格建立時就有預設值，<code>int</code> 是 0、物件參考是 <code>null</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.12.5" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <pre><code>import java.util.Arrays;
@@ -82,11 +82,6 @@ a[0] = 7;
 System.out.println(a[1]);</code></pre>
   <ul class="dopts"><li>7</li><li data-ok>0</li><li>null</li><li>編譯錯誤，a[1] 還沒給值</li></ul>
   <p class="dexp">int 陣列每一格建立時就有預設值 0，a[1] 沒被寫過，所以是 0。null 是物件參考的預設值，int 不會是 null。</p>
-</div>
-<div class="drill">
-  <p class="dq"><code>int[] a = new int[10];</code> 最後一格的索引是多少？</p>
-  <ul class="dopts"><li>10</li><li>11</li><li data-ok>9</li><li>1</li></ul>
-  <p class="dexp">從 0 開始數，長度 10 的索引是 0 到 9，最後一格是 a.length - 1。</p>
 </div>
 <div class="drill">
   <p class="dq">這段程式會怎樣？</p>
@@ -206,12 +201,12 @@ public class ShiftDemo {
 刪除搬了 4 格：[15, 20, 30, 40, 0, 0]
 插入搬了 0 格：[15, 20, 30, 40, 50, 0]
 size = 5</code></pre>
-<p>插在第 1 格搬了 3 格、刪掉第 0 格搬了 4 格、插在尾端一格都不用搬。MIT 講義的整理：陣列「讀寫第 i 格是 Θ(1)」，但插入與刪除需要「把被修改那格之後的所有項目都移動」（shifting all items after the modified item）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>插在第 1 格搬了 3 格、刪掉第 0 格搬了 4 格、插在尾端一格都不用搬。MIT 講義的整理：陣列讀寫第 i 格是 O(1)（講義寫 Θ(1)），但插入與刪除需要「把被修改那格之後的所有項目都移動」（shifting all items after the modified item）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>操作</th><th>陣列（已有 n 個）</th><th>為什麼</th></tr></thead><tbody>
 <tr><th>讀、寫第 i 格</th><td>O(1)</td><td>位置直接算出來</td></tr>
 <tr><th>在尾端放一個（還有空格）</th><td>O(1)</td><td>不用搬</td></tr>
 <tr><th>刪掉最後一個</th><td>O(1)</td><td>不用搬</td></tr>
-<tr><th>插入或刪除第 i 格</th><td>O(n)</td><td>i 後面的都要搬一格；最壞是 i = 0，n 個全搬</td></tr>
+<tr><th>插入或刪除第 i 格</th><td>O(n)</td><td>i 後面的都要搬一格；最壞是 i = 0，插入時 n 格全搬</td></tr>
 <tr><th>找某個值在哪（沒排序）</th><td>O(n)</td><td>只能從頭一格一格比</td></tr>
 <tr><th>找某個值在哪（已排序）</th><td>O(log n)</td><td>可以用二分搜尋，見〈排序與二分搜尋〉</td></tr>
 </tbody></table></div>
@@ -365,8 +360,8 @@ System.out.println(list);</code></pre>
 </svg>
 <figcaption>a = a + "帳戶" 沒有改到原本的字串，而是做出一個新字串，再讓 a 改指向它。b 還指向舊的「銀行」。</figcaption>
 </figure>
-<p><strong>迴圈裡用 <code>+</code> 相加的代價。</strong>語言規格說字串相加的結果「是一個新建立的 String 物件」，只有整個運算式是編譯期常數時例外（The String object is newly created (§12.5) unless the expression is a constant expression）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.1" target="_blank" rel="noopener">出處</a> 迴圈每一圈都做一個新字串，新字串要放進目前的全部內容，長度 1、2、3……n 加起來約 n²/2 個字元，總共 O(n²)。</p>
-<p><code>StringBuilder</code> 是可以改的字串（a mutable sequence of characters），主要操作是 <code>append</code> 與 <code>insert</code>，<code>append</code>「一律把字元加在尾端」。它有自己的容量，「只要內容長度沒超過容量，就不需要配置新的內部緩衝區；緩衝區不夠時會自動變大」（If the internal buffer overflows, it is automatically made larger.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StringBuilder.html" target="_blank" rel="noopener">出處</a> 跟 <code>ArrayList</code> 同一個道理，連續 append n 個字元整體是 O(n)。<code>StringBuffer</code> 與 <code>StringBuilder</code> 差在哪，在〈Java 基礎快答〉。</p>
+<p><strong>迴圈裡用 <code>+</code> 相加的代價。</strong>語言規格說字串相加的結果「是一個新建立的 String 物件」，只有整個運算式是編譯期常數（整個運算式在編譯時就算得出來）時例外（The String object is newly created (§12.5) unless the expression is a constant expression）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.1" target="_blank" rel="noopener">出處</a> 迴圈每一圈都做一個新字串，新字串要放進目前的全部內容，長度 1、2、3……n 加起來約 n²/2 個字元，總共 O(n²)。</p>
+<p><code>StringBuilder</code> 是可以改的字串（a mutable sequence of characters），主要操作是 <code>append</code> 與 <code>insert</code>，<code>append</code>「一律把字元加在尾端」。它有自己的容量，「只要內容長度沒超過容量，就不需要配置新的內部緩衝區（內部用來放字元的陣列）；緩衝區不夠時會自動變大」（If the internal buffer overflows, it is automatically made larger.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StringBuilder.html" target="_blank" rel="noopener">出處</a> API 文件沒有說它每次變多大；OpenJDK 25 的實作（<code>AbstractStringBuilder</code> 的 <code>newCapacity</code>）是不夠時約變成兩倍再多 2 格。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/lang/AbstractStringBuilder.java#L344" target="_blank" rel="noopener">出處</a> 每次按比例放大，所以跟 <code>ArrayList</code> 同一個道理，連續 append n 個字元整體是 O(n)。<code>StringBuffer</code> 與 <code>StringBuilder</code> 差在哪，在〈Java 基礎快答〉。</p>
 <pre><code>public class StringDemo {
     public static void main(String[] args) {
         String code = "twd";
@@ -444,7 +439,7 @@ for (int i = 0; i &lt; n; i++) {
 }
 String s = sb.toString();</code></pre>
   <ul class="dopts"><li>O(n²)，因為緩衝區不夠時也要擴大</li><li>O(log n)</li><li>O(1)</li><li data-ok>O(n)</li></ul>
-  <p class="dexp">append 加在同一個緩衝區尾端，不夠時才擴大；跟 ArrayList 一樣是攤銷，整體 O(n)。最後 toString 複製一次，也是 O(n)。</p>
+  <p class="dexp">append 加在同一個緩衝區尾端，不夠時才擴大；OpenJDK 的實作每次約變兩倍，所以跟 ArrayList 一樣攤銷下來整體 O(n)。最後 toString 複製一次，也是 O(n)。</p>
 </div>
 <div class="drill">
   <p class="dq">這行印出什麼？</p>
@@ -614,7 +609,7 @@ for (char c : "台北台中台南".toCharArray()) {
   <rect x="256" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
   <text x="284" y="255" font-size="14" text-anchor="middle" class="mono">0</text>
   <text x="284" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
-  <rect x="312" y="230" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <rect x="312" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
   <text x="340" y="255" font-size="14" text-anchor="middle" class="mono">M</text>
   <text x="340" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
   <rect x="368" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
@@ -635,7 +630,7 @@ for (char c : "台北台中台南".toCharArray()) {
   <text x="340" y="210" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">left = right</text>
   <text x="504" y="255" font-size="13" fill="var(--gold-deep)">left 不小於 right：停</text>
 </svg>
-<figcaption>原地反轉：left 從最左、right 從最右開始，交換後各往中間走一步（古銅是這一步要交換的兩格，灰藍底是已經換好的）。left 不再小於 right 就停，5 格只換 2 次。</figcaption>
+<figcaption>原地反轉：left 從最左、right 從最右開始，交換後各往中間走一步（古銅是這一步要交換的兩格，灰藍底是已經換好的；正中間的 M 不用換）。left 不再小於 right 就停，5 格只換 2 次。</figcaption>
 </figure>
 <p><strong>原地修改</strong>（in-place：不另外開一個陣列，直接改原本的陣列）。例如把 0 都移到後面：用一個 <code>write</code> 記錄「下一個非 0 的值要寫到哪一格」，<code>read</code> 從頭掃到尾，遇到非 0 就寫到 <code>write</code> 那格，最後剩下的格子補 0。時間 O(n)、額外空間 O(1)，非 0 的值也保持原本的先後順序。</p>
 <pre><code>import java.util.Arrays;
@@ -691,7 +686,7 @@ public class Techniques {
 <pre><code>MTA
 true false
 [7, 3, 5, 0, 0]</code></pre>
-<p><strong>二維陣列</strong>就是「陣列的陣列」：<code>grid[r]</code> 是第 r 列（一個一維陣列），<code>grid[r][c]</code> 是第 r 列第 c 欄。列數是 <code>grid.length</code>，欄數是 <code>grid[0].length</code>（每列一樣長時）。一列一列走是外層 r、內層 c；要一欄一欄加總，就把兩層對調。往上下左右走一步時，先用位移陣列算出新位置，再檢查有沒有出界。</p>
+<p><strong>二維陣列</strong>就是「陣列的陣列」：<code>grid[r]</code> 是第 r 列（一個一維陣列），<code>grid[r][c]</code> 是第 r 列第 c 欄。列數是 <code>grid.length</code>，欄數是 <code>grid[0].length</code>（每列一樣長時）。一列一列走是外層 r、內層 c；要一欄一欄加總，就把兩層對調。往上下左右走一步時，先用方向陣列 <code>dirs</code>（往上下左右各走一步時，r、c 各要加多少）算出新位置，再檢查有沒有出界。</p>
 <figure>
 <svg viewBox="0 0 760 260" role="img" aria-label="3 列 4 欄的二維陣列 grid：列的索引 r 從 0 到 2 寫在左邊，欄的索引 c 從 0 到 3 寫在上面；grid[1][2] 是第 1 列第 2 欄的 4；一列一列走時，外層迴圈跑 r、內層跑 c">
   <defs><marker id="ar-05-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -728,9 +723,9 @@ true false
   <text x="396" y="165" font-size="14" text-anchor="middle" class="mono">3</text>
   <text x="464" y="125" font-size="13" class="mono" fill="var(--gold-deep)">grid[1][2] = 4</text>
   <text x="464" y="147" font-size="12">先寫列 r、再寫欄 c</text>
-  <line x1="208" y1="94" x2="416" y2="94" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
-  <line x1="208" y1="134" x2="416" y2="134" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
-  <line x1="208" y1="174" x2="416" y2="174" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
+  <line x1="208" y1="94" x2="440" y2="94" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
+  <line x1="208" y1="134" x2="440" y2="134" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
+  <line x1="208" y1="174" x2="440" y2="174" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
   <text x="200" y="210" font-size="12" opacity=".75">灰藍箭頭：一列一列走（外層 r、內層 c），每格剛好看一次，3 × 4 = 12 格</text>
 </svg>
 <figcaption>grid[r][c]：先寫列、再寫欄。古銅格是 grid[1][2]。灰藍箭頭是一列一列走的順序。</figcaption>
@@ -758,7 +753,7 @@ true false
             System.out.print(sum + (c &lt; cols - 1 ? " " : "\n"));
         }
 
-        // 往上下左右走一步：用位移陣列，並先檢查有沒有出界
+        // 往上下左右走一步：用方向陣列 dirs，並先檢查有沒有出界
         int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
         int r = 0, c = 0, inside = 0;
         for (int[] d : dirs) {
@@ -837,9 +832,8 @@ for (int read = 1; read &lt; a.length; read++) {
 <p class="era">內建工具，與它們的陷阱</p>
 <h3 class="head">常用 API 與常見陷阱</h3>
 <p><strong><code>Arrays.sort</code>：基本型別與物件用不同的演算法。</strong>API 文件寫，<code>int[]</code> 這類基本型別陣列的排序法是「Vladimir Yaroslavskiy、Jon Bentley、Joshua Bloch 的雙軸快速排序」（Dual-Pivot Quicksort），提供 O(n log(n)) 的效能；物件陣列則是「穩定、自適應、迭代的合併排序」（a stable, adaptive, iterative mergesort），「改編自 Tim Peters 為 Python 寫的串列排序（TimSort）」，而且「保證穩定：相等的元素不會因為排序而改變順序」（This sort is guaranteed to be stable: equal elements will not be reordered as a result of the sort.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a> 穩定性的用處：交易先照時間排好，再照金額排，同金額的會保持時間順序。排序法本身在〈排序與二分搜尋〉。</p>
-<p><strong><code>Arrays.fill</code></strong> 把整個陣列填成同一個值（Assigns the specified int value to each element of the specified array of ints.），常用來把距離陣列先填 −1 表示「還沒算過」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
 <p><strong><code>Arrays.asList</code> 回傳固定大小的清單。</strong>API 文件：「回傳一個由指定陣列支撐、固定大小的清單。對陣列的修改會反映在清單上，對清單的修改也會反映在陣列上」，而且會改變大小的方法「會讓清單維持不變並丟出 <code>UnsupportedOperationException</code>」（Those methods leave the list unchanged and throw UnsupportedOperationException.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a> 所以 <code>set</code> 可以、<code>add</code>、<code>remove</code> 不行。要能增刪就包一層 <code>new ArrayList&lt;&gt;(Arrays.asList(arr))</code>。另一個坑：<code>Arrays.asList</code> 的參數是物件，傳 <code>int[]</code> 進去時，整個 <code>int[]</code> 被當成「一個元素」，得到長度 1 的清單。</p>
-<p><strong><code>==</code> 比的是不是同一個物件，<code>equals</code> 比內容。</strong>語言規格：兩邊都是參考型別時，<code>==</code>「在兩個運算元都是 null，或都指向同一個物件或陣列時」才是 true，並特別寫到字串：「就算兩個不同的 String 物件內容相同，結果也是 false」（The result is false if the operands are distinct String objects, even if they contain the same sequence of characters）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.21.3" target="_blank" rel="noopener">出處</a> <code>String.equals</code> 則是「引數不是 null，而且是代表相同字元序列的 String 物件」時回傳 true。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 讓人誤會的是，兩個一樣的字面值用 <code>==</code> 比會是 true，因為規格規定「字串字面值永遠指向同一個 String 實例」（a string literal always refers to the same instance of class String）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-3.html#jls-3.10.5" target="_blank" rel="noopener">出處</a> 這是巧合不是保證內容相等的方法，比字串內容一律用 <code>equals</code>。</p>
+<p><strong><code>==</code> 比的是不是同一個物件，<code>equals</code> 比內容。</strong>語言規格：兩邊都是參考型別時，<code>==</code>「在兩個運算元都是 null，或都指向同一個物件或陣列時」才是 true，並特別寫到字串：「就算兩個不同的 String 物件內容相同，結果也是 false」（The result is false if the operands are distinct String objects, even if they contain the same sequence of characters）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.21.3" target="_blank" rel="noopener">出處</a> <code>String.equals</code> 則是「引數不是 null，而且是代表相同字元序列的 String 物件」時回傳 true。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 讓人誤會的是，兩個一樣的字面值（直接寫在程式碼裡、用雙引號括起來的字串）用 <code>==</code> 比會是 true，因為規格規定「字串字面值永遠指向同一個 String 實例」（a string literal always refers to the same instance of class String）。這是字面值共用同一個物件的規則，不是在比內容；執行時才組出來的字串，規格寫「執行時用串接算出來的字串是新建立的，所以彼此不同」（Strings computed by concatenation at run time are newly created and therefore distinct.），從檔案、資料庫讀進來的字串也不會自動共用。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-3.html#jls-3.10.5" target="_blank" rel="noopener">出處</a> 比字串內容一律用 <code>equals</code>。</p>
 <p><strong>整數溢位</strong>（overflow：算出來的數字超過型別裝得下的範圍）。<code>int</code> 的範圍是 −2,147,483,648 到 2,147,483,647，上限就是 <code>Integer.MAX_VALUE</code>（A constant holding the maximum value an int can have, 2³¹−1.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a> 超過時不會報錯，規格寫「整數運算子不會以任何方式表示溢位」（The integer operators do not indicate overflow or underflow in any way.），結果會繞回負數。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a> 三種防法：金額加總用 <code>long</code>；想在溢位時直接失敗就用 <code>Math.addExact</code>，它「在結果超出 int 範圍時丟出例外」（throwing an exception if the result overflows an int）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a>；算兩個索引的中間值時寫 <code>left + (right - left) / 2</code>，不寫 <code>(left + right) / 2</code>。</p>
 <pre><code>import java.util.Arrays;
 import java.util.List;
@@ -854,12 +848,7 @@ public class Pitfalls {
         Arrays.sort(codes);
         System.out.println(Arrays.toString(codes));
 
-        // 2. Arrays.fill：整個陣列填同一個值
-        int[] dist = new int[4];
-        Arrays.fill(dist, -1);
-        System.out.println(Arrays.toString(dist));
-
-        // 3. Arrays.asList：固定大小，改得了值、加不了也刪不了
+        // 2. Arrays.asList：固定大小，改得了值、加不了也刪不了
         String[] arr = {"A", "B", "C"};
         List&lt;String&gt; fixed = Arrays.asList(arr);
         fixed.set(0, "Z");                       // 可以：而且會寫回原陣列
@@ -872,13 +861,13 @@ public class Pitfalls {
         int[] nums = {1, 2, 3};
         System.out.println(Arrays.asList(nums).size());   // 基本型別陣列被當成「一個元素」
 
-        // 4. == 比的是不是同一個物件，equals 比內容
+        // 3. == 比的是不是同一個物件，equals 比內容
         String s1 = new String("TWD");
         String s2 = new String("TWD");
         System.out.println((s1 == s2) + " " + s1.equals(s2));
         System.out.println("TWD" == "TWD");      // 字面值會共用同一個物件
 
-        // 5. 整數溢位：int 超過上限會悄悄繞回負數
+        // 4. 整數溢位：int 超過上限會悄悄繞回負數
         int max = Integer.MAX_VALUE;
         System.out.println(max + " " + (max + 1));
         long total = (long) max + 1;             // 先轉 long 再加
@@ -895,7 +884,6 @@ public class Pitfalls {
 <p>執行結果：</p>
 <pre><code>[50, 50, 300, 1200]
 [EUR, JPY, USD]
-[-1, -1, -1, -1]
 Z
 add 丟出 UnsupportedOperationException
 1
@@ -959,15 +947,6 @@ System.out.println(balance);</code></pre>
   <p class="dq">二分搜尋算中間索引，下面哪個寫法在 <code>left</code>、<code>right</code> 都很大時也不會溢位？</p>
   <ul class="dopts"><li>int mid = (left + right) / 2;</li><li data-ok>int mid = left + (right - left) / 2;</li><li>int mid = (left / 2) * (right / 2);</li><li>int mid = (left + right) * 0.5;</li></ul>
   <p class="dexp">right − left 不會超過 right，加回 left 也不會超過 right，所以不會溢位。(left + right) 本身就可能先超過 int 上限。最後一個寫法乘以 0.5 得到 double，指定給 int 會編譯錯誤。</p>
-</div>
-<div class="drill">
-  <p class="dq">這段程式印出什麼？</p>
-  <pre><code>int[] d = new int[3];
-Arrays.fill(d, 7);
-d[1] = 0;
-System.out.println(Arrays.toString(d));</code></pre>
-  <ul class="dopts"><li>[7, 7, 7]</li><li>[0, 7, 0]</li><li data-ok>[7, 0, 7]</li><li>[0, 0, 0]</li></ul>
-  <p class="dexp">fill 先把三格都填 7，再把索引 1 改成 0，得到 [7, 0, 7]。</p>
 </div>
 </section>
 
