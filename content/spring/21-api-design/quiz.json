@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "Spring Framework 7 的 API 版本功能設成「版本放標頭 API-Version」，控制器只宣告了 version = \"1\" 與 \"2\"。請求帶 API-Version: 3 會怎樣？",
+   "opts": [
+    "400，版本不受支援",
+    "退回最新的第 2 版，回 200",
+    "退回預設的第 1 版，回 200",
+    "找不到這個路徑，回 404"
+   ],
+   "exp": "版本不受支援時丟 InvalidApiVersionException、回 400；受支援的版本預設從控制器宣告的 version 收集。本課實跑的 detail 是 Invalid API version: '3.0.0'。"
+  },
+  {
+   "q": "要淘汰第 1 版 API，想先告訴用戶端「這版已棄用，預計 2027-04-01 停止回應」。該在回應加哪兩個標頭？",
+   "opts": [
+    "Deprecation 與 Sunset",
+    "Retry-After 與 Expires",
+    "Cache-Control 與 Age",
+    "Warning 與 Location"
+   ],
+   "exp": "RFC 9745 的 Deprecation 帶棄用日期，RFC 8594 的 Sunset 帶預計停止回應的時間；Spring 的 StandardApiVersionDeprecationHandler 會送這兩個，再加 Link 指向遷移說明。"
+  },
+  {
+   "q": "交易明細依 id 由新到舊、用偏移分頁。使用者讀完第 0 頁後進來一筆新交易，再讀第 1 頁，會看到什麼？",
+   "opts": [
+    "第 0 頁的最後一筆又出現一次",
+    "少了一筆，有一筆被漏掉",
+    "完全正常，不受影響",
+    "新交易出現在第 1 頁的第一筆"
+   ],
+   "exp": "新資料插在最前面，所有列往後推一格，「跳過 5 筆」少跳了一筆，第 0 頁最後那筆（實跑是 id 46）又出現。刪除則會漏掉一筆。"
+  },
+  {
+   "q": "100 萬筆的交易表上，LIMIT 20 OFFSET 900000 比 WHERE id < 100001 ORDER BY id DESC LIMIT 20 慢很多，主要原因是？",
+   "opts": [
+    "前者要先讀過 90 萬列再丟掉",
+    "前者沒用到索引，只能整張表掃描",
+    "後者的結果被資料庫快取起來了",
+    "後者回傳的資料欄位比較少"
+   ],
+   "exp": "實測偏移那條沿著索引讀了 900,020 列、約 497 毫秒；鍵集那條靠索引直接定位，只讀 20 列、約 0.05 毫秒。兩者都有用索引，都只回 20 列。"
+  },
+  {
+   "q": "鍵集分頁依 created_at 由新到舊排序，但同一秒內常有好幾筆。怎麼避免翻頁時跳過或重複？",
+   "opts": [
+    "排序與游標都再加上唯一的 id",
+    "把每頁筆數調大，讓同一秒落在同一頁",
+    "改回偏移分頁",
+    "把 created_at 的精確度改成到分鐘"
+   ],
+   "exp": "排序值有重複時，「排在這筆之後」不明確。排序改成 (created_at, id)，游標也記這兩個值，每一列的位置就唯一了。"
+  },
+  {
+   "q": "依 IETF 的 Idempotency-Key 草案，同一個冪等鍵第二次送來，但請求內容不同（轉帳金額變了），伺服器應該怎麼回？",
+   "opts": [
+    "422 Unprocessable Content",
+    "用新金額再處理一次，回 201",
+    "回第一次的結果，回 201",
+    "409，請用戶端稍後再試"
+   ],
+   "exp": "草案：同一個鍵配不同內容 SHOULD 回 422（Unprocessable Content）。409 是第一次還在處理時就收到重試；內容相同的重送才回第一次的結果。這份草案目前已過期，不是 RFC。"
+  },
+  {
+   "q": "本課範例把冪等鍵存在 ConcurrentHashMap，再用 synchronized 排隊。部署成多台伺服器時，該怎麼改？",
+   "opts": [
+    "存資料庫，冪等鍵加唯一索引",
+    "把 synchronized 改成 static synchronized",
+    "把 ConcurrentHashMap 換成 HashMap",
+    "請用戶端改用 PUT"
+   ],
+   "exp": "記憶體與 synchronized 都只管得到同一台，重送打到別台就認不出。存資料庫、冪等鍵加唯一索引，讓資料庫替所有伺服器擋住第二筆。"
+  },
+  {
+   "q": "用戶端要從 ProblemDetail 取出「目前餘額」來顯示。依 RFC 9457 的建議，伺服器該怎麼給？",
+   "opts": [
+    "放在擴充欄位，例如 balance",
+    "寫在 detail 字串裡，讓用戶端去切",
+    "寫在 title 裡",
+    "放在 instance 的網址參數"
+   ],
+   "exp": "RFC 9457：用戶端 SHOULD NOT 解析 detail 取資訊，擴充欄位比較不容易出錯；不認識擴充欄位的用戶端必須忽略它們。Spring 用 ProblemDetail.setProperty 放進去，會攤平成最外層欄位。"
+  },
+  {
+   "q": "Spring Boot 4.1（Framework 7.0）回的 ProblemDetail 沒有 type 欄位，用戶端該怎麼解讀？",
+   "opts": [
+    "當作 about:blank",
+    "當作格式錯誤，整個丟棄",
+    "當作請求其實成功了",
+    "要等伺服器補上 type 才能處理"
+   ],
+   "exp": "RFC 9457：沒有 type 時當作 about:blank，意思是只看 HTTP 狀態碼。Framework 7 的 ProblemDetail 預設不設 type；6.2 則預設寫出 about:blank，兩者意思相同。"
+  },
+  {
+   "q": "springdoc 從程式碼產生 OpenAPI 文件，轉帳方法回 ResponseEntity、實際狀態碼是 201。沒加任何註解時，本課實跑的文件寫什麼？",
+   "opts": [
+    "寫成 200，要用註解補",
+    "會正確寫出實際的 201",
+    "同時列出 200 與 201 兩種",
+    "完全不列出任何回應"
+   ],
+   "exp": "springdoc 看不出 ResponseEntity 實際用的狀態碼，文件寫成 200。要用 swagger 的 @ApiResponse(responseCode = \"201\") 寫清楚，錯誤回應也要用 @Content 指定 application/problem+json。"
+  }
+ ]
+}
