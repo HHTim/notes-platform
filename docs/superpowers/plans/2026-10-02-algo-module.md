@@ -18,8 +18,8 @@
 | `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | ✅ 10-02 上線 |
 | `07-sorting-binary-search` | ✅ `628dd36`（61 題、8 張圖、36 出處；mins 75） | ✅ 10-02 審完：無錯誤級，133 題正解都唯一；額外空間講法跟〈複雜度〉打架、int[] 不走計數排序、選項長度洩題嚴重（08 測驗 9／10 題正解最長）；07 砍到 55 題以下；清單 `.superpowers/audit/algo/findings-07-08.md`；修正交給 `fix-algo-0708` | | |
 | `08-two-pointers-window` | ✅ `d5a4101`（51 題、6 張圖、7 出處；mins 50） | 同上 | | |
-| `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
-| `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
+| `09-tree-bst` | ✅ `36da06c`（55 題、8 張圖、18 出處；mins 58） | ✅ 10-02 審完（`review-algo-b`，09＋10）：可上線；樹高出處連到看不到的 HTML 註解、樹化前提、LCA 漏情況、⌊lg n⌋、ClassCastException 時機；清單 `.superpowers/audit/algo/findings-09-10.md`；修正交給 `fix-algo-0910` | | |
+| `10-heap` | ✅ `ce44514`（51 題、4 張圖、21 出處；mins 55） | 同上 | | |
 | `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | ✅ 10-02 審完：程式全對、130 題正解都唯一；DP 找零圖 min 數字算錯（三處）、費氏圖說明錯；路徑減半被寫成指向根；「聯集—找出」改 union-find；清單 `.superpowers/audit/algo/findings-11-12.md`；修正交給 `fix-algo-1112` | | |
 | `12-dynamic-programming` | ✅ `1a1db96`（56 題、5 張圖、15 出處；mins 60） | 同上 | | |
 | `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | ✅ 10-02 審完：無錯誤級；必修 LinkedHashMap 方向講反、「排序後重疊區間一定相鄰」不成立；33 題沒有對應的課；用詞統一；清單 `.superpowers/audit/algo/findings-13.md`；修正交給 `fix-algo-13` | ✅ `17d39c6`（11 條全改；主控抽查通過，未另派複審） | ✅ 10-02 上線 |
@@ -73,3 +73,7 @@ SVG 一律 `role="img"` 加中文 `aria-label`；`id` 用課的前綴（`cx-`、
 
 - 動手練難度欄全模組用 Easy／Medium／Hard；表頭用「題號＋題名」。主控在全部上線前統一一次。
 - 多個代理同時 commit：一律不用 amend／reset／rebase（`write-algo-c` 曾誤 amend 到別人的 commit，已還原）。
+
+## 用量上限紀錄
+
+- 10-02 18:49 全部代理撞到用量上限（18:50 重置），18:51 逐一叫回接著做；fix-algo-0708 當時有改到一半未提交的修改，叫它接著做完。
