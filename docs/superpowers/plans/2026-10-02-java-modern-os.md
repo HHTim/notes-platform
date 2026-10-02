@@ -28,3 +28,13 @@
 | `java/14-modern-syntax` | 撰寫中（`write-java-a` 第二輪） | | | |
 | `java/15-os-process-io` | 撰寫中（`write-java-a` 第二輪） | | | |
 | `interview/17-java-modern-qa` | | | | |
+
+## 同一輪加做（10-02 主控照缺口分析排）
+
+| 課 | 寫課 | 審查 | 修正與複審 | 上線 |
+|---|---|---|---|---|
+| `interview/17-java-modern-qa` 見上表 | 撰寫中（`write-algo-b` 轉做） | | | |
+| `web/09-git-branching` Git 分支與協作 | 撰寫中（`write-algo-c` 轉做） | | | |
+| `web/10-cicd-pipeline` CI/CD：從 push 到上線 | 撰寫中（`write-algo-d` 轉做） | | | |
+
+Git 與 CI/CD 兩課放網頁模組，分組「開發流程」（跟〈軟體開發生命週期〉同組）；出處以 Pro Git（git-scm.com/book）與 GitHub Docs 為主；CI/CD 以本站自己的 `.github/workflows/deploy.yml` 當範例。
