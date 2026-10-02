@@ -157,7 +157,7 @@ keysWithPrefix(c) [car, card, care, cat]
 <p class="era">快在哪、貴在哪</p>
 <h3 class="head">複雜度，以及孩子用陣列還是 HashMap</h3>
 <p>插入、搜尋、前綴查詢都是「照著字串一個字母走一步」，跟 Trie 裡放了多少個字<strong>無關</strong>，只跟字串長度 L 有關。algs4 的 <code>TrieST</code> 文件寫：「put、contains、delete 與最長前綴操作所花的時間與鍵的長度成正比（最壞情況）」（The put, contains, delete, and longest prefix operations take time proportional to the length of the key (in the worst case).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/TrieST.java.html" target="_blank" rel="noopener">出處</a> 搜尋失敗通常更快，投影片：「可能第一個字元就對不上……一般情況只看幾個字元」（Could have mismatch on first character. Typical case: examine only a few characters (sublinear).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> <code>keysWithPrefix</code> 還要加上收集底下所有字的時間。</p>
-<p>代價在空間。實跑最後一行：10 個節點、每個節點 26 格，共 260 格，真的用到的只有 9 格，其他都是 null。投影片的結論是「搜尋成功很快、搜尋失敗更快，但浪費空間」（Fast search hit and even faster search miss, but wastes space.），空間是「每個節點 R + 1 個參考」（R 是字母表大小，表上寫 (R+1) N），並且「R 很大時記憶體太多」（Too much memory for large R.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 字元不只 26 個英文字母時（中文、大小寫加數字），常見的做法是把孩子改成 <code>HashMap</code>：</p>
+<p>代價在空間。實跑最後一行：10 個節點、每個節點 26 格，共 260 格，真的用到的只有 9 格，其他都是 null。投影片的結論是「搜尋成功很快、搜尋失敗更快，但浪費空間」（Fast search hit and even faster search miss, but wastes space.），空間是每個節點一個值加 R 個參考（A value, plus references to R nodes.；R 是字母表大小，成本表上寫 (R+1) N），並且「R 很大時記憶體太多」（Too much memory for large R.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 字元不只 26 個英文字母時（中文、大小寫加數字），常見的做法是把孩子改成 <code>HashMap</code>：</p>
 <pre><code>import java.util.HashMap;
 import java.util.Map;
 
@@ -462,7 +462,7 @@ public class Subsets {
 101 [A, C]
 110 [B, C]
 111 [A, B, C]</code></pre>
-<p>這種寫法只適合 n 很小（<code>int</code> 最多 31 個元素，而且 2ⁿ 本身就長得很快）。它也常用在〈動態規劃入門〉的進階題，把「哪些已經選過」壓成一個整數當狀態。</p>
+<p>這種寫法只適合 n 很小（照這段迴圈的寫法 <code>int</code> 最多 30 個元素：n 到 31 時 <code>1 &lt;&lt; 31</code> 變成負數，迴圈就不跑了；而且 2ⁿ 本身就長得很快）。動態規劃的進階題也常用它，把「哪些已經選過」壓成一個整數當狀態。</p>
 
 <div class="drill">
   <p class="dq"><code>{7, 3, 5, 3, 7}</code> 全部 XOR 起來是多少？</p>
@@ -705,7 +705,7 @@ gcd(24, 0)
 gcdLoop(102, 68) = 34
 lcm(4, 6) = 12，lcm(21, 6) = 42</code></pre>
 <p>前五行就是遞迴每一層的參數，跟普林斯頓書上 gcd(1440, 408) 的追蹤一樣。第二個數每一輪都嚴格變小，很快就到 0。最小公倍數用 <code>a / gcd * b</code>：先除再乘，比 <code>a * b / gcd</code> 不容易在中間溢位。</p>
-<p><strong>質數篩</strong>（埃拉托斯特尼篩法，Sieve of Eratosthenes）一次找出 n 以內所有質數：先假設 2 到 n 全是質數，從 2 開始，把每個質數的倍數劃掉。普林斯頓的 <code>PrimeSieve</code> 用這個方法算出「100 以內有 25 個質數」「1,000,000 以內有 78,498 個」。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/14array/PrimeSieve.java.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>質數篩</strong>（埃拉托斯特尼篩法，Sieve of Eratosthenes）一次找出 n 以內所有質數：先假設 2 到 n 全是質數，從 2 開始，把每個質數的倍數劃掉。普林斯頓的 <code>PrimeSieve</code> 範例算出 100 以內有 25 個質數、一億以內有 5,761,455 個。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/14array/PrimeSieve.java.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>public class Sieve {
     // 埃拉托斯特尼篩法：先假設全是質數，再把每個質數的倍數劃掉
     static boolean[] sieve(int n) {
