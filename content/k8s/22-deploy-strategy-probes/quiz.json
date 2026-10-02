@@ -38,17 +38,17 @@
     "K8s 會自動等到程式第一次回應才開始探",
     "存活探針沒有預設值，所以完全不會探"
    ],
-   "exp": "大約 30 秒就累積 3 次失敗、被重啟，下一輪又一樣。本課實跑 160 秒內重啟 4 次；加上啟動探針（24 次 × 5 秒）之後 0 次。"
+   "exp": "預設每 10 秒探一次、第一次在啟動後馬上做，連續 3 次失敗大約二三十秒就會被重啟，下一輪又一樣，永遠等不到第 40 秒。加一個檢查同一端點、failureThreshold 調高的啟動探針就解了。"
   },
   {
    "q": "就緒探針一直失敗，Kubernetes 會怎麼處理這個 Pod？",
    "opts": [
-    "把它從 Service 的端點拿掉，不會重啟",
+    "Service 不再送流量給它，不會重啟",
     "重啟容器，跟存活探針失敗一樣",
     "直接刪掉 Pod，讓 Deployment 補一個新的",
     "把它移到別的節點重新排程"
    ],
-   "exp": "就緒只管「要不要送流量給它」。本課實跑呼叫 /drain 後 Pod 變 0/1、重啟次數 0，EndpointSlice 裡它的 ready 變 false。"
+   "exp": "就緒只管「要不要送流量給它」。文件說會把 Pod 的 IP 從 EndpointSlice 移除；本課實跑呼叫 /drain 後 Pod 變 0/1、重啟次數 0，它還留在 EndpointSlice 裡，只是 ready 變 false。"
   },
   {
    "q": "Spring Boot 程式在 ApplicationRunner 裡做暖機。依官方文件，暖機跑完之前 /actuator/health/readiness 回什麼？",
@@ -88,7 +88,7 @@
     "384 MiB，limit 的 75%",
     "跟節點的實體記憶體一樣大"
    ],
-   "exp": "JVM 預設會讀容器的 limit，MaxRAMPercentage 預設 25%。本課實跑 512Mi 時 maxMemory 約 123 MB。要注意小堆另有 50% 的規則：256Mi 時是 126 MiB。"
+   "exp": "JVM 預設會讀容器的 limit，MaxRAMPercentage 預設 25%，實跑 MaxHeapSize 是 128 MiB。程式裡 Runtime.maxMemory() 印出約 123 MB，少的那幾 MB 是它不算其中一塊 Survivor 區。要注意小堆另有 50% 的規則：256Mi 時是 126 MiB。"
   },
   {
    "q": "PDB 設 minAvailable 3，Deployment 有 4 個副本、全部健康。kubectl drain 一個節點，上面剛好有 2 個這組 Pod，會發生什麼？",
