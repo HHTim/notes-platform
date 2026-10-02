@@ -7,11 +7,11 @@
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
 | 課中練習功能 | ✅ 10-02（`DrillChecker`、`initDrills()`、樣式；34 項測試通過） | — | — | 隨第一批一起推 |
-| `03-grammar-sentence` 詞性與句子骨架 | | | | |
-| `06-tense-simple` 時間軸怎麼看＋簡單式三態 | | | | |
-| `07-tense-progressive` 進行式三態 | | | | |
-| `08-tense-perfect` 完成式三態 | | | | |
-| `09-tense-future-review` 完成進行式、未來與時態總整理 | | | | |
+| `03-grammar-sentence` 詞性與句子骨架 | 撰寫中（10-02 起，Opus `write-en-sentence`） | | | |
+| `06-tense-simple` 時間軸怎麼看＋簡單式三態 | 撰寫中（10-02 起，Opus `write-en-tense1`） | | | |
+| `07-tense-progressive` 進行式三態 | 撰寫中（10-02 起，Opus `write-en-tense1`） | | | |
+| `08-tense-perfect` 完成式三態 | 撰寫中（10-02 起，Opus `write-en-tense2`） | | | |
+| `09-tense-future-review` 完成進行式、未來與時態總整理 | 撰寫中（10-02 起，Opus `write-en-tense2`） | | | |
 
 ## 時間軸圖的共同畫法（四課時態必須一致）
 
