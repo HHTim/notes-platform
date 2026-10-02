@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "股價看板要讓伺服器每秒推最新報價，使用者不需要往回送資料。最合適的做法是？",
+   "opts": [
+    "SSE",
+    "每 0.2 秒短輪詢一次",
+    "WebSocket 搭配自己設計的訊息格式與重連機制",
+    "長輪詢，每筆報價都重新發一個請求"
+   ],
+   "exp": "單向、頻繁的推播是 SSE 的場景：一個請求收很多筆，瀏覽器還會自動重連。WebSocket 也做得到，但雙向能力用不到，又要自己處理重連。"
+  },
+  {
+   "q": "長輪詢和短輪詢最大的差別是？",
+   "opts": [
+    "沒有新資料時，伺服器先不回",
+    "長輪詢改用 WebSocket 連線，短輪詢才用 HTTP",
+    "長輪詢一次會同時送出很多個請求",
+    "短輪詢的伺服器會主動把資料推給用戶端"
+   ],
+   "exp": "RFC 6202：長輪詢的伺服器只在事件、狀態或逾時發生時才回應；短輪詢沒有資料就回空的，用戶端過一陣子再問。兩者都是普通 HTTP。"
+  },
+  {
+   "q": "WebSocket 握手成功時，伺服器回的狀態碼與關鍵標頭是？",
+   "opts": [
+    "101，加上 Sec-WebSocket-Accept",
+    "200，加上 Content-Type: websocket",
+    "201，加上 Location",
+    "302，轉到 ws:// 網址"
+   ],
+   "exp": "伺服器同意升級回 101 Switching Protocols，並帶 Upgrade: websocket 與 Sec-WebSocket-Accept。用戶端收到不是 101 就沒有建立 WebSocket。"
+  },
+  {
+   "q": "Sec-WebSocket-Accept 是怎麼算出來的？",
+   "opts": [
+    "Key 接上固定 GUID，SHA-1 後 Base64",
+    "伺服器用自己的私鑰對 Sec-WebSocket-Key 簽章",
+    "把 Sec-WebSocket-Key 原樣送回",
+    "伺服器每次隨機產生一個新的值"
+   ],
+   "exp": "RFC 6455 第 1.3 節：Key 接上 258EAFA5-E914-47DA-95CA-C5AB0DC85B11，SHA-1 後 Base64。用途是證明伺服器懂 WebSocket，不是加密或驗證身分。"
+  },
+  {
+   "q": "WebSocket 訊框的遮罩規則是？",
+   "opts": [
+    "用戶端送的必須遮罩",
+    "兩邊送的訊框都必須遮罩",
+    "兩邊都不用遮罩，有 TLS 就夠了",
+    "伺服器送的必須遮罩，用戶端送的不用"
+   ],
+   "exp": "RFC 6455：a client MUST mask all frames that it sends to the server；A server MUST NOT mask any frames that it sends to the client。遮罩是為了保護中間的代理，不是為了保密。"
+  },
+  {
+   "q": "SSE 連線斷掉後，瀏覽器的 EventSource 會怎麼做？",
+   "opts": [
+    "等 retry 的時間後自動重連，帶 Last-Event-ID",
+    "不會重連，要程式自己重新建立",
+    "立刻重連，從第一筆開始重新收",
+    "改用 WebSocket 重新連線"
+   ],
+   "exp": "WHATWG：連線關閉時用戶端會重連，重連請求用 Last-Event-ID 回報最後的事件編號。實測 retry:3000 就是斷線 3 秒後重連，伺服器日誌看到 Last-Event-ID = 3。"
+  },
+  {
+   "q": "伺服器想讓所有 EventSource 停止重連，該怎麼做？",
+   "opts": [
+    "重連的請求回 204",
+    "送 retry:0",
+    "回 101",
+    "送一個 Close 訊框"
+   ],
+   "exp": "WHATWG：a client can be told to stop reconnecting using the HTTP 204 No Content response code。retry:0 只會讓它更快重連；Close 訊框是 WebSocket 的。"
+  },
+  {
+   "q": "Spring STOMP 設定了 /app 為應用程式前綴、/topic 為簡易代理。用戶端 SUBSCRIBE /topic/notifications 之後，什麼時候會收到訊息？",
+   "opts": [
+    "有人把訊息送到 /topic/notifications 時",
+    "每次有任何用戶端連上 /stomp 端點時",
+    "只有它自己 SEND 到 /app/transfer 的時候",
+    "每 30 秒由代理自動推一次"
+   ],
+   "exp": "/topic 開頭的目的地由訊息代理管理，訊息代理把送到那裡的訊息廣播給所有訂閱者，例如 @SendTo(\"/topic/notifications\") 的方法回傳值。"
+  },
+  {
+   "q": "Nginx 只寫了 proxy_pass，WebSocket 握手就失敗。最主要的原因是？",
+   "opts": [
+    "Upgrade、Connection 不會自動轉給後端",
+    "Nginx 不支援 WebSocket，要換成別的代理伺服器",
+    "後端的 Sec-WebSocket-Accept 算錯",
+    "缺少 Cache-Control 標頭"
+   ],
+   "exp": "nginx.org：Upgrade 是逐跳標頭，不會從用戶端傳給被代理的伺服器，要用 proxy_set_header Upgrade $http_upgrade 與 Connection \"upgrade\" 明確補上。"
+  },
+  {
+   "q": "網站還在用 HTTP/1.1，使用者開了很多分頁，每頁一條 SSE 連到同一個網域。可能遇到什麼限制？",
+   "opts": [
+    "同一網域只能開 6 條",
+    "伺服器同時只能送一筆事件給一個分頁",
+    "SSE 只能開在一個分頁",
+    "沒有任何限制，HTTP/1.1 下也一樣"
+   ],
+   "exp": "MDN：沒有 HTTP/2 時，SSE 受每個瀏覽器、每個網域 6 條的連線上限限制。走 HTTP/2 時，多條 SSE 只是同一條連線上的多個串流。"
+  }
+ ]
+}
