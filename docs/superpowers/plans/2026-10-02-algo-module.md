@@ -20,7 +20,7 @@
 | `08-two-pointers-window` | ✅ `d5a4101`（51 題、6 張圖、7 出處；mins 50） | 同上 | | |
 | `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
-| `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | 審查中（`review-algo-d`，11＋12） | | |
+| `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | ✅ 10-02 審完：程式全對、130 題正解都唯一；DP 找零圖 min 數字算錯（三處）、費氏圖說明錯；路徑減半被寫成指向根；「聯集—找出」改 union-find；清單 `.superpowers/audit/algo/findings-11-12.md`；修正交給 `fix-algo-1112` | | |
 | `12-dynamic-programming` | ✅ `1a1db96`（56 題、5 張圖、15 出處；mins 60） | 同上 | | |
 | `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | ✅ 10-02 審完：無錯誤級；必修 LinkedHashMap 方向講反、「排序後重疊區間一定相鄰」不成立；33 題沒有對應的課；用詞統一；清單 `.superpowers/audit/algo/findings-13.md`；修正交給 `fix-algo-13` | ✅ `17d39c6`（11 條全改；主控抽查通過，未另派複審） | ✅ 10-02 上線 |
 
