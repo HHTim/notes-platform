@@ -28,8 +28,8 @@
 |---|---|---|---|---|---|
 | `database/08-cache-redis` | 快取放哪裡、怎麼失效 | ✅ `4979bf7`（49 題、5 圖、30 出處；mins 60） | ✅ 10-02 審完（修正 `15aa4d4`，範圍複審 ✅；10-02 上線 `4c7cb66`）：淘汰實驗兩個數不是同一次執行（加起來超過 3,000）、noeviction 預設找不到那一行；跟面試集〈系統設計：快取一致性與熱點〉大量重疊——主控決定本課留實跑、面試集留答題講法、互相指路、數字統一；清單 `.superpowers/audit/database/findings-08.md`；修正交給 `fix-db08` | | |
 | `spring/16-jpa-performance` | JPA 效能：N+1、延遲載入與批次 | ✅ `e9b6a3e`＋`502d4b7`（49 題、4 圖；Boot 4.1.1／Hibernate 7.4.5 重跑；JOIN FETCH 加分頁在 7.4 改走子查詢） | ✅ 10-02 審完：Jackson 序列化那題其實是無限遞迴、手機撐到 501px、「聚合根」要換；縮到 mins 60 上下；清單 `.superpowers/audit/spring/findings-16.md`；修正交回 `fix-algo-1112` | | | |
-| `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | ✅ `9cae8a9`（49 題、5 圖；Boot 4.1.1 重跑） | 審查中（`review-algo-d`） | | | |
-| `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | 撰寫中（`fix-int17` 轉做） | | | |
+| `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | ✅ `9cae8a9`（49 題、5 圖；Boot 4.1.1 重跑） | ✅ 10-03 審完：無錯誤級；手機撐寬、圖少畫箭頭、仲裁佇列與冪等生產者說法、跟 13 課 AFTER_COMMIT 互相指路；清單 `.superpowers/audit/spring/findings-17.md`；修正交回 `fix-algo-0910` | | | |
+| `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | ✅ `ee2f5c2`（48 題、4 圖；Boot 4.1.1） | 審查中（`review-java-a`） | | | |
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
 | `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | 撰寫中（`write-algo-c`） | | | |
 | `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | 撰寫中（`write-algo-b`） | | | |
@@ -39,7 +39,9 @@
 | `java/18-solid-antipatterns` | SOLID 與常見反模式 | 撰寫中（`fix-algo-1112` 轉做） | | | |
 | `cloud/16-aws-lb-autoscaling-messaging` | 負載平衡、自動擴展與訊息服務 | 撰寫中（`fix-algo-0910`） | | | |
 | `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | 撰寫中（`fix-db08` 轉做） | | | |
-| `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | 撰寫中（`fix-algo-0708` 轉做） | | | |
+| `database/09-sql-advanced` | SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式 | 撰寫中（`fix-int17`） | | | |
+| `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
+| `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | 審查中（`review-algo-b`） | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
 
