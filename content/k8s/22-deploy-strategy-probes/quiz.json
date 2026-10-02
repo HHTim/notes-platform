@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "Deployment 有 4 個副本，maxSurge 和 maxUnavailable 都用預設的 25%。滾動更新時，最多同時有幾個 Pod、至少要有幾個可用？",
+   "opts": [
+    "最多 5 個，至少 3 個可用",
+    "最多 4 個，至少 4 個可用",
+    "最多 6 個，至少 2 個可用",
+    "最多 5 個，至少 4 個可用"
+   ],
+   "exp": "25% × 4 = 1。maxSurge 無條件進位、maxUnavailable 無條件捨去，剛好都是 1：4＋1＝5、4−1＝3。"
+  },
+  {
+   "q": "新版映像檔名打錯，新 Pod 卡在 ImagePullBackOff。在 maxUnavailable 為 0 的設定下，舊版的 Pod 會怎樣？",
+   "opts": [
+    "照常服務，舊的 ReplicaSet 不會縮",
+    "全部被刪掉，服務中斷到映像檔名修好、重新部署為止",
+    "會被自動換成上一版，不需要任何操作",
+    "跟著一起重啟，直到新版拉得到映像檔"
+   ],
+   "exp": "新 Pod 一直沒有就緒，控制器就不會縮舊的。本課實跑時 4 個舊 Pod 一直在回應；要退回得自己下 kubectl rollout undo，K8s 不會自動退版。"
+  },
+  {
+   "q": "kubectl rollout undo 退回第 2 版之後，kubectl rollout history 會看到什麼？",
+   "opts": [
+    "第 2 版從清單消失，換成一個新的版本號",
+    "第 2 版重新標成目前版本，版本號不變",
+    "後面所有版本都被刪掉，只剩第 1、2 版",
+    "清單不變，只是多一行退版紀錄"
+   ],
+   "exp": "退回其實是把舊的 Pod 範本再套用一次，所以它拿到新的版本號。本課實跑：1、2、3 退回 2 之後變成 1、3、4。"
+  },
+  {
+   "q": "Spring Boot 程式啟動要 40 秒。只設存活探針（預設 periodSeconds 10、failureThreshold 3）不設啟動探針，會發生什麼？",
+   "opts": [
+    "還沒啟動完就被判定失敗、重啟，一直循環",
+    "Pod 一直停在沒就緒，但不會被重啟",
+    "K8s 會自動等到程式第一次回應才開始探",
+    "存活探針沒有預設值，所以完全不會探"
+   ],
+   "exp": "大約 30 秒就累積 3 次失敗、被重啟，下一輪又一樣。本課實跑 160 秒內重啟 4 次；加上啟動探針（24 次 × 5 秒）之後 0 次。"
+  },
+  {
+   "q": "就緒探針一直失敗，Kubernetes 會怎麼處理這個 Pod？",
+   "opts": [
+    "把它從 Service 的端點拿掉，不會重啟",
+    "重啟容器，跟存活探針失敗一樣",
+    "直接刪掉 Pod，讓 Deployment 補一個新的",
+    "把它移到別的節點重新排程"
+   ],
+   "exp": "就緒只管「要不要送流量給它」。本課實跑呼叫 /drain 後 Pod 變 0/1、重啟次數 0，EndpointSlice 裡它的 ready 變 false。"
+  },
+  {
+   "q": "Spring Boot 程式在 ApplicationRunner 裡做暖機。依官方文件，暖機跑完之前 /actuator/health/readiness 回什麼？",
+   "opts": [
+    "REFUSING_TRAFFIC，所以 K8s 不會送流量過來",
+    "ACCEPTING_TRAFFIC，因為 Spring 容器已經建好",
+    "BROKEN，所以存活探針會讓它重啟",
+    "沒有回應，要等程式完全起來才會開這個端點"
+   ],
+   "exp": "官方的生命週期表：runner 都跑完才進入 ACCEPTING_TRAFFIC。這也是 Spring 建議把啟動工作放進 runner、不要放在 @PostConstruct 的原因。"
+  },
+  {
+   "q": "一個容器只寫了 memory limit 512Mi、CPU limit 500m，沒寫任何 requests。這個 Pod 的 QoS 等級是什麼？",
+   "opts": [
+    "Guaranteed",
+    "Burstable",
+    "BestEffort",
+    "沒有等級，要寫 requests 才算"
+   ],
+   "exp": "只寫 limit 時，K8s 會把 limit 複製成 request。requests 等於 limits、CPU 和記憶體都有，就是 Guaranteed。"
+  },
+  {
+   "q": "Pod 的狀態顯示 exit code 137。要確定是不是記憶體超過 limit 被砍，該看哪裡？",
+   "opts": [
+    "describe 裡 Last State 的 Reason 是否為 OOMKilled",
+    "137 本身就代表 OOM，看到這個數字就不必再查別的",
+    "JVM 的 GC 紀錄裡有沒有出現 OutOfMemoryError 這行錯誤訊息",
+    "節點的 CPU 使用率有沒有到 100%"
+   ],
+   "exp": "137 只代表程序被 SIGKILL 砍掉，別的原因也可能。要看 Reason；JVM 拋 OutOfMemoryError 是堆滿了，跟容器被砍是兩件事。"
+  },
+  {
+   "q": "容器 memory limit 512Mi、沒設任何堆大小參數的 Java 21。預設最大堆大約多少？",
+   "opts": [
+    "128 MiB，limit 的 25%",
+    "256 MiB，limit 的一半",
+    "384 MiB，limit 的 75%",
+    "跟節點的實體記憶體一樣大"
+   ],
+   "exp": "JVM 預設會讀容器的 limit，MaxRAMPercentage 預設 25%。本課實跑 512Mi 時 maxMemory 約 123 MB。要注意小堆另有 50% 的規則：256Mi 時是 126 MiB。"
+  },
+  {
+   "q": "PDB 設 minAvailable 3，Deployment 有 4 個副本、全部健康。kubectl drain 一個節點，上面剛好有 2 個這組 Pod，會發生什麼？",
+   "opts": [
+    "驅逐 1 個，第 2 個被擋、drain 重試",
+    "2 個一起被驅逐，PDB 只會事後發出警告",
+    "drain 直接失敗，一個 Pod 都不會被驅逐出去",
+    "PDB 只管滾動更新，drain 不受它限制"
+   ],
+   "exp": "4 減 3，只允許少 1 個。本課實跑：第 1 個被驅逐，第 2 個出現 Cannot evict pod as it would violate the pod's disruption budget，drain 會一直重試。"
+  }
+ ]
+}
