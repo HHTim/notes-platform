@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "團隊有 300 個透過瀏覽器跑的端對端測試、只有 20 個單元測試，每次建置要跑 40 分鐘，而且常常莫名其妙失敗。照測試金字塔，該往哪個方向調？",
+   "opts": [
+    "把多數檢查往下移，改用單元測試與從 API 層打進去的測試",
+    "再加更多端對端測試，把失敗的情境都包起來",
+    "把端對端測試改成手動測試，交給測試人員",
+    "維持現狀，端對端測試最接近使用者，越多越好"
+   ],
+   "exp": "Fowler 的金字塔：低層的單元測試要比透過畫面跑的測試多很多，因為畫面測試容易壞、寫起來貴、跑起來慢；中間層從 API 層測，能拿到很多端對端測試的好處。"
+  },
+  {
+   "q": "用 @WebMvcTest(AccountController.class) 測控制器時，控制器建構子需要的 TransferService 從哪裡來？",
+   "opts": [
+    "測試自己用 @MockitoBean 提供一個替身",
+    "Spring 照常掃描 @Service，給一個真的",
+    "Spring Boot 自動產生一個什麼都不做的實作",
+    "不用管，控制器會在用到時才建立它"
+   ],
+   "exp": "@WebMvcTest 只掃描控制器相關的 Bean，一般的 @Service、@Component 不載入；文件說它通常搭配 @MockitoBean 提供協作者的替身。沒補的話 Spring 容器會因為找不到 Bean 而啟動失敗。"
+  },
+  {
+   "q": "想確認 @ExceptionHandler 會把「找不到帳戶」轉成 404 和一段 JSON，需要啟動真的伺服器嗎？",
+   "opts": [
+    "不需要，MockMvc 會跑完整的 MVC 處理流程",
+    "需要，例外處理只在真的 Tomcat 上才會執行",
+    "需要，MockMvc 只會檢查狀態碼、看不到回應內容",
+    "不需要，但得改用 @DataJpaTest 才測得到"
+   ],
+   "exp": "MockMvc 用模擬的請求與回應物件跑完整的 Spring MVC 處理，@ExceptionHandler、JSON 轉換都會真的執行；本課的「查不到帳戶就回404」測試同時檢查了狀態碼與 $.error 的內容。"
+  },
+  {
+   "q": "專案從 Spring Boot 3.5 升到 4.0，測試裡還有 @MockBean。會怎樣？",
+   "opts": [
+    "編譯失敗，4.0 已移除，要改用 @MockitoBean",
+    "照常運作，只是多一行棄用警告",
+    "自動轉成 @MockitoBean，不用改",
+    "只有 @WebMvcTest 裡的 @MockBean 會失效"
+   ],
+   "exp": "@MockBean 在 Spring Boot 3.4 標為棄用（forRemoval = true），4.0 移轉指南寫明已移除，改用 Spring Framework 的 @MockitoBean。3.4、3.5 才是「能用但有棄用警告」的階段。"
+  },
+  {
+   "q": "在 Testcontainers 的 MySQL 容器上標 @ServiceConnection，主要省掉什麼？",
+   "opts": [
+    "自己把容器的網址、帳號、密碼接到資料來源設定",
+    "安裝 Docker 的步驟，Testcontainers 會自己裝",
+    "寫 @Transactional，測試資料會自動清掉",
+    "啟動 MySQL 的時間，容器會事先準備好"
+   ],
+   "exp": "服務連線讓 Spring Boot 的自動設定直接讀容器的連線細節，而且優先於連線相關的設定屬性。Docker 還是要自己有；資料清理靠交易還原；容器啟動時間不會因此變短。"
+  },
+  {
+   "q": "@SpringBootTest（預設 MOCK 環境）加 @Transactional 的測試裡，用 MockMvc 呼叫轉帳 API，API 在資料庫裡寫的修改，測試結束時？",
+   "opts": [
+    "跟著測試交易一起還原",
+    "已經提交，會留給下一個測試",
+    "只還原 @BeforeEach 存的資料",
+    "要等整個測試類別跑完才還原"
+   ],
+   "exp": "MOCK 環境的 MockMvc 在測試的同一個執行緒裡跑，控制器與服務加入的是同一個測試交易，所以一起還原。只有 RANDOM_PORT、DEFINED_PORT 這種真的伺服器在別的執行緒，它的交易才不會還原。"
+  },
+  {
+   "q": "一個 @Transactional 的整合測試寫死 mvc.perform(get(\"/accounts/1\"))。單獨跑這個類別會過，跟其他設定相同的類別一起跑就回 404。最可能的原因是？",
+   "opts": [
+    "共用了別的類別的 MySQL，id 1 已被用掉、不會重用",
+    "一起跑時 MockMvc 改用了另一個連接埠",
+    "其他類別的 @Transactional 不小心把它的帳戶資料提交掉了",
+    "Spring 容器快取滿了，帳戶資料被清掉"
+   ],
+   "exp": "設定相同的類別共用快取裡的 Spring 容器，連同裡面的 MySQL 容器；前面的類別用過 id 1，交易還原時自動遞增值遺失、不會重用（本課實跑 TransferIntegrationTest 的 id 從 2 開始）。測試要用 save 回傳的 id，不要寫死。"
+  },
+  {
+   "q": "10 個整合測試類別都用 @SpringBootTest 加同一個 @Import，但每個類別各自宣告了一組不同的 @MockitoBean（10 種組合）。在同一次 mvn test 裡跑，會建幾個 Spring 容器？",
+   "opts": [
+    "10 個，每個都要等一次 MySQL 容器啟動",
+    "1 個，@MockitoBean 不影響快取",
+    "2 個，切片一個、@SpringBootTest 一個",
+    "看測試方法總數，每個方法一個"
+   ],
+   "exp": "@MockitoBean 這類 Bean 覆蓋屬於快取鍵的一部分，組合不同就是不同的容器；容器當 Bean 時每個 Spring 容器各起一個 MySQL。把共用替身集中到父類別，才能讓它們共用。"
+  },
+  {
+   "q": "RANDOM_PORT 的測試透過 RestTestClient POST 開了一個帳戶。下一個測試發現資料表多了一筆，即使兩個測試類別都加了 @Transactional。原因是？",
+   "opts": [
+    "伺服器在另一個執行緒、用自己的交易，那筆已經提交",
+    "@Transactional 在 RANDOM_PORT 下會自動改成 @Commit",
+    "RestTestClient 會把資料寫到另一個資料庫",
+    "MySQL 不支援還原 INSERT"
+   ],
+   "exp": "Spring Boot 文件：RANDOM_PORT 時用戶端與伺服器在不同執行緒、不同交易，伺服器上開始的交易不會還原。測試交易綁在測試的執行緒上，管不到伺服器那邊。這種資料要自己清。"
+  },
+  {
+   "q": "你的 API 被前端與另外兩個服務呼叫。你想在每次改 API 時就知道會不會弄壞它們，又不想每次把所有服務一起部署起來測。最合適的是？",
+   "opts": [
+    "消費者驅動的契約測試",
+    "在自己的服務多寫 @WebMvcTest，涵蓋所有欄位",
+    "每次改版前把全部服務部署在一起跑端對端測試",
+    "請呼叫端在正式環境加上監控，出錯再通知"
+   ],
+   "exp": "契約測試確認服務之間的訊息符合雙方共同認定的契約；消費者驅動的做法是消費端寫下期望、提供端在自己的建置裡持續跑。自己的 @WebMvcTest 只驗自己的假設，抓不到呼叫端怎麼用你。"
+  }
+ ]
+}
