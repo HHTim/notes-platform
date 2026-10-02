@@ -25,15 +25,15 @@
 |---|---|---|---|---|
 | `java/12-lambda-functional` | ✅ `86ea72a`＋`075d33e`（55 題；mins 55） | ✅ 10-02 審完：132 題正解都唯一（三題只在 JDK 實作上唯一，要標明實跑）；出處連結裡塞了 wbr 點不開；測驗正解太常最長；清單 `.superpowers/audit/java/findings-12-13.md`；修正交給 `fix-java-1213` | ✅ 10-02 上線 |
 | `java/13-stream-api` | ✅ `c09e024`（57 題；mins 55） | 同上 | ✅ 10-02 上線 |
-| `java/14-modern-syntax` | 撰寫中（`write-java-a` 第二輪） | | | |
-| `java/15-os-process-io` | 撰寫中（`write-java-a` 第二輪） | | | |
+| `java/14-modern-syntax` | ✅ 寫完 | ✅ 10-02 審完（`review-java-a`）：內容都對；兩課測驗正解太常最長（7／10、9／10）必修；yield 是 Java 13 改的、var 與 long、setScale 會丟例外、AsynchronousFileChannel 在 Linux 用執行緒池模擬等；清單 `.superpowers/audit/java/findings-14-15.md` | | |
+| `java/15-os-process-io` | ✅ 寫完 | 同上 | | |
 | `interview/17-java-modern-qa` | | | | |
 
 ## 同一輪加做（10-02 主控照缺口分析排）
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | | |
+| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | 修正 `9442bb4`；範圍複審中（`review-algo-c`） | |
 | `web/09-git-branching` Git 分支與協作 | ✅ `08b2c08`（57 題、6 張圖、30 出處；mins 60） | 審查中（`review-algo-a`，09＋10 一起） | | |
 | `web/10-cicd-pipeline` CI/CD：從 push 到上線 | ✅ `4b74b0e`（60 題、6 張圖、53 出處；mins 80） | 同上 | | |
 
