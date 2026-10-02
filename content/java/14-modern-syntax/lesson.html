@@ -1,0 +1,664 @@
+<!-- 來源：依 OpenJDK JEP 286、361、378、394、395、409、440、441、444、456、507、513 與 Local Variable Type Inference 風格指南、Java 語言規格 SE 21 第 14.4、14.30.2 節、Oracle Java SE 21 API 文件（java.lang.Record、java.lang.Thread）新寫；範例與練習題全部自編，程式碼以 Java 21 實際編譯執行，Java 22 起的寫法以 Java 25 執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷哪裡能寫 <code>var</code>、哪裡不能，以及什麼時候寫出型別比較好讀</li><li>用 <code>record</code> 寫不可變的資料類別（例如金額加幣別），在緊湊建構子裡驗證參數</li><li>寫 switch 運算式，用型別模式、<code>when</code> 守衛、record 解構模式取代一長串 <code>instanceof</code> 與轉型</li><li>寫文字區塊、看懂它的縮排規則，並用 <code>sealed</code> 讓 switch 不必寫 <code>default</code> 也能窮舉</li></ul></div>
+
+<section>
+<p class="era">先看全貌，每個功能哪一版定案</p>
+<h3 class="head">Java 10 到 21 新增的語法，一張表</h3>
+<p>〈Java 是什麼、環境怎麼裝〉列過幾個分水嶺：Java 10 有 <code>var</code>，Java 14〜17 有 switch 運算式、文字區塊、record、sealed，Java 21 有虛擬執行緒與 switch 的模式比對。這一課把它們逐一講清楚。新語法在 OpenJDK 裡都用 <strong>JEP</strong>（JDK Enhancement Proposal，描述一項新功能的公開提案文件）追蹤，多數先當幾版<strong>預覽功能</strong>（preview，要加 <code>--enable-preview</code> 才能用、之後可能再改）才正式定案。下表的「正式版本」取自各 JEP 頁面的 Release 欄：</p>
+<div class="tablewrap"><table><thead><tr><th>功能</th><th>JEP</th><th>正式版本</th><th>一句話</th></tr></thead><tbody>
+<tr><th><code>var</code> 區域變數型別推論</th><td><a href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">286</a></td><td>10</td><td>區域變數的型別讓編譯器從初始值推論</td></tr>
+<tr><th>switch 運算式與箭頭</th><td><a href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">361</a></td><td>14</td><td>switch 可以產生值，箭頭寫法不會穿透</td></tr>
+<tr><th>文字區塊</th><td><a href="https://openjdk.org/jeps/378" target="_blank" rel="noopener">378</a></td><td>15</td><td>三個雙引號包起來的多行字串</td></tr>
+<tr><th><code>instanceof</code> 模式比對</th><td><a href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">394</a></td><td>16</td><td>檢查型別的同時宣告好變數，不必再轉型</td></tr>
+<tr><th>record</th><td><a href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">395</a></td><td>16</td><td>一行宣告不可變的資料類別</td></tr>
+<tr><th>sealed 類別與介面</th><td><a href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">409</a></td><td>17</td><td>限定誰可以繼承或實作</td></tr>
+<tr><th>record 解構模式</th><td><a href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">440</a></td><td>21</td><td>比對 record 的同時把元件拆出來</td></tr>
+<tr><th>switch 模式比對</th><td><a href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">441</a></td><td>21</td><td>case 可以寫型別模式、<code>when</code> 守衛與 <code>case null</code></td></tr>
+<tr><th>虛擬執行緒</th><td><a href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">444</a></td><td>21</td><td>由 JVM 排程的輕量執行緒</td></tr>
+</tbody></table></div>
+<p>上表全部在 Java 21 可以直接用；Java 22 之後又加了幾個相關功能，各段最後會標出來。</p>
+</section>
+
+<section>
+<p class="era">型別交給編譯器，名字交給你</p>
+<h3 class="head">var：區域變數型別推論</h3>
+<p>JEP 286 的摘要：「把型別推論延伸到有初始值的區域變數宣告」（extend type inference to declarations of local variables with initializers）。範圍也寫得很清楚：只限「有初始值的區域變數、增強型 for 的索引、傳統 for 迴圈裡宣告的區域變數」，「方法參數、建構子參數、方法回傳型別、欄位、catch 參數」等其他宣告都不能用（it would not be available for method formals, constructor formals, method return types, fields, catch formals, or any other kind of variable declaration）。<a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a> try-with-resources 的資源宣告也算區域變數，JLS 的清單把它列在內。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.4" target="_blank" rel="noopener">出處</a></p>
+<pre><code>var amounts = new ArrayList&lt;Long&gt;();         // 推論成 ArrayList&lt;Long&gt;
+amounts.add(1_200L);
+for (var a : amounts) {                      // 增強型 for 的索引也可以
+    System.out.println(a + 1);               // 1201
+}
+
+var n = 10;                                  // int
+var big = 10L;                               // long
+
+var var = "var 不是關鍵字";                    // 可以當變數名稱
+System.out.println(var);                     // var 不是關鍵字</code></pre>
+<p>最後那兩行不是筆誤。JEP 286：「<code>var</code> 不是關鍵字，而是保留的型別名稱」（The identifier var is not a keyword; instead it is a reserved type name.），所以拿它當變數、方法或套件名稱的舊程式都不受影響，只有把類別取名叫 <code>var</code> 的會受影響。<a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a></p>
+<p>JLS 第 14.4 節列了用 <code>var</code> 時的編譯錯誤：一次宣告多個變數、名稱後面加陣列括號、沒有初始值、初始值是陣列初始化器（<code>{ 6 }</code> 這種）、初始值裡引用了自己；另外初始值是 <code>null</code> 也不行（It is a compile-time error if T is the null type.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.4" target="_blank" rel="noopener">出處</a> 這些規則有同一個道理：編譯器必須單看右邊就推得出一個明確的型別。</p>
+<div class="tablewrap"><table><thead><tr><th>寫法</th><th>結果（javac 21 的訊息）</th></tr></thead><tbody>
+<tr><td><code>var count = 0;</code>（欄位）</td><td><code>'var' is not allowed here</code></td></tr>
+<tr><td><code>var total() { ... }</code>（回傳型別）</td><td><code>'var' is not allowed here</code></td></tr>
+<tr><td><code>void m(var x)</code>（方法參數）</td><td><code>'var' is not allowed here</code></td></tr>
+<tr><td><code>var x; x = 1;</code></td><td><code>cannot use 'var' on variable without initializer</code></td></tr>
+<tr><td><code>var x = null;</code></td><td><code>variable initializer is 'null'</code></td></tr>
+<tr><td><code>var arr = {1, 2, 3};</code></td><td><code>array initializer needs an explicit target-type</code></td></tr>
+<tr><td><code>var a = 1, b = 2;</code></td><td><code>'var' is not allowed in a compound declaration</code></td></tr>
+</tbody></table></div>
+<p><strong>可讀性的取捨。</strong>OpenJDK 的 <code>var</code> 風格指南第一條原則是「讀程式碼比寫程式碼重要」（P1. Reading code is more important than writing code.），建議「初始值已經提供足夠資訊時才考慮 var」（G3. Consider var when the initializer provides sufficient information to the reader.）。它也點名兩個陷阱：<code>var</code> 配菱形 <code>&lt;&gt;</code>，「推論出的型別會變」，例如 <code>var itemQueue = new PriorityQueue&lt;&gt;();</code> 會推成 <code>PriorityQueue&lt;Object&gt;</code>；<code>var</code> 配整數字面值，一律推成 <code>int</code>，原本寫 <code>byte</code>、<code>long</code> 時的自動轉換就沒了。<a class="fixsrc" href="https://openjdk.org/projects/amber/guides/lvti-style-guide" target="_blank" rel="noopener">出處</a></p>
+<pre><code>var raw = new ArrayList&lt;&gt;();      // 菱形沒有東西可推：ArrayList&lt;Object&gt;
+raw.add("A");
+raw.add(1);                       // 什麼都放得進去，泛型的保護沒了
+System.out.println(raw);          // [A, 1]</code></pre>
+<p class="formula">var 只用在區域變數，而且右邊要一眼看得出型別；var 配菱形會推成 Object</p>
+
+<div class="drill">
+  <p class="dq">下面哪一行能編譯？</p>
+  <ul class="dopts"><li data-ok>var x = new HashMap&lt;String, Long&gt;();</li><li>var x; x = new HashMap&lt;String, Long&gt;();</li><li>var x = null; // 之後再指定</li><li>var x = {1, 2, 3};</li></ul>
+  <p class="dexp">有初始值、而且初始值有明確型別，<code>var</code> 才推得出來。沒有初始值、初始值是 null、初始值是陣列初始化器，JLS 都列為編譯錯誤。</p>
+</div>
+<div class="drill">
+  <p class="dq">在類別裡寫 <code>private var balance = 0L;</code> 會怎樣？</p>
+  <ul class="dopts"><li data-ok>編譯錯誤，var 不能用在欄位</li><li>可以，推論成 long</li><li>可以，推論成 Long</li><li>可以，但只在 Java 21 以後</li></ul>
+  <p class="dexp">JEP 286 只開放區域變數；欄位、方法參數、回傳型別都不行，javac 報 <code>'var' is not allowed here</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>var n = 10;</code> 之後寫 <code>n = 10_000_000_000L;</code> 會怎樣？</p>
+  <ul class="dopts"><li>可以，n 會自動變成 long</li><li>可以，但數字會被截斷成 int 的範圍</li><li>執行時丟出例外</li><li data-ok>編譯錯誤</li></ul>
+  <p class="dexp"><code>var</code> 在宣告那一刻就把型別定成 <code>int</code>，之後不會變。Java 仍是靜態型別語言，<code>var</code> 只是少寫型別名稱。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個用法是合法的？</p>
+  <ul class="dopts"><li>void transfer(<wbr>var amount) { }</li><li>catch (var e) { }</li><li data-ok>try (<wbr>var in = open(<wbr>path)) { }</li><li>var amount() { return 0; }</li></ul>
+  <p class="dexp">try-with-resources 的資源是區域變數，可以用 <code>var</code>。方法參數、catch 參數、方法回傳型別都在 JEP 286 排除的清單裡。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>var var = "TWD";</code> 會怎樣？</p>
+  <ul class="dopts"><li>編譯錯誤，var 是關鍵字</li><li>編譯錯誤，變數名稱不能跟型別同名</li><li>可以，但編譯時會出現警告</li><li data-ok>可以，var 不是關鍵字</li></ul>
+  <p class="dexp">JEP 286 刻意不把 var 做成關鍵字，舊程式裡叫 var 的變數、方法、套件照樣能用；只有取名叫 var 的類別或介面會受影響。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式能編譯嗎？會印出什麼？</p>
+<pre><code>var list = new ArrayList&lt;&gt;();
+list.add("A001");
+list.add(500);
+System.out.println(list.size());</code></pre>
+  <ul class="dopts"><li>編譯錯誤，500 不是字串</li><li>編譯錯誤，菱形不能配 var</li><li>可以，印出 1</li><li data-ok>可以，印出 2</li></ul>
+  <p class="dexp">菱形左邊沒有型別可參考，<code>list</code> 被推成 <code>ArrayList&lt;Object&gt;</code>，字串和整數都放得進去。能編譯，但泛型的型別檢查等於沒了，風格指南把這種寫法標成危險。</p>
+</div>
+<div class="drill">
+  <p class="dq">依 OpenJDK 的 var 風格指南，下面哪一行最<strong>不</strong>適合用 var？</p>
+  <ul class="dopts"><li>var reader = new BufferedReader(<wbr>new FileReader(<wbr>path));</li><li>var accounts = new ArrayList&lt;Account&gt;();</li><li data-ok>var result = service.<wbr>process(<wbr>request);</li><li>var count = 0L;</li></ul>
+  <p class="dexp">指南的原則是「讀程式碼比寫程式碼重要」，初始值提供足夠資訊才用 var。<code>service.process(...)</code> 回傳什麼，光看這行看不出來；其餘三行右邊都看得到型別（<code>0L</code> 一看就是 long）。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>var a = 1, b = 2;</code> 會怎樣？</p>
+  <ul class="dopts"><li>可以，a、b 都是 int</li><li>可以，a 是 int、b 是 Object</li><li data-ok>編譯錯誤，var 不能一次宣告多個變數</li><li>可以，但 b 要另外寫型別</li></ul>
+  <p class="dexp">JLS 14.4 列的第一條：用 <code>var</code> 時列出超過一個變數是編譯錯誤，javac 報 <code>'var' is not allowed in a compound declaration</code>。</p>
+</div>
+</section>
+
+<section>
+<p class="era">只裝資料的類別，一行寫完</p>
+<h3 class="head">record：不可變的資料載體</h3>
+<p>JEP 395 的摘要：record 是「透明地裝著不可變資料的類別」（classes that act as transparent carriers for immutable data）。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a> 宣告時只寫「元件」（component，也就是組成這筆資料的欄位），編譯器自動產生其餘的東西。JEP 列的自動成員：每個元件一個同名的 public 讀取方法（accessor）與一個 private final 欄位；一個參數跟宣告一模一樣的<strong>標準建構子</strong>（canonical constructor）；依元件值判斷相等的 <code>equals</code> 與 <code>hashCode</code>；列出所有元件名稱與值的 <code>toString</code>。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a> 讀取方法叫 <code>amount()</code>，不是 <code>getAmount()</code>。</p>
+<p>銀行最常見的例子是「金額＋幣別」。下面在<strong>緊湊建構子</strong>（compact canonical constructor，不寫參數列的標準建構子）裡驗證幣別、統一小數位數：</p>
+<pre><code>record Money(BigDecimal amount, String currency) {
+    Money {                                          // 緊湊建構子：不寫參數列
+        Objects.requireNonNull(amount, "amount");
+        if (currency == null || !currency.matches("[A-Z]{3}")) {
+            throw new IllegalArgumentException("幣別要是三個大寫字母：" + currency);
+        }
+        amount = amount.setScale(2);                 // 改的是參數，結尾才自動指定給欄位
+    }
+
+    Money plus(Money other) {
+        if (!currency.equals(other.currency)) {
+            throw new IllegalArgumentException("幣別不同不能相加");
+        }
+        return new Money(amount.add(other.amount), currency);   // 不改自己，回傳新的
+    }
+
+    static Money twd(long value) {                   // 可以有靜態方法
+        return new Money(BigDecimal.valueOf(value), "TWD");
+    }
+}
+
+Money a = new Money(new BigDecimal("100"), "TWD");
+Money b = Money.twd(100);
+System.out.println(a);                     // Money[amount=100.00, currency=TWD]
+System.out.println(a.amount() + " " + a.currency());   // 100.00 TWD
+System.out.println(a.equals(b) + " " + (a == b) + " " + (a.hashCode() == b.hashCode()));
+// true false true
+System.out.println(a.plus(b));             // Money[amount=200.00, currency=TWD]
+System.out.println(a);                     // Money[amount=100.00, currency=TWD]，a 沒變
+new Money(BigDecimal.ONE, "twd");          // 丟出 IllegalArgumentException：幣別要是三個大寫字母：twd</code></pre>
+<p>緊湊建構子的規則，JEP 395 原文：參數是隱含宣告的，「對應元件的 private 欄位不能在本體裡指定，而是在建構子結尾自動指定成對應的參數」（the private fields corresponding to record components cannot be assigned in the body but are automatically assigned to the corresponding formal parameter (this.x = x;) at the end of the constructor）；它讓開發者「專心在驗證與正規化參數」。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a> 所以上面改的是參數 <code>amount</code>；寫 <code>this.amount = ...</code> 反而會編譯錯誤（<code>cannot assign a value to final variable amount</code>）。</p>
+<p><strong>限制。</strong>JEP 395 的「record 類別的規則」一節：<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>沒有 <code>extends</code>：父類別一律是 <code>java.lang.Record</code>，連明確寫出 <code>Record</code> 都不行。可以實作介面。</li>
+<li>隱含是 <code>final</code>、不能是 <code>abstract</code>，所以沒有人能繼承 record。</li>
+<li>元件對應的欄位都是 <code>final</code>，而且不能自己再宣告實體欄位、不能有實體初始化區塊；<code>static</code> 欄位與方法可以。</li>
+</ul>
+<p><strong>不可變只到第一層。</strong><code>java.lang.Record</code> 的文件用的詞是「淺層不可變」（A record class is a shallowly immutable, transparent carrier for a fixed set of values）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Record.html" target="_blank" rel="noopener">出處</a> 欄位本身不能換，但欄位指向的物件如果可以改（例如 <code>ArrayList</code>），裡面照樣改得動。要整份都不可變，就在緊湊建構子裡做<strong>防禦性複製</strong>（defensive copy，存一份自己的副本，不跟外面共用）：</p>
+<pre><code>record Statement(String accountId, List&lt;String&gt; txIds) {
+    Statement {
+        txIds = List.copyOf(txIds);                  // 防禦性複製：外面再改原清單也影響不到
+    }
+}
+
+List&lt;String&gt; ids = new ArrayList&lt;&gt;(List.of("T1", "T2"));
+Statement st = new Statement("A001", ids);
+ids.add("T3");
+System.out.println(st.txIds());   // [T1, T2]
+st.txIds().add("T4");             // 丟出 UnsupportedOperationException</code></pre>
+<p class="muted">record 自動產生的 <code>equals</code>、<code>hashCode</code> 依元件值比較，所以很適合當 <code>HashMap</code> 的鍵或放進 <code>HashSet</code>；這兩個方法的約定見〈套件與 Object 類別〉。前兩課〈Lambda 與函式介面〉〈Stream API：把迴圈寫成資料流〉的交易資料也都是 record。</p>
+<p class="formula">record 自動有讀取方法、標準建構子、equals、hashCode、toString；驗證寫在緊湊建構子；不能繼承類別，不可變只到第一層</p>
+
+<div class="drill">
+  <p class="dq"><code>record Money(<wbr>BigDecimal amount, String currency) {}</code>，要取金額該怎麼寫？</p>
+  <ul class="dopts"><li>money.getAmount()</li><li>money.amount</li><li data-ok>money.amount()</li><li>money.get("amount")</li></ul>
+  <p class="dexp">record 為每個元件產生一個跟元件同名的 public 讀取方法，沒有 get 前綴。欄位本身是 private，從外面不能直接 <code>money.amount</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+<pre><code>record Rate(String currency, double value) {}
+Rate r1 = new Rate("USD", 32.5);
+Rate r2 = new Rate("USD", 32.5);
+System.out.println(r1.equals(r2) + " " + (r1 == r2));</code></pre>
+  <ul class="dopts"><li>false false</li><li>true true</li><li>false true</li><li data-ok>true false</li></ul>
+  <p class="dexp">自動產生的 <code>equals</code> 比的是元件值，兩筆都是 USD、32.5，所以相等；<code>==</code> 比的是不是同一個物件，兩個 <code>new</code> 出來的不是。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+<pre><code>record Rate(String currency, double value) {}
+System.out.println(new Rate("JPY", 0.21));</code></pre>
+  <ul class="dopts"><li data-ok>Rate[currency=JPY, value=0.21]</li><li>Rate@1b6d3586 這類雜湊值</li><li>JPY 0.21</li><li>{currency: JPY, value: 0.21}（JSON 格式）</li></ul>
+  <p class="dexp">record 自動產生的 <code>toString</code> 列出類別名稱、每個元件的名稱與值。只有一般類別沒覆寫 <code>toString</code> 時，才會印出類別名稱加雜湊值。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>record Money(<wbr>BigDecimal amount, String currency) { Money { this.<wbr>amount = amount.<wbr>setScale(2); } }</code> 會怎樣？</p>
+  <ul class="dopts"><li>可以，欄位被設成兩位小數</li><li>可以，但結尾會被原本的 amount 蓋回去</li><li>執行時丟出例外</li><li data-ok>編譯錯誤，緊湊建構子裡不能指定欄位</li></ul>
+  <p class="dexp">緊湊建構子裡欄位不能指定，結尾才自動用參數指定欄位；javac 報 <code>cannot assign a value to final variable amount</code>。要正規化就改參數：<code>amount = amount.<wbr>setScale(2);</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>Money</code>，<code>new Money(<wbr>new BigDecimal(<wbr>"100"), "TWD").<wbr>amount()</code> 回傳什麼？</p>
+  <ul class="dopts"><li>100</li><li data-ok>100.00</li><li>100.0</li><li>丟出 IllegalArgumentException</li></ul>
+  <p class="dexp">緊湊建構子把參數改成 <code>setScale(2)</code> 的結果，結尾自動指定給欄位，所以存進去的是兩位小數的 100.00。幣別 TWD 符合三個大寫字母，不會丟例外。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>record SavingsAccount(<wbr>String id) extends Account {}</code> 會怎樣？</p>
+  <ul class="dopts"><li>可以，record 也能繼承一般類別</li><li>可以，但 Account 要是抽象類別</li><li data-ok>編譯錯誤</li><li>可以，但只能繼承另一個 record，不能繼承一般類別</li></ul>
+  <p class="dexp">record 的父類別一律是 <code>java.lang.Record</code>，宣告不能有 <code>extends</code>。要共用行為可以實作介面：<code>record SavingsAccount(<wbr>String id) implements Account {}</code>（Account 是介面時）。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>class VipMoney extends Money { ... }</code>（Money 是 record）會怎樣？</p>
+  <ul class="dopts"><li>可以，只要呼叫 super(...)</li><li>可以，但 VipMoney 也要宣告成 record 才行</li><li>可以，但不能覆寫 equals</li><li data-ok>編譯錯誤，record 不能被繼承</li></ul>
+  <p class="dexp">JEP 395：record「隱含是 final，而且不能是 abstract」，javac 報 <code>cannot inherit from final Money</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個可以寫在 record 的大括號裡？</p>
+  <ul class="dopts"><li>private int retryCount = 0;</li><li>{ System.<wbr>out.<wbr>println(<wbr>"初始化完成"); }</li><li data-ok>static final String CUR = "TWD";</li><li>native void sign();</li></ul>
+  <p class="dexp">record 不能自己宣告實體欄位（javac 報 <code>field declaration must be static</code>）、不能有實體初始化區塊、不能有 native 方法；static 欄位、static 方法、實體方法都可以。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+<pre><code>record Batch(List&lt;String&gt; ids) {}
+List&lt;String&gt; src = new ArrayList&lt;&gt;(List.of("T1"));
+Batch b = new Batch(src);
+src.add("T2");
+System.out.println(b.ids());</code></pre>
+  <ul class="dopts"><li>[T1]</li><li data-ok>[T1, T2]</li><li>丟出 UnsupportedOperationException</li><li>編譯錯誤，record 的元件不能是清單</li></ul>
+  <p class="dexp">record 只是淺層不可變：欄位一直指向同一個 <code>src</code> 清單，外面加了 T2，從 <code>b.ids()</code> 也看得到。要避免就在緊湊建構子裡寫 <code>ids = List.copyOf(ids);</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>Money</code> 呼叫 <code>a.plus(b)</code> 之後，<code>a</code> 本身會變嗎？</p>
+  <ul class="dopts"><li>會，a 的金額變成相加之後的結果</li><li>會，但只有 a.<wbr>amount() 變，toString 不變</li><li data-ok>不會，plus 回傳新的 Money</li><li>不會，因為 plus 會丟出例外</li></ul>
+  <p class="dexp">record 的欄位是 final，方法沒辦法改它；<code>plus</code> 用相加結果 new 一個新的 Money 回傳。實跑時 <code>a</code> 印出來還是 100.00。</p>
+</div>
+</section>
+
+<section>
+<p class="era">switch 也能算出一個值</p>
+<h3 class="head">switch 運算式、箭頭與 yield</h3>
+<p>JEP 361（Java 14）讓 switch 可以「當敘述也可以當運算式用」，兩種都能用傳統的 <code>case ... :</code>（會穿透）或新的 <code>case ... -></code>（不會穿透），另外新增 <code>yield</code> 敘述讓 switch 運算式交出值。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a> <strong>穿透</strong>（fall through）是舊寫法的老問題：某個 case 沒寫 <code>break</code>，就會一路執行到下一個 case。</p>
+<pre><code>enum Channel { BRANCH, ATM, MOBILE, INTERNET }
+
+static int oldFee(Channel ch) {
+    int fee = 0;
+    switch (ch) {
+        case BRANCH:
+            fee = 30;
+        case ATM:                    // 忘了 break：會一路穿透下去
+            fee = 15;
+            break;
+        default:
+            fee = 10;
+    }
+    return fee;
+}
+// oldFee(BRANCH) 回傳 15，不是 30（javac -Xlint 會警告 possible fall-through into case）
+
+static int feeOf(Channel ch) {
+    return switch (ch) {
+        case BRANCH -&gt; 30;
+        case ATM, INTERNET -&gt; 15;    // 多個常數用逗號
+        case MOBILE -&gt; {
+            int base = 15;
+            yield base - 5;          // 區塊裡用 yield 交出值
+        }
+    };
+}
+// BRANCH=30 ATM=15 MOBILE=10 INTERNET=15</code></pre>
+<p>規則都在 JEP 361 裡：箭頭右邊「只執行箭頭右邊的運算式或敘述，不會穿透」（only the expression or statement to the right of the arrow is executed; there is no fall through）；右邊需要一整個區塊時，用 <code>yield</code> 交出值；而且 switch 運算式「必須窮舉」，也就是「每一個可能的值都要有對應的 case」（The cases of a switch expression must be exhaustive; for all possible values there must be a matching switch label.）。enum 的每個常數都列出來時可以不寫 <code>default</code>，JEP 說這樣更好：之後 enum 多了常數，重新編譯時編譯器就會指出漏掉的地方。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a> 漏掉一個常數，javac 報 <code>the switch expression does not cover all possible input values</code>；箭頭右邊的區塊沒有 <code>yield</code>，報 <code>switch rule completes without providing a value</code>。</p>
+<p class="muted"><code>yield</code> 跟 <code>var</code> 一樣不是關鍵字，JEP 361 叫它「受限的識別字」（restricted identifier）。<code>break</code> 只能跳出 switch 敘述，<code>yield</code> 只能用在 switch 運算式。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">上面的 <code>oldFee(Channel.BRANCH)</code> 回傳什麼？</p>
+  <ul class="dopts"><li>30</li><li data-ok>15</li><li>10</li><li>0</li></ul>
+  <p class="dexp"><code>case BRANCH:</code> 設成 30 之後沒有 <code>break</code>，穿透到 <code>case ATM:</code> 又設成 15，遇到 <code>break</code> 才離開。這正是箭頭寫法要消滅的錯。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+<pre><code>int code = 2;
+String level = switch (code) {
+    case 1 -&gt; "一般";
+    case 2 -&gt; "優先";
+    case 3 -&gt; "急件";
+    default -&gt; "未知";
+};
+System.out.println(level);</code></pre>
+  <ul class="dopts"><li>優先急件未知</li><li>一般</li><li data-ok>優先</li><li>未知</li></ul>
+  <p class="dexp">箭頭寫法只執行符合的那一個 case 右邊，不會穿透，所以只得到「優先」。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>enum Channel { BRANCH, ATM, MOBILE }</code>，下面這段會怎樣？</p>
+<pre><code>int fee = switch (ch) {
+    case BRANCH -&gt; 30;
+    case ATM -&gt; 15;
+};</code></pre>
+  <ul class="dopts"><li>可以，MOBILE 時 fee 是 0</li><li>可以，MOBILE 時丟出例外</li><li>可以，MOBILE 時 fee 是 15</li><li data-ok>編譯錯誤，沒有窮舉，漏了 MOBILE</li></ul>
+  <p class="dexp">switch 運算式一定要窮舉：每個可能的值都要有 case。漏一個 enum 常數，javac 報 <code>the switch expression does not cover all possible input values</code>。補上 <code>case MOBILE</code> 或 <code>default</code> 都能解決。</p>
+</div>
+<div class="drill">
+  <p class="dq">switch 運算式的箭頭右邊是一個大括號區塊時，要怎麼交出值？</p>
+  <ul class="dopts"><li>return 值;</li><li>break 值;</li><li data-ok>yield 值;</li><li>區塊最後一行的運算式自動成為值</li></ul>
+  <p class="dexp">JEP 361 新增 <code>yield</code> 給 switch 運算式交出值。<code>return</code> 會直接離開整個方法；<code>break 值</code> 是 Java 12 預覽時的寫法，定案時改成 yield。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+<pre><code>String day = "SAT";
+int hours = switch (day) {
+    case "SAT", "SUN" -&gt; 0;
+    case "FRI" -&gt; {
+        System.out.print("週五提早下班 ");
+        yield 6;
+    }
+    default -&gt; 8;
+};
+System.out.println(hours);</code></pre>
+  <ul class="dopts"><li>週五提早下班 0</li><li data-ok>0</li><li>8</li><li>週五提早下班 6</li></ul>
+  <p class="dexp">SAT 對到第一個 case（逗號列出多個常數），得到 0；箭頭不會穿透到 FRI 那個區塊，所以那句不會印出。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段會怎樣？</p>
+<pre><code>int fee = switch (ch) {
+    case BRANCH -&gt; { System.out.println("臨櫃"); }
+    default -&gt; 15;
+};</code></pre>
+  <ul class="dopts"><li>可以，BRANCH 時 fee 是 0</li><li>可以，BRANCH 時 fee 是 15</li><li>可以，但 BRANCH 時丟出例外</li><li data-ok>編譯錯誤，BRANCH 的區塊沒有交出值</li></ul>
+  <p class="dexp">switch 運算式的每個分支都要交出值或丟出例外。區塊裡只有印字、沒有 <code>yield</code>，javac 報 <code>switch rule completes without providing a value</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">enum 的每個常數都已經寫進 switch 運算式了，JEP 361 為什麼說不寫 <code>default</code> 反而比較好？</p>
+  <ul class="dopts"><li>寫 default 會讓程式跑得比較慢</li><li data-ok>enum 新增常數時，編譯器會指出漏掉的 case</li><li>寫了 default 就會編譯錯誤</li><li>不寫 default 的話，新常數會自動對到第一個 case</li></ul>
+  <p class="dexp">沒有 default，編譯器每次都檢查是否窮舉；自己加了 default，新常數會默默落進 default，錯誤就被藏起來了。寫 default 本身不會編譯錯誤。</p>
+</div>
+</section>
+
+<section>
+<p class="era">檢查型別、取出內容，一步做完</p>
+<h3 class="head">模式比對：instanceof、switch 型別模式與 record 解構</h3>
+<p><strong>模式比對</strong>（pattern matching，也有人譯作型樣比對）是「檢查一個值的形狀，符合就順便把需要的部分取出來」。以前判斷型別要寫三步：<code>instanceof</code> 檢查、轉型、宣告變數；JEP 394（Java 16）合成一步。<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></p>
+<pre><code>Object obj = "A001";
+if (obj instanceof String s &amp;&amp; s.length() == 4) {   // 比對成功才有 s，&amp;&amp; 右邊就能用
+    System.out.println("帳號 " + s.toLowerCase());     // 帳號 a001
+}
+
+Object other = 42;
+if (!(other instanceof String t)) {
+    System.out.println("不是字串");                  // 不是字串
+} else {
+    System.out.println(t.length());                 // 這裡 t 一定比對成功了
+}</code></pre>
+<p><code>s</code> 叫<strong>模式變數</strong>（pattern variable）。它的範圍不是整個區塊，而是「流程範圍」：JEP 394 的口訣是「模式變數只在一定比對成功的地方有效」（A pattern variable is in scope where it has definitely matched）。<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a> 所以 <code>&amp;&amp;</code> 右邊能用 <code>s</code>（左邊成立才會跑右邊），<code>||</code> 右邊就不行（左邊不成立才會跑右邊，那時 <code>s</code> 沒有值），javac 報 <code>cannot find symbol</code>。</p>
+<p><strong>switch 的型別模式與 when 守衛（Java 21，JEP 441）。</strong>case 可以寫型別模式，後面加 <code>when 條件</code> 叫<strong>守衛</strong>（guard，型別符合之外再加的條件）；也可以寫 <code>case null</code>。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a></p>
+<pre><code>static String describe(Object o) {
+    return switch (o) {
+        case null -&gt; "沒有資料";
+        case Integer i when i &gt; 1_000_000 -&gt; "大額整數 " + i;
+        case Integer i -&gt; "整數 " + i;
+        case String s -&gt; "字串，長度 " + s.length();
+        default -&gt; "其他：" + o;
+    };
+}
+describe(null);          // 沒有資料
+describe(5_000_000);     // 大額整數 5000000
+describe(7);             // 整數 7
+describe("TWD");         // 字串，長度 3
+describe(3.5);           // 其他：3.5</code></pre>
+<p>JEP 441 的四條規則要記：<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>由上往下，第一個符合的生效。</strong>寬的放在窄的前面，窄的就永遠輪不到，這叫「被支配」（dominated），是編譯錯誤：<code>case CharSequence cs</code> 放在 <code>case String s</code> 前面，javac 報 <code>this case label is dominated by a preceding case label</code>。同一個型別，沒有守衛的也會支配有守衛的，所以 <code>case Integer i when ...</code> 要放在 <code>case Integer i</code> 前面。</li>
+<li><strong>null 只看 case null。</strong>「有 <code>case null</code> 就執行它；沒有就跟以前一樣丟 <code>NullPointerException</code>」，而且為了相容，「<code>default</code> 不會比對到 null」（the default label does not match a null selector）。</li>
+<li><strong>模式 switch 一定要窮舉</strong>，連 switch 敘述也一樣：只要用了模式或 <code>null</code> 標籤，或選擇的值不是傳統型別（char、byte、short、int 與它們的包裝類別、String、enum），編譯器就檢查窮舉。對 <code>Object</code> 只列 <code>String</code> 和 <code>Integer</code> 兩種，javac 報 <code>does not cover all possible input values</code>。</li>
+<li>不會穿透的箭頭寫法照舊。</li>
+</ul>
+<p><strong>record 解構模式（Java 21，JEP 440）。</strong>比對 record 時可以直接把元件拆出來，還能一層套一層；元件的型別可以寫 <code>var</code>。JEP 的摘要說 record 模式與型別模式「可以巢狀」，做出「宣告式、可組合的資料走訪與處理」。<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a> JLS 另外規定「null 不會比對到 record 模式」（The null reference does not match a record pattern.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-14.html#jls-14.30.2" target="_blank" rel="noopener">出處</a></p>
+<pre><code>Payment p = new Transfer("B002", Money.twd(5_000));
+if (p instanceof Transfer(String to, Money(var amt, var cur))) {   // 兩層解構
+    System.out.println(to + " " + amt + " " + cur);                  // B002 5000.00 TWD
+}</code></pre>
+<p>record 模式在 switch 裡最好用，下一段配 sealed 一起看。</p>
+<p class="muted"><strong>Java 22 起的差異：</strong>用不到的元件可以寫 <code>_</code>（無名模式，JEP 456，Java 22 正式；Java 21 是預覽，直接編譯報 <code>unnamed variables are a preview feature and are disabled by default</code>）。<a class="fixsrc" href="https://openjdk.org/jeps/456" target="_blank" rel="noopener">出處</a> 另外，讓 <code>int</code> 這類基本型別也能出現在模式裡的 JEP 507，在 Java 25 仍是第三次預覽，還沒定案。<a class="fixsrc" href="https://openjdk.org/jeps/507" target="_blank" rel="noopener">出處</a> 以 Java 25 執行：</p>
+<pre><code>// Java 22 起（以 Java 25 執行）
+static String installments(Object o) {
+    return switch (o) {
+        case CardPayment(_, _, int n) when n &gt; 1 -&gt; "分 " + n + " 期";   // 只要期數
+        case CardPayment _ -&gt; "一次付清";
+        default -&gt; "不是刷卡";
+    };
+}
+// installments(new CardPayment("4111", ..., 3)) → 分 3 期
+// installments(new CardPayment("4111", ..., 1)) → 一次付清</code></pre>
+
+<div class="drill">
+  <p class="dq">這段能編譯嗎？</p>
+<pre><code>Object o = "A001";
+if (o instanceof String s || s.length() &gt; 3) {
+    System.out.println("ok");
+}</code></pre>
+  <ul class="dopts"><li>可以，印出 ok</li><li data-ok>編譯錯誤，|| 右邊 s 不在範圍內</li><li>可以，但 o 不是字串時丟出 NullPointerException</li><li>可以，但什麼都不印</li></ul>
+  <p class="dexp">|| 右邊只有在左邊不成立時才執行，那時 s 沒有值，所以 s 在那裡不在範圍內，javac 報 <code>cannot find symbol</code>。換成 &amp;&amp; 就可以。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段印出什麼？</p>
+<pre><code>Object o = 42;
+if (o instanceof Integer i &amp;&amp; i &gt; 40) {
+    System.out.println(i + 1);
+} else {
+    System.out.println("no");
+}</code></pre>
+  <ul class="dopts"><li>no</li><li>421</li><li data-ok>43</li><li>編譯錯誤，i 要先轉型</li></ul>
+  <p class="dexp">o 是 Integer，比對成功，i 就是 42、型別已經是 Integer；42 &gt; 40 成立，印出 42+1 = 43。不必再寫 <code>(Integer) o</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>describe</code>，<code>describe(2_000_000)</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>大額整數 2000000</li><li>整數 2000000</li><li>其他：2000000</li><li>編譯錯誤，兩個 case 都是 Integer</li></ul>
+  <p class="dexp">由上往下找第一個符合的：<code>case Integer i when i &gt; 1_000_000</code> 型別符合、守衛也成立，就停在這裡。有守衛的寫在沒守衛的前面是合法的。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>describe</code> 裡的 <code>case Integer i -&gt; ...</code> 移到 <code>case Integer i when i &gt; 1_000_000 -&gt; ...</code> 的前面，會怎樣？</p>
+  <ul class="dopts"><li>可以，大額整數那行從此不會被選到</li><li data-ok>編譯錯誤</li><li>可以，大額時兩個 case 都會依序執行</li><li>可以，大額時會丟出例外</li></ul>
+  <p class="dexp">沒有守衛的 <code>case Integer i</code> 涵蓋所有 Integer，後面同型別加守衛的 case 永遠輪不到。JEP 441 把這種「被支配」的 case 當成編譯錯誤，跟寫了執行不到的程式碼一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段能編譯嗎？</p>
+<pre><code>static String kind(Object o) {
+    return switch (o) {
+        case CharSequence cs -&gt; "文字";
+        case String s -&gt; "字串";
+        default -&gt; "其他";
+    };
+}</code></pre>
+  <ul class="dopts"><li>可以，字串會回傳「字串」</li><li>可以，字串會回傳「文字」</li><li data-ok>編譯錯誤，String 那個 case 被支配</li><li>編譯錯誤，用了型別模式就一定要寫 case null</li></ul>
+  <p class="dexp">String 是 CharSequence 的子型別，前面那個 case 已經接走所有字串，<code>case String s</code> 永遠輪不到。javac 報 <code>this case label is dominated by a preceding case label</code>。窄的要放前面。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式執行 <code>label(null)</code> 會怎樣？</p>
+<pre><code>static String label(Object o) {
+    return switch (o) {
+        case String s -&gt; "字串";
+        default -&gt; "其他";
+    };
+}</code></pre>
+  <ul class="dopts"><li data-ok>丟出 NullPointerException</li><li>回傳「其他」，null 會落進 default</li><li>回傳「字串」</li><li>編譯錯誤，少了 case null</li></ul>
+  <p class="dexp">沒有 <code>case null</code> 時，switch 遇到 null 跟以前一樣丟 <code>NullPointerException</code>；JEP 441 特別說明 <code>default</code> 不會比對到 null。要處理 null 就加 <code>case null</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段能編譯嗎？</p>
+<pre><code>static int size(Object o) {
+    return switch (o) {
+        case String s -&gt; s.length();
+        case Integer i -&gt; i;
+    };
+}</code></pre>
+  <ul class="dopts"><li>可以，其他型別回傳 0</li><li>可以，其他型別丟出 MatchException</li><li data-ok>編譯錯誤，沒有窮舉 Object 的所有可能</li><li>可以，其他型別回傳 null</li></ul>
+  <p class="dexp">選擇的值型別是 Object，只列 String 和 Integer 涵蓋不完。javac 報 <code>the switch expression does not cover all possible input values</code>；加 <code>default</code> 才窮舉。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段 switch <strong>敘述</strong>（不是運算式）能編譯嗎？</p>
+<pre><code>static void log(Object o) {
+    switch (o) {
+        case String s -&gt; System.out.println(s);
+    }
+}</code></pre>
+  <ul class="dopts"><li>可以，switch 敘述本來就不必窮舉</li><li>可以，但 o 不是字串時，執行到這裡會丟出例外</li><li>編譯錯誤，switch 敘述不能用箭頭</li><li data-ok>編譯錯誤，沒有窮舉</li></ul>
+  <p class="dexp">傳統的 switch 敘述不必窮舉；但 JEP 441 規定只要用了模式或 null 標籤，敘述也要窮舉。javac 報 <code>the switch statement does not cover all possible input values</code>，加 <code>default -&gt; {}</code> 即可。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>record Point(<wbr>int x, int y) {}</code>，這段印出什麼？</p>
+<pre><code>Object o = new Point(3, 4);
+if (o instanceof Point(int x, int y)) {
+    System.out.println(x * y);
+}</code></pre>
+  <ul class="dopts"><li>34</li><li data-ok>12</li><li>7</li><li>編譯錯誤，要寫 Point p 才能取元件</li></ul>
+  <p class="dexp">record 模式比對成功時，會呼叫讀取方法把元件拆進 x、y，所以印出 3×4 = 12。不必先宣告 <code>Point p</code> 再呼叫 <code>p.x()</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Object o = null;</code>，<code>o instanceof Point(<wbr>int x, int y)</code> 的結果是什麼？</p>
+  <ul class="dopts"><li>true，x 和 y 都是 0</li><li>丟出 NullPointerException</li><li>編譯錯誤</li><li data-ok>false</li></ul>
+  <p class="dexp">JLS：null 不會比對到 record 模式。<code>instanceof</code> 對 null 一律是 false，不會丟例外。</p>
+</div>
+<div class="drill">
+  <p class="dq">Java 22 起，<code>case CardPayment(<wbr>_, _, int n) when n &gt; 1 -&gt; ...</code> 裡的 <code>_</code> 是什麼意思？</p>
+  <ul class="dopts"><li>這兩個元件必須是 null</li><li>這兩個元件會被設成預設值</li><li>代表後面可以接任意數量的元件</li><li data-ok>那兩格什麼值都符合、也不取名字</li></ul>
+  <p class="dexp"><code>_</code> 是無名模式（JEP 456，Java 22 正式）：那個位置什麼值都符合、也不宣告變數。一個 <code>_</code> 只對一個元件，CardPayment 有三個元件就要寫三格。</p>
+</div>
+</section>
+
+<section>
+<p class="era">多行字串不再滿是跳脫字元</p>
+<h3 class="head">文字區塊：三個雙引號與縮排規則</h3>
+<p>JEP 378（Java 15）：文字區塊是「多行字串字面值，免去大部分跳脫字元，以可預期的方式自動排版字串，需要時也讓開發者控制格式」。<a class="fixsrc" href="https://openjdk.org/jeps/378" target="_blank" rel="noopener">出處</a> 寫 JSON、SQL、HTML 範本時最有感：</p>
+<pre><code>String json = """
+        {
+          "account": "A001",
+          "amount": 1200
+        }
+        """;
+System.out.print(json);
+// {
+//   "account": "A001",
+//   "amount": 1200
+// }
+System.out.println(json.length() + " " + json.endsWith("\n"));   // 42 true</code></pre>
+<p>四條規則，都出自 JEP 378：<a class="fixsrc" href="https://openjdk.org/jeps/378" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>開頭的 <code>"""</code> 後面必須換行。</strong>開頭分隔符是「三個雙引號，接零個以上空白，再接一個換行」，內容從那個換行之後才開始。所以 <code>"""TWD"""</code> 寫在同一行是編譯錯誤（<code>illegal text block open delimiter sequence, missing line terminator</code>）。</li>
+<li><strong>共同的縮排會被拿掉。</strong>為了配合 Java 原始碼縮排而多出來的空白叫「附帶空白」（incidental white space），編譯器會移除：把每一行（空白行不算）開頭的空白數取最小值，每行都去掉這麼多。<strong>結尾 <code>"""</code> 自己獨占一行時，它的位置也算一行</strong>，所以把結尾 <code>"""</code> 往左移，內容就整體往右多留空白。</li>
+<li><strong>每行行尾的空白會被刪掉。</strong>JEP 說行尾空白「多半是無意的」；真的要留就用新的跳脫字元 <code>\s</code>（一個空格）。</li>
+<li><strong>結尾 <code>"""</code> 放在最後一行內容後面，字串就不以換行結尾；</strong>想把很長的一行拆成好幾行寫、但字串裡不要換行，就在行尾加 <code>\</code>（<code>\&lt;換行&gt;</code> 跳脫，取消這個換行）。</li>
+</ul>
+<pre><code>String noNewline = """
+        TWD""";
+System.out.println("[" + noNewline + "]");   // [TWD]
+
+String shifted = """
+          兩格縮排
+        """;                                 // 結尾 """ 比內容少兩格
+// shifted 是 "  兩格縮排\n"
+
+String oneLine = """
+        第一段，\
+        接在同一行
+        """;
+System.out.print(oneLine);                   // 第一段，接在同一行
+
+String keep = """
+        結尾留兩格\s\s
+        """;
+// keep 是 "結尾留兩格  \n"
+
+String sql = """
+        SELECT * FROM tx WHERE account = '%s' AND amount &gt; %d
+        """.formatted("A001", 1000);
+System.out.print(sql);   // SELECT * FROM tx WHERE account = 'A001' AND amount &gt; 1000</code></pre>
+<p class="muted">文字區塊不支援在字串裡直接插入變數，JEP 378 建議用新的 <code>String::formatted</code>（上面最後一段）。<a class="fixsrc" href="https://openjdk.org/jeps/378" target="_blank" rel="noopener">出處</a> 但 SQL 用字串拼接或 <code>formatted</code> 填使用者輸入，有 SQL 注入（攻擊者把一段 SQL 混進輸入裡讓資料庫執行）的風險；實務上請用 <code>PreparedStatement</code> 的參數，這裡只示範字串格式。</p>
+
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+<pre><code>String s = """
+        A
+        B
+        """;
+System.out.println(s.length());</code></pre>
+  <ul class="dopts"><li>2</li><li data-ok>4</li><li>3</li><li>20</li></ul>
+  <p class="dexp">共同縮排被拿掉後，內容是 A、換行、B、換行，共 4 個字元。結尾 <code>"""</code> 自己一行，所以最後有換行。</p>
+</div>
+<div class="drill">
+  <p class="dq">同上，但結尾寫成 <code>B""";</code>（跟 B 同一行），<code>s.length()</code> 是多少？</p>
+  <ul class="dopts"><li>4</li><li data-ok>3</li><li>2</li><li>編譯錯誤</li></ul>
+  <p class="dexp">結尾分隔符緊接在最後一行內容後面，字串就不以換行結尾：A、換行、B，共 3 個字元。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>String code = """TWD""";</code> 會怎樣？</p>
+  <ul class="dopts"><li>等於 "TWD"</li><li>等於 "\"TWD\""</li><li data-ok>編譯錯誤</li><li>等於空字串，因為內容不在三引號之間的新行</li></ul>
+  <p class="dexp">開頭分隔符是三個雙引號加上一個換行，內容從換行後開始。單行字串請用一般的 <code>"TWD"</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的 <code>s</code> 是什麼？</p>
+<pre><code>String s = """
+          X
+        """;</code></pre>
+  <ul class="dopts"><li>"X\n"</li><li data-ok>"  X\n"</li><li>"          X\n"</li><li>"X"</li></ul>
+  <p class="dexp">內容那行有 10 格空白，結尾 <code>"""</code> 那行有 8 格；結尾分隔符獨占一行時也算進「共同縮排」，取最小值 8 去掉，X 前面剩 2 格。</p>
+</div>
+<div class="drill">
+  <p class="dq">文字區塊裡，某一行的結尾刻意打了兩個空格。編譯後那兩個空格會怎樣？</p>
+  <ul class="dopts"><li data-ok>被刪掉；要保留就寫成 \s</li><li>原樣保留在字串裡</li><li>變成一個 \t 定位字元</li><li>變成 \s 這兩個字元</li></ul>
+  <p class="dexp">JEP 378 的演算法會刪掉每一行行尾的空白，因為它們多半是無意的。<code>\s</code> 是 Java 15 新增的跳脫字元，代表一個空格，在刪除行尾空白之後才轉換，所以留得住。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段印出什麼？</p>
+<pre><code>String s = """
+        轉帳\
+        成功
+        """;
+System.out.print(s);</code></pre>
+  <ul class="dopts"><li>轉帳 換行 成功</li><li>轉帳\成功</li><li>編譯錯誤</li><li data-ok>轉帳成功</li></ul>
+  <p class="dexp">行尾的 <code>\</code> 取消了那個換行，兩行接成「轉帳成功」，最後再加結尾那個換行。這個跳脫只能用在文字區塊。</p>
+</div>
+</section>
+
+<section>
+<p class="era">誰能繼承，由我說了算</p>
+<h3 class="head">sealed 與 permits：封閉的類別階層，搭配 switch 窮舉</h3>
+<p>JEP 409（Java 17）：sealed 類別與介面「限制哪些類別或介面可以延伸或實作它們」。<a class="fixsrc" href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">出處</a> 銀行的付款方式只有三種，就把介面封起來，只准這三個 record 實作：</p>
+<pre><code>sealed interface Payment permits Transfer, CardPayment, Cash {}
+record Transfer(String toAccount, Money money) implements Payment {}
+record CardPayment(String cardNo, Money money, int installments) implements Payment {}
+record Cash(Money money) implements Payment {}
+
+static String summary(Payment p) {
+    return switch (p) {                          // sealed：三種都列出就不必 default
+        case Transfer t -&gt; "轉帳到 " + t.toAccount() + "：" + t.money().amount();
+        case CardPayment(var card, var money, int n) when n &gt; 1 -&gt;
+                "刷卡分 " + n + " 期：" + money.amount();
+        case CardPayment c -&gt; "刷卡一次付清：" + c.money().amount();
+        case Cash(Money(var amount, var currency)) -&gt; "現金 " + amount + " " + currency;
+    };
+}
+// 轉帳到 B002：5000.00
+// 刷卡分 6 期：12000.00
+// 刷卡一次付清：800.00
+// 現金 300.00 TWD</code></pre>
+<p>JEP 409 對被允許的子類別定了三條限制：跟 sealed 類別在同一個模組（沒有用模組時要在同一個套件）；必須直接繼承或實作它；而且每個子類別都要寫一個修飾字說明封閉要不要往下延續——<code>final</code>（到此為止，record 隱含就是 final）、<code>sealed</code>（再往下封閉）或 <code>non-sealed</code>（從這裡開放給任何人繼承）。子類別都寫在同一個原始檔時，可以省略 <code>permits</code>，由編譯器推論。<a class="fixsrc" href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">出處</a></p>
+<p>sealed 最大的用處在 switch：JEP 441 說，選擇的值是 sealed 型別時，窮舉檢查會參考 <code>permits</code> 清單，「有時就不需要 <code>default</code>」。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a> 好處跟 enum 一樣：之後新增第四種付款方式，所有沒處理它的 switch 都會編譯失敗，不會默默落進 default。</p>
+<div class="tablewrap"><table><thead><tr><th>寫法</th><th>javac 21 的結果</th></tr></thead><tbody>
+<tr><td><code>class B implements Pay {}</code>（B 在 permits 裡，但沒寫修飾字）</td><td><code>sealed, non-sealed or final modifiers expected</code></td></tr>
+<tr><td><code>record C() implements Pay {}</code>（C 不在 permits 裡）</td><td><code>class is not allowed to extend sealed class: Pay (<wbr>as it is not listed in its 'permits' clause)</code></td></tr>
+<tr><td>對 <code>Pay</code> 做 switch，只寫了 <code>case A a</code></td><td><code>the switch expression does not cover all possible input values</code></td></tr>
+</tbody></table></div>
+
+<div class="drill">
+  <p class="dq"><code>sealed interface Payment permits Transfer, Cash {}</code>，另一個檔案寫 <code>record Crypto(<wbr>String coin) implements Payment {}</code>，會怎樣？</p>
+  <ul class="dopts"><li>可以，record 隱含是 final</li><li data-ok>編譯錯誤</li><li>可以，但之後所有 switch 都要加 default</li><li>可以，但要寫成 non-sealed record</li></ul>
+  <p class="dexp">sealed 只准 permits 列出的型別實作。javac 報 <code>class is not allowed to extend sealed class: Payment (<wbr>as it is not listed in its 'permits' clause)</code>。record 本來就不能寫 non-sealed。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>sealed interface Pay permits A, B {}</code>，B 寫成 <code>class B implements Pay {}</code>（沒有任何修飾字），會怎樣？</p>
+  <ul class="dopts"><li>可以，B 預設是 final</li><li>可以，B 預設是 non-sealed</li><li>可以，B 預設是 sealed</li><li data-ok>編譯錯誤，B 要寫修飾字</li></ul>
+  <p class="dexp">JEP 409 要求每個被允許的子類別明確說出封閉往下怎麼延續，沒有預設值；javac 報 <code>sealed, non-sealed or final modifiers expected</code>。record 不用寫，因為它隱含是 final。</p>
+</div>
+<div class="drill">
+  <p class="dq">對上面的 <code>Payment</code>（Transfer、CardPayment、Cash）寫 switch 運算式，三個都有 case、沒有 default，能編譯嗎？</p>
+  <ul class="dopts"><li data-ok>可以，編譯器知道只有這三種</li><li>不行，型別模式的 switch 一定要有 default</li><li>可以，但會有警告</li><li>不行，sealed 介面不能拿來 switch</li></ul>
+  <p class="dexp">JEP 441：選擇的值是 sealed 型別時，窮舉檢查會參考 permits，三種都涵蓋就窮舉了，不需要 default。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>summary</code> 裡的 <code>case Cash(...)</code> 那一行刪掉，會怎樣？</p>
+  <ul class="dopts"><li>可以，Cash 會回傳 null</li><li>可以，Cash 會對到 CardPayment c</li><li data-ok>編譯錯誤，switch 沒有窮舉</li><li>可以，Cash 時丟出 MatchException</li></ul>
+  <p class="dexp">permits 裡的 Cash 沒有任何 case 涵蓋，switch 不再窮舉，javac 報 <code>does not cover all possible input values</code>。這正是 sealed 的價值：新增或漏掉一種型別，編譯期就抓到。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 <code>summary(<wbr>new CardPayment(<wbr>"4111", Money.<wbr>twd(800), 1))</code>，回傳什麼？</p>
+  <ul class="dopts"><li>刷卡分 1 期：800.00</li><li data-ok>刷卡一次付清：800.00</li><li>轉帳到 4111：800.00</li><li>編譯錯誤</li></ul>
+  <p class="dexp">第一個 CardPayment case 的守衛是 <code>n &gt; 1</code>，1 期不成立，往下找到 <code>case CardPayment c</code>。</p>
+</div>
+<div class="drill">
+  <p class="dq">sealed 類別的子類別寫成 <code>non-sealed class</code>，代表什麼？</p>
+  <ul class="dopts"><li>這個子類別不能被繼承</li><li>這個子類別也必須列 permits</li><li>這個子類別不再算是 sealed 父類別的子型別</li><li data-ok>從這個子類別開始，任何類別都可以再繼承它</li></ul>
+  <p class="dexp">JEP 409：<code>non-sealed</code> 讓這一支階層「恢復成開放給未知的子類別延伸」，sealed 父類別無法阻止。<code>final</code> 才是不能再被繼承；<code>sealed</code> 才需要自己的 permits。</p>
+</div>
+</section>
+
+<section>
+<p class="era">Java 21 的另一個大功能</p>
+<h3 class="head">虛擬執行緒與 Java 25 的差異</h3>
+<p><strong>虛擬執行緒</strong>（virtual thread，JEP 444）在 Java 21 正式定案<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a>。<code>Thread</code> 的文件說它「由 Java 執行環境而不是作業系統排程」（scheduled by the Java runtime rather than the operating system），「一個 JVM 可以支撐數百萬條」（a single Java virtual machine may support millions of virtual threads），適合大部分時間在等 I/O 的工作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html" target="_blank" rel="noopener">出處</a> 它不是語法，而是 <code>Thread</code> 的另一種實作，入門在〈執行緒與並行〉的補充段，面試追問（不要池化、用 Semaphore 限量、Java 24 起 <code>synchronized</code> 不再釘住載體）在〈Java 並行快答：執行緒池、鎖與並行集合〉，它跟作業系統執行緒的關係在〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉。</p>
+<p><strong>Java 25 的建構子差異（JEP 513）。</strong>Java 21 規定 <code>super(...)</code> 必須是建構子的第一行，想先驗證參數只能另寫靜態方法繞過。JEP 513 在 Java 25 定案，允許 <code>super(...)</code>、<code>this(...)</code> 之前先放敘述，這些敘述「不能引用正在建構的物件，但可以初始化它的欄位、做其他安全的計算」（Such statements cannot reference the object under construction, but they can initialize its fields and perform other safe computations.）。<a class="fixsrc" href="https://openjdk.org/jeps/513" target="_blank" rel="noopener">出處</a> 同一份 JEP 說 record 的標準建構子仍然不能呼叫其他建構子，這條限制不變。</p>
+<pre><code>// Java 25 起（以 Java 25 執行）
+class SavingsAccount extends Account {
+    SavingsAccount(String id) {
+        if (!id.startsWith("S")) {                       // super(...) 之前先驗證
+            throw new IllegalArgumentException("儲蓄帳號要以 S 開頭：" + id);
+        }
+        super(id);
+    }
+}
+// new SavingsAccount("C001") 丟出 IllegalArgumentException：儲蓄帳號要以 S 開頭：C001
+// 同樣的程式用 Java 21 編譯：error: call to super must be first statement in constructor</code></pre>
+
+<div class="drill">
+  <p class="dq">虛擬執行緒在 Java 21 屬於哪一類變更？</p>
+  <ul class="dopts"><li>新的語法，要用新的關鍵字宣告</li><li data-ok>Thread 的另一種實作，不是新語法</li><li>預覽功能，要加 --enable-preview</li><li>只能在 Spring 這類框架裡使用的功能，不屬於 JDK</li></ul>
+  <p class="dexp">JEP 444 在 Java 21 正式定案，不是預覽。它透過 <code>Thread.ofVirtual()</code>、<code>Executors.<wbr>newVirtualThreadPerTaskExecutor()</code> 這些 API 使用，沒有新增語法。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 Java 21 編譯下面這個建構子，會怎樣？</p>
+<pre><code>SavingsAccount(String id) {
+    if (id.isEmpty()) throw new IllegalArgumentException();
+    super(id);
+}</code></pre>
+  <ul class="dopts"><li>可以，先驗證再呼叫父類別建構子</li><li>可以，但會有警告</li><li data-ok>編譯錯誤</li><li>可以，但 super(<wbr>id) 會被忽略，父類別欄位是 null</li></ul>
+  <p class="dexp">javac 21 報 <code>call to super must be first statement in constructor</code>。super 之前放敘述是 JEP 513 在 Java 25 才定案的寫法。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個功能，在 Java 25 <strong>仍是預覽</strong>、還沒定案？</p>
+  <ul class="dopts"><li>record 解構模式</li><li data-ok>模式裡用 int 這類基本型別</li><li>switch 的型別模式與 when 守衛</li><li>無名變數與無名模式 _</li></ul>
+  <p class="dexp">record 模式、switch 模式比對在 Java 21 定案（JEP 440、441），<code>_</code> 在 Java 22 定案（JEP 456）；基本型別模式的 JEP 507 在 Java 25 是第三次預覽。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li><code>var</code>（Java 10）只用在有初始值的區域變數、for 迴圈與 try-with-resources；欄位、參數、回傳型別不行；它不是關鍵字。配菱形會推成 <code>Object</code>，右邊看不出型別時寫明比較好讀。</li><li><code>record</code>（Java 16）自動有讀取方法 <code>x()</code>、標準建構子、依值比較的 <code>equals</code>／<code>hashCode</code> 與 <code>toString</code>；驗證寫在緊湊建構子，改參數、不改欄位；隱含 final、不能 extends；不可變只到第一層，清單要 <code>List.copyOf</code>。</li><li>switch 運算式（Java 14）要窮舉；箭頭不會穿透；區塊裡用 <code>yield</code> 交出值；enum 全列出時不寫 <code>default</code>，新增常數時編譯器才會提醒。</li><li>模式比對：<code>instanceof</code> 模式（Java 16）的變數只在一定比對成功處有效；switch 型別模式與 <code>when</code> 守衛、record 解構模式（Java 21）由上往下第一個符合的生效，窄的放前面；<code>default</code> 不接 null，要寫 <code>case null</code>。</li><li>文字區塊（Java 15）：開頭 <code>"""</code> 後要換行；共同縮排被拿掉，結尾 <code>"""</code> 的位置也算；行尾空白被刪，要留用 <code>\s</code>；行尾 <code>\</code> 取消換行。</li><li><code>sealed</code>／<code>permits</code>（Java 17）限定子型別，子類別要寫 <code>final</code>、<code>sealed</code> 或 <code>non-sealed</code>；配 switch 可以不寫 <code>default</code> 也窮舉。</li><li>Java 22 起有 <code>_</code> 無名模式；Java 25 起 <code>super(...)</code> 之前可以先放驗證；基本型別模式在 Java 25 仍是預覽。</li></ul></div>
