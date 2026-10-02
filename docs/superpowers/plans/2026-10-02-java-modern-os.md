@@ -25,7 +25,7 @@
 |---|---|---|---|---|
 | `java/12-lambda-functional` | ✅ `86ea72a`＋`075d33e`（55 題；mins 55） | ✅ 10-02 審完：132 題正解都唯一（三題只在 JDK 實作上唯一，要標明實跑）；出處連結裡塞了 wbr 點不開；測驗正解太常最長；清單 `.superpowers/audit/java/findings-12-13.md`；修正交給 `fix-java-1213` | ✅ 10-02 上線 |
 | `java/13-stream-api` | ✅ `c09e024`（57 題；mins 55） | 同上 | ✅ 10-02 上線 |
-| `java/14-modern-syntax` | ✅ 寫完 | ✅ 10-02 審完（`review-java-a`）：內容都對；兩課測驗正解太常最長（7／10、9／10）必修；yield 是 Java 13 改的、var 與 long、setScale 會丟例外、AsynchronousFileChannel 在 Linux 用執行緒池模擬等；清單 `.superpowers/audit/java/findings-14-15.md` | | |
+| `java/14-modern-syntax` | ✅ 寫完 | ✅ 10-02 審完（`review-java-a`）：內容都對；兩課測驗正解太常最長（7／10、9／10）必修；yield 是 Java 13 改的、var 與 long、setScale 會丟例外、AsynchronousFileChannel 在 Linux 用執行緒池模擬等；清單 `.superpowers/audit/java/findings-14-15.md` | 修正交給 `fix-algo-0708` | |
 | `java/15-os-process-io` | ✅ 寫完 | 同上 | | |
 | `interview/17-java-modern-qa` | | | | |
 
