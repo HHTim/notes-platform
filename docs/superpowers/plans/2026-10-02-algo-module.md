@@ -18,8 +18,8 @@
 | `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | ✅ 10-02 上線 |
 | `07-sorting-binary-search` | ✅ `628dd36`（61 題、8 張圖、36 出處；mins 75） | ✅ 10-02 審完：無錯誤級，133 題正解都唯一；額外空間講法跟〈複雜度〉打架、int[] 不走計數排序、選項長度洩題嚴重（08 測驗 9／10 題正解最長）；07 砍到 55 題以下；清單 `.superpowers/audit/algo/findings-07-08.md`；修正交給 `fix-algo-0708` | ✅ 修正 `5a0a802`（07 砍到 54 題、08 50 題；選項長度大改）＋主控 `92f42a6`；範圍複審 ✅（兩處小修主控改） | ✅ 10-02 上線 `c690e4b` |
 | `08-two-pointers-window` | ✅ `d5a4101`（51 題、6 張圖、7 出處；mins 50） | 同上 | 同上 | ✅ 10-02 上線 |
-| `09-tree-bst` | ✅ `36da06c`（55 題、8 張圖、18 出處；mins 58） | ✅ 10-02 審完（`review-algo-b`，09＋10）：可上線；樹高出處連到看不到的 HTML 註解、樹化前提、LCA 漏情況、⌊lg n⌋、ClassCastException 時機；清單 `.superpowers/audit/algo/findings-09-10.md`；修正交給 `fix-algo-0910` | 修正 `56fe935`（10 條全改）；範圍複審中（`review-algo-b`） | |
-| `10-heap` | ✅ `ce44514`（51 題、4 張圖、21 出處；mins 55） | 同上 | | |
+| `09-tree-bst` | ✅ `36da06c`（55 題、8 張圖、18 出處；mins 58） | ✅ 10-02 審完（`review-algo-b`，09＋10）：可上線；樹高出處連到看不到的 HTML 註解、樹化前提、LCA 漏情況、⌊lg n⌋、ClassCastException 時機；清單 `.superpowers/audit/algo/findings-09-10.md`；修正交給 `fix-algo-0910` | 修正 `56fe935`（10 條全改）；範圍複審 ✅ | ✅ 10-02 上線 `1144fb5` |
+| `10-heap` | ✅ `ce44514`（51 題、4 張圖、21 出處；mins 55） | 同上 | 同上 | ✅ 10-02 上線 |
 | `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | ✅ 10-02 審完：程式全對、130 題正解都唯一；DP 找零圖 min 數字算錯（三處）、費氏圖說明錯；路徑減半被寫成指向根；「聯集—找出」改 union-find；清單 `.superpowers/audit/algo/findings-11-12.md`；修正交給 `fix-algo-1112` | 修正 `15591b1`（21 條全改）；範圍複審中（`review-algo-d`） | |
 | `12-dynamic-programming` | ✅ `1a1db96`（56 題、5 張圖、15 出處；mins 60） | 同上 | | |
 | `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | ✅ 10-02 審完：無錯誤級；必修 LinkedHashMap 方向講反、「排序後重疊區間一定相鄰」不成立；33 題沒有對應的課；用詞統一；清單 `.superpowers/audit/algo/findings-13.md`；修正交給 `fix-algo-13` | ✅ `17d39c6`（11 條全改；主控抽查通過，未另派複審） | ✅ 10-02 上線 |
