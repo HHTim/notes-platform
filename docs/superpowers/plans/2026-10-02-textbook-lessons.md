@@ -20,7 +20,7 @@
 | `spring/14-boot-autoconfig-actuator` | Spring Boot 自動組態與 Actuator | （新）進階 | 同上、〈微服務與架構面試題〉 | ✅ `d83fa5b`（47 題、4 圖；mins 70） | ✅ 同上：刪亂碼段、砍到 39 題、JSON 只留關鍵行；兩課長陷阱選項反向洩題 | 同上 | ✅ 10-03 上線 | | |
 | `web/11-tcp-udp-tls` | TCP、UDP 與 TLS 握手 | 網路與伺服器 | 〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉 | ✅ `f318961`（50 題、6 圖；mins 60） | ✅ 10-02 審完：Linux 原始碼註解引錯一處、四處補出處或前提；12 課砍到 50 題；清單 `.superpowers/audit/web/findings-11-12.md`；修正交回 `write-web-b` | 修正 `4b0c6c9`（10 條全改、各 50 題）；範圍複審 ✅（(304) 說明主控補） | ✅ 10-03 上線 `c59553f` | | | |
 | `web/12-http-advanced` | HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進 | 網路與伺服器 | 同上 | ✅ `6864ff6`（52 題、4 圖；mins 65） | 同上 | 同上 | ✅ 10-03 上線 | |
-| `spring/15-security-jwt-oauth` | JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接 | （新）進階 | 〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉 | ✅ `0653f43`（47 題、4 圖、31 出處；mins 60；Boot 4.1.1／Security 7.1.1） | ✅ 10-02 審完：程式片段漏 @Bean、舊雜湊升級說過頭、四處補原始碼出處、選項長度最嚴重；清單 `.superpowers/audit/spring/findings-15.md`；修正交回 `write-algo-d` | | | |
+| `spring/15-security-jwt-oauth` | JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接 | （新）進階 | 〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉 | ✅ `0653f43`（47 題、4 圖、31 出處；mins 60；Boot 4.1.1／Security 7.1.1） | ✅ 10-02 審完：程式片段漏 @Bean、舊雜湊升級說過頭、四處補原始碼出處、選項長度最嚴重；清單 `.superpowers/audit/spring/findings-15.md`；修正交回 `write-algo-d` | 修正 `85acf3f`（11 條全改）；範圍複審中 | | | |
 
 ## 接著做（「可以等」那批）
 
@@ -35,7 +35,7 @@
 | `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | ✅ `a435e4f`（49 題、3 圖、25 網址；Boot 4.1.1、Framework 7 內建版本） | ✅ 10-03 審完：範例冪等沒存失敗結果（跟草案不一致）、工作紀錄寫法、learn 5 條；縮到 mins 60；清單 `.superpowers/audit/spring/findings-21.md`；修正交給 `fix-db08`（原寫課者在修資料庫 06、07） | | | |
 | `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | ✅ `d57361b`（47 題、3 圖、17 網址；mins 50） | ✅ 10-03 審完：無錯誤級；Thymeleaf／Angular 編碼補出處、「比網銀低」改成有理由的說法、選項長度；清單 `.superpowers/audit/web/findings-13.md`；修正 `579af10`（7 條全改、標頭重跑 10-03）；範圍複審 ✅ | ✅ 10-03 上線 `83c2471` | | | |
 | `web/14-realtime-websocket-sse` | 即時通訊：WebSocket、SSE 與輪詢 | ✅ `7d76544`（45 題、6 圖、17 網址；mins 55；Nginx 待補 Docker 實跑） | ✅ 10-03 審完：無錯誤級；手機撐寬、curl 輸出新舊混用、Node 要加旗標、「訊息代理」白話；frame 統一譯「訊框」（`589e0f9`）；清單 `.superpowers/audit/web/findings-14.md`；修正交回 `write-web-b` | | | |
-| `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | ✅ `188d31a`（40 題、4 圖、17 網址；Flyway 12.4、MySQL 8.4 實跑 18 步）；Spring 9 課手機撐寬 `0da686c`；全站掃描另抓 6 頁撐寬交 `write-algo-d` 修 | 審查中（`review-algo-a`） | | | |
+| `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | ✅ `188d31a`（40 題、4 圖、17 網址；Flyway 12.4、MySQL 8.4 實跑 18 步）；Spring 9 課手機撐寬 `0da686c`；全站掃描另抓 6 頁撐寬，已修 `cde2a24`（全站 153 頁 0 頁撐寬） | 審查中（`review-algo-a`） | | | |
 | `java/18-solid-antipatterns` | SOLID 與常見反模式 | ✅ `e305b96`（43 題、3 圖、21 出處；mins 50） | ✅ 10-03 審完：無錯誤級，5 條小修主控直接改（Liskov 1987 原文 ACM 擋 403 無法逐字核對，主控決定保留 DOI） | — | ✅ 10-03 上線 `214d03f` | | | |
 | `cloud/16-aws-lb-autoscaling-messaging` | 負載平衡、自動擴展與訊息服務 | 撰寫中（`fix-algo-0910`） | | | |
 | `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | 審查中（`review-algo-d`） | | | |
@@ -44,6 +44,7 @@
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
 | `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | 撰寫中（`write-algo-c`） | | | |
 | `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | 撰寫中（`fix-algo-1112`） | | | |
+| `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | 撰寫中（`write-algo-d`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
