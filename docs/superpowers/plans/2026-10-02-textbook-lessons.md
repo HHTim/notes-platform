@@ -33,7 +33,7 @@
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
 | `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | 撰寫中（`write-algo-c`） | | | |
 | `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | 撰寫中（`write-algo-b`） | | | |
-| `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | 撰寫中（`write-algo-a`） | | | |
+| `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | ✅ `d57361b`（47 題、3 圖、17 網址；mins 50） | 審查中（`review-algo-c`） | | | |
 | `web/14-realtime-websocket-sse` | 即時通訊：WebSocket、SSE 與輪詢 | 撰寫中（`write-web-b`） | | | |
 | `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | 撰寫中（`write-algo-d`；先修 Spring 第 9 課手機版撐寬並掃全站） | | | |
 | `java/18-solid-antipatterns` | SOLID 與常見反模式 | 撰寫中（`fix-algo-1112` 轉做） | | | |
