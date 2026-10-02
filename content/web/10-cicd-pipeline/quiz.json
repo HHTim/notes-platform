@@ -2,52 +2,52 @@
  "questions": [
   {
    "q": "持續交付（continuous delivery）與持續部署（continuous deployment）的差別是？",
-   "opts": ["持續交付是隨時「能」上線、由人決定何時上；持續部署是通過管線就自動上正式環境", "兩者是同一件事", "持續部署不需要自動化測試", "持續交付只做到建置，不做測試"],
+   "opts": ["持續交付由人決定何時上線；持續部署通過就自動上線", "持續部署由人決定何時上線；持續交付通過就自動上線", "兩者是同一件事，只是不同書的叫法", "持續交付只做到建置，不做自動化測試"],
    "exp": "Fowler：持續交付表示能頻繁部署但可以選擇不做；持續部署是每個變更走過管線自動進正式環境。要做持續部署得先做到持續交付。"
   },
   {
    "q": "管線的測試階段失敗了，接下來會怎樣？",
-   "opts": ["後面的打映像檔、推 registry、部署都不跑，這次變更不會上線", "照樣部署到測試環境", "自動略過失敗的測試再繼續", "直接部署到正式環境，再由維運人員判斷"],
+   "opts": ["後面的階段都不跑，這次不會上線", "照樣部署到測試環境，讓人工確認", "自動略過失敗的測試，繼續往下跑", "直接部署到正式環境，再由維運判斷"],
    "exp": "管線前面的格子失敗，後面就不跑，確保進到環境裡的版本都通過了檢查。"
   },
   {
    "q": "一個 workflow 有 lint、test、build 三個 job，build 寫了 needs: [lint, test]，lint 和 test 沒寫 needs。執行順序是？",
-   "opts": ["lint 與 test 同時跑，兩個都成功後才跑 build", "lint → test → build 一個接一個", "三個同時開始", "build 先跑，lint 和 test 之後"],
+   "opts": ["lint、test 同時跑，都成功才跑 build", "lint → test → build 一個接一個", "三個同時開始，needs 只影響結果顯示", "build 先跑，lint 和 test 之後再檢查"],
    "exp": "job 預設同時跑；needs 列出必須先成功完成的 job。"
   },
   {
    "q": "job deploy 寫了 needs: build，build 失敗了。deploy 會怎樣？",
-   "opts": ["被略過，除非 deploy 的 if 用了 always() 這類條件", "照樣執行", "等 build 重跑成功後自動執行", "改成在 build 的 runner 上執行"],
+   "opts": ["被略過", "照樣執行，needs 只決定先後", "等 build 重跑成功後自動執行", "改成在 build 的 runner 上執行"],
    "exp": "文件：被需要的 job 失敗或被略過，需要它的 job 全部略過，除非用了讓它繼續的條件式。"
   },
   {
    "q": "workflow 寫 on: push: branches: [main]。推了標籤 v2.0.0，會不會觸發？",
-   "opts": ["不會，只定義 branches 時，推標籤不會觸發", "會，標籤也是 push", "會，只要標籤在 main 上", "只有手動才會"],
+   "opts": ["不會，只寫 branches 就不管標籤", "會，標籤也是一種 push", "會，只要標籤指向 main 上的 commit", "只有在 Actions 頁手動按才會"],
    "exp": "只定義 branches 或只定義 tags 時，影響另一種 Git 參照的事件不會觸發；兩個都沒定義才都會跑。"
   },
   {
    "q": "on: pull_request 沒寫 types，下面哪一個動作會觸發？",
-   "opts": ["PR 的分支推了新的 commit", "修改 PR 的標題", "幫 PR 加一個標籤", "在 PR 上留言"],
+   "opts": ["PR 推了新 commit", "修改 PR 的標題或說明", "幫 PR 加一個 bug 標籤", "在 PR 上留言請人審查"],
    "exp": "預設只有 opened、synchronize（推了新 commit）、reopened 會觸發。"
   },
   {
    "q": "同一個 job 裡，第一個 step 建出了 target/app.jar，並在 shell 裡 export APP_ENV=prod。第二個 step 能拿到什麼？",
-   "opts": ["拿得到 app.jar，拿不到 APP_ENV", "兩個都拿得到", "兩個都拿不到", "拿得到 APP_ENV，拿不到 app.jar"],
+   "opts": ["拿得到 app.jar，拿不到 APP_ENV", "兩個都拿得到，同一個 job 共用一切", "兩個都拿不到，每個 step 都是新機器", "拿得到 APP_ENV，拿不到 app.jar"],
    "exp": "同一個 job 的 step 在同一台 runner 上，看得到同樣的檔案；但每個 step 是自己的行程，環境變數的變更不會保留到下一步。"
   },
   {
    "q": "部署 workflow 設 concurrency 群組 deploy、cancel-in-progress: false。A 正在部署時 B、C 相繼進來，結果是？",
-   "opts": ["B 在等待時被 C 取代、取消；A 跑完後 C 執行", "A、B、C 依序全部跑完", "A 被取消、C 開始跑", "三個同時跑"],
+   "opts": ["B 被 C 取代；A 跑完後跑 C", "A、B、C 依序全部跑完，一個都不丟", "A 被取消，由最新的 C 接著跑", "三個同時跑，各部署各的"],
    "exp": "同群組一次只跑一個；等待中的會被新進來的取代；false 表示正在跑的不砍。本站的 deploy.yml 就是這個設定。"
   },
   {
    "q": "production 環境設了指定核准人，正式資料庫密碼存在 production 環境的 secrets。還沒有人核准時，部署 job 怎樣？",
-   "opts": ["不會開始，也讀不到環境的 secrets；核准後才繼續", "會開始，但日誌會遮掉密碼", "會開始，用 repo 的 secrets 代替", "直接失敗"],
+   "opts": ["不會開始，核准後才繼續", "會開始，但日誌會遮掉密碼", "會開始，先用 repo 的 secrets 代替", "直接失敗，要重新觸發"],
    "exp": "環境的保護規則全部通過 job 才開始；需要核准的環境，核准前 job 讀不到環境 secrets。被拒絕時 workflow 才會失敗。"
   },
   {
    "q": "GitOps（例如 Argo CD）跟管線直接 kubectl apply 相比，主要差在哪？",
-   "opts": ["管線只改 Git 裡的設定，叢集裡的工具以 Git 為依據比對並同步，叢集權限不必交給 CI", "GitOps 不需要映像檔", "GitOps 只能部署到測試環境", "kubectl apply 不能用在正式環境"],
+   "opts": ["管線只改 Git，叢集權限不必交給 CI", "GitOps 不需要映像檔，直接部署原始碼", "GitOps 只能部署到測試環境，正式要手動", "kubectl apply 不能用在正式環境的叢集"],
    "exp": "Argo CD 以 Git repo 為期望狀態的依據，持續比對實際狀態，不一致就標 OutOfSync 並可同步；推的方式要讓 CI 握有叢集憑證。"
   }
  ]

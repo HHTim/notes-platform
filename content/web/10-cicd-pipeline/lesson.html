@@ -1,5 +1,5 @@
 <!-- 來源：依 GitHub Docs（Understanding GitHub Actions、Continuous integration、Continuous deployment、Workflow syntax、Events that trigger workflows、Evaluate expressions、Dependency caching、Running variations of jobs、Secrets、GITHUB_TOKEN、Secure use reference、OpenID Connect、Deployments and environments、Reviewing deployments、Viewing deployment history、Control workflow concurrency、About protected branches、Using custom workflows with GitHub Pages）、actions/configure-pages 與 upload-pages-artifact 的 action.yml、actions/starter-workflows 的 pages/static.yml、actions/runner-images 的 Ubuntu 24.04 清單、Martin Fowler〈Continuous Integration〉與〈ContinuousDelivery〉、Docker 文件〈GitHub Actions〉、docker/build-push-action README、Argo CD 文件新寫；範例 YAML 全部以 actionlint 1.7.12 檢查通過，本站 deploy.yml 的執行紀錄查自 2026-10-02 的 Actions 頁 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清持續整合、持續交付、持續部署，說出銀行為什麼多半停在持續交付</li><li>畫出一條管線的階段（建置、測試、靜態檢查、安全掃描、打映像檔、推上 registry、部署），知道哪一格失敗後面會怎樣</li><li>讀懂 GitHub Actions 的 workflow、event、job、step、runner，判斷一段 YAML 會不會被觸發、job 依什麼順序跑</li><li>會用 <code>needs</code>、矩陣、快取、secrets、environments 的人工核准與 concurrency，並能逐行講解本站自己的 <code>deploy.yml</code></li><li>說出部署到 Kubernetes 的「推」與「拉」（GitOps）兩種做法，以及銀行情境下變更審核與稽核紀錄要怎麼留</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清持續整合、持續交付、持續部署，說出上線要審核的環境（例如銀行）為什麼常停在持續交付</li><li>畫出一條管線的階段（建置、測試、靜態檢查、安全掃描、打映像檔、推上 registry、部署），知道哪一格失敗後面會怎樣</li><li>讀懂 GitHub Actions 的 workflow、event、job、step、runner，判斷一段 YAML 會不會被觸發、job 依什麼順序跑；會用 <code>needs</code>、矩陣、快取、secrets、environments 的人工核准與 concurrency，並能逐行講解本站自己的 <code>deploy.yml</code></li><li>說出部署到 Kubernetes 的「推」與「拉」（GitOps）兩種做法，以及銀行情境下變更審核與稽核紀錄要怎麼留</li></ul></div>
 
 <section>
 <p class="era">常常合、自動驗、隨時能上線</p>
@@ -32,23 +32,13 @@
 </div>
 <div class="drill">
   <p class="dq">Fowler 對持續交付與持續部署的關係，下面哪一句正確？</p>
-  <ul class="dopts"><li data-ok>要做持續部署，一定得先做到持續交付</li><li>持續部署是持續交付的前提</li><li>兩個是同一件事的不同名字</li><li>持續交付不需要自動化測試</li></ul>
+  <ul class="dopts"><li data-ok>要做持續部署，一定得先做到持續交付</li><li>要做持續交付，一定得先做到持續部署</li><li>兩個是同一件事，只是不同公司的叫法</li><li>持續交付不需要自動化測試，靠人工驗</li></ul>
   <p class="dexp">原文 In order to do Continuous Deployment you must be doing Continuous Delivery。持續部署是在持續交付上，再把「最後按下去」也自動化。</p>
 </div>
 <div class="drill">
-  <p class="dq">照 Fowler 的定義，持續整合要求團隊成員多久把變更合進共用的程式碼一次？</p>
-  <ul class="dopts"><li data-ok>至少每天一次</li><li>每個功能做完才合一次</li><li>每週發版前合一次</li><li>每次合併都要等主管排時間</li></ul>
-  <p class="dexp">定義寫 at least daily。拖越久才合，要合的差異越大，越容易掉進整合地獄。</p>
-</div>
-<div class="drill">
   <p class="dq">早上有人推了一個 commit，主線的建置從此一直失敗，其他人也卡住了。照 Fowler 的建議，通常最好的處理是？</p>
-  <ul class="dopts"><li>大家先停下手邊工作，一起找原因</li><li>先把失敗的測試標成略過，讓建置變綠</li><li>等到下班前再一起處理</li><li data-ok>先把出錯的 commit 從主線撤回，讓其他人能繼續，再慢慢修</li></ul>
+  <ul class="dopts"><li>大家先停下手邊工作，一起找原因修好</li><li>先把失敗的測試標成略過，讓建置變綠</li><li>等到下班前再集中處理，避免打斷開發</li><li data-ok>先把出錯的 commit 從主線撤回再修</li></ul>
   <p class="dexp">原文 Usually the best way to fix the build is to revert the faulty commit from the mainline。他也說不必全員停工，通常一兩個人處理就好；把測試略過等於把問題藏起來。</p>
-</div>
-<div class="drill">
-  <p class="dq">Fowler 說持續整合的重點是快速回饋。對大多數專案，他認為合理的建置時間目標是？</p>
-  <ul class="dopts"><li>一分鐘以內</li><li data-ok>十分鐘</li><li>一小時</li><li>一個晚上，隔天早上看結果</li></ul>
-  <p class="dexp">原文 the XP guideline of a ten minute build is perfectly within reason。建置越慢，大家越不想常常合，CI 就失去意義。</p>
 </div>
 </section>
 
@@ -80,27 +70,22 @@
 
 <div class="drill">
   <p class="dq">管線跑到「測試」這一格，有一個單元測試失敗了。接下來會怎樣？</p>
-  <ul class="dopts"><li>照樣打映像檔，部署時再看</li><li data-ok>後面的打映像檔、推 registry、部署都不會跑，這次的變更不會上線</li><li>自動部署到測試環境，讓測試人員確認</li><li>自動把失敗的測試刪掉再重跑</li></ul>
+  <ul class="dopts"><li>照樣打映像檔，部署時再決定要不要上</li><li data-ok>後面的格子都不跑，這次不會上線</li><li>自動部署到測試環境，讓測試人員確認</li><li>自動把失敗的測試刪掉，再重跑一次</li></ul>
   <p class="dexp">管線的設計就是前面失敗、後面不跑，確保進到環境裡的都是通過檢查的版本。要上線就得修好、再推一次。</p>
 </div>
 <div class="drill">
-  <p class="dq">「不執行程式，直接讀原始碼找出格式不一致或常見寫錯」是管線的哪一格？</p>
-  <ul class="dopts"><li data-ok>靜態檢查</li><li>單元測試</li><li>安全掃描</li><li>部署</li></ul>
-  <p class="dexp">靜態檢查只讀程式碼不執行；測試要真的執行程式；安全掃描看的是相依套件弱點、外洩的密碼這類風險。</p>
-</div>
-<div class="drill">
   <p class="dq">為什麼映像檔的標籤常用 commit 編號（例如 <code>core-banking:3f9c2a1</code>），而不是一直用 <code>latest</code>？</p>
-  <ul class="dopts"><li>因為 registry 不接受 latest</li><li>commit 編號比較短</li><li data-ok>每一版都有唯一的標籤，看得出正式環境跑的是哪一個 commit，要回到上一版也知道是哪一個</li><li>因為 latest 會讓建置變慢</li></ul>
+  <ul class="dopts"><li>因為 registry 不接受 latest 這個標籤</li><li>commit 編號比較短，打字比較方便</li><li data-ok>每一版標籤唯一，查得回是哪個 commit</li><li>用 latest 每次都要重新下載，建置變慢</li></ul>
   <p class="dexp">latest 會一直被新版覆蓋，事後查不出當時跑的是哪一版。用 commit 編號當標籤，映像檔跟程式碼一對一對得回來。</p>
 </div>
 <div class="drill">
   <p class="dq">測試環境驗證過的版本要上正式環境。下面哪一種做法最符合「同一份成品一路送到底」？</p>
-  <ul class="dopts"><li>從同一個 commit 再建一次映像檔給正式環境</li><li data-ok>直接用測試環境驗證過的那個映像檔，只換正式環境的設定</li><li>在正式環境的機器上拉程式碼下來現場建置</li><li>請開發人員在自己電腦上建好再傳上去</li></ul>
+  <ul class="dopts"><li>從同一個 commit 再建一次映像檔給正式環境</li><li data-ok>用驗證過的同一個映像檔，只換正式環境設定</li><li>在正式環境的機器上拉程式碼下來現場建置</li><li>請開發人員在自己電腦上建好再傳上去</li></ul>
   <p class="dexp">再建一次，就不能保證跟驗證過的完全一樣（相依套件、基礎映像檔可能變了）。同一個映像檔、只換設定，測過的就是要上線的。</p>
 </div>
 <div class="drill">
   <p class="dq">管線把「安全掃描」放在「推上 registry」之前，主要的好處是？</p>
-  <ul class="dopts"><li>讓建置比較快</li><li>registry 規定一定要先掃描</li><li>可以省略測試</li><li data-ok>有已知弱點的版本根本不會進 registry，後面的環境也就拿不到它</li></ul>
+  <ul class="dopts"><li>掃描比較快，先掃可以讓整條管線早點結束</li><li>registry 規定一定要先掃描才收映像檔</li><li>掃描過了就可以省略後面的測試</li><li data-ok>有弱點的版本進不了 registry，後面拿不到</li></ul>
   <p class="dexp">掃描沒過就停，不會留下一個「有問題但標籤看起來正常」的映像檔給別人拿去部署。</p>
 </div>
 </section>
@@ -144,7 +129,7 @@ jobs:
 <li><code>on</code>：push 到 main、或有人開 PR（任何分支），就觸發。觸發規則下一段細講。</li>
 <li><code>jobs.test</code>：一個叫 test 的 job；<code>runs-on: ubuntu-latest</code> 指定用 GitHub 提供的最新 Ubuntu 虛擬機器。</li>
 <li><strong><code>uses</code> 對 <code>run</code></strong>：<code>uses</code>「選一個 action 在這一步執行」，action 是「可重用的程式單元」（An action is a reusable unit of code.）；<code>run</code>「用作業系統的 shell 執行指令列程式」（Runs command-line programs … using the operating system's shell.）。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a> 上面的 <code>actions/checkout</code> 把 repo 的程式碼抓到 runner 上（不寫這步，runner 上什麼都沒有），<code>actions/setup-java</code> 裝好指定版本的 Java，最後才 <code>run</code> 自己的 Maven 指令。</li>
-<li><strong><code>@v7</code> 是版本。</strong>文件「強烈建議」寫上 action 的版本（We strongly recommend that you include the version of the action you are using），不寫的話 action 作者一更新就可能弄壞你的 workflow。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a> 安全文件更進一步：釘在完整的 commit SHA「是目前唯一能把 action 當成不可變版本使用的方法」（Pinning an action to a full-length commit SHA is currently the only way to use an action as an immutable release.），因為標籤是可以被移動的。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/security/secure-use" target="_blank" rel="noopener">出處</a> 銀行這種環境常要求釘 SHA。</li>
+<li><strong><code>@v7</code> 是版本。</strong>文件「強烈建議」寫上 action 的版本（We strongly recommend that you include the version of the action you are using），不寫的話 action 作者一更新就可能弄壞你的 workflow。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a> 安全文件更進一步：釘在完整的 commit SHA「是目前唯一能把 action 當成不可變版本使用的方法」（Pinning an action to a full-length commit SHA is currently the only way to use an action as an immutable release.），因為標籤是可以被移動的。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/security/secure-use" target="_blank" rel="noopener">出處</a> 資安要求嚴的環境（例如銀行）可能要求一律釘 SHA。</li>
 </ul>
 
 <h4>step 之間共用檔案，但不共用環境變數</h4>
@@ -194,22 +179,22 @@ jobs:
 
 <div class="drill">
   <p class="dq">一個 workflow 有 <code>lint</code>、<code>test</code> 兩個 job，都沒有寫 <code>needs</code>。觸發後它們怎麼跑？</p>
-  <ul class="dopts"><li>依檔案裡寫的順序，先 lint 再 test</li><li data-ok>同時開始，各自在自己的 runner 上跑</li><li>依字母順序</li><li>先跑比較快的那個</li></ul>
+  <ul class="dopts"><li>依檔案裡寫的順序，先 lint 再 test</li><li data-ok>同時開始，各自在自己的 runner 上跑</li><li>依 job 名稱的字母順序</li><li>GitHub 估計比較快的那個先跑</li></ul>
   <p class="dexp">文件：by default, jobs have no dependencies and run in parallel。要排先後才寫 needs。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的 <code>needs-graph</code> workflow，<code>lint</code> 失敗、<code>test</code> 成功。哪些 job 會被略過？</p>
-  <ul class="dopts"><li>只有 image</li><li>image、deploy-staging、notify 全部略過</li><li data-ok>image 和 deploy-staging 被略過；notify 照跑</li><li>test 也會被取消</li></ul>
+  <ul class="dopts"><li>只有 image 被略過，deploy-staging 照常</li><li>image、deploy-staging、notify 全部略過</li><li data-ok>image、deploy-staging 略過；notify 照跑</li><li>test 也會被取消，整個 run 停掉</li></ul>
   <p class="dexp">image 需要 lint 成功，lint 失敗所以 image 略過；deploy-staging 需要 image，跟著略過。notify 寫了 if: always()，上游失敗或略過也照跑。test 跟 lint 沒有相依，不會被取消。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個 workflow，<code>lint</code> 和 <code>test</code> 都成功。job 的執行順序是？</p>
-  <ul class="dopts"><li>lint → test → image → deploy-staging → notify，全部一個接一個</li><li data-ok>lint 與 test 同時跑；兩個都成功後 image；然後 deploy-staging；最後 notify</li><li>五個同時開始</li><li>image 先跑，因為它最重要</li></ul>
+  <ul class="dopts"><li>lint → test → image → deploy-staging → notify，全部一個接一個</li><li data-ok>lint、test 同時跑，之後 image → deploy-staging → notify</li><li>五個同時開始，needs 只決定誰的結果先顯示</li><li>image 先跑，因為其他 job 都要等它的映像檔</li></ul>
   <p class="dexp">沒有 needs 的 lint、test 一開始就同時跑；image 要等兩個都完成且成功；之後照 needs 一個接一個。</p>
 </div>
 <div class="drill">
   <p class="dq">一個 job 有四個 step，第 2 個 step 的指令失敗（結束碼不是 0），其他 step 都沒寫 <code>if</code>。第 3、4 個 step 會怎樣？</p>
-  <ul class="dopts"><li data-ok>都不跑；沒寫 if 時預設是 success()，前面有失敗就略過</li><li>照跑，最後 job 才算失敗</li><li>第 3 個跑、第 4 個不跑</li><li>整個 workflow 立刻從第 1 步重跑</li></ul>
+  <ul class="dopts"><li data-ok>都不跑，被略過</li><li>照跑，step 之間互不影響，最後 job 才算失敗</li><li>第 3 個跑、第 4 個不跑，只往後影響一步</li><li>整個 workflow 立刻從第 1 步重跑</li></ul>
   <p class="dexp">文件：A default status check of success() is applied unless you include one of these functions。第 2 步失敗後，後面預設的 success() 都是 false，被略過，job 失敗。</p>
 </div>
 <div class="drill">
@@ -219,27 +204,27 @@ jobs:
 </div>
 <div class="drill">
   <p class="dq">第一個 <code>run</code> 執行 <code>export APP_VERSION=1.2</code>，第二個 <code>run</code> 執行 <code>echo $APP_VERSION</code>，兩步在同一個 job。第二步印出什麼？</p>
-  <ul class="dopts"><li>1.2</li><li data-ok>空字串，環境變數不會帶到下一步</li><li>編譯錯誤</li><li>job 失敗</li></ul>
+  <ul class="dopts"><li>1.2，同一個 job 共用同一個 shell</li><li data-ok>空字串，環境變數不會帶到下一步</li><li>編譯錯誤，YAML 裡不能用 export</li><li>job 失敗，變數沒設定就報錯</li></ul>
   <p class="dexp">每個 step 是自己的行程，文件寫 changes to environment variables are not preserved between steps。echo 一個沒設定的變數只會印空字串，不會失敗。要傳值得寫檔或用 step 的輸出。</p>
 </div>
 <div class="drill">
   <p class="dq">job <code>build</code> 在 runner 上產生了 <code>target/app.jar</code>，job <code>deploy</code>（<code>needs: build</code>）直接去讀 <code>target/app.jar</code>。會怎樣？</p>
-  <ul class="dopts"><li>讀得到，因為 deploy 在 build 之後跑</li><li>讀得到，同一個 workflow 共用硬碟</li><li>要看兩個 job 是不是都用 ubuntu-latest</li><li data-ok>讀不到，每個 job 在自己的虛擬機器上；要用 artifact 從 build 傳過去</li></ul>
+  <ul class="dopts"><li>讀得到，因為 deploy 在 build 之後跑</li><li>讀得到，同一個 workflow 共用硬碟</li><li>要看兩個 job 是不是都用 ubuntu-latest</li><li data-ok>讀不到，要用 artifact 從 build 傳過去</li></ul>
   <p class="dexp">needs 只管順序，不會搬檔案。每個 job 一台新的 runner，前一個 job 的檔案要先上傳成 artifact，下一個 job 再下載。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>uses: actions/checkout@v7</code> 和 <code>run: mvn -B test</code> 的差別是？</p>
-  <ul class="dopts"><li>uses 一定比較快</li><li data-ok>uses 執行別人寫好、可重用的 action；run 在 runner 的 shell 裡執行你寫的指令</li><li>uses 只能用在第一步</li><li>run 只能跑 GitHub 提供的指令</li></ul>
+  <ul class="dopts"><li>uses 一定比較快，因為 action 都已經預先編譯好</li><li data-ok>uses 跑現成的 action；run 跑 shell 指令</li><li>uses 只能用在第一步，負責準備環境</li><li>run 只能跑 GitHub 預先裝好的指令</li></ul>
   <p class="dexp">文件：uses 選一個 action（可重用的程式單元），run 用作業系統的 shell 執行指令列程式。兩種 step 可以任意排。</p>
 </div>
 <div class="drill">
   <p class="dq">workflow 裡第一步就是 <code>run: mvn -B test</code>，沒有 <code>actions/checkout</code>。最可能發生什麼事？</p>
-  <ul class="dopts"><li>GitHub 會自動先抓程式碼</li><li>測試照常通過</li><li>workflow 無法存檔</li><li data-ok>runner 上沒有專案的程式碼，Maven 找不到 pom.xml，這步失敗</li></ul>
+  <ul class="dopts"><li>GitHub 會自動先抓程式碼，照常跑</li><li>測試照常通過，Maven 會自己去抓</li><li>workflow 檔根本存不了，語法檢查不過</li><li data-ok>找不到 pom.xml，這一步直接失敗</li></ul>
   <p class="dexp">runner 是一台全新的虛擬機器，checkout 這步負責把 repo 抓下來。少了它，工作目錄裡沒有你的程式碼。</p>
 </div>
 <div class="drill">
   <p class="dq">銀行的資安規範要求「workflow 用到的第三方 action 必須是不可變的版本」。照 GitHub 的安全文件，該怎麼寫 <code>uses</code>？</p>
-  <ul class="dopts"><li>不寫版本，永遠用最新的</li><li>寫主版本標籤，例如 @v7</li><li>寫 @main</li><li data-ok>釘在完整的 commit SHA</li></ul>
+  <ul class="dopts"><li>不寫版本，永遠用最新的</li><li>寫完整版本標籤，例如 @v7.0.1</li><li>寫 @main，跟著官方最新的程式</li><li data-ok>釘在完整的 commit SHA</li></ul>
   <p class="dexp">文件：Pinning an action to a full-length commit SHA is currently the only way to use an action as an immutable release。標籤可以被移到別的 commit，main 更是一直在變。</p>
 </div>
 </section>
@@ -283,12 +268,12 @@ jobs:
 </div>
 <div class="drill">
   <p class="dq">同一段 <code>on: push: branches: [main]</code>，有人推了標籤 <code>v1.4.0</code>，會不會觸發？</p>
-  <ul class="dopts"><li data-ok>不會，只定義了 branches 時，推標籤不會觸發</li><li>會，標籤也是 push</li><li>會，只要標籤指向 main 上的 commit</li><li>要看標籤名稱有沒有 main</li></ul>
+  <ul class="dopts"><li data-ok>不會，只寫了 branches 就不管標籤</li><li>會，標籤也是一種 push 事件</li><li>會，只要標籤指向 main 上的 commit</li><li>要看標籤名稱裡有沒有 main</li></ul>
   <p class="dexp">文件：只定義 branches（或只定義 tags）時，影響另一種 Git 參照的事件不會觸發。要讓標籤也觸發，得另外寫 tags。</p>
 </div>
 <div class="drill">
   <p class="dq">workflow 只寫 <code>on: push</code>，沒有任何篩選。推標籤 <code>v1.4.0</code> 會不會觸發？</p>
-  <ul class="dopts"><li data-ok>會，branches、tags 都沒定義時，推分支、推標籤都會觸發</li><li>不會，沒寫 tags 就不管標籤</li><li>不會，標籤只能用 release 事件</li><li>只有標籤名稱以 v 開頭才會</li></ul>
+  <ul class="dopts"><li data-ok>會，兩種都沒寫時分支、標籤都會觸發</li><li>不會，沒寫 tags 就不管標籤</li><li>不會，標籤只能用 release 事件觸發</li><li>只有標籤名稱以 v 開頭才會觸發</li></ul>
   <p class="dexp">文件：If you define neither tags / tags-ignore or branches / branches-ignore, the workflow will run for events affecting either branches or tags。跟上一題對照記。</p>
 </div>
 <div class="drill">
@@ -297,7 +282,7 @@ jobs:
   push:
     branches: [main]
     paths: ['src/**']</code></pre>
-  <ul class="dopts"><li>會，因為推到了 main</li><li data-ok>不會，branches 和 paths 要同時符合，README.md 不在 src 底下</li><li>會，paths 只是建議</li><li>只有第一次會</li></ul>
+  <ul class="dopts"><li>會，branches 符合就夠了，paths 是另一組條件</li><li data-ok>不會，README.md 不在 src 底下</li><li>會，paths 只在 PR 時才檢查</li><li>只有這個分支第一次推的時候會</li></ul>
   <p class="dexp">文件：同時定義 branches 和 paths 時，兩個條件都滿足才會跑。改文件不跑建置，可以省下 runner 時間。</p>
 </div>
 <div class="drill">
@@ -322,7 +307,7 @@ jobs:
 </div>
 <div class="drill">
   <p class="dq">一個 workflow 的某一步用 <code>GITHUB_TOKEN</code> 把產生的檔案 commit 並 push 回 main，而 repo 裡有一個 <code>on: push</code> 的 workflow。會發生什麼事？</p>
-  <ul class="dopts"><li data-ok>那次 push 不會再觸發新的 workflow run</li><li>無限循環，一直觸發下去</li><li>push 會被拒絕</li><li>只會再觸發一次，之後停止</li></ul>
+  <ul class="dopts"><li data-ok>不會再觸發新的 run</li><li>無限循環，每次 push 又觸發下一次</li><li>push 會被拒絕，GITHUB_TOKEN 不能寫 repo</li><li>只會再觸發一次，之後 GitHub 自動停止</li></ul>
   <p class="dexp">用 GITHUB_TOKEN 做的事件不會產生新的 workflow run（workflow_dispatch、repository_dispatch 等少數例外），就是為了避免無限循環。</p>
 </div>
 </section>
@@ -370,38 +355,33 @@ jobs:
 <p class="formula">矩陣＝變數組合相乘，fail-fast 預設 true；快取 key 要跟著相依清單變；secrets 要明寫才讀得到；permissions 寫一項，其他全變 none</p>
 
 <div class="drill">
-  <p class="dq">矩陣寫 <code>java: ['17', '21', '25']</code> 和 <code>os: [ubuntu-latest, windows-latest]</code>。一次會產生幾個 job？</p>
-  <ul class="dopts"><li>2 個</li><li>3 個</li><li>5 個</li><li data-ok>6 個</li></ul>
-  <p class="dexp">矩陣是所有組合：3 個版本 × 2 個作業系統 = 6。</p>
-</div>
-<div class="drill">
-  <p class="dq">接上題，沒有寫 <code>fail-fast</code>。Java 17 在 Windows 那個 job 先失敗了，其他還在跑的 job 會怎樣？</p>
-  <ul class="dopts"><li>繼續跑完，最後一起報告</li><li data-ok>被取消，因為 fail-fast 預設是 true</li><li>自動改用 Java 21 重跑</li><li>只取消 Windows 的 job</li></ul>
+  <p class="dq">矩陣寫 <code>java: ['17', '21', '25']</code> 和 <code>os: [ubuntu-latest, windows-latest]</code>，共 6 個 job，沒有寫 <code>fail-fast</code>。Java 17 在 Windows 那個 job 先失敗了，其他還在跑的 job 會怎樣？</p>
+  <ul class="dopts"><li>繼續跑完，最後一起報告哪幾組失敗</li><li data-ok>被取消，fail-fast 預設是 true</li><li>自動改用 Java 21 重跑那一組</li><li>只取消同樣是 Windows 的那幾個 job</li></ul>
   <p class="dexp">文件：fail-fast 為 true 時，矩陣裡任一個 job 失敗就取消所有進行中和排隊中的 job，而且預設就是 true。想看到全部結果就設 fail-fast: false。</p>
 </div>
 <div class="drill">
   <p class="dq">自己用 <code>actions/cache</code> 寫快取，key 寫死成 <code>maven-cache</code>，後來 <code>pom.xml</code> 加了新的相依套件。之後的 run 會怎樣？</p>
-  <ul class="dopts"><li>GitHub 自動更新同一個快取的內容</li><li>快取自動失效</li><li>workflow 失敗</li><li data-ok>一直命中舊快取，新的相依套件每次都要重新下載；已存在的快取內容不能改</li></ul>
+  <ul class="dopts"><li>GitHub 自動更新同一個快取的內容</li><li>快取自動失效，下次重建一份新的</li><li>workflow 失敗，因為快取跟 pom.xml 對不上</li><li data-ok>一直命中舊快取，新套件每次重下載</li></ul>
   <p class="dexp">key 一樣就是命中，而既有快取的內容不能改，只能用新 key 建新的。所以 key 要包含相依清單的雜湊值，清單一變 key 就變。</p>
 </div>
 <div class="drill">
   <p class="dq">某次 run 的快取沒命中，job 跑到測試那一步失敗了。這次會不會建立新的快取？</p>
-  <ul class="dopts"><li>會，下載過的東西一定會存</li><li data-ok>不會，沒命中時要 job 成功完成才會建立新快取</li><li>會，但只存一半</li><li>要看是不是在 main 分支</li></ul>
+  <ul class="dopts"><li>會，下載過的東西一定會存起來</li><li data-ok>不會，要 job 成功完成才會存</li><li>會，但只存失敗前下載的那一半</li><li>要看是不是在 main 分支上跑的</li></ul>
   <p class="dexp">文件：On a cache miss, the action automatically creates a new cache if the job completes successfully。job 失敗就不存。</p>
 </div>
 <div class="drill">
   <p class="dq">workflow 最上層寫了 <code>permissions: contents: read</code>，某一步要用 <code>GITHUB_TOKEN</code> 推映像檔到 GitHub 的套件倉庫（需要 packages 權限）。會怎樣？</p>
-  <ul class="dopts"><li data-ok>失敗，只指定了 contents，沒指定的 packages 變成 none；要加 packages: write</li><li>可以，GITHUB_TOKEN 預設什麼都能做</li><li>可以，contents: read 包含 packages</li><li>workflow 會自動補上需要的權限</li></ul>
+  <ul class="dopts"><li data-ok>失敗，packages 變成 none 了</li><li>可以，GITHUB_TOKEN 預設什麼都能做</li><li>可以，contents: read 已經包含 packages</li><li>可以，GitHub 會自動補上需要的權限</li></ul>
   <p class="dexp">文件：指定了任何一項權限，沒指定的全部設成 none。所以要推套件就明寫 packages: write，最好只寫在需要的那個 job。</p>
 </div>
 <div class="drill">
   <p class="dq">測試失敗時，日誌裡印出了一段把資料庫密碼 base64 編碼後的字串。GitHub 會自動遮掉它嗎？</p>
-  <ul class="dopts"><li>會，只要是 secret 一定遮得掉</li><li data-ok>不一定，遮蔽靠比對原本的值，被轉換過就可能認不出來；文件說遮蔽不保證</li><li>不會，GitHub 從不遮蔽日誌</li><li>會，而且會自動刪掉那次 run</li></ul>
+  <ul class="dopts"><li>會，只要是 secret，任何形式都遮得掉</li><li data-ok>不一定，轉換過的值可能認不出來</li><li>不會，GitHub 從不遮蔽日誌裡的內容</li><li>會，而且會自動刪掉那次 run 的日誌</li></ul>
   <p class="dexp">文件寫 Because there are multiple ways a secret value can be transformed, this redaction is not guaranteed。不要把 secret 印出來，也不要拿它做轉換後再印。</p>
 </div>
 <div class="drill">
   <p class="dq">workflow 要部署到雲端，資安希望 GitHub 裡不要存長期有效的雲端金鑰。照 GitHub 文件，該用什麼？</p>
-  <ul class="dopts"><li>把金鑰拆成兩個 secret</li><li>把金鑰寫進 YAML，但 repo 設成私人</li><li data-ok>OIDC：設好信任關係，每個 job 向雲端要一張短效權杖</li><li>每次部署前請人手動貼上金鑰</li></ul>
+  <ul class="dopts"><li>把金鑰拆成兩個 secret，分開存</li><li>把金鑰寫進 YAML，但 repo 設成私人</li><li data-ok>OIDC：每個 job 要一張短效權杖</li><li>每次部署前請人手動貼上金鑰</li></ul>
   <p class="dexp">OIDC 讓雲端發一張只在這個 job 有效、之後自動失效的權杖，GitHub 不用存長期金鑰。workflow 要有 id-token: write 權限。</p>
 </div>
 </section>
@@ -447,27 +427,27 @@ jobs:
 </div>
 <div class="drill">
   <p class="dq">工程師小陳是 production 的核准人之一，他自己觸發了一次部署。環境有開「禁止自己核准自己」。小陳能核准這次部署嗎？</p>
-  <ul class="dopts"><li data-ok>不行，發起部署的人不能核准自己的部署，要另一位核准人來按</li><li>可以，因為他在核准人名單裡</li><li>可以，但要等 wait timer 結束</li><li>不行，核准人不能觸發部署</li></ul>
+  <ul class="dopts"><li data-ok>不行，要另一位核准人來按核准</li><li>可以，因為他在核准人名單裡</li><li>可以，但要等 wait timer 結束</li><li>不行，核准人本來就不能觸發部署</li></ul>
   <p class="dexp">這個設定開啟後，users who initiate a deployment cannot approve the deployment job，確保正式環境的部署一定經過兩個人。</p>
 </div>
 <div class="drill">
   <p class="dq">部署 job 寫了 <code>environment: production</code>，正式資料庫的密碼存在 production 環境的 secrets。還沒有人核准時，這個 job 能讀到那個密碼嗎？</p>
-  <ul class="dopts"><li>能，secret 一開始就會注入</li><li>能，只是日誌會遮掉</li><li>要看是不是管理員觸發的</li><li data-ok>不能，核准前 job 讀不到環境的 secrets；其實 job 根本還沒開始</li></ul>
+  <ul class="dopts"><li>能，secret 在 run 一開始就會注入</li><li>能，只是印到日誌時會遮掉</li><li>要看是不是管理員觸發的部署</li><li data-ok>不能，job 根本還沒開始</li></ul>
   <p class="dexp">保護規則全部通過 job 才開始，而文件也明寫需要核准的環境，在核准前 job 拿不到環境的 secrets。</p>
 </div>
 <div class="drill">
   <p class="dq">核准人在 Review deployments 按了「Reject」。這次 workflow run 會怎樣？</p>
-  <ul class="dopts"><li>改部署到測試環境</li><li>一小時後自動重試</li><li>還是會部署，只是留下紀錄</li><li data-ok>workflow 失敗，這次不會部署</li></ul>
+  <ul class="dopts"><li>改部署到測試環境，等下一次核准</li><li>一小時後自動重新送審</li><li>還是會部署，只是留下拒絕紀錄</li><li data-ok>workflow 失敗，不部署</li></ul>
   <p class="dexp">文件：If a job is rejected, the workflow will fail。要再上線就再觸發一次，重新走核准。</p>
 </div>
 <div class="drill">
   <p class="dq">部署 workflow 設了 <code>concurrency: { group: deploy, cancel-in-progress: false }</code>。run A 正在部署，這時 run B、run C 相繼進來。最後會怎樣？</p>
-  <ul class="dopts"><li data-ok>B 先等待、C 進來後 B 被取消；A 跑完後 C 執行</li><li>A、B、C 依序全部跑完</li><li>A 被取消，C 接著跑</li><li>B、C 跟 A 同時跑</li></ul>
+  <ul class="dopts"><li data-ok>B 等待時被 C 取代；A 跑完後跑 C</li><li>A 跑完後 B、C 依序部署，一個都不丟</li><li>A 被取消，由最新的 C 接著跑</li><li>B、C 跟 A 同時跑，各部署各的</li></ul>
   <p class="dexp">同群組一次只跑一個；等待中的會被新進來的取代，所以 B 被 C 取代。cancel-in-progress 是 false，正在跑的 A 不會被砍。</p>
 </div>
 <div class="drill">
   <p class="dq">同一題如果改成 <code>cancel-in-progress: true</code>，run A 正在部署時 run B 進來，會怎樣？</p>
-  <ul class="dopts"><li>B 等 A 跑完</li><li>B 被取消</li><li data-ok>A 被取消，B 開始跑</li><li>A、B 同時跑</li></ul>
+  <ul class="dopts"><li>B 等 A 跑完才開始</li><li>B 被取消，A 繼續跑完</li><li data-ok>A 被取消，B 開始跑</li><li>A、B 同時跑</li></ul>
   <p class="dexp">cancel-in-progress: true 會連正在跑的也取消。PR 的 CI 適合這樣（舊 commit 的測試沒意義了），但部署跑到一半被砍可能留下做了一半的狀態，所以部署多半用 false。</p>
 </div>
 </section>
@@ -534,17 +514,17 @@ jobs:
 
 <h4>concurrency：照 GitHub 官方範本</h4>
 <p><code>group: pages</code>、<code>cancel-in-progress: false</code> 跟 GitHub 官方的 Pages 範本一模一樣，範本的註解寫的是「只允許一個部署同時進行，略過排在正在跑的那個與最新那個之間的 run；但不要取消正在跑的，這些正式環境的部署要讓它跑完」（Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued. However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.）。<a class="fixsrc" href="https://github.com/actions/starter-workflows/blob/main/pages/static.yml" target="_blank" rel="noopener">出處</a></p>
-<p>本站 2026-10-02 的 Actions 紀錄就看得到這個效果：那天下午有一次部署卡住了將近半小時，這段時間又連續 push 了五次。前四次的 run 最後都顯示 cancelled，點進去一個 job 都沒有跑過，因為它們還在等待，就被下一次 push 取代了；卡住的那次被取消之後，第五次才開始跑，而且成功了，網站停在最新版。對一個「每次都整站重建」的網站來說，中間那幾版本來就不需要發佈。</p>
+<p>本站 2026-10-02 的 Actions 紀錄就看得到這個效果：那天傍晚（台灣時間 18 點多）有一次部署卡住了將近半小時，這段時間又連續 push 了五次。前四次的 run 最後都顯示 cancelled，點進去一個 job 都沒有跑過，因為它們還在等待，就被下一次 push 取代了；卡住的那次被取消之後，第五次才開始跑，而且成功了，網站停在最新版。對一個「每次都整站重建」的網站來說，中間那幾版本來就不需要發佈。</p>
 
 <h4>build 這個 job</h4>
 <ul class="plainlist">
 <li><code>actions/checkout@v4</code>：把 repo 抓下來。</li>
-<li><code>actions/setup-python@v5</code> 配 <code>python-version: '3.14'</code>：<strong>把 Python 版本釘住</strong>。ubuntu-latest 現在是 Ubuntu 24.04（<code>-latest</code> 標籤「指向最新的穩定版作業系統」，These labels point towards the newest stable OS version available.）<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>，它內建的是 Python 3.12.3<a class="fixsrc" href="https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md" target="_blank" rel="noopener">出處</a>，跟本機的 3.14 不同。釘住之後，CI 跟本機用同一個版本建置，不會出現「我這邊好好的，CI 那邊壞了」。</li>
+<li><code>actions/setup-python@v5</code> 配 <code>python-version: '3.14'</code>：<strong>把 Python 版本釘住</strong>。ubuntu-latest 現在是 Ubuntu 24.04（<code>-latest</code> 標籤「指向最新的穩定版作業系統」，These labels point towards the newest stable OS version available.）<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>，它內建的是 Python 3.12.3<a class="fixsrc" href="https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md" target="_blank" rel="noopener">出處</a>，跟本機的 3.14 不同。runner 清單裡其實已經有 Ubuntu 26.04（標籤 <code>ubuntu-26.04</code>），但 <code>ubuntu-latest</code> 還指向 24.04<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>；哪天 -latest 換過去，內建的 Python 也會跟著變。釘住之後，CI 跟本機用同一個版本建置，不會出現「我這邊好好的，CI 那邊壞了」。</li>
 <li><strong>測試</strong>：<code>python3 -m unittest discover -s builder/tests -v</code>，跑 builder 的測試。失敗的話，後面的 step 預設全部略過，build 失敗，deploy 不會跑，網站維持上一版。</li>
 <li><strong>建置</strong>：<code>python3 builder/build.py</code>，產出 <code>dist/</code>。</li>
 <li><strong>檢查產出的 JavaScript 語法</strong>：對 <code>dist/</code> 裡每個 .js 跑 <code>node --check</code>（只檢查語法、不執行）。這台 runner 沒有另外裝 Node.js，用的是 Ubuntu 24.04 映像檔內建的 Node.js 22。<a class="fixsrc" href="https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md" target="_blank" rel="noopener">出處</a> 語法錯一個字，整個網站的互動（側邊欄、測驗）就會壞掉，這一步把它擋在上線前。</li>
 <li><code>actions/configure-pages@v5</code> 配 <code>enablement: true</code>：這個參數是「如果 repo 還沒開啟 Pages，試著幫你開啟」，而且文件寫這需要 <code>GITHUB_TOKEN</code> 以外的權杖（Try to enable Pages for the repository if it is not already enabled. This option requires a token other than GITHUB_TOKEN to be provided.）。<a class="fixsrc" href="https://github.com/actions/configure-pages/blob/main/action.yml" target="_blank" rel="noopener">出處</a> 本站的 Pages 早就開好了，所以 enablement 這個參數實際上派不上用場；這一步本身仍會讀取 Pages 的設定。</li>
-<li><code>actions/upload-pages-artifact@v3</code> 配 <code>path: dist</code>：把 <code>dist/</code> 打包成 tar、上傳成名叫 <code>github-pages</code> 的 artifact。它的預設值：artifact 保留 1 天、預設不包含以 <code>.</code> 開頭的隱藏檔。<a class="fixsrc" href="https://github.com/actions/upload-pages-artifact/blob/main/action.yml" target="_blank" rel="noopener">出處</a></li>
+<li><code>actions/upload-pages-artifact@v3</code> 配 <code>path: dist</code>：把 <code>dist/</code> 打包成 tar、上傳成名叫 <code>github-pages</code> 的 artifact。v3 的預設是 artifact 保留 1 天（retention-days 預設 "1"），打包時只排除 <code>.git</code> 與 <code>.github</code>（--exclude=.git、--exclude=.github），其他以 <code>.</code> 開頭的隱藏檔照樣打包。<a class="fixsrc" href="https://github.com/actions/upload-pages-artifact/blob/v3/action.yml" target="_blank" rel="noopener">出處</a> 從 v4 起才改成預設不含隱藏檔（hidden files (specifically dotfiles) will not be included in the artifact）。<a class="fixsrc" href="https://github.com/actions/upload-pages-artifact/releases/tag/v4.0.0" target="_blank" rel="noopener">出處</a></li>
 </ul>
 
 <h4>deploy 這個 job</h4>
@@ -554,37 +534,27 @@ jobs:
 <li><code>actions/deploy-pages@v4</code>：把 build 上傳的 artifact 發佈出去。</li>
 </ul>
 <p>以 10-02 一次成功的 run 為例，build 從開始到結束 15 秒、deploy 13 秒，加上排隊大約一分半鐘。這個站沒有打映像檔、沒有人工核准，因為 Pages 本身就是發佈的地方，而且這是個人網站，通過測試就自動上線。照前面的分類，這是持續部署。</p>
-<p class="muted">本站的 action 版本（checkout@v4、setup-python@v5）不是最新的主版本，照樣能用；這課其他範例寫的是撰寫當時的最新主版本。版本號只是標籤，要固定不變就釘 SHA。</p>
+<p class="muted">本站用的五個 action 都不是最新的主版本（撰寫時最新的是 checkout v7、setup-python v7、configure-pages v6、upload-pages-artifact v5、deploy-pages v5），照樣能用；這課其他範例寫的是撰寫當時的最新主版本。版本號只是標籤，要固定不變就釘 SHA。</p>
 
 <div class="drill">
   <p class="dq">本站的 <code>deploy.yml</code> 裡，「測試」那一步失敗了。網站會怎樣？</p>
-  <ul class="dopts"><li>照樣發佈，只是 Actions 頁標紅</li><li data-ok>維持上一版：後面的建置、上傳都被略過，build 失敗，deploy 不會跑</li><li>網站暫時下線</li><li>發佈一個空白頁</li></ul>
+  <ul class="dopts"><li>照樣發佈，只是 Actions 頁標紅</li><li data-ok>維持上一版，deploy 不會跑</li><li>網站暫時下線，等下次成功再上</li><li>發佈一個空白頁，提醒建置壞了</li></ul>
   <p class="dexp">step 預設 success()，前面失敗後面略過；deploy needs build，build 失敗就略過。所以 Pages 上還是上一次成功發佈的版本。</p>
 </div>
 <div class="drill">
   <p class="dq">本站為什麼要用 <code>setup-python</code> 釘 <code>python-version: '3.14'</code>，而不是直接用 runner 上現成的 python3？</p>
-  <ul class="dopts"><li>因為 runner 上沒有 Python</li><li>因為 3.14 一定比較快</li><li data-ok>Ubuntu 24.04 runner 內建的是 3.12，釘成跟本機一樣的 3.14，CI 和本機的建置結果才一致</li><li>因為 GitHub 規定一定要寫</li></ul>
+  <ul class="dopts"><li>因為 runner 上沒有 Python，要自己裝</li><li>因為 3.14 比 3.12 快，建置時間比較短</li><li data-ok>內建的是 3.12，要跟本機的 3.14 一致</li><li>因為 GitHub 規定 Python 專案一定要寫</li></ul>
   <p class="dexp">runner 映像檔清單列的是 Python 3.12.3。版本不同，同一段程式可能在本機可以、在 CI 不行（或反過來）。</p>
 </div>
 <div class="drill">
-  <p class="dq">在 10 秒內連續 push 三次到 main（第一次的 run 正在跑）。依本站的 concurrency 設定，結果是？</p>
-  <ul class="dopts"><li data-ok>第一次跑完；第二次在等待時被第三次取代、取消；第三次接著跑完</li><li>三次都依序發佈</li><li>只有第一次發佈，後兩次被丟掉</li><li>第一次被取消，第三次發佈</li></ul>
-  <p class="dexp">cancel-in-progress: false，正在跑的第一次不砍；等待中的第二次被新來的第三次取代。最後網站是第三次的版本，也就是最新的。</p>
-</div>
-<div class="drill">
   <p class="dq">如果把 deploy 那個 job 的 <code>needs: build</code> 拿掉，會發生什麼事？</p>
-  <ul class="dopts"><li>沒差，GitHub 會自動判斷順序</li><li>workflow 檔存不了</li><li>deploy 會等 build 跑完才開始</li><li data-ok>deploy 會跟 build 同時開始，去找一個還沒上傳的 artifact；Pages 文件提醒這可能造成一直在找 artifact 的部署</li></ul>
-  <p class="dexp">job 預設同時跑，順序只靠 needs。少了它，deploy 不會等 build，而 artifact 是 build 最後一步才上傳的。</p>
+  <ul class="dopts"><li>沒差，GitHub 會依檔案順序自動排先後</li><li>workflow 檔存不了，deploy 一定要有 needs</li><li>deploy 照樣等 build 跑完，因為它用了 artifact</li><li data-ok>deploy 不等 build，去找還沒上傳的 artifact</li></ul>
+  <p class="dexp">job 預設同時跑，順序只靠 needs。少了它，deploy 不會等 build，而 artifact 是 build 最後一步才上傳的；Pages 文件提醒，這可能變成一個一直在找 artifact 的部署。</p>
 </div>
 <div class="drill">
   <p class="dq">deploy 那個 job 沒有 checkout、也沒有建置，它怎麼拿到網站的檔案？</p>
-  <ul class="dopts"><li>從 build 那台 runner 的硬碟直接讀</li><li>重新跑一次 build.py</li><li>從 main 分支的 dist 資料夾讀</li><li data-ok>build 用 upload-pages-artifact 上傳成名叫 github-pages 的 artifact，deploy-pages 拿那個 artifact 發佈</li></ul>
+  <ul class="dopts"><li>從 build 那台 runner 的硬碟直接讀</li><li>deploy-pages 會自己重跑一次 build.py</li><li>從 main 分支的 dist 資料夾讀出來</li><li data-ok>靠 build 上傳的 github-pages artifact</li></ul>
   <p class="dexp">兩個 job 在不同的虛擬機器上，不共用檔案。dist/ 也不進 git。中間靠 artifact 傳遞。</p>
-</div>
-<div class="drill">
-  <p class="dq">本站把 <code>permissions</code> 寫成 contents: read、pages: write、id-token: write。沒寫到的權限（例如 issues）是什麼狀態？</p>
-  <ul class="dopts"><li data-ok>none，只要指定了任何一項，沒指定的全部是 none</li><li>維持 GitHub 的預設權限</li><li>全部 write</li><li>read</li></ul>
-  <p class="dexp">workflow syntax 文件：If you specify the access for any of these permissions, all of those that are not specified are set to none。只給需要的，就是最小權限。</p>
 </div>
 <div class="drill">
   <p class="dq">照 Fowler 的分類，本站的發佈流程（push 到 main、測試通過就自動上線、沒有人工核准）屬於哪一種？</p>
@@ -661,31 +631,24 @@ jobs:
 <ul class="plainlist">
 <li><strong>PR 與 push 都觸發</strong>，但 <code>image</code> 寫了 <code>if: ${{ github.<wbr>event_name == 'push' }}</code>，PR 只跑 <code>verify</code>，不會打映像檔。</li>
 <li><strong>concurrency</strong>：群組用 workflow 名稱加分支，PR 時 <code>cancel-in-progress</code> 為 true（新 commit 進來就砍舊的測試），push 到 main 時為 false（部署不砍）。</li>
-<li><strong>權限分層</strong>：最上層只給 <code>contents: read</code>，只有 <code>image</code> 這個 job 多給 <code>packages: write</code> 推映像檔。</li>
-<li><strong><code>context: .</code> 不能省</strong>：build-push-action 預設用 Git 的內容建置，不會用到前面步驟在 runner 上產生的檔案（By default, this action uses the Git context），<code>mvn package</code> 剛打好的 jar 就進不去。<a class="fixsrc" href="https://github.com/docker/build-push-action" target="_blank" rel="noopener">出處</a> 〈容器與部署面試題：映像分層、K8s 部署策略與探針〉也提醒了這一點。</li>
-<li><strong>映像檔標籤是 <code>github.sha</code></strong>（觸發這次 run 的 commit 編號），測試環境和正式環境部署同一個標籤。</li>
+<li><strong>權限分層、<code>context: .</code>、映像檔標籤</strong>：只有 <code>image</code> 多給 <code>packages: write</code>；<code>context: .</code> 不能省，因為 build-push-action 預設用 Git 的內容建置（By default, this action uses the Git context），runner 上剛打好的 jar 進不去<a class="fixsrc" href="https://github.com/docker/build-push-action" target="_blank" rel="noopener">出處</a>；標籤用 <code>github.sha</code>，兩個環境部署同一份成品。這三點〈容器與部署面試題：映像分層、K8s 部署策略與探針〉的 CI/CD 那題逐行講過，這裡不重複。</li>
 <li><strong>兩個 environment</strong>：<code>staging</code> 可以不設保護；<code>production</code> 在 repo 設定裡加指定核准人、禁止自己核准、只允許 main，就是「正式環境要人工核准」。</li>
 </ul>
 <p class="muted">這份 YAML 用 actionlint（檢查 GitHub Actions workflow 寫法的工具）1.7.12 檢查過，沒有錯誤。部署那兩步只用 echo 代表，實際的部署方式見下一段。</p>
 
 <div class="drill">
   <p class="dq">在上面的 <code>core-banking</code> workflow，有人開了一個 PR 到 main。會跑哪些 job？</p>
-  <ul class="dopts"><li>全部四個</li><li>verify 和 image</li><li data-ok>只有 verify；image 的 if 不成立被略過，後面兩個跟著略過</li><li>一個都不跑</li></ul>
+  <ul class="dopts"><li>全部四個，PR 也要先部署到測試環境</li><li>verify 和 image，只是映像檔不推上去</li><li data-ok>只有 verify</li><li>一個都不跑，PR 不在 on 裡面</li></ul>
   <p class="dexp">PR 觸發時 github.event_name 是 pull_request，image 的條件不成立、被略過；deploy-staging 需要 image，跟著略過；deploy-production 也是。</p>
 </div>
 <div class="drill">
   <p class="dq">production 環境在 repo 設定裡設了指定核准人。PR 合進 main（產生一次 push），verify、image、deploy-staging 都成功。deploy-production 會立刻部署嗎？</p>
-  <ul class="dopts"><li>會，前面都成功了</li><li data-ok>不會，停下來等其中一位核准人核准後才部署</li><li>不會，正式環境只能手動執行 kubectl</li><li>會先等 24 小時</li></ul>
+  <ul class="dopts"><li>會，前面三個 job 都成功了就直接部署</li><li data-ok>不會，要等一位核准人按核准</li><li>不會，正式環境只能手動執行 kubectl</li><li>會先等 24 小時，讓測試環境多跑一天</li></ul>
   <p class="dexp">environment 的保護規則全部通過 job 才開始。指定核准人就是「正式環境要人工核准」；等多久由 wait timer 決定，沒設就沒有。</p>
 </div>
 <div class="drill">
-  <p class="dq">為什麼 <code>deploy-production</code> 部署的映像檔標籤用 <code>${{ github.sha }}</code>，跟 <code>deploy-staging</code> 一樣？</p>
-  <ul class="dopts"><li>因為只能用一個標籤</li><li>因為 latest 不能部署到正式環境</li><li>只是寫起來比較短</li><li data-ok>正式環境部署的就是測試環境驗證過的同一個映像檔，事後也查得回是哪個 commit</li></ul>
-  <p class="dexp">同一個 run 裡 github.sha 不變，兩個環境拿到的是同一份成品，符合「建一次、一路送到底」。</p>
-</div>
-<div class="drill">
   <p class="dq">如果把 build-push-action 的 <code>context: .</code> 拿掉，會發生什麼事？</p>
-  <ul class="dopts"><li>建置失敗，找不到 Dockerfile</li><li>沒差，預設就是目前目錄</li><li data-ok>改用 Git 的內容建置，前面 mvn package 在 runner 上打好的 jar 不會進到映像檔</li><li>映像檔不會被推上 registry</li></ul>
+  <ul class="dopts"><li>建置失敗，找不到 Dockerfile</li><li>沒差，預設就是目前目錄，結果一樣</li><li data-ok>改用 Git 內容建置，jar 進不去</li><li>映像檔建得出來，但不會推上 registry</li></ul>
   <p class="dexp">README：By default, this action uses the Git context。Git 裡沒有 target/ 的 jar（建置產物不進版控），所以要用 context: . 指定 runner 上的目錄。</p>
 </div>
 </section>
@@ -710,17 +673,17 @@ jobs:
 
 <div class="drill">
   <p class="dq">採用 GitOps（例如 Argo CD）之後，CI 管線的「部署」那一步通常變成做什麼？</p>
-  <ul class="dopts"><li>直接 kubectl apply 到正式叢集</li><li data-ok>修改部署設定 repo 裡的映像檔標籤（commit 一次），由叢集裡的 Argo CD 同步</li><li>寄信請維運人員部署</li><li>重建整個叢集</li></ul>
+  <ul class="dopts"><li>直接 kubectl apply 到正式叢集</li><li data-ok>改設定 repo 裡的映像檔標籤</li><li>寄信請維運人員到叢集手動部署</li><li>重建整個叢集，換上新版映像檔</li></ul>
   <p class="dexp">GitOps 以 Git 為期望狀態的依據，管線只要讓 Git 裡的設定指向新映像檔，叢集裡的工具會比對並同步。</p>
 </div>
 <div class="drill">
   <p class="dq">有人繞過流程，直接用 kubectl 改了正式叢集裡某個 Deployment 的副本數，跟 Git 裡的設定不一樣。Argo CD 會怎麼看待這個應用？</p>
-  <ul class="dopts"><li data-ok>實際狀態跟 Git 裡的目標狀態不一致，標成 OutOfSync，可以自動或手動同步回 Git 的設定</li><li>以叢集為準，自動把 Git 改成一樣</li><li>完全不知道</li><li>刪掉這個應用</li></ul>
+  <ul class="dopts"><li data-ok>標成 OutOfSync，可以同步回去</li><li>以叢集為準，自動把 Git 改成一樣</li><li>完全不知道，它只在部署的那一刻讀一次 Git</li><li>把這個應用刪掉，再照 Git 重建</li></ul>
   <p class="dexp">Argo CD 持續比對實際狀態與 Git 裡的目標狀態，偏離的就是 OutOfSync，並提供自動或手動同步回目標狀態的功能。Git 才是依據。</p>
 </div>
 <div class="drill">
   <p class="dq">「推」的部署方式（管線最後執行 kubectl），跟 GitOps「拉」相比，最主要的顧慮是？</p>
-  <ul class="dopts"><li>推的方式不能部署 Deployment</li><li>推的方式不能用映像檔標籤</li><li>推的方式一定比較慢</li><li data-ok>CI 平台手上要有能改叢集的憑證，外部系統一旦被入侵就能動正式叢集</li></ul>
+  <ul class="dopts"><li>推的方式不能部署 Deployment，只能部署 Pod</li><li>推的方式不能用 commit 編號當映像檔標籤</li><li>推的方式一定比較慢，要多一次網路連線</li><li data-ok>CI 平台要握有能改叢集的憑證</li></ul>
   <p class="dexp">推要把叢集權限交給管線；拉讓叢集裡的工具自己去讀 Git，叢集權限不必離開叢集。兩種都能用標籤、都能部署。</p>
 </div>
 </section>
@@ -730,7 +693,7 @@ jobs:
 <h3 class="head">銀行情境：變更審核、人工核准、稽核紀錄</h3>
 <p>金融業的上線通常有三個要求：<strong>程式碼的變更要有人審</strong>、<strong>上正式環境要有人核准</strong>、<strong>事後查得到紀錄</strong>。用 GitHub 的功能對應：</p>
 <div class="tablewrap"><table><thead><tr><th>要求</th><th>GitHub 的做法</th></tr></thead><tbody>
-<tr><td>程式碼變更要審</td><td>保護 main 分支：開啟「合併前要求 PR 審查」「合併前要求狀態檢查通過」，以及「不允許繞過上述設定」（Require pull request reviews before merging、Require status checks before merging、Do not allow bypassing the above settings）<a class="fixsrc" href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches" target="_blank" rel="noopener">出處</a>；CI 的 job 就是那個「狀態檢查」。PR 的流程見〈Git 分支與協作〉</td></tr>
+<tr><td>程式碼變更要審</td><td>保護 main 分支：要求 PR 審查與狀態檢查通過，再開「不允許繞過上述設定」（Do not allow bypassing the above settings）<a class="fixsrc" href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches" target="_blank" rel="noopener">出處</a>；CI 的 job 就是那個「狀態檢查」。各項設定與 PR 流程見〈Git 分支與協作〉</td></tr>
 <tr><td>正式環境要核准</td><td>production 環境設指定核准人、禁止自己核准、只允許 main 部署；正式環境的密碼放環境 secrets，核准前拿不到</td></tr>
 <tr><td>管理員不能偷跑</td><td>環境預設「管理員可以繞過保護規則」（By default, administrators can bypass the protection rules），要另外設定成不允許繞過<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><td>稽核紀錄</td><td>repo 的 Deployments 頁列出各環境的完整部署歷史、觸發部署的 commit、對應的 workflow 日誌、來源 PR 與分支（Your repository's full deployment history、Associated commits that triggered the deployment、Connected GitHub Actions workflow logs、The source pull request and branch related to each deployment）<a class="fixsrc" href="https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/view-deployment-history" target="_blank" rel="noopener">出處</a>；核准時可以留言</td></tr>
@@ -741,23 +704,18 @@ jobs:
 
 <div class="drill">
   <p class="dq">主管要求「沒有經過審查、或 CI 沒通過的程式碼，不能合進 main」。該設定什麼？</p>
-  <ul class="dopts"><li data-ok>main 的分支保護：合併前要求 PR 審查、要求狀態檢查通過</li><li>production 環境的指定核准人</li><li>concurrency</li><li>workflow 的 permissions</li></ul>
+  <ul class="dopts"><li data-ok>main 的分支保護規則</li><li>production 環境的指定核准人</li><li>concurrency，一次只讓一個合併進來</li><li>workflow 的 permissions 只給唯讀</li></ul>
   <p class="dexp">管「能不能合進 main」的是分支保護；管「能不能部署到某個環境」的是 environment 的保護規則。兩個常一起用。</p>
 </div>
 <div class="drill">
   <p class="dq">production 環境設了指定核准人，但 repo 管理員想趕時間，直接強制部署。預設情況下他做得到嗎？</p>
-  <ul class="dopts"><li>做不到，保護規則對所有人都有效</li><li data-ok>做得到，預設管理員可以繞過保護規則；要另外設定成不允許繞過</li><li>做不到，只有 GitHub 客服能繞過</li><li>做得到，但部署會自動退回</li></ul>
+  <ul class="dopts"><li>做不到，保護規則對所有人都有效</li><li data-ok>做得到，預設管理員可以繞過規則</li><li>做不到，只有 GitHub 客服能繞過</li><li>做得到，但部署會在事後自動退回</li></ul>
   <p class="dexp">文件：By default, administrators can bypass the protection rules and force deployments to specific environments。要求嚴格的環境要關掉這個例外。</p>
 </div>
 <div class="drill">
   <p class="dq">稽核人員要查「上個月正式環境部署了哪些版本、各是哪個 commit、對應哪個 PR」。最直接的地方是？</p>
-  <ul class="dopts"><li>每位工程師的電腦</li><li>registry 裡映像檔的建立時間</li><li data-ok>repo 的 Deployments 頁，可以依環境看部署歷史、commit、workflow 日誌與來源 PR</li><li>Kubernetes 的 Pod 日誌</li></ul>
+  <ul class="dopts"><li>每位工程師電腦裡的 git log</li><li>registry 裡映像檔的建立時間</li><li data-ok>repo 的 Deployments 頁</li><li>Kubernetes 的 Pod 日誌</li></ul>
   <p class="dexp">Deployments 頁列出完整的部署歷史、觸發部署的 commit、對應的 workflow 日誌、來源 PR 與分支。映像檔時間和 Pod 日誌對不回 PR 與核准紀錄。</p>
-</div>
-<div class="drill">
-  <p class="dq">下面哪一個組合，最符合「正式環境的部署一定經過兩個人」？</p>
-  <ul class="dopts"><li>concurrency 設 cancel-in-progress: false</li><li>把正式環境密碼存成 repo secret</li><li>矩陣同時在兩台機器上部署</li><li data-ok>production 環境設指定核准人，並開啟「禁止自己核准自己」</li></ul>
-  <p class="dexp">指定核准人讓部署要有人按；禁止自己核准讓按的人不能是發起的人，合起來就是兩個人。其他選項跟核准無關。</p>
 </div>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>持續整合＝每天合進主線、每次自動建置測試；持續交付＝隨時「能」上線，由人決定；持續部署＝通過就自動上線。要做持續部署得先做到持續交付。</li><li>管線：建置 → 測試 → 靜態檢查 → 安全掃描 → 打映像檔 → 推 registry → 部署；任一格失敗後面不跑；映像檔建一次、用 commit 編號當標籤、一路送到底。</li><li>GitHub Actions：workflow 裝 job、job 裝 step；job 預設同時跑、各用一台 runner、不共用檔案；needs 排先後，上游失敗下游略過（always() 例外）；step 預設 success()，失敗後面就略過。</li><li>觸發：只寫 branches 就不管標籤；branches 加 paths 要都符合；PR 預設只看 opened、synchronize、reopened，有衝突不跑；workflow_dispatch 要在預設分支；排程用 UTC。</li><li>矩陣是組合相乘、fail-fast 預設 true；快取內容不能改，key 要跟著相依清單變；secrets 要明寫、遮蔽不保證；permissions 寫一項其他全 none；雲端用 OIDC 短效權杖。</li><li>environment 的保護規則全過才開始：指定核准人（一位即可）、禁止自己核准、限制分支，核准前拿不到環境 secrets。concurrency 同群組一次一個，等待的被新的取代，cancel-in-progress 決定砍不砍正在跑的。</li><li>本站 deploy.yml：push 到 main 或手動觸發，build（釘 Python 3.14、測試、建置、node --check、上傳 artifact）成功後 deploy 到 github-pages；concurrency 照官方範本，連續 push 時中間的 run 被取消。部署到 K8s 有「推」與 GitOps「拉」兩種。</li></ul></div>
