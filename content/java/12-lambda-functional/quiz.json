@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "寫下 Runnable r = () -&gt; System.out.println(\"入帳\"); 之後，「入帳」什麼時候會印出來？",
+   "opts": [
+    "有人呼叫 r.run() 的時候",
+    "寫下這行的當下",
+    "類別載入的時候",
+    "程式結束前統一執行"
+   ],
+   "exp": "JLS：對 lambda 求值只產生一個函式介面的實例，不會執行本體；本體要等那個抽象方法（這裡是 run）被呼叫時才執行。"
+  },
+  {
+   "q": "interface Audit { void log(String m); default void flush() { } static Audit noop() { return m -&gt; { }; } } 能不能當 lambda 的目標型別？",
+   "opts": [
+    "可以，抽象方法只有 log 一個",
+    "不行，有 default 方法就不是函式介面",
+    "不行，有 static 方法就不是函式介面",
+    "只有加上 @FunctionalInterface 才可以"
+   ],
+   "exp": "函式介面只看抽象方法的數量；default 與 static 方法都有實作，不算進去。@FunctionalInterface 只是請編譯器檢查，沒加也一樣是函式介面。"
+  },
+  {
+   "q": "要寫「輸入一筆交易物件、回傳手續費 long」的函式，而且想避免把 long 裝箱成 Long，選哪個介面？",
+   "opts": [
+    "ToLongFunction&lt;Tx&gt;",
+    "Function&lt;Tx, Long&gt;",
+    "LongFunction&lt;Tx&gt;",
+    "Supplier&lt;Long&gt;"
+   ],
+   "exp": "ToXxx 前綴表示回傳基本型別：ToLongFunction 收一個物件、回傳 long。Function&lt;Tx, Long&gt; 會裝箱；LongFunction 是反過來「收 long、回傳物件」；Supplier 不收參數。"
+  },
+  {
+   "q": "Function&lt;String, Integer&gt; len = String::length; 這個方法參考屬於哪一種、等於哪個 lambda？",
+   "opts": [
+    "某型別任意物件的實例方法，等於 s -&gt; s.length()",
+    "靜態方法，等於 s -&gt; String.length(s)",
+    "特定物件的實例方法，等於 s -&gt; \"\".length()",
+    "建構子參考，等於 s -&gt; new String(s)"
+   ],
+   "exp": "length 是實例方法；「型別::實例方法」拿第一個參數當呼叫者，所以是 s.length()。String 沒有叫 length 的靜態方法。"
+  },
+  {
+   "q": "int count = 0; ids.forEach(id -&gt; count++); 這段放在方法裡，會怎樣？",
+   "opts": [
+    "編譯錯誤，count 是被修改的區域變數，lambda 不能捕獲",
+    "可以編譯，跑完 count 等於 ids 的筆數",
+    "可以編譯，但執行時丟出 ConcurrentModificationException",
+    "可以編譯，但 count 永遠是 0"
+   ],
+   "exp": "lambda 用到的外部區域變數必須是 final 或 effectively final；count++ 讓它不是，javac 直接報錯。要計數就用迴圈，或讓計數成為回傳值，例如 Stream 的 count()。"
+  },
+  {
+   "q": "在一個實例方法裡寫 Runnable r = () -&gt; System.out.println(this);，this 指的是什麼？",
+   "opts": [
+    "外圍類別、正在執行這個方法的那個物件",
+    "lambda 自己產生的那個 Runnable 物件",
+    "Runnable 介面本身",
+    "null，lambda 裡沒有 this"
+   ],
+   "exp": "JLS：lambda 本體裡 this 的意義跟周圍程式碼相同。匿名類別才會有自己的 this。"
+  },
+  {
+   "q": "交易要依分行代碼由小到大排，同一家分行再依金額由大到小。哪個比較器正確？",
+   "opts": [
+    "comparing(Tx::branch).thenComparing(Tx::amount, Comparator.reverseOrder())",
+    "comparing(Tx::branch).thenComparing(Tx::amount).reversed()",
+    "comparing(Tx::amount).reversed().thenComparing(Tx::branch)",
+    "comparing(Tx::branch).reversed().thenComparing(Tx::amount)"
+   ],
+   "exp": "只有金額這個鍵要反序，所以把 reverseOrder() 交給 thenComparing 的第二個參數。接在整串後面的 reversed() 會把分行也一起反過來；以金額當第一個鍵則主次顛倒。"
+  },
+  {
+   "q": "Optional 有值時，orElse(loadDefault()) 與 orElseGet(() -&gt; loadDefault()) 差在哪？",
+   "opts": [
+    "前者還是會先執行 loadDefault()，後者不會呼叫它",
+    "兩者都會執行 loadDefault()",
+    "兩者都不會執行 loadDefault()",
+    "前者不會執行 loadDefault()，後者會"
+   ],
+   "exp": "Java 呼叫方法前會先算出引數，所以 orElse 的引數一定被算一次；orElseGet 收的是 Supplier，只在 Optional 是空的時候才呼叫。預設值很貴時用 orElseGet。"
+  },
+  {
+   "q": "依 Optional 的 API 說明與 dev.java 的使用守則，Optional 最適合用在哪裡？",
+   "opts": [
+    "方法的回傳型別，表示可能查不到結果",
+    "實體類別的欄位型別",
+    "方法的參數型別",
+    "Map 的值的型別"
+   ],
+   "exp": "API 文件：Optional 主要設計來當方法回傳型別，用在需要表達「沒有結果」的地方。dev.java 守則第五條：不要用在欄位、方法參數、集合與 Map 裡。"
+  },
+  {
+   "q": "Optional.of(\"A001\").map(id -&gt; lookup(id))，如果 lookup 回傳 null，結果是什麼？",
+   "opts": [
+    "空的 Optional",
+    "丟出 NullPointerException",
+    "裝著 null 的 Optional",
+    "裝著 \"A001\" 的 Optional"
+   ],
+   "exp": "文件：map 的函式回傳 null 時，map 回傳空的 Optional。Optional 不會裝著 null。"
+  }
+ ]
+}
