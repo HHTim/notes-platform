@@ -59,7 +59,7 @@ ExecutorService pool = new ThreadPoolExecutor(
     <p class="q">面試官：執行緒池要開多大？</p>
     <p><strong>一句話定義：</strong>沒有官方公式，只有通則：CPU 密集約等於核心數，I/O 密集可以多很多。核心數用 <code>Runtime.availableProcessors()</code>「回傳 JVM 可用的處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Runtime.html" target="_blank" rel="noopener">出處</a>。Linux 容器裡 JVM 預設開著容器支援（<code>-XX:+UseContainerSupport</code>），會「判斷 docker 容器內的 Java 行程可用的記憶體量與處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a>；前提是容器有設 CPU 上限才回傳上限；沒設上限時一般就是主機核心數（這半句是推論，手冊沒明寫）。</p>
     <p><strong>差別與取捨：</strong>文件講白了：「若任務常阻塞（例如 I/O 密集），系統可能有辦法排程比你允許的更多執行緒」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 面試常聽到的估算式「執行緒數約等於核心數乘上（1 加 等待時間除以計算時間）」出自並行程式設計教材，不是官方文件，只是起點，要靠壓測與監控修正。</p>
-    <p><strong>版本註記：</strong>Java 21 起 I/O 密集的另一個答案是不估：<code>Executors.newVirtualThreadPerTaskExecutor()</code>「為每個任務啟動一條新的虛擬執行緒，建立的執行緒數無上限」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html" target="_blank" rel="noopener">出處</a>，要限的是下游承受量，用 <code>Semaphore</code>。</p>
+    <p><strong>版本註記：</strong>Java 21 起 I/O 密集的另一個答案是不估：<code>Executors.<wbr>newVirtual<wbr>Thread<wbr>PerTask<wbr>Executor()</code>「為每個任務啟動一條新的虛擬執行緒，建立的執行緒數無上限」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html" target="_blank" rel="noopener">出處</a>，要限的是下游承受量，用 <code>Semaphore</code>。</p>
 </section>
 <section>
     <p class="era">鎖與記憶體模型</p>
