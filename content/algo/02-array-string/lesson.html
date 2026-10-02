@@ -1,0 +1,989 @@
+<!-- 來源：依 https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html 新寫（另參考 Java SE 25 API 文件 ArrayList、String、StringBuilder、Integer、Math，Java 語言規格 SE 25 第 3.10.5、4.2、4.12.5、10、15.18.1、15.21.3 節，MIT 6.006 2020 春季第 2 講講義與第 1、2 次習題課講義 https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/；程式與練習題全部自編，程式以 Java 21 實際編譯執行） · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出陣列為什麼能用索引一步找到、插入與刪除為什麼要搬動，並寫出各操作的時間複雜度</li><li>分清 <code>int[]</code> 與 <code>ArrayList</code> 的用法與代價，避開 <code>remove(int)</code> 與 <code>remove(Object)</code> 的陷阱</li><li>說明 <code>String</code> 不可變對效能的影響，用 <code>StringBuilder</code> 與計數陣列處理字串</li><li>寫出反轉、迴文判斷、原地修改、二維陣列走訪，並避開 <code>Arrays.asList</code>、<code>==</code>、整數溢位這幾個常見陷阱</li></ul></div>
+
+<section>
+<p class="era">一排連在一起的格子</p>
+<h3 class="head">陣列在記憶體裡長什麼樣</h3>
+<p>把陣列想成一排編了號的置物櫃（正式名稱是陣列 array）：櫃子一個緊接一個，大小都一樣，從 0 開始編號。要拿 3 號櫃的東西，不用從 0 號一個一個數過去，直接走到 3 號就好。</p>
+<p>MIT 6.006 的習題課講義這樣描述最基本的陣列：「靜態陣列就是在記憶體裡保留的一段連續的字組」（A static array is simply a contiguous sequence of words reserved in memory），所以讀寫第 i 格都是 Θ(1)，原因是「陣列裡每一項的大小都一樣」（because each item in the array has the same size）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 每格一樣大，第 i 格的位置就能直接算出來：起點 + i × 每格大小。下圖用 <code>int</code>（Java 語言規格寫明是 32 位元，也就是 4 個位元組）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2" target="_blank" rel="noopener">出處</a>示意：</p>
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="一個長度 5 的 int 陣列：五個格子連在一起，索引從 0 到 4；每格 4 個位元組，假設起點在位址 1000，第 3 格的位址就是 1000 加 3 乘 4 等於 1012，算一次就到">
+  <rect x="160" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="188" y="105" font-size="14" text-anchor="middle" class="mono">1200</text>
+  <text x="188" y="134" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="216" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="244" y="105" font-size="14" text-anchor="middle" class="mono">0</text>
+  <text x="244" y="134" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="272" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="300" y="105" font-size="14" text-anchor="middle" class="mono">0</text>
+  <text x="300" y="134" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="328" y="80" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="356" y="105" font-size="14" text-anchor="middle" class="mono">560</text>
+  <text x="356" y="134" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="384" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="412" y="105" font-size="14" text-anchor="middle" class="mono">0</text>
+  <text x="412" y="134" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <text x="188" y="70" font-size="11" text-anchor="middle" class="mono" fill="var(--slate-deep)">1000</text>
+  <text x="244" y="70" font-size="11" text-anchor="middle" class="mono" fill="var(--slate-deep)">1004</text>
+  <text x="300" y="70" font-size="11" text-anchor="middle" class="mono" fill="var(--slate-deep)">1008</text>
+  <text x="356" y="70" font-size="11" text-anchor="middle" class="mono" fill="var(--slate-deep)">1012</text>
+  <text x="412" y="70" font-size="11" text-anchor="middle" class="mono" fill="var(--slate-deep)">1016</text>
+  <text x="20" y="70" font-size="12" fill="var(--slate-deep)">位址（示意）</text>
+  <text x="20" y="105" font-size="13">balances</text>
+  <text x="20" y="134" font-size="12" opacity=".6">索引</text>
+  <text x="470" y="92" font-size="13">balances[3] 在哪裡？</text>
+  <text x="470" y="114" font-size="13" class="mono" fill="var(--gold-deep)">1000 + 3 × 4 = 1012</text>
+  <text x="470" y="136" font-size="13">乘一次、加一次就到：O(1)</text>
+  <text x="160" y="166" font-size="12" opacity=".75">每格 4 個位元組（int 是 32 位元），格子一個緊接一個</text>
+</svg>
+<figcaption>位址是示意用的數字。重點是「每格一樣大、一個接一個」，所以第幾格的位置算一次就知道，不用一格一格找。</figcaption>
+</figure>
+<p class="muted">Java 語言規格沒有規定 JVM 要把陣列擺成什麼樣子，上面是演算法課用的記憶體模型，用來理解「為什麼索引是 O(1)」。物件陣列（例如 <code>String[]</code>）每一格放的是指向物件的參考，MIT 講義的說法是「把該格的字組當成指向另一塊記憶體的位址」（interpret the machine word at the index as a memory address to a larger piece of memory）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>Java 陣列的四條規則，都寫在語言規格裡：</p>
+<ul class="plainlist">
+<li><strong>從 0 開始</strong>：「所有陣列都從 0 起算。長度 n 的陣列可以用整數 0 到 n−1 當索引」（All arrays are 0-origin. An array with length n can be indexed by the integers 0 to n-1.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
+<li><strong>超出範圍會丟例外</strong>：索引小於 0 或大於等於長度，「會丟出 <code>ArrayIndexOutOfBoundsException</code>」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
+<li><strong>長度固定</strong>：「陣列物件一旦建立，長度就不會再變」（Once an array object is created, its length never changes.）。要變長只能開一個新陣列。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>有預設值</strong>：陣列的每一格建立時就有預設值，<code>int</code> 是 0、物件參考是 <code>null</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.12.5" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<pre><code>import java.util.Arrays;
+
+public class ArrayBasics {
+    public static void main(String[] args) {
+        int[] balances = new int[5];                 // 開 5 格，int 的預設值是 0
+        System.out.println(Arrays.toString(balances));
+
+        balances[0] = 1200;                          // 用索引直接寫入：O(1)
+        balances[3] = 560;
+        System.out.println(balances[3]);             // 用索引直接讀出：O(1)
+        System.out.println(balances.length);         // 長度建立後就固定
+
+        String[] names = new String[2];              // 參考型別的預設值是 null
+        System.out.println(Arrays.toString(names));
+
+        try {
+            balances[5] = 99;                        // 最後一格是 length - 1 = 4
+        } catch (ArrayIndexOutOfBoundsException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+}</code></pre>
+<p>執行結果（Java 21）：</p>
+<pre><code>[0, 0, 0, 0, 0]
+560
+5
+[null, null]
+Index 5 out of bounds for length 5</code></pre>
+
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>int[] a = new int[3];
+a[0] = 7;
+System.out.println(a[1]);</code></pre>
+  <ul class="dopts"><li>7</li><li data-ok>0</li><li>null</li><li>編譯錯誤，a[1] 還沒給值</li></ul>
+  <p class="dexp">int 陣列每一格建立時就有預設值 0，a[1] 沒被寫過，所以是 0。null 是物件參考的預設值，int 不會是 null。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>int[] a = new int[10];</code> 最後一格的索引是多少？</p>
+  <ul class="dopts"><li>10</li><li>11</li><li data-ok>9</li><li>1</li></ul>
+  <p class="dexp">從 0 開始數，長度 10 的索引是 0 到 9，最後一格是 a.length - 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式會怎樣？</p>
+  <pre><code>int[] a = {4, 8, 15};
+System.out.println(a[3]);</code></pre>
+  <ul class="dopts"><li>印出 15</li><li>印出 0</li><li>編譯錯誤，編譯器看得出索引 3 超出範圍，不讓它過</li><li data-ok>執行時丟出 ArrayIndexOutOfBoundsException</li></ul>
+  <p class="dexp">長度 3 的索引只有 0、1、2。a[3] 超出範圍，編譯會過，執行到這行才丟例外。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼陣列用索引讀第 i 格是 O(1)？</p>
+  <ul class="dopts"><li data-ok>每格一樣大又一個接一個，第 i 格的位置用「起點 + i × 每格大小」直接算出來</li><li>因為 Java 會把陣列內容全部放在快取記憶體裡</li><li>因為陣列裡的資料一定是排好序的，可以用二分搜尋一路跳過去，永遠只要幾步</li><li>因為 JVM 會先幫每一格建一個 HashMap 索引</li></ul>
+  <p class="dexp">位置可以直接算出來，不用從頭走，所以不管 i 多大都是固定幾步。陣列不一定排好序，也沒有額外的索引表。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>String[] names = new String[3];</code> 建立後，<code>names[0]</code> 是什麼？</p>
+  <ul class="dopts"><li>空字串 ""</li><li data-ok>null</li><li>"0"</li><li>編譯錯誤</li></ul>
+  <p class="dexp">物件參考的預設值是 null，不是空字串。直接呼叫 names[0].length() 會丟 NullPointerException。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 <code>int[5]</code> 已經放滿了，還要再放第 6 個，該怎麼做？</p>
+  <ul class="dopts"><li>直接寫 a[5] = x，陣列發現格子不夠時會自動長到需要的長度</li><li>改 a.length = 6</li><li data-ok>開一個更大的新陣列，把舊的 5 個複製過去，再放第 6 個</li><li>呼叫 a.add(x)</li></ul>
+  <p class="dexp">陣列長度建立後就不變，a.length 也不能改。只能開新陣列再複製，這正是 ArrayList 擴容時在做的事。</p>
+</div>
+</section>
+
+<section>
+<p class="era">插在中間，後面的都要讓位</p>
+<h3 class="head">插入與刪除為什麼要搬動</h3>
+<p>置物櫃一個接一個、中間沒有空位。要在 1 號插入新的東西，就得把 1 號以後的全部往後挪一格；刪掉 0 號，後面的全部往前補一格，否則中間會留一個洞。</p>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="在陣列 10、20、30、40 的第 1 格插入 15：先把 40、30、20 從後面開始一格一格往右搬，空出第 1 格再放進 15，總共搬了 3 格">
+  <defs><marker id="ar-02-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <text x="20" y="65" font-size="13">插入前</text>
+  <rect x="150" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="178" y="65" font-size="14" text-anchor="middle" class="mono">10</text>
+  <text x="178" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="206" y="40" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="234" y="65" font-size="14" text-anchor="middle" class="mono">20</text>
+  <text x="234" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="262" y="40" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="290" y="65" font-size="14" text-anchor="middle" class="mono">30</text>
+  <text x="290" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="318" y="40" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="346" y="65" font-size="14" text-anchor="middle" class="mono">40</text>
+  <text x="346" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="374" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="402" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="430" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="458" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <path d="M346 96 Q374 128 398 140" fill="none" stroke="currentColor" marker-end="url(#ar-02-arrow)"/>
+  <text x="384" y="118" font-size="12" fill="var(--gold-deep)">第 1 次</text>
+  <path d="M290 96 Q318 128 342 140" fill="none" stroke="currentColor" marker-end="url(#ar-02-arrow)"/>
+  <text x="328" y="118" font-size="12" fill="var(--gold-deep)">第 2 次</text>
+  <path d="M234 96 Q262 128 286 140" fill="none" stroke="currentColor" marker-end="url(#ar-02-arrow)"/>
+  <text x="272" y="118" font-size="12" fill="var(--gold-deep)">第 3 次</text>
+  <text x="20" y="175" font-size="13">插入後</text>
+  <rect x="150" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="178" y="175" font-size="14" text-anchor="middle" class="mono">10</text>
+  <text x="178" y="204" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="206" y="150" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="234" y="175" font-size="14" text-anchor="middle" class="mono">15</text>
+  <text x="234" y="204" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="262" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="290" y="175" font-size="14" text-anchor="middle" class="mono">20</text>
+  <text x="290" y="204" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="318" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="346" y="175" font-size="14" text-anchor="middle" class="mono">30</text>
+  <text x="346" y="204" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="374" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="402" y="175" font-size="14" text-anchor="middle" class="mono">40</text>
+  <text x="402" y="204" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="430" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="458" y="204" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <text x="506" y="175" font-size="13">15 放進空出來的第 1 格</text>
+  <text x="150" y="240" font-size="12" opacity=".75">插得越前面，要往右搬的越多；插在最前面要搬 n 格：O(n)</text>
+</svg>
+<figcaption>在第 1 格插入 15：從最後面的 40 開始往右搬，再搬 30、20，空出第 1 格才放進去。要從後面搬，從前面搬會把還沒搬的值蓋掉。</figcaption>
+</figure>
+<pre><code>import java.util.Arrays;
+
+public class ShiftDemo {
+    // 在 index 插入 value：從最後一個開始，每個往右搬一格，空出 index 那格
+    static int insertAt(int[] a, int size, int index, int value) {
+        int moves = 0;
+        for (int i = size; i &gt; index; i--) {
+            a[i] = a[i - 1];
+            moves++;
+        }
+        a[index] = value;
+        System.out.println("插入搬了 " + moves + " 格：" + Arrays.toString(a));
+        return size + 1;
+    }
+
+    // 刪除 index：後面每個往左搬一格，補上空位
+    static int removeAt(int[] a, int size, int index) {
+        int moves = 0;
+        for (int i = index; i &lt; size - 1; i++) {
+            a[i] = a[i + 1];
+            moves++;
+        }
+        a[size - 1] = 0;                              // 最後一格清掉
+        System.out.println("刪除搬了 " + moves + " 格：" + Arrays.toString(a));
+        return size - 1;
+    }
+
+    public static void main(String[] args) {
+        int[] a = {10, 20, 30, 40, 0, 0};            // 容量 6，目前放了 4 個
+        int size = 4;
+        size = insertAt(a, size, 1, 15);              // 插在第 1 格
+        size = removeAt(a, size, 0);                  // 刪掉第 0 格
+        size = insertAt(a, size, size, 50);           // 插在尾端：不用搬
+        System.out.println("size = " + size);
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>插入搬了 3 格：[10, 15, 20, 30, 40, 0]
+刪除搬了 4 格：[15, 20, 30, 40, 0, 0]
+插入搬了 0 格：[15, 20, 30, 40, 50, 0]
+size = 5</code></pre>
+<p>插在第 1 格搬了 3 格、刪掉第 0 格搬了 4 格、插在尾端一格都不用搬。MIT 講義的整理：陣列「讀寫第 i 格是 Θ(1)」，但插入與刪除需要「把被修改那格之後的所有項目都移動」（shifting all items after the modified item）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>操作</th><th>陣列（已有 n 個）</th><th>為什麼</th></tr></thead><tbody>
+<tr><th>讀、寫第 i 格</th><td>O(1)</td><td>位置直接算出來</td></tr>
+<tr><th>在尾端放一個（還有空格）</th><td>O(1)</td><td>不用搬</td></tr>
+<tr><th>刪掉最後一個</th><td>O(1)</td><td>不用搬</td></tr>
+<tr><th>插入或刪除第 i 格</th><td>O(n)</td><td>i 後面的都要搬一格；最壞是 i = 0，n 個全搬</td></tr>
+<tr><th>找某個值在哪（沒排序）</th><td>O(n)</td><td>只能從頭一格一格比</td></tr>
+<tr><th>找某個值在哪（已排序）</th><td>O(log n)</td><td>可以用二分搜尋，見〈排序與二分搜尋〉</td></tr>
+</tbody></table></div>
+
+<div class="drill">
+  <p class="dq">陣列裡已有 n 個元素，要在<strong>最前面</strong>（第 0 格）插入一個，要搬幾格？</p>
+  <ul class="dopts"><li>0 格</li><li>1 格</li><li>n/2 格</li><li data-ok>n 格</li></ul>
+  <p class="dexp">原本的 n 個全部要往右一格，搬 n 格，是 O(n)。這是陣列插入的最壞情況。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列裡已有 n 個元素，刪掉<strong>最後一個</strong>的時間複雜度是？</p>
+  <ul class="dopts"><li data-ok>O(1)</li><li>O(n)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">最後一個後面沒有東西，不用搬，把大小減 1 就好。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列內容是 10、20、30、40（後面還有空格），在第 2 格插入 25 之後，內容是？</p>
+  <ul class="dopts"><li>10、25、20、30、40</li><li data-ok>10、20、25、30、40</li><li>10、20、25、40</li><li>25、10、20、30、40</li></ul>
+  <p class="dexp">第 2 格原本是 30，30 和 40 往右搬一格，空出第 2 格放 25。原本的 30 沒有被蓋掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列裡有 5 個元素，刪掉第 1 格（索引 1），要搬幾格？</p>
+  <ul class="dopts"><li>1 格</li><li>4 格</li><li data-ok>3 格</li><li>5 格</li></ul>
+  <p class="dexp">索引 2、3、4 這 3 個要往左補一格。刪第 i 格要搬 n − 1 − i 格：5 − 1 − 1 = 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">在<strong>沒排序</strong>的陣列裡找某個帳號在第幾格，時間複雜度是？</p>
+  <ul class="dopts"><li>O(1)，因為陣列用索引一步就到</li><li>O(log n)</li><li data-ok>O(n)</li><li>O(n log n)</li></ul>
+  <p class="dexp">索引一步到位是「知道第幾格」的時候。不知道在哪一格、資料又沒排序，只能從頭一格一格比。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個操作在陣列上是 O(1)？</p>
+  <ul class="dopts"><li>在第 0 格插入一個新值</li><li data-ok>把第 i 格的值改成新的值</li><li>刪掉第 0 格</li><li>在沒排序的陣列裡找最大值</li></ul>
+  <p class="dexp">改第 i 格只是覆蓋那一格，不用搬別人。插入或刪掉第 0 格要搬 n 格；找最大值要看過每一格。</p>
+</div>
+<div class="drill">
+  <p class="dq">插入時要把元素往右搬，為什麼迴圈要<strong>從最後面</strong>開始搬？</p>
+  <ul class="dopts"><li>從後面搬比較快</li><li>從前面搬會丟出 ArrayIndexOutOfBoundsException，因為索引會超出範圍</li><li>Java 規定陣列只能由後往前寫</li><li data-ok>從前面開始搬，會先把下一格還沒搬的值蓋掉</li></ul>
+  <p class="dexp">如果先做 a[2] = a[1]，原本 a[2] 的值就不見了。從後面開始，每次寫進去的那格都已經搬走了，才不會蓋掉資料。</p>
+</div>
+</section>
+
+<section>
+<p class="era">固定長度，或自動長大</p>
+<h3 class="head">int[] 對 ArrayList</h3>
+<p><code>ArrayList</code> 是幫你把「陣列滿了就開更大的、搬過去」包好的類別，API 文件說它是「可調整大小的陣列實作」（Resizable-array implementation of the List interface），底下就是一個陣列。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 擴容為什麼平均下來是 O(1)（攤銷），在〈複雜度：程式跑多快、吃多少記憶體〉有實跑的計算；List、Set、Map 怎麼挑在 Java 模組的〈集合與泛型〉，<code>Array</code> 與 <code>ArrayList</code>、<code>LinkedList</code> 的面試速答在面試集的〈Java 基礎快答〉。這裡只整理寫題目時會用到的差別：</p>
+<div class="tablewrap"><table><thead><tr><th></th><th><code>int[]</code></th><th><code>ArrayList&lt;Integer&gt;</code></th></tr></thead><tbody>
+<tr><th>長度</th><td>建立時決定，之後不變</td><td>自動長大</td></tr>
+<tr><th>放什麼</th><td>基本型別直接放</td><td>只能放物件，<code>int</code> 要包成 <code>Integer</code></td></tr>
+<tr><th>讀第 i 個</th><td><code>a[i]</code>，O(1)</td><td><code>list.get(i)</code>，O(1)</td></tr>
+<tr><th>加在尾端</th><td>要自己管「目前放了幾個」</td><td><code>add(e)</code>，攤銷 O(1)</td></tr>
+<tr><th>插入、刪除中間</th><td>自己搬，O(n)</td><td><code>add(i, e)</code>、<code>remove(i)</code>，一樣 O(n)</td></tr>
+<tr><th>適合</th><td>長度事先知道（12 個月、26 個字母）</td><td>筆數事先不知道，一筆一筆收進來</td></tr>
+</tbody></table></div>
+<p>API 文件寫 <code>add(int index, E element)</code> 會「把目前在該位置的元素與之後的元素都往右移」（Shifts the element currently at that position (if any) and any subsequent elements to the right），<code>remove(int index)</code> 會「把之後的元素都往左移」（Shifts any subsequent elements to the left），跟上一段自己搬的一樣。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>最常踩的坑：<code>remove</code> 有兩個版本。</strong>傳 <code>int</code> 進去是「刪掉這個索引」，傳物件進去是「刪掉第一個等於它的元素」（Removes the first occurrence of the specified element from this list, if it is present.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 清單裡放的是 <code>Integer</code> 時，<code>remove(20)</code> 會被當成索引 20，不是值 20：</p>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class ListDemo {
+    public static void main(String[] args) {
+        List&lt;Integer&gt; ids = new ArrayList&lt;&gt;();
+        ids.add(30);                 // 加在尾端：攤銷 O(1)
+        ids.add(10);
+        ids.add(20);
+        ids.add(0, 5);               // 插在最前面：後面全部往右移，O(n)
+        System.out.println(ids + " size=" + ids.size());
+
+        ids.remove(1);               // 傳 int：刪掉「索引 1」那格（值 30）
+        System.out.println(ids);
+        ids.remove(Integer.valueOf(20));   // 傳 Integer 物件：刪掉「值是 20」的那個
+        System.out.println(ids);
+
+        List&lt;Integer&gt; big = new ArrayList&lt;&gt;(100_000);   // 已知筆數就先開夠容量
+        for (int i = 0; i &lt; 100_000; i++) big.add(i);
+        System.out.println(big.get(99_999));           // 用索引讀：O(1)
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[5, 30, 10, 20] size=4
+[5, 10, 20]
+[5, 10]
+99999</code></pre>
+
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>List&lt;Integer&gt; ids = new ArrayList&lt;&gt;(List.of(5, 30, 10, 20));
+ids.remove(1);
+System.out.println(ids);</code></pre>
+  <ul class="dopts"><li>[5, 30, 10, 20]，因為清單裡沒有 1</li><li>[30, 10, 20]</li><li data-ok>[5, 10, 20]</li><li>[5, 30, 10]</li></ul>
+  <p class="dexp">傳的是 int 1，所以呼叫的是 remove(int index)，刪掉索引 1 的 30。要刪「值是 1」要寫 remove(Integer.valueOf(1))。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>List&lt;Integer&gt; list = new ArrayList&lt;&gt;(List.of(3, 1, 2));
+list.remove(Integer.valueOf(1));
+System.out.println(list);</code></pre>
+  <ul class="dopts"><li data-ok>[3, 2]</li><li>[3, 1]</li><li>[1, 2]</li><li>[3, 1, 2]</li></ul>
+  <p class="dexp">傳的是 Integer 物件，呼叫 remove(Object)，刪掉第一個等於 1 的元素，剩 [3, 2]。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>List&lt;int&gt; list = new ArrayList&lt;&gt;();</code> 這行會怎樣？</p>
+  <ul class="dopts"><li>可以編譯，Java 會自動換成 Integer</li><li data-ok>編譯錯誤，角括號裡只能放參考型別，要寫 Integer</li><li>可以編譯，但執行時丟例外</li><li>可以編譯，而且比 Integer 省記憶體，因為不用把每個數字包成物件</li></ul>
+  <p class="dexp">泛型的型別參數只能是參考型別（類別、介面、陣列），int 要用包裝類別 Integer。放進去和拿出來時 Java 會自動包裝與拆開，但宣告要寫 Integer。</p>
+</div>
+<div class="drill">
+  <p class="dq">一份對帳檔確定有 1,000,000 筆，要逐筆放進 <code>ArrayList</code>。怎麼寫可以減少擴容時的搬動？</p>
+  <ul class="dopts"><li>改用 LinkedList</li><li>每放 1,000 筆就呼叫一次 trimToSize()，把容量整理成剛好的大小</li><li data-ok>用 new ArrayList&lt;&gt;(1_000_000) 一開始就開夠容量</li><li>放完之後再呼叫 Collections.sort</li></ul>
+  <p class="dexp">已知筆數就先開夠容量，中途完全不用擴容。trimToSize 是把多的容量縮掉，反而會讓之後的 add 又要擴容。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>list</code> 是有 n 個元素的 <code>ArrayList</code>，<code>list.get(n / 2)</code> 的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)，要從頭走到中間</li><li>O(log n)</li><li>O(n/2)</li><li data-ok>O(1)</li></ul>
+  <p class="dexp">ArrayList 底下是陣列，用索引直接算出位置，API 文件也把 get 列在常數時間的操作裡。從頭走到第 i 個的是 LinkedList。</p>
+</div>
+<div class="drill">
+  <p class="dq">要記錄一年 12 個月每月的手續費收入，用哪個最直接？</p>
+  <ul class="dopts"><li data-ok>long[] fees = new long[12];</li><li>ArrayList&lt;Long&gt;，因為它會自動長大</li><li>HashMap&lt;Integer, Long&gt;，用月份當鍵</li><li>一個 String，用逗號隔開</li></ul>
+  <p class="dexp">長度事先知道而且固定（12 個月），月份減 1 剛好就是索引 0〜11，陣列最直接，也不用把數字包成 Long 物件。</p>
+</div>
+<div class="drill">
+  <p class="dq">對一個空的 <code>ArrayList</code> 重複做 n 次 <code>list.add(0, x)</code>（每次都插在最前面），總共的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)，因為 add 是攤銷 O(1)</li><li>O(n log n)</li><li data-ok>O(n²)</li><li>O(1)</li></ul>
+  <p class="dexp">第 k 次插在最前面要搬 k − 1 格，總共 0 + 1 + … + (n − 1) ≈ n²/2，是 O(n²)。攤銷 O(1) 只講加在尾端的 add(e)。</p>
+</div>
+</section>
+
+<section>
+<p class="era">字串不能改，只能換一個新的</p>
+<h3 class="head">String 不可變、StringBuilder 與 char[]</h3>
+<p>Java 的 <code>String</code> 像刻好的印章：刻好就不能改，想要不一樣的字只能刻一顆新的。API 文件原句：「字串是常數，建立之後值就不能改」（Strings are constant; their values cannot be changed after they are created.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 所以 <code>toUpperCase()</code>、<code>replace()</code> 這些方法都是回傳一個新字串，原本的不會變；沒接住回傳值，等於白做。</p>
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="String 不可變：a 和 b 原本都指向「銀行」這個字串物件；執行 a = a + 帳戶 之後，產生一個新的「銀行帳戶」物件，a 改指向新物件，b 還指向原本的「銀行」，原本的物件內容沒有被改">
+  <defs><marker id="ar-03-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <text x="40" y="30" font-size="13" fill="var(--slate-deep)">執行 a = a + "帳戶" 之前</text>
+  <text x="70" y="85" font-size="14" class="mono" text-anchor="end">a</text>
+  <text x="70" y="145" font-size="14" class="mono" text-anchor="end">b</text>
+  <line x1="78" y1="80" x2="178" y2="102" stroke="currentColor" marker-end="url(#ar-03-arrow)"/>
+  <line x1="78" y1="140" x2="178" y2="122" stroke="currentColor" marker-end="url(#ar-03-arrow)"/>
+  <rect x="180" y="92" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="235.0" y="117" font-size="14" text-anchor="middle">"銀行"</text>
+  <text x="420" y="30" font-size="13" fill="var(--slate-deep)">之後</text>
+  <text x="450" y="85" font-size="14" class="mono" text-anchor="end">a</text>
+  <text x="450" y="145" font-size="14" class="mono" text-anchor="end">b</text>
+  <line x1="458" y1="80" x2="560" y2="72" stroke="currentColor" marker-end="url(#ar-03-arrow)"/>
+  <line x1="458" y1="140" x2="560" y2="140" stroke="currentColor" marker-end="url(#ar-03-arrow)"/>
+  <rect x="562" y="52" width="150" height="40" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="637.0" y="77" font-size="14" text-anchor="middle">"銀行帳戶"</text>
+  <rect x="562" y="120" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="617.0" y="145" font-size="14" text-anchor="middle">"銀行"</text>
+  <text x="420" y="200" font-size="12" opacity=".75">舊物件原封不動，只是 a 改指向新做出來的物件</text>
+</svg>
+<figcaption>a = a + "帳戶" 沒有改到原本的字串，而是做出一個新字串，再讓 a 改指向它。b 還指向舊的「銀行」。</figcaption>
+</figure>
+<p><strong>迴圈裡用 <code>+</code> 相加的代價。</strong>語言規格說字串相加的結果「是一個新建立的 String 物件」，只有整個運算式是編譯期常數時例外（The String object is newly created (§12.5) unless the expression is a constant expression）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.1" target="_blank" rel="noopener">出處</a> 迴圈每一圈都做一個新字串，新字串要放進目前的全部內容，長度 1、2、3……n 加起來約 n²/2 個字元，總共 O(n²)。</p>
+<p><code>StringBuilder</code> 是可以改的字串（a mutable sequence of characters），主要操作是 <code>append</code> 與 <code>insert</code>，<code>append</code>「一律把字元加在尾端」。它有自己的容量，「只要內容長度沒超過容量，就不需要配置新的內部緩衝區；緩衝區不夠時會自動變大」（If the internal buffer overflows, it is automatically made larger.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StringBuilder.html" target="_blank" rel="noopener">出處</a> 跟 <code>ArrayList</code> 同一個道理，連續 append n 個字元整體是 O(n)。<code>StringBuffer</code> 與 <code>StringBuilder</code> 差在哪，在〈Java 基礎快答〉。</p>
+<pre><code>public class StringDemo {
+    public static void main(String[] args) {
+        String code = "twd";
+        code.toUpperCase();                    // 回傳新字串，但沒接住
+        System.out.println(code);              // 原本的字串沒變
+        code = code.toUpperCase();             // 要接住回傳值才有用
+        System.out.println(code);
+
+        String a = "銀行";
+        String b = a;                          // b 指向同一個字串物件
+        a = a + "帳戶";                        // 做出一個新字串，a 改指向它
+        System.out.println(a + " / " + b);     // b 還是舊的那個
+
+        // 迴圈裡用 + 相加：每一圈都做出一個新字串，把目前的內容整段放進去
+        String line = "";
+        long copied = 0;                       // 數一數總共放了多少個字元
+        for (int i = 0; i &lt; 1_000; i++) {
+            line = line + "x";
+            copied += line.length();
+        }
+        System.out.println("用 +：" + line.length() + " 個字元，累計放了 " + copied + " 個字元");
+
+        // StringBuilder：在同一個可變的緩衝區後面接，不夠才擴大
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i &lt; 1_000; i++) {
+            sb.append('x');
+        }
+        String result = sb.toString();
+        System.out.println("用 StringBuilder：" + result.length() + " 個字元");
+        System.out.println(new StringBuilder("ABC123").reverse());
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>twd
+TWD
+銀行帳戶 / 銀行
+用 +：1000 個字元，累計放了 500500 個字元
+用 StringBuilder：1000 個字元
+321CBA</code></pre>
+<p>用 <code>+</code> 串 1,000 個字元，前後總共放了 500,500 個字元進新字串（1 + 2 + … + 1,000），這就是 n²/2。串十萬個就是約五十億個字元。</p>
+<p><strong>要逐字處理時，換成 <code>char[]</code>。</strong><code>charAt(i)</code> 讀第 i 個字元，索引範圍是「0 到 <code>length()</code> − 1」，超出就丟 <code>IndexOutOfBoundsException</code>。<code>toCharArray()</code> 回傳「一個新配置的字元陣列」（a newly allocated character array），所以它本身要 O(n) 時間與 O(n) 空間，換來的是可以原地交換、修改。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 改完用 <code>new String(chars)</code> 變回字串。</p>
+<p class="muted">中文字、表情符號有些要兩個 <code>char</code> 才能表示一個字（API 文件稱為 surrogate），這課的題目都假設一個 <code>char</code> 就是一個字元；處理任意語言的文字時要另外小心。</p>
+
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>String s = "abc";
+s.toUpperCase();
+System.out.println(s);</code></pre>
+  <ul class="dopts"><li>ABC</li><li data-ok>abc</li><li>Abc</li><li>編譯錯誤</li></ul>
+  <p class="dexp">toUpperCase 回傳一個新字串，但沒有接住；s 指向的還是原本的 "abc"。要寫 s = s.toUpperCase()。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>String x = "A";
+String y = x;
+x = x + "B";
+System.out.println(y);</code></pre>
+  <ul class="dopts"><li>AB</li><li>B</li><li data-ok>A</li><li>null</li></ul>
+  <p class="dexp">x + "B" 做出新字串 "AB"，x 改指向它；y 還指向原本的 "A"。字串不可變，所以舊的 "A" 不會被改成 "AB"。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度大約是？（只看字元的複製量）</p>
+  <pre><code>String s = "";
+for (int i = 0; i &lt; n; i++) {
+    s = s + "x";
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li data-ok>O(n²)</li><li>O(n log n)</li><li>O(1)</li></ul>
+  <p class="dexp">每一圈都做出新字串，長度 1、2、…、n，總共約 n²/2 個字元，是 O(n²)。</p>
+</div>
+<div class="drill">
+  <p class="dq">改成 <code>StringBuilder</code>，時間複雜度是？</p>
+  <pre><code>StringBuilder sb = new StringBuilder();
+for (int i = 0; i &lt; n; i++) {
+    sb.append('x');
+}
+String s = sb.toString();</code></pre>
+  <ul class="dopts"><li>O(n²)，因為緩衝區不夠時也要擴大</li><li>O(log n)</li><li>O(1)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">append 加在同一個緩衝區尾端，不夠時才擴大；跟 ArrayList 一樣是攤銷，整體 O(n)。最後 toString 複製一次，也是 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">這行印出什麼？</p>
+  <pre><code>System.out.println(new StringBuilder("AB12").reverse());</code></pre>
+  <ul class="dopts"><li>AB12</li><li>BA21</li><li data-ok>21BA</li><li>12AB</li></ul>
+  <p class="dexp">reverse 把整串字元反過來：A、B、1、2 變成 2、1、B、A。12AB 是「前後兩半對調」，不是反轉。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>String s = "TWD";</code>，<code>s.charAt(s.length())</code> 會怎樣？</p>
+  <ul class="dopts"><li>回傳 'D'</li><li>回傳空字元</li><li data-ok>丟出例外，因為最後一個索引是 length() − 1</li><li>回傳 'T'，超出長度的索引會自動從頭開始繞回第 0 個字元</li></ul>
+  <p class="dexp">長度 3 的索引是 0〜2，s.length() 是 3，超出範圍，charAt 丟 IndexOutOfBoundsException（實際是它的子類別 StringIndexOutOfBoundsException）。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>char[] cs = s.toCharArray();</code>（s 長度 n）這一行的額外空間是？</p>
+  <ul class="dopts"><li>O(1)，它只是回傳字串內部那個陣列</li><li>O(log n)</li><li data-ok>O(n)，它回傳一個新配置的字元陣列</li><li>O(n²)</li></ul>
+  <p class="dexp">API 文件寫 toCharArray 回傳 a newly allocated character array，長度等於字串長度，所以是 O(n) 時間與空間。改這個陣列不會影響原本的字串。</p>
+</div>
+<div class="drill">
+  <p class="dq">要把十萬筆交易組成一份 CSV 字串（每筆一行），哪種寫法比較好？</p>
+  <ul class="dopts"><li>String csv = ""; 迴圈裡 csv = csv + line + "\n";</li><li data-ok>用 StringBuilder，迴圈裡 append(line).append('\n')，最後 toString()</li><li>每一行都 new String(line)，再用 == 檢查</li><li>先把每行都轉成 char[]，再用 + 一行一行接起來，避免直接處理 String 物件</li></ul>
+  <p class="dexp">用 + 每一圈都要做新字串、複製全部內容，十萬行是 O(n²) 的字元複製；StringBuilder 在同一個緩衝區後面接，整體 O(n)。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每個字元出現幾次</p>
+<h3 class="head">字元計數：int[26] 或 HashMap</h3>
+<p>很多字串題的第一步是「數每個字元出現幾次」：兩個字串是不是同一組字母重新排列（anagram，例如 listen 與 silent）、哪個字元第一個不重複、能不能湊出另一個字串。</p>
+<p>只有小寫英文字母時，開一個 26 格的 <code>int</code> 陣列當計數器，<code>c - 'a'</code> 把字母換成 0〜25 的索引：<code>char</code> 在運算時會變成整數，'a' 到 'z' 是連續的 26 個值，所以 'a' − 'a' = 0、'c' − 'a' = 2。陣列用索引直接加一，每個字元 O(1)。</p>
+<p>什麼字元都可能出現（中文、標點）時，26 格不夠，改用 <code>HashMap&lt;Character, Integer&gt;</code>：鍵是字元、值是次數。<code>merge(c, 1, Integer::sum)</code> 的意思是「沒有這個鍵就放 1，有就加 1」。HashMap 為什麼查詢平均 O(1)、什麼時候會變慢，在〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+<pre><code>import java.util.HashMap;
+import java.util.Map;
+
+public class CharCount {
+    // 只有小寫英文字母時：開 26 格的計數陣列，c - 'a' 把字母換成 0〜25 的索引
+    static int[] countLetters(String s) {
+        int[] count = new int[26];
+        for (char c : s.toCharArray()) {
+            count[c - 'a']++;
+        }
+        return count;
+    }
+
+    // 兩個字串的字母組成一樣嗎（每個字母出現次數都相同）
+    static boolean sameLetters(String s, String t) {
+        if (s.length() != t.length()) return false;
+        int[] count = new int[26];
+        for (int i = 0; i &lt; s.length(); i++) {
+            count[s.charAt(i) - 'a']++;          // s 的字母加一
+            count[t.charAt(i) - 'a']--;          // t 的字母減一
+        }
+        for (int c : count) {
+            if (c != 0) return false;
+        }
+        return true;
+    }
+
+    // 什麼字元都可能出現（中文、符號）時：改用 HashMap 數
+    static Map&lt;Character, Integer&gt; countAny(String s) {
+        Map&lt;Character, Integer&gt; count = new HashMap&lt;&gt;();
+        for (char c : s.toCharArray()) {
+            count.merge(c, 1, Integer::sum);     // 沒有就放 1，有就加 1
+        }
+        return count;
+    }
+
+    public static void main(String[] args) {
+        int[] c = countLetters("banana");
+        System.out.println("a=" + c[0] + " b=" + c[1] + " n=" + c['n' - 'a']);
+        System.out.println(sameLetters("listen", "silent") + " " + sameLetters("apple", "paple") + " " + sameLetters("abc", "abd"));
+        System.out.println(countAny("台北台中").get('台'));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>a=3 b=1 n=2
+true true false
+2</code></pre>
+<p><code>sameLetters</code> 時間 O(n)；計數陣列固定 26 格，跟字串多長無關，額外空間 O(1)。改用排序（兩個字串排好再比）也做得到，但是 O(n log n)。</p>
+
+<div class="drill">
+  <p class="dq"><code>int i = 'c' - 'a';</code> 之後 i 是多少？</p>
+  <ul class="dopts"><li data-ok>2</li><li>3</li><li>99</li><li>編譯錯誤，char 不能相減</li></ul>
+  <p class="dexp">char 在運算時會變成整數，a、b、c 是連續的值，相減得 2。這就是把字母換成計數陣列索引的方法。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>countLetters("hello")</code>，<code>count['l' - 'a']</code> 是多少？</p>
+  <ul class="dopts"><li>1</li><li data-ok>2</li><li>3</li><li>11</li></ul>
+  <p class="dexp">hello 裡 l 出現兩次。'l' − 'a' = 11 是索引，不是次數。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>sameLetters("abc", "cab")</code> 回傳什麼？</p>
+  <ul class="dopts"><li>false，因為順序不同</li><li>false，因為 c 的位置不同</li><li>丟出例外</li><li data-ok>true</li></ul>
+  <p class="dexp">它只比每個字母出現幾次：a、b、c 各一次，兩邊一樣，所以 true。順序不影響計數。</p>
+</div>
+<div class="drill">
+  <p class="dq">要數一段中文客訴內容裡每個字出現幾次，用 <code>int[26]</code> 加 <code>c - 'a'</code> 會怎樣？</p>
+  <ul class="dopts"><li>可以，Java 會自動把中文對應到 26 格裡，只是幾個不同的字可能會算在同一格</li><li>可以，只是速度比較慢</li><li data-ok>不行，中文字減 'a' 的結果遠大於 25，索引會超出範圍；要改用 HashMap</li><li>不行，char 不能放中文</li></ul>
+  <p class="dexp">中文字的 char 值遠大於 'z'，減 'a' 後超過 25，存取 count[…] 會丟 ArrayIndexOutOfBoundsException。字元種類不固定時用 HashMap&lt;Character, Integer&gt;。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式之後，<code>count.get('台')</code> 是多少？</p>
+  <pre><code>Map&lt;Character, Integer&gt; count = new HashMap&lt;&gt;();
+for (char c : "台北台中台南".toCharArray()) {
+    count.merge(c, 1, Integer::sum);
+}</code></pre>
+  <ul class="dopts"><li>1</li><li>2</li><li data-ok>3</li><li>6</li></ul>
+  <p class="dexp">台出現三次：第一次沒有鍵，放 1；之後每次都用 Integer::sum 加 1，最後是 3。6 是整個字串的長度。</p>
+</div>
+</section>
+
+<section>
+<p class="era">反轉、迴文、原地修改、二維走訪</p>
+<h3 class="head">常見手法入門</h3>
+<p><strong>反轉與迴文。</strong>一個索引從左邊、一個從右邊，往中間走：反轉就是每次交換兩端，迴文（正著讀跟反著讀一樣，例如 level）就是每次比兩端。兩個都是時間 O(n)、額外空間 O(1)。這種「兩個索引一起走」的做法正式名稱是雙指標（two pointers），它還有很多變形，在〈雙指標、滑動視窗與前綴和〉。</p>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="原地反轉 A、T、M、0、1：left 從最左邊、right 從最右邊開始，交換兩格後各往中間走一步；第一次交換 A 和 1，第二次交換 T 和 0，left 和 right 碰在中間就停">
+  <text x="20" y="75" font-size="13">第 1 步</text>
+  <rect x="200" y="50" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="228" y="75" font-size="14" text-anchor="middle" class="mono">A</text>
+  <text x="228" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="256" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="284" y="75" font-size="14" text-anchor="middle" class="mono">T</text>
+  <text x="284" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="312" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="340" y="75" font-size="14" text-anchor="middle" class="mono">M</text>
+  <text x="340" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="368" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="396" y="75" font-size="14" text-anchor="middle" class="mono">0</text>
+  <text x="396" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="424" y="50" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="452" y="75" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="452" y="104" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <path d="M222 36 L234 36 L228 46 z" fill="var(--gold-deep)"/>
+  <text x="228" y="30" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text>
+  <path d="M446 36 L458 36 L452 46 z" fill="var(--gold-deep)"/>
+  <text x="452" y="30" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text>
+  <text x="504" y="75" font-size="13" fill="var(--gold-deep)">交換 A 和 1</text>
+  <text x="20" y="165" font-size="13">第 2 步</text>
+  <rect x="200" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="228" y="165" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="228" y="194" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="256" y="140" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="284" y="165" font-size="14" text-anchor="middle" class="mono">T</text>
+  <text x="284" y="194" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="312" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="340" y="165" font-size="14" text-anchor="middle" class="mono">M</text>
+  <text x="340" y="194" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="368" y="140" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="396" y="165" font-size="14" text-anchor="middle" class="mono">0</text>
+  <text x="396" y="194" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="424" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="452" y="165" font-size="14" text-anchor="middle" class="mono">A</text>
+  <text x="452" y="194" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="203" y="143" width="50" height="34" fill="var(--slate-soft)" opacity=".7"/>
+  <text x="228" y="165" font-size="14" text-anchor="middle" class="mono">1</text>
+  <rect x="427" y="143" width="50" height="34" fill="var(--slate-soft)" opacity=".7"/>
+  <text x="452" y="165" font-size="14" text-anchor="middle" class="mono">A</text>
+  <path d="M278 126 L290 126 L284 136 z" fill="var(--gold-deep)"/>
+  <text x="284" y="120" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text>
+  <path d="M390 126 L402 126 L396 136 z" fill="var(--gold-deep)"/>
+  <text x="396" y="120" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text>
+  <text x="504" y="165" font-size="13" fill="var(--gold-deep)">交換 T 和 0</text>
+  <text x="20" y="255" font-size="13">第 3 步</text>
+  <rect x="200" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="228" y="255" font-size="14" text-anchor="middle" class="mono">1</text>
+  <text x="228" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="256" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="284" y="255" font-size="14" text-anchor="middle" class="mono">0</text>
+  <text x="284" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="312" y="230" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="340" y="255" font-size="14" text-anchor="middle" class="mono">M</text>
+  <text x="340" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="368" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="396" y="255" font-size="14" text-anchor="middle" class="mono">T</text>
+  <text x="396" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="424" y="230" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="452" y="255" font-size="14" text-anchor="middle" class="mono">A</text>
+  <text x="452" y="284" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="203" y="233" width="50" height="34" fill="var(--slate-soft)" opacity=".7"/>
+  <text x="228" y="255" font-size="14" text-anchor="middle" class="mono">1</text>
+  <rect x="259" y="233" width="50" height="34" fill="var(--slate-soft)" opacity=".7"/>
+  <text x="284" y="255" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="371" y="233" width="50" height="34" fill="var(--slate-soft)" opacity=".7"/>
+  <text x="396" y="255" font-size="14" text-anchor="middle" class="mono">T</text>
+  <rect x="427" y="233" width="50" height="34" fill="var(--slate-soft)" opacity=".7"/>
+  <text x="452" y="255" font-size="14" text-anchor="middle" class="mono">A</text>
+  <path d="M334 216 L346 216 L340 226 z" fill="var(--gold-deep)"/>
+  <text x="340" y="210" font-size="12" text-anchor="middle" class="mono" fill="var(--gold-deep)">left = right</text>
+  <text x="504" y="255" font-size="13" fill="var(--gold-deep)">left 不小於 right：停</text>
+</svg>
+<figcaption>原地反轉：left 從最左、right 從最右開始，交換後各往中間走一步（古銅是這一步要交換的兩格，灰藍底是已經換好的）。left 不再小於 right 就停，5 格只換 2 次。</figcaption>
+</figure>
+<p><strong>原地修改</strong>（in-place：不另外開一個陣列，直接改原本的陣列）。例如把 0 都移到後面：用一個 <code>write</code> 記錄「下一個非 0 的值要寫到哪一格」，<code>read</code> 從頭掃到尾，遇到非 0 就寫到 <code>write</code> 那格，最後剩下的格子補 0。時間 O(n)、額外空間 O(1)，非 0 的值也保持原本的先後順序。</p>
+<pre><code>import java.util.Arrays;
+
+public class Techniques {
+    // 反轉：左右兩個索引往中間走，一路交換。時間 O(n)、額外空間 O(1)
+    static void reverse(char[] s) {
+        int left = 0, right = s.length - 1;
+        while (left &lt; right) {
+            char t = s[left];
+            s[left] = s[right];
+            s[right] = t;
+            left++;
+            right--;
+        }
+    }
+
+    // 迴文：正著讀跟反著讀一樣。只比英文字母與數字、不分大小寫
+    static boolean isPalindrome(String s) {
+        int left = 0, right = s.length() - 1;
+        while (left &lt; right) {
+            char a = s.charAt(left), b = s.charAt(right);
+            if (!Character.isLetterOrDigit(a)) { left++; continue; }
+            if (!Character.isLetterOrDigit(b)) { right--; continue; }
+            if (Character.toLowerCase(a) != Character.toLowerCase(b)) return false;
+            left++;
+            right--;
+        }
+        return true;
+    }
+
+    // 原地修改：把 0 都移到後面，其他數字保持原本的先後順序
+    static void moveZeros(int[] a) {
+        int write = 0;                         // 下一個非 0 的值要寫到哪一格
+        for (int read = 0; read &lt; a.length; read++) {
+            if (a[read] != 0) a[write++] = a[read];
+        }
+        while (write &lt; a.length) a[write++] = 0;   // 剩下的格子補 0
+    }
+
+    public static void main(String[] args) {
+        char[] s = "ATM".toCharArray();
+        reverse(s);
+        System.out.println(new String(s));
+        System.out.println(isPalindrome("A man, a plan, a canal: Panama") + " " + isPalindrome("race a car"));
+
+        int[] a = {0, 7, 0, 3, 5};
+        moveZeros(a);
+        System.out.println(Arrays.toString(a));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>MTA
+true false
+[7, 3, 5, 0, 0]</code></pre>
+<p><strong>二維陣列</strong>就是「陣列的陣列」：<code>grid[r]</code> 是第 r 列（一個一維陣列），<code>grid[r][c]</code> 是第 r 列第 c 欄。列數是 <code>grid.length</code>，欄數是 <code>grid[0].length</code>（每列一樣長時）。一列一列走是外層 r、內層 c；要一欄一欄加總，就把兩層對調。往上下左右走一步時，先用位移陣列算出新位置，再檢查有沒有出界。</p>
+<figure>
+<svg viewBox="0 0 760 260" role="img" aria-label="3 列 4 欄的二維陣列 grid：列的索引 r 從 0 到 2 寫在左邊，欄的索引 c 從 0 到 3 寫在上面；grid[1][2] 是第 1 列第 2 欄的 4；一列一列走時，外層迴圈跑 r、內層跑 c">
+  <defs><marker id="ar-05-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <text x="228" y="48" font-size="12" text-anchor="middle" class="mono" fill="var(--slate-deep)">c=0</text>
+  <text x="284" y="48" font-size="12" text-anchor="middle" class="mono" fill="var(--slate-deep)">c=1</text>
+  <text x="340" y="48" font-size="12" text-anchor="middle" class="mono" fill="var(--slate-deep)">c=2</text>
+  <text x="396" y="48" font-size="12" text-anchor="middle" class="mono" fill="var(--slate-deep)">c=3</text>
+  <text x="188" y="85" font-size="12" text-anchor="end" class="mono" fill="var(--slate-deep)">r=0</text>
+  <rect x="200" y="60" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="228" y="85" font-size="14" text-anchor="middle" class="mono">5</text>
+  <rect x="256" y="60" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="284" y="85" font-size="14" text-anchor="middle" class="mono">3</text>
+  <rect x="312" y="60" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="340" y="85" font-size="14" text-anchor="middle" class="mono">8</text>
+  <rect x="368" y="60" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="396" y="85" font-size="14" text-anchor="middle" class="mono">6</text>
+  <text x="188" y="125" font-size="12" text-anchor="end" class="mono" fill="var(--slate-deep)">r=1</text>
+  <rect x="200" y="100" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="228" y="125" font-size="14" text-anchor="middle" class="mono">2</text>
+  <rect x="256" y="100" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="284" y="125" font-size="14" text-anchor="middle" class="mono">9</text>
+  <rect x="312" y="100" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="340" y="125" font-size="14" text-anchor="middle" class="mono">4</text>
+  <rect x="368" y="100" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="396" y="125" font-size="14" text-anchor="middle" class="mono">8</text>
+  <text x="188" y="165" font-size="12" text-anchor="end" class="mono" fill="var(--slate-deep)">r=2</text>
+  <rect x="200" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="228" y="165" font-size="14" text-anchor="middle" class="mono">1</text>
+  <rect x="256" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="284" y="165" font-size="14" text-anchor="middle" class="mono">0</text>
+  <rect x="312" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="340" y="165" font-size="14" text-anchor="middle" class="mono">6</text>
+  <rect x="368" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="396" y="165" font-size="14" text-anchor="middle" class="mono">3</text>
+  <text x="464" y="125" font-size="13" class="mono" fill="var(--gold-deep)">grid[1][2] = 4</text>
+  <text x="464" y="147" font-size="12">先寫列 r、再寫欄 c</text>
+  <line x1="208" y1="94" x2="416" y2="94" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
+  <line x1="208" y1="134" x2="416" y2="134" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
+  <line x1="208" y1="174" x2="416" y2="174" stroke="var(--slate)" stroke-width="2" opacity=".55" marker-end="url(#ar-05-arrow)"/>
+  <text x="200" y="210" font-size="12" opacity=".75">灰藍箭頭：一列一列走（外層 r、內層 c），每格剛好看一次，3 × 4 = 12 格</text>
+</svg>
+<figcaption>grid[r][c]：先寫列、再寫欄。古銅格是 grid[1][2]。灰藍箭頭是一列一列走的順序。</figcaption>
+</figure>
+<pre><code>public class Grid {
+    public static void main(String[] args) {
+        // 3 家分行 × 4 季的業績：grid[分行][季]
+        int[][] grid = {
+            {5, 3, 8, 6},
+            {2, 9, 4, 8},
+            {1, 0, 6, 3}
+        };
+        int rows = grid.length, cols = grid[0].length;
+        System.out.println(rows + " 列 " + cols + " 欄");
+
+        for (int r = 0; r &lt; rows; r++) {            // 一列一列走：外層列、內層欄
+            int sum = 0;
+            for (int c = 0; c &lt; cols; c++) sum += grid[r][c];
+            System.out.println("第 " + r + " 列合計 " + sum);
+        }
+
+        for (int c = 0; c &lt; cols; c++) {            // 一欄一欄走：外層欄、內層列
+            int sum = 0;
+            for (int r = 0; r &lt; rows; r++) sum += grid[r][c];
+            System.out.print(sum + (c &lt; cols - 1 ? " " : "\n"));
+        }
+
+        // 往上下左右走一步：用位移陣列，並先檢查有沒有出界
+        int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        int r = 0, c = 0, inside = 0;
+        for (int[] d : dirs) {
+            int nr = r + d[0], nc = c + d[1];
+            if (nr &gt;= 0 &amp;&amp; nr &lt; rows &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; cols) inside++;
+        }
+        System.out.println("左上角的鄰居有 " + inside + " 個");
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>3 列 4 欄
+第 0 列合計 22
+第 1 列合計 23
+第 2 列合計 10
+8 12 18 17
+左上角的鄰居有 2 個</code></pre>
+<p>r 列 c 欄的表格每格看一次，時間是 O(r·c)；如果是 n × n 的表格，就是 O(n²)。這不代表演算法很慢：表格本身就有 n² 格，每格看一次已經是最少了。</p>
+
+<div class="drill">
+  <p class="dq">對 <code>char[] s = {'a', 'b', 'c', 'd'};</code> 執行上面的 <code>reverse</code>，<strong>第一次交換之後</strong>，陣列是？</p>
+  <ul class="dopts"><li>b、a、c、d</li><li>d、c、b、a</li><li data-ok>d、b、c、a</li><li>a、c、b、d</li></ul>
+  <p class="dexp">第一次交換 left = 0 與 right = 3，也就是 a 和 d，得到 d、b、c、a。第二次交換 b 和 c 之後才變成 d、c、b、a。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>reverse</code> 的條件從 <code>left &lt; right</code> 改成 <code>left &lt;= right</code>，結果會怎樣？</p>
+  <ul class="dopts"><li>長度是奇數時會丟出例外</li><li>會多換一次，把最後一對已經換好的兩格又換回原本的位置，結果變錯</li><li data-ok>結果一樣；長度是奇數時多做一次「正中間那格跟自己交換」</li><li>變成無窮迴圈</li></ul>
+  <p class="dexp">left 等於 right 時兩個索引指同一格，跟自己交換不會改變內容，之後 left 大於 right 就停了。長度是偶數時兩者根本不會相等。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>isPalindrome("Abba")</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>true，因為比較前都轉成小寫</li><li>false，因為 A 和 a 不一樣</li><li>false，因為長度是偶數</li><li>丟出例外</li></ul>
+  <p class="dexp">它用 Character.toLowerCase 比兩端：a 對 a、b 對 b，全部相同，回傳 true。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>isPalindrome("race a car")</code> 回傳什麼？</p>
+  <ul class="dopts"><li>true，因為空白會被跳過</li><li data-ok>false</li><li>true，因為頭尾都是 r</li><li>丟出例外，因為有空白</li></ul>
+  <p class="dexp">跳過空白後是 raceacar：r 對 r、a 對 a、c 對 c，接著 e 對 a 不同，回傳 false。頭尾相同不夠，要每一對都相同。</p>
+</div>
+<div class="drill">
+  <p class="dq">對 <code>{0, 1, 0, 2}</code> 執行上面的 <code>moveZeros</code>，結果是？</p>
+  <ul class="dopts"><li>[0, 0, 1, 2]</li><li>[2, 1, 0, 0]</li><li>[1, 0, 2, 0]</li><li data-ok>[1, 2, 0, 0]</li></ul>
+  <p class="dexp">非 0 的 1、2 依原本順序寫到前兩格，剩下兩格補 0。它不會把非 0 的值倒過來。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>moveZeros</code> 的時間與額外空間各是多少？</p>
+  <ul class="dopts"><li>時間 O(n²)、空間 O(1)</li><li data-ok>時間 O(n)、空間 O(1)</li><li>時間 O(n)、空間 O(n)</li><li>時間 O(n log n)、空間 O(1)</li></ul>
+  <p class="dexp">read 從頭到尾掃一次，write 最多也走到尾，總共 O(n)；只用了 read、write 兩個變數，沒有另開陣列。</p>
+</div>
+<div class="drill">
+  <p class="dq">用同樣的「write 索引」寫法，把<strong>已排序</strong>陣列 <code>{1, 1, 2, 3, 3}</code> 的重複值去掉（每個值只留一個，留在前面幾格）。<code>write</code> 最後是多少？</p>
+  <pre><code>int write = 1;
+for (int read = 1; read &lt; a.length; read++) {
+    if (a[read] != a[write - 1]) a[write++] = a[read];
+}</code></pre>
+  <ul class="dopts"><li>5</li><li data-ok>3</li><li>2</li><li>4</li></ul>
+  <p class="dexp">不同的值是 1、2、3，依序寫到前三格，write 停在 3。排好序時重複的會排在一起，只要跟「已寫入的最後一個」比就好。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面 <code>Grid</code> 的 <code>grid</code>，<code>grid[2][0]</code> 是多少？</p>
+  <ul class="dopts"><li>8</li><li>2</li><li data-ok>1</li><li>6</li></ul>
+  <p class="dexp">先列後欄：第 2 列是 {1, 0, 6, 3}，第 0 欄是 1。8 是 grid[0][2]，順序寫反了。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>int[][] grid = new int[3][5];</code>，<code>grid.length</code> 與 <code>grid[0].length</code> 各是多少？</p>
+  <ul class="dopts"><li>5 與 3</li><li>15 與 5</li><li data-ok>3 與 5</li><li>3 與 15</li></ul>
+  <p class="dexp">grid 是 3 個「長度 5 的陣列」組成的陣列：grid.length 是列數 3，grid[0].length 是第 0 列的長度 5。</p>
+</div>
+<div class="drill">
+  <p class="dq">3 × 3 的表格裡，正中間那格 <code>(1, 1)</code> 往上下左右走一步，有幾個鄰居在表格內？</p>
+  <ul class="dopts"><li>2</li><li>3</li><li>8</li><li data-ok>4</li></ul>
+  <p class="dexp">(0,1)、(2,1)、(1,0)、(1,2) 都在範圍內，4 個。角落只有 2 個、邊上 3 個；8 是連斜角也算的時候。</p>
+</div>
+</section>
+
+<section>
+<p class="era">內建工具，與它們的陷阱</p>
+<h3 class="head">常用 API 與常見陷阱</h3>
+<p><strong><code>Arrays.sort</code>：基本型別與物件用不同的演算法。</strong>API 文件寫，<code>int[]</code> 這類基本型別陣列的排序法是「Vladimir Yaroslavskiy、Jon Bentley、Joshua Bloch 的雙軸快速排序」（Dual-Pivot Quicksort），提供 O(n log(n)) 的效能；物件陣列則是「穩定、自適應、迭代的合併排序」（a stable, adaptive, iterative mergesort），「改編自 Tim Peters 為 Python 寫的串列排序（TimSort）」，而且「保證穩定：相等的元素不會因為排序而改變順序」（This sort is guaranteed to be stable: equal elements will not be reordered as a result of the sort.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a> 穩定性的用處：交易先照時間排好，再照金額排，同金額的會保持時間順序。排序法本身在〈排序與二分搜尋〉。</p>
+<p><strong><code>Arrays.fill</code></strong> 把整個陣列填成同一個值（Assigns the specified int value to each element of the specified array of ints.），常用來把距離陣列先填 −1 表示「還沒算過」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong><code>Arrays.asList</code> 回傳固定大小的清單。</strong>API 文件：「回傳一個由指定陣列支撐、固定大小的清單。對陣列的修改會反映在清單上，對清單的修改也會反映在陣列上」，而且會改變大小的方法「會讓清單維持不變並丟出 <code>UnsupportedOperationException</code>」（Those methods leave the list unchanged and throw UnsupportedOperationException.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a> 所以 <code>set</code> 可以、<code>add</code>、<code>remove</code> 不行。要能增刪就包一層 <code>new ArrayList&lt;&gt;(Arrays.asList(arr))</code>。另一個坑：<code>Arrays.asList</code> 的參數是物件，傳 <code>int[]</code> 進去時，整個 <code>int[]</code> 被當成「一個元素」，得到長度 1 的清單。</p>
+<p><strong><code>==</code> 比的是不是同一個物件，<code>equals</code> 比內容。</strong>語言規格：兩邊都是參考型別時，<code>==</code>「在兩個運算元都是 null，或都指向同一個物件或陣列時」才是 true，並特別寫到字串：「就算兩個不同的 String 物件內容相同，結果也是 false」（The result is false if the operands are distinct String objects, even if they contain the same sequence of characters）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.21.3" target="_blank" rel="noopener">出處</a> <code>String.equals</code> 則是「引數不是 null，而且是代表相同字元序列的 String 物件」時回傳 true。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 讓人誤會的是，兩個一樣的字面值用 <code>==</code> 比會是 true，因為規格規定「字串字面值永遠指向同一個 String 實例」（a string literal always refers to the same instance of class String）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-3.html#jls-3.10.5" target="_blank" rel="noopener">出處</a> 這是巧合不是保證內容相等的方法，比字串內容一律用 <code>equals</code>。</p>
+<p><strong>整數溢位</strong>（overflow：算出來的數字超過型別裝得下的範圍）。<code>int</code> 的範圍是 −2,147,483,648 到 2,147,483,647，上限就是 <code>Integer.MAX_VALUE</code>（A constant holding the maximum value an int can have, 2³¹−1.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a> 超過時不會報錯，規格寫「整數運算子不會以任何方式表示溢位」（The integer operators do not indicate overflow or underflow in any way.），結果會繞回負數。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a> 三種防法：金額加總用 <code>long</code>；想在溢位時直接失敗就用 <code>Math.addExact</code>，它「在結果超出 int 範圍時丟出例外」（throwing an exception if the result overflows an int）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a>；算兩個索引的中間值時寫 <code>left + (right - left) / 2</code>，不寫 <code>(left + right) / 2</code>。</p>
+<pre><code>import java.util.Arrays;
+import java.util.List;
+
+public class Pitfalls {
+    public static void main(String[] args) {
+        // 1. Arrays.sort：基本型別與物件陣列都能排，預設由小到大
+        int[] amounts = {300, 50, 1200, 50};
+        Arrays.sort(amounts);
+        System.out.println(Arrays.toString(amounts));
+        String[] codes = {"USD", "JPY", "EUR"};
+        Arrays.sort(codes);
+        System.out.println(Arrays.toString(codes));
+
+        // 2. Arrays.fill：整個陣列填同一個值
+        int[] dist = new int[4];
+        Arrays.fill(dist, -1);
+        System.out.println(Arrays.toString(dist));
+
+        // 3. Arrays.asList：固定大小，改得了值、加不了也刪不了
+        String[] arr = {"A", "B", "C"};
+        List&lt;String&gt; fixed = Arrays.asList(arr);
+        fixed.set(0, "Z");                       // 可以：而且會寫回原陣列
+        System.out.println(arr[0]);
+        try {
+            fixed.add("D");
+        } catch (UnsupportedOperationException e) {
+            System.out.println("add 丟出 UnsupportedOperationException");
+        }
+        int[] nums = {1, 2, 3};
+        System.out.println(Arrays.asList(nums).size());   // 基本型別陣列被當成「一個元素」
+
+        // 4. == 比的是不是同一個物件，equals 比內容
+        String s1 = new String("TWD");
+        String s2 = new String("TWD");
+        System.out.println((s1 == s2) + " " + s1.equals(s2));
+        System.out.println("TWD" == "TWD");      // 字面值會共用同一個物件
+
+        // 5. 整數溢位：int 超過上限會悄悄繞回負數
+        int max = Integer.MAX_VALUE;
+        System.out.println(max + " " + (max + 1));
+        long total = (long) max + 1;             // 先轉 long 再加
+        System.out.println(total);
+        try {
+            Math.addExact(max, 1);               // 溢位就丟例外，不會悄悄算錯
+        } catch (ArithmeticException e) {
+            System.out.println("addExact：" + e.getMessage());
+        }
+        int left = 2_000_000_000, right = 2_100_000_000;
+        System.out.println((left + right) / 2 + " " + (left + (right - left) / 2));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[50, 50, 300, 1200]
+[EUR, JPY, USD]
+[-1, -1, -1, -1]
+Z
+add 丟出 UnsupportedOperationException
+1
+false true
+true
+2147483647 -2147483648
+2147483648
+addExact：integer overflow
+-97483648 2050000000</code></pre>
+<p>最後一行：<code>left + right</code> 是 41 億，超過 int 上限，繞成負數再除以 2，得到 −97,483,648；改寫法的結果 2,050,000,000 才是對的。</p>
+
+<div class="drill">
+  <p class="dq">交易物件已經照時間排好，現在要再照金額排，並且希望同金額的交易保持時間先後。用 <code>Arrays.sort</code> 排物件陣列做得到嗎？</p>
+  <ul class="dopts"><li>做不到，Arrays.sort 不管什麼陣列一律用快速排序，同金額的交易順序會被打亂</li><li>做不到，要自己寫泡沫排序</li><li>只有基本型別陣列才做得到</li><li data-ok>做得到，物件陣列的 Arrays.sort 保證穩定，相等的元素不會改變順序</li></ul>
+  <p class="dexp">API 文件寫物件陣列的排序 is guaranteed to be stable。雙軸快速排序是用在基本型別陣列，基本型別也沒有「同金額的兩筆交易」要分辨順序的問題。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式會怎樣？</p>
+  <pre><code>List&lt;String&gt; codes = Arrays.asList("USD", "JPY");
+codes.add("EUR");</code></pre>
+  <ul class="dopts"><li>codes 變成 [USD, JPY, EUR]</li><li>編譯錯誤</li><li data-ok>執行時丟出 UnsupportedOperationException</li><li>什麼都不做，codes 維持 [USD, JPY]，而且不會報錯，因為清單是固定大小</li></ul>
+  <p class="dexp">Arrays.asList 回傳固定大小的清單，會改變大小的方法會丟 UnsupportedOperationException。要能 add，先包成 new ArrayList&lt;&gt;(Arrays.asList(…))。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>String[] arr = {"A", "B"};
+List&lt;String&gt; list = Arrays.asList(arr);
+list.set(1, "Z");
+System.out.println(arr[1]);</code></pre>
+  <ul class="dopts"><li data-ok>Z</li><li>B</li><li>丟出 UnsupportedOperationException</li><li>null</li></ul>
+  <p class="dexp">set 不改變大小，可以做；而且清單由原陣列支撐，改清單就是改陣列，arr[1] 變成 Z。</p>
+</div>
+<div class="drill">
+  <p class="dq">這行印出什麼？</p>
+  <pre><code>System.out.println(Arrays.asList(new int[]{1, 2, 3}).size());</code></pre>
+  <ul class="dopts"><li>3</li><li data-ok>1</li><li>0</li><li>編譯錯誤</li></ul>
+  <p class="dexp">asList 的參數是物件，int 不是物件，整個 int[] 被當成一個元素，得到 List&lt;int[]&gt;，長度 1。換成 Integer[] 才會是 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>String a = new String("TWD");
+String b = new String("TWD");
+System.out.println((a == b) + " " + a.equals(b));</code></pre>
+  <ul class="dopts"><li>true true</li><li>true false</li><li data-ok>false true</li><li>false false</li></ul>
+  <p class="dexp">new 了兩次，是兩個不同的物件，== 是 false；內容一樣，equals 是 true。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>int balance = Integer.MAX_VALUE;
+balance = balance + 1;
+System.out.println(balance);</code></pre>
+  <ul class="dopts"><li>2147483648</li><li data-ok>-2147483648</li><li>丟出 ArithmeticException</li><li>2147483647</li></ul>
+  <p class="dexp">int 超過上限不會報錯，會繞回最小值 −2,147,483,648。要在溢位時丟例外得改用 Math.addExact。</p>
+</div>
+<div class="drill">
+  <p class="dq">一年的交易金額（每筆是 int，單位是元）要加總，<code>sum</code> 最好宣告成什麼型別？</p>
+  <ul class="dopts"><li>int，因為每筆都是 int</li><li>short，比較省記憶體，反正 Java 加法會自動擴大成夠用的型別</li><li>char</li><li data-ok>long，加總的結果可能超過 int 的上限約 21 億</li></ul>
+  <p class="dexp">每筆不超過 int，不代表加起來不超過。總和超過約 21 億就會溢位繞成負數，用 long 才裝得下。</p>
+</div>
+<div class="drill">
+  <p class="dq">二分搜尋算中間索引，下面哪個寫法在 <code>left</code>、<code>right</code> 都很大時也不會溢位？</p>
+  <ul class="dopts"><li>int mid = (left + right) / 2;</li><li data-ok>int mid = left + (right - left) / 2;</li><li>int mid = (left / 2) * (right / 2);</li><li>int mid = (left + right) * 0.5;</li></ul>
+  <p class="dexp">right − left 不會超過 right，加回 left 也不會超過 right，所以不會溢位。(left + right) 本身就可能先超過 int 上限。最後一個寫法乘以 0.5 得到 double，指定給 int 會編譯錯誤。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式印出什麼？</p>
+  <pre><code>int[] d = new int[3];
+Arrays.fill(d, 7);
+d[1] = 0;
+System.out.println(Arrays.toString(d));</code></pre>
+  <ul class="dopts"><li>[7, 7, 7]</li><li>[0, 7, 0]</li><li data-ok>[7, 0, 7]</li><li>[0, 0, 0]</li></ul>
+  <p class="dexp">fill 先把三格都填 7，再把索引 1 改成 0，得到 [7, 0, 7]。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，由易到難</p>
+<h3 class="head">動手練</h3>
+<p>每題寫完先講出時間與空間複雜度，再想想能不能不另開陣列（原地做）。</p>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/reverse-string/" target="_blank" rel="noopener">344. Reverse String</a></td><td>左右兩個索引往中間走、原地交換</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/valid-palindrome/" target="_blank" rel="noopener">125. Valid Palindrome</a></td><td>迴文判斷，跳過非英數字元、不分大小寫</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/valid-anagram/" target="_blank" rel="noopener">242. Valid Anagram</a></td><td>int[26] 字元計數；再想想字元不只英文字母時怎麼改</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/move-zeroes/" target="_blank" rel="noopener">283. Move Zeroes</a></td><td>write 索引的原地修改，保持原本順序</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/" target="_blank" rel="noopener">26. Remove Duplicates from Sorted Array</a></td><td>已排序陣列的原地去重複</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/rotate-array/" target="_blank" rel="noopener">189. Rotate Array</a></td><td>先寫另開陣列的 O(n) 空間版，再用「反轉三次」做到 O(1) 空間</td><td>中等</td></tr>
+<tr><td><a href="https://leetcode.com/problems/spiral-matrix/" target="_blank" rel="noopener">54. Spiral Matrix</a></td><td>二維陣列走訪，控制上下左右四個邊界</td><td>中等</td></tr>
+</tbody></table></div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>陣列是一排一樣大、連在一起的格子，從 0 開始編號；第 i 格的位置直接算出來，讀寫 O(1)。長度建立後不變，int 預設 0、物件參考預設 null，索引超出 0〜length−1 丟 ArrayIndexOutOfBoundsException。</li><li>插入或刪除第 i 格，後面的都要搬一格，O(n)；尾端的放入與刪除 O(1)；沒排序時找值 O(n)。</li><li>ArrayList 是會自動長大的陣列：get O(1)、尾端 add 攤銷 O(1)、中間插入刪除 O(n)。remove(int) 刪索引、remove(Object) 刪值；已知筆數就先開夠容量。</li><li>String 不可變，toUpperCase 這類方法回傳新字串；迴圈裡用 + 相加是 O(n²) 的字元複製，改用 StringBuilder 是 O(n)。toCharArray 會複製出新陣列。</li><li>字元計數：只有小寫字母用 int[26] 加 c − 'a'；字元種類不固定用 HashMap 的 merge。</li><li>手法：左右兩個索引往中間走（反轉、迴文）、write 索引原地修改、二維陣列 grid[r][c] 先列後欄、走鄰居先檢查出界。</li><li>陷阱：Arrays.asList 固定大小（set 可以、add 不行，傳 int[] 會變成一個元素）；字串內容用 equals 比；int 加總用 long、中間值寫 left + (right − left) / 2。</li></ul></div>
