@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "檔案改完執行 git add，接著又改了一次，沒有再 add 就 git commit。這個 commit 存的是哪一版？",
+   "opts": [
+    "add 當下的那一版",
+    "最後改的那一版",
+    "兩版合併後的內容",
+    "commit 會失敗，要求先再 add"
+   ],
+   "exp": "commit 存的是暫存區的內容，也就是 add 當下的版本；之後的修改還在工作目錄，git status 會顯示已修改。"
+  },
+  {
+   "q": "在 main 上執行 git branch feature，然後馬上 commit。哪個分支會指向新的 commit？",
+   "opts": [
+    "main",
+    "feature",
+    "兩個都會",
+    "都不會，要先切換分支才能 commit"
+   ],
+   "exp": "git branch 只建立標籤、不切換，HEAD 還指著 main，所以 commit 時 main 往前移、feature 留在原地。"
+  },
+  {
+   "q": "main 在 A，feature 從 A 之後多了 B、C，main 沒有新的 commit。在 main 上 git merge feature 會怎樣？",
+   "opts": [
+    "快轉：main 直接移到 C",
+    "產生一個有兩個父節點的合併 commit",
+    "一定發生衝突",
+    "feature 被移回 A"
+   ],
+   "exp": "C 就在 main 正前方，沒有分岔，Git 只把 main 標籤往前移，叫快轉（fast-forward）。"
+  },
+  {
+   "q": "合併時出現衝突，<<<<<<< HEAD 和 ======= 之間的內容是哪一邊的？",
+   "opts": [
+    "目前所在分支（HEAD）的版本",
+    "要合併進來的分支的版本",
+    "兩個分支共同祖先的版本",
+    "Git 自動合好的建議版本"
+   ],
+   "exp": "HEAD 到 ======= 是目前分支，======= 到 >>>>>>> 分支名稱 是要合併進來的那一邊。改好後刪掉標記、git add、git commit。"
+  },
+  {
+   "q": "下面哪個情況不該用 rebase？",
+   "opts": [
+    "已經推到共用分支、同事可能已經拉下來的 commit",
+    "只在自己本機、還沒推出去的分支",
+    "想把自己的分支接到最新的 main 後面再開 PR",
+    "想整理自己還沒分享的幾個 commit"
+   ],
+   "exp": "rebase 會丟掉舊 commit、做出雜湊值不同的新 commit。Pro Git 的黃金守則：不要 rebase 已經在你儲存庫之外、別人可能以它為基礎在工作的 commit。"
+  },
+  {
+   "q": "git fetch 之後，下面哪一個會改變？",
+   "opts": [
+    "origin/main 指向的 commit",
+    "工作目錄裡已經改過的檔案",
+    "本機 main 分支指向的 commit",
+    "暫存區裡準備 commit 的內容"
+   ],
+   "exp": "fetch 只抓回資料、更新遠端追蹤分支，不會修改工作目錄。要把它合進本機分支，用 git merge，或直接用 pull（fetch 加 merge）。"
+  },
+  {
+   "q": "git push 得到 ! [rejected] main -> main (fetch first)。正確的處理方式是？",
+   "opts": [
+    "先 git pull 整合，再 push",
+    "用 git push --force 把遠端直接蓋掉",
+    "刪掉本機的 commit，重新再寫一次",
+    "等一下再推，遠端會自己合併"
+   ],
+   "exp": "遠端有你本機沒有的 commit，你的 push 不是快轉。--force 會讓遠端分支改指向你的 commit，同事的 commit 就不在這個分支上了。"
+  },
+  {
+   "q": "一個錯的 commit 已經推到共用的 main，同事也拉了。要撤銷它，該用？",
+   "opts": [
+    "git revert 那個 commit",
+    "git reset --hard 再 git push --force",
+    "git restore 那個檔案",
+    "刪掉 main 分支重新建立"
+   ],
+   "exp": "revert 新增一個反向的 commit，歷史只往前加，不影響別人手上的 commit。reset 會改寫共用的歷史。"
+  },
+  {
+   "q": "剛用 git reset --hard HEAD~2 退掉兩個還沒推的 commit，發現退錯了。怎麼找回來？",
+   "opts": [
+    "用 git reflog 找回 reset 之前的位置",
+    "已經救不回來了，reset 會刪掉 commit",
+    "執行兩次 git revert HEAD 抵銷",
+    "git pull，從遠端把兩個 commit 拿回來"
+   ],
+   "exp": "reflog 在本機記錄 HEAD 去過哪裡，HEAD@{1} 就是 reset 之前的位置。這兩個 commit 沒推過，遠端也沒有。"
+  },
+  {
+   "q": "公司的 main 設成保護分支，要求合併前要有 PR 審查。修好一個 bug 之後，正確流程是？",
+   "opts": [
+    "在自己的分支 commit、push，開 PR，審查核准後合併",
+    "在本機 main 上 commit 後直接 push",
+    "先 push --force 到 main，再補開 PR",
+    "寄 email 把修改的檔案傳給主管"
+   ],
+   "exp": "保護分支會擋掉直接推送；GitHub flow 是建分支、commit 並 push、開 PR、依審查修改、核准後合併、刪分支。"
+  }
+ ]
+}

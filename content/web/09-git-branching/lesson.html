@@ -1,0 +1,1003 @@
+<!-- 來源：依 Pro Git 第二版 git-scm.com/book/en/v2（第 1.3 節、第 2 章、第 3 章、第 7.2 與 7.7 節）、git-scm.com/docs 指令文件（git-restore、git-revert、git-reset、git-reflog、git-switch、git-push）、GitHub Docs（GitHub flow、Pull requests、About protected branches）、DORA「Trunk-based development」新寫；終端機輸出全部在暫存目錄以 git 2.50.1 實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說清楚工作目錄、暫存區、儲存庫三個區域，看得懂 <code>git status</code> 與 <code>git diff</code> 在比什麼</li><li>知道 commit 是快照加父節點、分支只是指向 commit 的標籤、HEAD 指向目前的分支，並畫得出每個指令之後標籤移到哪</li><li>分辨快轉合併與三方合併、會解衝突，知道 rebase 會改寫歷史、哪些 commit 不能 rebase</li><li>用 fetch、pull、push 跟同事協作；做錯時分得清該用 <code>restore</code>、<code>revert</code>、<code>reset</code> 還是 <code>reflog</code>；說得出 GitHub flow 與 PR 審核在職場怎麼用</li></ul></div>
+
+<section>
+<p class="era">檔案在哪裡，決定指令做什麼</p>
+<h3 class="head">三個區域：工作目錄、暫存區、儲存庫</h3>
+<p>Git 是版本控制系統（追蹤程式碼每一次修改的工具；它跟 GitHub 的差別見〈Java 基礎快答〉）。Pro Git 說，要把 Git 學順，最重要的一件事是：檔案有三種狀態，已修改（modified）、已暫存（staged）、已提交（committed），對應到一個 Git 專案的三個區域：「工作目錄、暫存區、Git 目錄」（the working tree, the staging area, and the Git directory）。基本流程是：在工作目錄改檔案；只把想放進下一個 commit 的修改加到暫存區；commit 時「把暫存區裡的檔案原樣拿出來，存成一張永久的快照」（takes the files as they are in the staging area and stores that snapshot permanently to your Git directory）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Getting-Started-What-is-Git%3F" target="_blank" rel="noopener">出處</a></p>
+<p>用寄包裹比喻：工作目錄是你的桌子，東西隨便擺；暫存區是打包中的紙箱，<code>git add</code> 是把東西放進箱子；<code>git commit</code> 是封箱、貼上單號寄出，寄出去的箱子就固定不變了。下面的 Git 目錄這課叫<strong>儲存庫</strong>（repository，就是專案裡那個 <code>.git</code> 資料夾）。</p>
+<figure>
+<svg viewBox="0 0 760 262" role="img" aria-label="三個區域：工作目錄、暫存區、儲存庫由左到右排列。git add 把工作目錄的修改放進暫存區，git commit 把暫存區存成儲存庫裡的一個 commit。灰藍箭頭往回：git restore --staged 把檔案拿出暫存區，git restore 放棄工作目錄的修改">
+<defs><marker id="gb-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="40" y="60" width="190" height="96" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="135" y="94" font-size="16" text-anchor="middle" fill="var(--gold-deep)">工作目錄</text><text x="135" y="116" font-size="12" text-anchor="middle" class="mono" opacity=".7">working tree</text><text x="135" y="140" font-size="12.5" text-anchor="middle">你正在改的檔案</text><rect x="285" y="60" width="190" height="96" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="380" y="94" font-size="16" text-anchor="middle" fill="var(--gold-deep)">暫存區</text><text x="380" y="116" font-size="12" text-anchor="middle" class="mono" opacity=".7">staging area</text><text x="380" y="140" font-size="12.5" text-anchor="middle">下一個 commit 要放什麼</text><rect x="530" y="60" width="190" height="96" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="625" y="94" font-size="16" text-anchor="middle" fill="var(--gold-deep)">儲存庫</text><text x="625" y="116" font-size="12" text-anchor="middle" class="mono" opacity=".7">.git 資料夾</text><text x="625" y="140" font-size="12.5" text-anchor="middle">存好的 commit</text><line x1="232" y1="88" x2="283" y2="88" stroke="currentColor" stroke-opacity=".7" stroke-width="1.5" marker-end="url(#gb-m1)"/><text x="257.5" y="40" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">git add</text><line x1="257.5" y1="46" x2="257.5" y2="80" stroke="var(--gold)" stroke-opacity=".6" stroke-dasharray="3 3"/><line x1="477" y1="88" x2="528" y2="88" stroke="currentColor" stroke-opacity=".7" stroke-width="1.5" marker-end="url(#gb-m1)"/><text x="502.5" y="40" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">git commit</text><line x1="502.5" y1="46" x2="502.5" y2="80" stroke="var(--gold)" stroke-opacity=".6" stroke-dasharray="3 3"/><path d="M380 160 Q260 214 140 160" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#gb-m1)"/><text x="260" y="222" font-size="12" text-anchor="middle" class="mono" fill="var(--slate-deep)">git restore --staged：拿出暫存區</text><path d="M135 160 Q100 214 70 160" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#gb-m1)" stroke-dasharray="4 3"/><text x="40" y="246" font-size="12" class="mono" fill="var(--slate-deep)">git restore：放棄工作目錄的修改</text><text x="530" y="200" font-size="12" opacity=".7">git status 看前兩區跟最新 commit 差在哪</text>
+</svg>
+<figcaption>改檔案在工作目錄，git add 挑出要存的放進暫存區，git commit 把暫存區拍成一張快照存進儲存庫。</figcaption>
+</figure>
+<p>下面在一個暫存資料夾從頭做一次（所有輸出都是實際執行的結果；示範時把預設分支名稱設成 <code>main</code>，作者設成 Tim）。新檔案還沒被追蹤（untracked），<code>git add</code> 之後才進暫存區：</p>
+<pre><code>$ git init -q bank-app
+
+$ echo "轉帳手續費 10 元" &gt; fee.txt
+
+$ git status
+On branch main
+
+No commits yet
+
+Untracked files:
+  (use "git add &lt;file&gt;..." to include in what will be committed)
+	fee.txt
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+$ git add fee.txt
+
+$ git status
+On branch main
+
+No commits yet
+
+Changes to be committed:
+  (use "git rm --cached &lt;file&gt;..." to unstage)
+	new file:   fee.txt
+
+$ git commit -m "新增手續費設定"
+[main (root-commit) 08f3932] 新增手續費設定
+ 1 file changed, 1 insertion(+)
+ create mode 100644 fee.txt</code></pre>
+<p>再改一次檔案。<code>git status --short</code> 的兩個欄位，左邊是「暫存區跟最新 commit 比」，右邊是「工作目錄跟暫存區比」：<code> M</code>（M 在右）是改了還沒 add，<code>M </code>（M 在左）是已經 add 進暫存區。<code>git diff</code> 不加參數比的是工作目錄對暫存區；<code>git diff --staged</code> 比的是暫存區對最新 commit。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Basics-Recording-Changes-to-the-Repository" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ echo "跨行手續費 15 元" &gt;&gt; fee.txt
+
+$ git status --short
+ M fee.txt
+
+$ git diff
+diff --git a/fee.txt b/fee.txt
+index 281efca..04145c4 100644
+--- a/fee.txt
++++ b/fee.txt
+@@ -1 +1,2 @@
+ 轉帳手續費 10 元
++跨行手續費 15 元
+
+$ git add fee.txt
+
+$ git status --short
+M  fee.txt
+
+$ git diff --staged
+diff --git a/fee.txt b/fee.txt
+index 281efca..04145c4 100644
+--- a/fee.txt
++++ b/fee.txt
+@@ -1 +1,2 @@
+ 轉帳手續費 10 元
++跨行手續費 15 元
+
+$ git commit -m "新增跨行手續費"
+[main ae9db02] 新增跨行手續費
+ 1 file changed, 1 insertion(+)
+
+$ git log --oneline
+ae9db02 新增跨行手續費
+08f3932 新增手續費設定</code></pre>
+<p>注意 add 之後再看 <code>git diff</code> 是空的（工作目錄跟暫存區一樣了），要用 <code>--staged</code> 才看得到這次要 commit 的內容。還有一個常踩的坑：<strong>commit 存的是 add 當下的內容</strong>。add 之後又改了檔案，沒有再 add 就 commit，後來的修改不會進去（實測：add 時是 v2、之後改成 v3 再 commit，commit 裡是 v2，<code>git status</code> 仍顯示檔案已修改）。</p>
+<p class="formula">git add 放進暫存區，git commit 存暫存區；git diff 看還沒 add 的，git diff --staged 看要 commit 的</p>
+
+<div class="drill">
+  <p class="dq">新建一個檔案 <code>a.txt</code>，還沒做任何 Git 指令。<code>git status</code> 會把它列在哪一段？</p>
+  <ul class="dopts"><li>Changes to be committed</li><li>Changes not staged for commit</li><li data-ok>Untracked files</li><li>不會出現，Git 看不到新檔案</li></ul>
+  <p class="dexp">Git 還沒追蹤過的新檔案列在 Untracked files，要 git add 之後才會進暫存區、出現在 Changes to be committed。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>git status --short</code> 顯示 <code>&nbsp;M fee.txt</code>（M 在右邊那欄）。意思是？</p>
+  <ul class="dopts"><li data-ok>fee.txt 改了，但還沒 git add</li><li>fee.txt 已經放進暫存區，等著 commit</li><li>fee.txt 是 Git 還沒追蹤的新檔案</li><li>fee.txt 合併時發生了衝突</li></ul>
+  <p class="dexp">右欄比的是工作目錄對暫存區。M 在右表示工作目錄改了、暫存區還是舊的；add 之後 M 會換到左欄。</p>
+</div>
+<div class="drill">
+  <p class="dq">剛對 <code>fee.txt</code> 做完 <code>git add</code>，接著執行不加參數的 <code>git diff</code>，會看到什麼？</p>
+  <ul class="dopts"><li>這次修改的完整差異</li><li data-ok>什麼都沒有</li><li>整個檔案從頭到尾的內容</li><li>錯誤訊息，要先 commit 才能看</li></ul>
+  <p class="dexp">不加參數的 git diff 比工作目錄與暫存區；add 之後兩邊相同，所以是空的。要看暫存區對最新 commit 的差異，用 git diff --staged。</p>
+</div>
+<div class="drill">
+  <p class="dq">想在 commit 之前，確認「這次到底要存進去哪些修改」，該用哪個指令？</p>
+  <ul class="dopts"><li><code>git diff</code></li><li><code>git log --oneline</code></li><li><code>git branch -vv</code></li><li data-ok><code>git diff --staged</code></li></ul>
+  <p class="dexp">commit 存的是暫存區，所以要看暫存區跟最新 commit 差在哪：git diff --staged。git log 只列出已經存好的 commit。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>a.txt</code> 改成 v2 後 <code>git add</code>，接著又改成 v3，沒有再 add 就 <code>git commit</code>。這個 commit 裡的 <code>a.txt</code> 是？</p>
+  <ul class="dopts"><li>v3，commit 會存工作目錄的最新內容</li><li data-ok>v2，add 當下的內容</li><li>v1，兩次修改互相抵消</li><li>commit 失敗，要求先處理 v3</li></ul>
+  <p class="dexp">commit 拿的是暫存區的內容。v3 還留在工作目錄，git status 會顯示檔案已修改；要放進去就再 add 一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">改了三個檔案，但這次只想 commit 其中一個。正確做法是？</p>
+  <ul class="dopts"><li>先把另外兩個刪掉再 commit</li><li>直接 git commit，Git 會問你要哪個</li><li data-ok>只 git add 那一個檔案，再 git commit</li><li>開三個分支各 commit 一個</li></ul>
+  <p class="dexp">暫存區就是用來挑「這次要存哪些」的：只 add 想要的，其他的留在工作目錄，下次再處理。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每個 commit 都記得自己從哪裡來</p>
+<h3 class="head">commit 是什麼：快照、雜湊值、父節點</h3>
+<p>很多版本控制系統存的是「每次改了哪幾行」，Git 不是。Pro Git 說 Git 存的是「一連串快照」（a series of snapshots）：每次 commit，Git 存一個 commit 物件，裡面有「指向這次暫存內容快照的指標」、作者名字與 email、訊息，以及指向前一個（或前幾個）commit 的指標，也就是<strong>父節點</strong>（parent）：「第一個 commit 沒有父節點，一般的 commit 有一個，合併產生的 commit 有兩個以上」（zero parents for the initial commit, one parent for a normal commit, and multiple parents for a commit that results from a merge）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Branches-in-a-Nutshell" target="_blank" rel="noopener">出處</a></p>
+<p>每個 commit 的名字是一個<strong>雜湊值</strong>（hash，由內容算出來的一串編號）。Pro Git 寫 Git 用的是 SHA-1，「一個 40 個十六進位字元組成的字串，依檔案或目錄結構的內容算出來」（a 40-character string composed of hexadecimal characters (0–9 and a–f) and calculated based on the contents），所以「不可能改了任何檔案或目錄的內容而 Git 不知道」。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Getting-Started-What-is-Git%3F" target="_blank" rel="noopener">出處</a> <code>git log --oneline</code> 印的 <code>ae9db02</code> 就是雜湊值的前幾碼。直接把 commit 物件打開來看：</p>
+<pre><code>$ git rev-parse HEAD
+ae9db020e322d1e9efc80c0dfa0c90f6086763ea
+
+$ git cat-file -t HEAD
+commit
+
+$ git cat-file -p HEAD
+tree 3ac7ada85045e14fa21480938566b118bba9f777
+parent 08f39321626199f784ea9b311f603e619dc8ecfc
+author Tim &lt;tim@example.com&gt; 1759370520 +0800
+committer Tim &lt;tim@example.com&gt; 1759370520 +0800
+
+新增跨行手續費
+
+$ git cat-file -p HEAD~1
+tree 8b1a686c8fbb8ae2a7b989520ccbf622c1a2efeb
+author Tim &lt;tim@example.com&gt; 1759370460 +0800
+committer Tim &lt;tim@example.com&gt; 1759370460 +0800
+
+新增手續費設定</code></pre>
+<p><code>tree</code> 指向這次的快照，<code>parent</code> 指向上一個 commit；第一個 commit（<code>HEAD~1</code>，HEAD 往前一代）沒有 parent 那一行。父節點的雜湊值也是內容的一部分，所以改了任何一個舊 commit，它之後每個 commit 的雜湊值都會跟著變——這是後面講 rebase 時最重要的一點。</p>
+<p class="formula">commit＝快照＋作者與訊息＋父節點；名字是內容算出來的雜湊值，內容一變，雜湊值就變</p>
+
+<div class="drill">
+  <p class="dq">Pro Git 說 Git 存資料的方式是？</p>
+  <ul class="dopts"><li data-ok>每次 commit 存一張快照，加上父節點</li><li>每次只存這次改動的那幾行差異</li><li>每天自動備份一次整個專案資料夾</li><li>只存最新版本，舊版本會自動刪除</li></ul>
+  <p class="dexp">Git 存的是一連串快照，每個 commit 物件指向它的快照與父節點，不是存差異。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個「把兩個分支合併起來」產生的 commit，有幾個父節點？</p>
+  <ul class="dopts"><li>0 個</li><li>1 個</li><li data-ok>2 個（或更多）</li><li>看合併了幾個檔案</li></ul>
+  <p class="dexp">第一個 commit 沒有父節點、一般 commit 一個、合併 commit 兩個以上。上面三方合併的實跑輸出裡，git cat-file 會看到兩行 parent。</p>
+</div>
+<div class="drill">
+  <p class="dq">把某個 commit 的訊息改一個字（內容不變），它的雜湊值會怎樣？</p>
+  <ul class="dopts"><li>不變，雜湊值只看檔案內容</li><li>只有最後一碼會變，前面不變</li><li data-ok>整串變成另一個雜湊值</li><li>Git 不允許改 commit 的訊息</li></ul>
+  <p class="dexp">commit 物件包含 tree、parent、作者、時間與訊息，任何一項改了，算出來的雜湊值就不同。實測改訊息後雜湊值整串都變了。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>git cat-file -p HEAD~1</code> 印出的內容裡沒有 <code>parent</code> 那一行。代表什麼？</p>
+  <ul class="dopts"><li>那個 commit 壞掉了</li><li>那個 commit 是合併 commit</li><li data-ok>那是儲存庫的第一個 commit</li><li>parent 被刪除了</li></ul>
+  <p class="dexp">第一個 commit 前面沒有東西，所以沒有父節點。上面實跑的 HEAD~1 就是「新增手續費設定」那個第一個 commit。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>HEAD~1</code> 指的是？</p>
+  <ul class="dopts"><li data-ok>目前 commit 的父節點</li><li>下一個 commit（往後一代）</li><li>儲存庫的第一個 commit</li><li>遠端分支上最新的 commit</li></ul>
+  <p class="dexp">~1 是往前一代，~2 是往前兩代，沿著父節點往回走。</p>
+</div>
+</section>
+
+<section>
+<p class="era">分支不是複製一份，是多貼一張標籤</p>
+<h3 class="head">分支其實是指向 commit 的標籤，HEAD 指向目前的分支</h3>
+<p>Pro Git：「Git 的分支只是一個輕量、可以移動的指標，指向某一個 commit」（A branch in Git is simply a lightweight movable pointer to one of these commits），每次 commit，目前分支的指標「自動往前移」。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Branches-in-a-Nutshell" target="_blank" rel="noopener">出處</a> 分支實際上就是一個檔案，裡面寫著它指向的那個 commit 的 40 碼雜湊值，所以「建立新分支就像寫 41 個位元組到一個檔案（40 個字元加一個換行）那麼快」（Creating a new branch is as quick and simple as writing 41 bytes to a file (40 characters and a newline).）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Branches-in-a-Nutshell" target="_blank" rel="noopener">出處</a></p>
+<p>那 Git 怎麼知道你現在在哪個分支？靠一個特別的指標 <strong>HEAD</strong>：「指向你目前所在的本機分支」（this is a pointer to the local branch you’re currently on），而且「<code>git branch</code> 只建立新分支，不會切換過去」。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Branches-in-a-Nutshell" target="_blank" rel="noopener">出處</a> 切換分支用 <code>git switch</code>，文件寫它會「切換到指定的分支，工作目錄與暫存區會更新成跟那個分支一致」（Switch to a specified branch. The working tree and the index are updated to match the branch.）；<code>git switch -c 新分支</code> 是建立並切換。<a class="fixsrc" href="https://git-scm.com/docs/git-switch" target="_blank" rel="noopener">出處</a>（Pro Git 的例子用比較舊的 <code>git checkout</code>，切換分支的效果相同。）</p>
+<figure>
+<svg viewBox="0 0 760 264" role="img" aria-label="分支是指向 commit 的標籤。左圖：git branch limit 之後，main 和 limit 兩個標籤都指向 commit ae9d，HEAD 指向 main。右圖：git switch limit 再 commit 一次之後，新的 commit 99ea 的父節點是 ae9d，limit 跟著移到 99ea，HEAD 指向 limit，main 留在 ae9d">
+<defs><marker id="gb-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="26" font-size="13" fill="var(--gold-deep)">git branch limit 之後</text><circle cx="80" cy="150" r="20" fill="var(--surface)" stroke="currentColor"/><text x="80" y="154" font-size="11.5" text-anchor="middle" class="mono">08f3</text><circle cx="180" cy="150" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="180" y="154" font-size="11.5" text-anchor="middle" class="mono">ae9d</text><line x1="159.0" y1="150.0" x2="103.0" y2="150.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m2)"/><rect x="154.2" y="84" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="180" y="100.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="180" y1="108" x2="180" y2="128" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m2)"/><rect x="150.0" y="198" width="60.0" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="180" y="214.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">limit</text><line x1="180" y1="198" x2="180" y2="173" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m2)"/><rect x="154.2" y="40" width="51.6" height="24" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="180" y="56.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--slate-deep)">HEAD</text><line x1="180" y1="64" x2="180" y2="82" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m2)"/><line x1="370" y1="30" x2="370" y2="236" stroke="currentColor" stroke-opacity=".15"/><text x="400" y="26" font-size="13" fill="var(--gold-deep)">git switch limit、再 commit 一次之後</text><circle cx="440" cy="150" r="20" fill="var(--surface)" stroke="currentColor"/><text x="440" y="154" font-size="11.5" text-anchor="middle" class="mono">08f3</text><circle cx="540" cy="150" r="20" fill="var(--surface)" stroke="currentColor"/><text x="540" y="154" font-size="11.5" text-anchor="middle" class="mono">ae9d</text><circle cx="640" cy="150" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="640" y="154" font-size="11.5" text-anchor="middle" class="mono">99ea</text><line x1="519.0" y1="150.0" x2="463.0" y2="150.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m2)"/><line x1="619.0" y1="150.0" x2="563.0" y2="150.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m2)"/><rect x="514.2" y="198" width="51.6" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="540" y="214.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">main</text><line x1="540" y1="198" x2="540" y2="173" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m2)"/><rect x="610.0" y="84" width="60.0" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="640" y="100.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">limit</text><line x1="640" y1="108" x2="640" y2="128" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m2)"/><rect x="614.2" y="40" width="51.6" height="24" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="640" y="56.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--slate-deep)">HEAD</text><line x1="640" y1="64" x2="640" y2="82" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m2)"/><text x="40" y="250" font-size="12" opacity=".6">圓圈是 commit（裡面是雜湊的前四碼），箭頭指向父節點；方框是分支，灰藍的 HEAD 指向目前所在的分支</text>
+</svg>
+<figcaption>建立分支只是多一個標籤；commit 時，HEAD 指著的那個分支標籤自動往前移到新 commit。</figcaption>
+</figure>
+<pre><code>$ git branch limit
+
+$ git log --oneline --decorate --all
+ae9db02 (HEAD -&gt; main, limit) 新增跨行手續費
+08f3932 新增手續費設定
+
+$ cat .git/HEAD
+ref: refs/heads/main
+
+$ git switch limit
+Switched to branch 'limit'
+
+$ cat .git/HEAD
+ref: refs/heads/limit
+
+$ echo "單筆上限 50000 元" &gt; limit.txt
+
+$ git add limit.txt
+
+$ git commit -m "新增單筆上限"
+[limit 99eabc9] 新增單筆上限
+ 1 file changed, 1 insertion(+)
+ create mode 100644 limit.txt
+
+$ git log --oneline --decorate --all
+99eabc9 (HEAD -&gt; limit) 新增單筆上限
+ae9db02 (main) 新增跨行手續費
+08f3932 新增手續費設定
+
+$ cat .git/refs/heads/limit
+99eabc9937647249d346a14b9c6e12e3dfaf1fdd</code></pre>
+<p>對照圖看輸出：<code>(HEAD -&gt; main, limit)</code> 表示 main 和 limit 兩個標籤都在 <code>ae9db02</code>，HEAD 指著 main；<code>.git/HEAD</code> 檔案的內容就是 <code>ref: refs/heads/main</code>。切到 limit 再 commit，只有 limit 往前移到 <code>99eabc9</code>，main 留在原地；<code>.git/refs/heads/limit</code> 裡就只是那串雜湊值。</p>
+<p class="formula">分支＝指向 commit 的標籤；HEAD 指向目前的分支；commit 時只有 HEAD 指著的那個分支往前移</p>
+
+<div class="drill">
+  <p class="dq">在 main 上執行 <code>git branch feature</code>，接著馬上 <code>git commit</code>。新的 commit 會讓哪個分支往前移？</p>
+  <ul class="dopts"><li>feature</li><li>兩個都移</li><li>都不移，要先 push</li><li data-ok>main</li></ul>
+  <p class="dexp">git branch 只建立標籤、不切換，HEAD 還指著 main，所以 commit 時是 main 往前，feature 留在原處。要切過去用 git switch feature 或一開始就 git switch -c feature。</p>
+</div>
+<div class="drill">
+  <p class="dq">執行 <code>git switch -c feature</code> 之後，<code>.git/HEAD</code> 檔案的內容最可能是？</p>
+  <ul class="dopts"><li>feature 分支最新 commit 的雜湊值</li><li data-ok><code>ref: refs/heads/feature</code></li><li><code>ref: refs/heads/main</code></li><li>空的</li></ul>
+  <p class="dexp">HEAD 指向目前所在的分支，檔案裡寫的是分支的名字；分支檔案裡才是雜湊值。實跑 switch limit 之後就是 ref: refs/heads/limit。</p>
+</div>
+<div class="drill">
+  <p class="dq">建立一個新分支，Git 實際上做了什麼？</p>
+  <ul class="dopts"><li data-ok>寫一個小檔案，記下 commit 的雜湊值</li><li>把整個專案複製一份到另一個資料夾</li><li>把目前分支上的所有 commit 複製一份</li><li>在遠端建立一份完整的副本</li></ul>
+  <p class="dexp">分支就是一個 41 位元組的檔案（40 碼雜湊值加換行），所以建立和刪除都很快，不像舊的版本控制工具要複製整個專案。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>git log --oneline --decorate --all</code> 印出 <code>99eabc9 (HEAD -&gt; limit) 新增單筆上限</code> 與 <code>ae9db02 (main) 新增跨行手續費</code>。現在 commit 一次，哪個標籤會移動？</p>
+  <ul class="dopts"><li>main 移到新的 commit</li><li>main 和 limit 都移</li><li>HEAD 移到 main</li><li data-ok>limit 移到新的 commit</li></ul>
+  <p class="dexp">HEAD -&gt; limit 表示目前在 limit，commit 時 limit 往前移到新 commit，main 不動。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 main 上，下面哪個指令會「建立 report 分支並切過去」？</p>
+  <ul class="dopts"><li><code>git branch report</code></li><li><code>git switch report</code>（report 還不存在）</li><li data-ok><code>git switch -c report</code></li><li><code>git commit -b report</code></li></ul>
+  <p class="dexp">git branch 只建不切；不存在的分支不能直接 switch 過去；-c 是建立並切換。git commit 沒有 -b 這個用法。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 <code>git branch -D tryout</code> 刪掉一個分支之後，那個分支上的 commit 會怎樣？</p>
+  <ul class="dopts"><li>立刻從硬碟上消失，再也找不到</li><li>自動合併進 main 分支保存</li><li data-ok>commit 還在，只是沒有標籤指著</li><li>被自動推到遠端保存一份</li></ul>
+  <p class="dexp">刪分支只是撕掉標籤。實測刪掉之後 git cat-file 還找得到那個 commit；後面「救回」一段會用 reflog 把它接回來。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 main 切到 limit 分支時，工作目錄裡的檔案會怎樣？</p>
+  <ul class="dopts"><li>不變，switch 只改 HEAD</li><li data-ok>更新成 limit 指向的 commit 的內容</li><li>全部清空，要重新 git pull</li><li>變成兩個分支內容合併後的樣子</li></ul>
+  <p class="dexp">git switch 的文件寫：工作目錄與暫存區會更新成跟那個分支一致。所以切到 limit 才看得到 limit.txt，切回 main（合併前）它就不見了。</p>
+</div>
+</section>
+
+<section>
+<p class="era">把兩條路接回一條</p>
+<h3 class="head">merge：快轉合併、三方合併，與衝突怎麼解</h3>
+<h4>快轉合併</h4>
+<p>如果要合併進來的分支就在目前分支的正前方，中間沒有岔開，Git 只要把標籤往前移，Pro Git 叫它<strong>快轉</strong>（fast-forward）：「沒有分岔的工作需要合併，Git 只是把指標往前移」（Git simplifies things by moving the pointer forward because there is no divergent work to merge together）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ git switch main
+Switched to branch 'main'
+
+$ git merge limit
+Updating ae9db02..99eabc9
+Fast-forward
+ limit.txt | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 limit.txt
+
+$ git log --oneline --decorate --all
+99eabc9 (HEAD -&gt; main, limit) 新增單筆上限
+ae9db02 新增跨行手續費
+08f3932 新增手續費設定
+
+$ git branch -d limit
+Deleted branch limit (was 99eabc9).</code></pre>
+<h4>三方合併</h4>
+<p>如果兩個分支各自往前走過，歷史就岔開了。Pro Git：這時 Git 做「三方合併」（three-way merge），用兩個分支頂端的快照和它們的共同祖先這三個快照，算出合併結果，並「自動建立一個指向它的新 commit」，叫<strong>合併 commit</strong>（merge commit），「特別之處在於它有不只一個父節點」（is special in that it has more than one parent）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="左圖快轉合併：main 在 ae9d，limit 在它正前方的 99ea，合併時 main 直接移到 99ea。右圖三方合併：main 的 ad0f 和 report 的 2bcb 都從共同祖先 99ea 分出來，合併後產生新的 commit a6a8，它有兩個父節點 ad0f 與 2bcb，main 移到 a6a8">
+<defs><marker id="gb-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="26" font-size="13" fill="var(--gold-deep)">快轉：main 直接往前移</text><circle cx="160" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="160" y="124" font-size="11.5" text-anchor="middle" class="mono">ae9d</text><circle cx="250" cy="120" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="250" y="124" font-size="11.5" text-anchor="middle" class="mono">99ea</text><circle cx="70" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="70" y="124" font-size="11.5" text-anchor="middle" class="mono">08f3</text><line x1="139.0" y1="120.0" x2="93.0" y2="120.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m3)"/><line x1="229.0" y1="120.0" x2="183.0" y2="120.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m3)"/><rect x="224.2" y="54" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="250" y="70.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="250" y1="78" x2="250" y2="98" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m3)"/><rect x="220.0" y="166" width="60.0" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="250" y="182.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">limit</text><line x1="250" y1="166" x2="250" y2="143" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m3)"/><path d="M160 66 Q205 40 226 62" fill="none" stroke="var(--slate)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#gb-m3)"/><text x="150" y="214" font-size="12" text-anchor="middle" opacity=".7">main 原本在 ae9d，limit 在它正前方</text><line x1="330" y1="30" x2="330" y2="240" stroke="currentColor" stroke-opacity=".15"/><text x="360" y="26" font-size="13" fill="var(--gold-deep)">三方合併：產生有兩個父節點的合併 commit</text><circle cx="400" cy="120" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="400" y="124" font-size="11.5" text-anchor="middle" class="mono">99ea</text><circle cx="500" cy="80" r="20" fill="var(--surface)" stroke="currentColor"/><text x="500" y="84" font-size="11.5" text-anchor="middle" class="mono">ad0f</text><circle cx="500" cy="170" r="20" fill="var(--surface)" stroke="currentColor"/><text x="500" y="174" font-size="11.5" text-anchor="middle" class="mono">2bcb</text><circle cx="620" cy="120" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="620" y="124" font-size="11.5" text-anchor="middle" class="mono">a6a8</text><line x1="480.5" y1="87.8" x2="421.4" y2="111.5" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m3)"/><line x1="481.2" y1="160.6" x2="420.6" y2="130.3" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m3)"/><line x1="600.1" y1="113.4" x2="521.8" y2="87.3" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m3)"/><line x1="600.6" y1="128.1" x2="521.2" y2="161.2" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m3)"/><rect x="594.2" y="54" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="620" y="70.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="620" y1="78" x2="620" y2="98" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m3)"/><rect x="465.8" y="208" width="68.4" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="500" y="224.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">report</text><line x1="500" y1="208" x2="500" y2="193" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m3)"/><text x="400" y="164" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)">共同祖先</text><text x="40" y="256" font-size="12" opacity=".6">灰藍＝共同祖先；三方合併用它和兩個分支頂端這三個快照算出合併結果</text>
+</svg>
+<figcaption>要合併的分支就在正前方，只移標籤（快轉）；兩邊各自往前走過，才需要三方合併、多一個合併 commit。</figcaption>
+</figure>
+<pre><code>$ git switch -c report
+Switched to a new branch 'report'
+
+$ echo "每日對帳報表" &gt; report.txt
+
+$ git add report.txt
+
+$ git commit -m "新增對帳報表"
+[report 2bcb25e] 新增對帳報表
+ 1 file changed, 1 insertion(+)
+ create mode 100644 report.txt
+
+$ git switch main
+Switched to branch 'main'
+
+$ echo "臨櫃手續費 30 元" &gt;&gt; fee.txt
+
+$ git add fee.txt
+
+$ git commit -m "新增臨櫃手續費"
+[main ad0fc2d] 新增臨櫃手續費
+ 1 file changed, 1 insertion(+)
+
+$ git log --oneline --graph --all
+* ad0fc2d 新增臨櫃手續費
+| * 2bcb25e 新增對帳報表
+|/  
+* 99eabc9 新增單筆上限
+* ae9db02 新增跨行手續費
+* 08f3932 新增手續費設定
+
+$ git merge --no-edit report
+Merge made by the 'ort' strategy.
+ report.txt | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 report.txt
+
+$ git log --oneline --graph --all
+*   a6a8cea Merge branch 'report'
+|\  
+| * 2bcb25e 新增對帳報表
+* | ad0fc2d 新增臨櫃手續費
+|/  
+* 99eabc9 新增單筆上限
+* ae9db02 新增跨行手續費
+* 08f3932 新增手續費設定
+
+$ git cat-file -p HEAD
+tree a1933d6b506dfea90d3aad33ef477d05a2734b28
+parent ad0fc2db3f29c142b34cf2dfd9b3910f87cba6e2
+parent 2bcb25e070c1be170766604758902434ee6ecc0e
+author Tim &lt;tim@example.com&gt; 1759370760 +0800
+committer Tim &lt;tim@example.com&gt; 1759370760 +0800
+
+Merge branch 'report'</code></pre>
+<p>合併前的圖是兩條線從 <code>99eabc9</code> 岔開；合併後多了 <code>a6a8cea</code>，<code>git cat-file</code> 看到它有兩行 parent。這裡兩邊改的是不同檔案，Git 自動合好，沒有衝突。實測兩邊改同一個檔案、但不同行（一個改第一行、一個改第五行），也是自動合好。</p>
+<h4>衝突：兩邊改了同一個地方</h4>
+<p>Pro Git：如果兩個分支「用不同方式改了同一個檔案的同一部分」，Git 沒辦法自動合併，就會發生<strong>合併衝突</strong>（merge conflict）；這時 Git「還沒有自動建立合併 commit，而是暫停整個流程，等你解決衝突」。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging" target="_blank" rel="noopener">出處</a> 例子：rate 分支把轉帳手續費調成 12 元，main 同時調成 8 元：</p>
+<pre><code>$ git switch -c rate
+Switched to a new branch 'rate'
+
+$ printf "轉帳手續費 12 元\n跨行手續費 15 元\n臨櫃手續費 30 元\n" &gt; fee.txt
+
+$ git add fee.txt
+
+$ git commit -q -m "轉帳手續費調成 12 元"
+
+$ git switch main
+Switched to branch 'main'
+
+$ printf "轉帳手續費 8 元\n跨行手續費 15 元\n臨櫃手續費 30 元\n" &gt; fee.txt
+
+$ git add fee.txt
+
+$ git commit -q -m "轉帳手續費調成 8 元"
+
+$ git merge rate
+Auto-merging fee.txt
+CONFLICT (content): Merge conflict in fee.txt
+Automatic merge failed; fix conflicts and then commit the result.
+
+$ git status
+On branch main
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Unmerged paths:
+  (use "git add &lt;file&gt;..." to mark resolution)
+	both modified:   fee.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+$ cat fee.txt
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+轉帳手續費 8 元
+=======
+轉帳手續費 12 元
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; rate
+跨行手續費 15 元
+臨櫃手續費 30 元</code></pre>
+<p>衝突標記怎麼看：<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code> 到 <code>=======</code> 之間是 HEAD（你目前所在的 main）的版本，<code>=======</code> 到 <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; rate</code> 之間是要合併進來的 rate 的版本。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging" target="_blank" rel="noopener">出處</a> 解法是三步：把檔案改成正確的最終內容並<strong>刪掉三行標記</strong>；<code>git add</code> 這個檔案，Pro Git 說「把檔案加到暫存區，就是告訴 Git 衝突已解決」（Staging the file marks it as resolved in Git.）；最後 <code>git commit</code> 完成合併。這裡跟業務確認後採用 12 元：</p>
+<pre><code>$ printf "轉帳手續費 12 元\n跨行手續費 15 元\n臨櫃手續費 30 元\n" &gt; fee.txt
+
+$ git add fee.txt
+
+$ git commit --no-edit
+[main 2f6c69b] Merge branch 'rate'
+
+$ git log --oneline --graph -6
+*   2f6c69b Merge branch 'rate'
+|\  
+| * e2763c0 轉帳手續費調成 12 元
+* | 8214b5b 轉帳手續費調成 8 元
+|/  
+*   a6a8cea Merge branch 'report'
+|\  
+| * 2bcb25e 新增對帳報表
+* | ad0fc2d 新增臨櫃手續費
+|/  </code></pre>
+<p>不想合了，就照 <code>git status</code> 的提示用 <code>git merge --abort</code> 回到合併前（實測 abort 之後檔案回到合併前的內容）。要選哪一邊，常常不是技術問題、是業務問題：手續費到底該是 8 元還是 12 元，要問清楚再改，不要隨手留一邊。</p>
+<p class="formula">正前方就快轉；岔開了就三方合併、多一個雙父節點的 commit；同一處被改兩次才衝突：改好檔案、刪標記、add、commit</p>
+
+<div class="drill">
+  <p class="dq">main 在 commit A，feature 從 A 開始又 commit 了 B、C，main 沒有新的 commit。在 main 上 <code>git merge feature</code>，結果是？</p>
+  <ul class="dopts"><li>產生一個新的合併 commit 接起兩邊</li><li data-ok>main 直接移到 C，不產生新 commit</li><li>發生衝突，要手動解決才能合併</li><li>feature 被移回 A，跟 main 對齊</li></ul>
+  <p class="dexp">C 就在 main 的正前方，沒有分岔，只要把 main 標籤往前移。實跑 merge limit 時印的就是 Fast-forward。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，快轉合併之後 <code>git log --oneline --decorate</code> 最上面那行最可能是？</p>
+  <ul class="dopts"><li><code>C (feature) …</code>，main 還在 A</li><li data-ok><code>C (HEAD -&gt; main, feature) …</code></li><li><code>M (HEAD -&gt; main) Merge branch 'feature'</code></li><li><code>A (HEAD -&gt; main) …</code></li></ul>
+  <p class="dexp">快轉之後 main 和 feature 指向同一個 commit，HEAD 還在 main。實跑輸出是 99eabc9 (HEAD -&gt; main, limit)。</p>
+</div>
+<div class="drill">
+  <p class="dq">main 和 report 都從 commit X 之後各自 commit 過一次，兩邊改的是不同檔案。在 main 上 <code>git merge report</code>，結果是？</p>
+  <ul class="dopts"><li>快轉，main 直接移到 report</li><li>衝突，因為兩邊都有新 commit</li><li data-ok>三方合併，產生合併 commit</li><li>Git 拒絕合併，要先 rebase</li></ul>
+  <p class="dexp">歷史岔開了，不能只移標籤；兩邊改不同檔案，Git 能自動合好，產生合併 commit。實跑印的是 Merge made by the 'ort' strategy.</p>
+</div>
+<div class="drill">
+  <p class="dq">三方合併的「三方」是哪三個快照？</p>
+  <ul class="dopts"><li>工作目錄、暫存區、儲存庫這三個區域</li><li>本機、遠端、備份三份儲存庫</li><li data-ok>兩個分支的頂端，加上共同祖先</li><li>目前分支最近的三個 commit</li></ul>
+  <p class="dexp">Pro Git 寫三方合併用兩個分支頂端指向的快照和兩者的共同祖先。三個區域是另一件事。</p>
+</div>
+<div class="drill">
+  <p class="dq">兩個分支都改了 <code>n.txt</code>，一個只改第一行、另一個只改第五行。合併時會怎樣？</p>
+  <ul class="dopts"><li>一定衝突，因為改了同一個檔案</li><li data-ok>自動合併成功，兩處修改都保留</li><li>只保留目前分支的修改</li><li>Git 要求你先刪掉其中一個分支</li></ul>
+  <p class="dexp">衝突的條件是改到同一部分，不是同一個檔案。實測一邊改第一行、一邊改第五行，自動合併後兩行都是新的。</p>
+</div>
+<div class="drill">
+  <p class="dq">衝突的檔案裡出現這段，在 main 上合併 rate 時，<code>轉帳手續費 8 元</code> 是誰的版本？</p>
+<pre><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+轉帳手續費 8 元
+=======
+轉帳手續費 12 元
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; rate</code></pre>
+  <ul class="dopts"><li>rate 分支的版本</li><li data-ok>main 的版本</li><li>共同祖先的版本</li><li>Git 自動算出的建議值</li></ul>
+  <p class="dexp">HEAD 到 ======= 之間是目前分支（main）的版本，======= 到 &gt;&gt;&gt;&gt;&gt;&gt;&gt; rate 之間是要合併進來的 rate 的版本。</p>
+</div>
+<div class="drill">
+  <p class="dq">把衝突的檔案改成正確內容、刪掉標記之後，下一步是？</p>
+  <ul class="dopts"><li>直接 git push，讓遠端處理</li><li>再執行一次 git merge rate</li><li data-ok>git add 這個檔案，再 git commit</li><li>git switch rate 切過去看</li></ul>
+  <p class="dexp">把檔案加到暫存區就是告訴 Git 這個衝突解決了；全部解完再 commit，合併 commit 才會產生。</p>
+</div>
+<div class="drill">
+  <p class="dq">合併到一半發生衝突，你發現這次根本不該合併。最適合的指令是？</p>
+  <ul class="dopts"><li data-ok><code>git merge --abort</code></li><li><code>git commit</code></li><li><code>git push --force</code></li><li><code>git branch -D main</code></li></ul>
+  <p class="dexp">git status 的提示就寫著 use "git merge --abort" to abort the merge，會回到合併前的狀態。實測 abort 後檔案是合併前的內容。</p>
+</div>
+<div class="drill">
+  <p class="dq">衝突的兩邊分別是「手續費 8 元」和「手續費 12 元」。最負責的處理方式是？</p>
+  <ul class="dopts"><li data-ok>先問清楚正確的值再改</li><li>永遠保留自己目前分支的那一邊</li><li>永遠保留要合併進來的那一邊</li><li>兩行都留著，讓程式執行時自己選</li></ul>
+  <p class="dexp">Git 只知道兩邊衝突，不知道哪個對。手續費這種業務規則要跟需求方或改另一邊的同事確認；兩行都留下會讓檔案內容錯誤。</p>
+</div>
+</section>
+
+<section>
+<p class="era">把自己的 commit 搬到最新的起點上</p>
+<h3 class="head">rebase 對 merge：改寫歷史，以及黃金守則</h3>
+<p>合併岔開的歷史還有另一種方法：<strong>rebase</strong>（重定基底：把一串 commit 改接到另一個起點後面）。它把目前分支上的修改，一個一個在新的起點上重做一遍。Pro Git 說最後的內容跟 merge 一樣，「但 rebase 讓歷史比較乾淨」，看起來像一條直線，好像所有工作都是依序做的。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Rebasing" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="rebase 前後。左圖：audit 分支的 595e、07f2 從舊的 8214 分出來，main 已經走到 2f6c。右圖：git rebase main 之後，audit 的兩個 commit 被重新做成 416c、3191，接在 2f6c 後面，歷史變成一直線；舊的 595e、07f2 用虛線表示，已經沒有分支指著它們">
+<defs><marker id="gb-m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="26" font-size="13" fill="var(--gold-deep)">rebase 之前</text><circle cx="80" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="80" y="114" font-size="11.5" text-anchor="middle" class="mono">8214</text><circle cx="190" cy="70" r="20" fill="var(--surface)" stroke="currentColor"/><text x="190" y="74" font-size="11.5" text-anchor="middle" class="mono">2f6c</text><circle cx="190" cy="160" r="20" fill="var(--surface)" stroke="currentColor"/><text x="190" y="164" font-size="11.5" text-anchor="middle" class="mono">595e</text><circle cx="290" cy="160" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="290" y="164" font-size="11.5" text-anchor="middle" class="mono">07f2</text><line x1="170.3" y1="77.2" x2="101.6" y2="102.1" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m4)"/><line x1="170.9" y1="151.3" x2="100.9" y2="119.5" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m4)"/><line x1="269.0" y1="160.0" x2="213.0" y2="160.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m4)"/><rect x="164.2" y="18" width="51.6" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="190" y="34.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">main</text><line x1="190" y1="42" x2="190" y2="48" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m4)"/><rect x="260.0" y="198" width="60.0" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="290" y="214.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">audit</text><line x1="290" y1="198" x2="290" y2="183" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m4)"/><line x1="360" y1="30" x2="360" y2="240" stroke="currentColor" stroke-opacity=".15"/><text x="390" y="26" font-size="13" fill="var(--gold-deep)">git rebase main 之後</text><circle cx="420" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="420" y="114" font-size="11.5" text-anchor="middle" class="mono">8214</text><circle cx="520" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="520" y="114" font-size="11.5" text-anchor="middle" class="mono">2f6c</text><circle cx="620" cy="110" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="620" y="114" font-size="11.5" text-anchor="middle" class="mono">416c</text><circle cx="720" cy="110" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="720" y="114" font-size="11.5" text-anchor="middle" class="mono">3191</text><line x1="499.0" y1="110.0" x2="443.0" y2="110.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m4)"/><line x1="599.0" y1="110.0" x2="543.0" y2="110.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m4)"/><line x1="699.0" y1="110.0" x2="643.0" y2="110.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m4)"/><rect x="494.2" y="48" width="51.6" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="520" y="64.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">main</text><line x1="520" y1="72" x2="520" y2="88" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m4)"/><rect x="690.0" y="48" width="60.0" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="720" y="64.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">audit</text><line x1="720" y1="72" x2="720" y2="88" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m4)"/><circle cx="520" cy="190" r="20" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".55"/><text x="520" y="194" font-size="11.5" text-anchor="middle" class="mono" opacity=".55">595e</text><circle cx="620" cy="190" r="20" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".55"/><text x="620" y="194" font-size="11.5" text-anchor="middle" class="mono" opacity=".55">07f2</text><line x1="599.0" y1="190.0" x2="543.0" y2="190.0" stroke="currentColor" stroke-opacity=".3" stroke-width="1.5" marker-end="url(#gb-m4)"/><text x="570" y="232" font-size="11.5" text-anchor="middle" opacity=".6">舊的 595e、07f2 已經沒有分支指著</text><text x="40" y="256" font-size="12" opacity=".6">古銅＝audit 的 commit；rebase 把它們一個一個重放到 main 後面，內容一樣但雜湊不同（595e→416c、07f2→3191）</text>
+</svg>
+<figcaption>rebase 不是搬動舊 commit，而是做出內容相同的新 commit；所以已經被別人拿去用的 commit 不要 rebase。</figcaption>
+</figure>
+<pre><code>$ git switch -c audit main~1
+Switched to a new branch 'audit'
+
+$ echo "操作紀錄保存 7 年" &gt; audit.txt
+
+$ git add audit.txt
+
+$ git commit -q -m "新增稽核紀錄設定"
+
+$ echo "登入失敗 5 次鎖定" &gt;&gt; audit.txt
+
+$ git add audit.txt
+
+$ git commit -q -m "新增登入鎖定"
+
+$ git log --oneline --graph -7 --all
+* 07f2d33 新增登入鎖定
+* 595e91b 新增稽核紀錄設定
+| * 2f6c69b Merge branch 'rate'
+|/| 
+| * e2763c0 轉帳手續費調成 12 元
+* | 8214b5b 轉帳手續費調成 8 元
+|/  
+*   a6a8cea Merge branch 'report'
+|\  
+| * 2bcb25e 新增對帳報表
+
+$ git rebase main
+Successfully rebased and updated refs/heads/audit.
+
+$ git log --oneline --graph -8 --all
+* 3191e26 新增登入鎖定
+* 416ce71 新增稽核紀錄設定
+*   2f6c69b Merge branch 'rate'
+|\  
+| * e2763c0 轉帳手續費調成 12 元
+* | 8214b5b 轉帳手續費調成 8 元
+|/  
+*   a6a8cea Merge branch 'report'
+|\  
+| * 2bcb25e 新增對帳報表
+* | ad0fc2d 新增臨櫃手續費
+|/  
+
+$ git switch main
+Switched to branch 'main'
+
+$ git merge audit
+Updating 2f6c69b..3191e26
+Fast-forward
+ audit.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+ create mode 100644 audit.txt
+
+$ git log --oneline -3
+3191e26 新增登入鎖定
+416ce71 新增稽核紀錄設定
+2f6c69b Merge branch 'rate'</code></pre>
+<p>對照輸出：rebase 前，audit 的兩個 commit 是 <code>595e91b</code>、<code>07f2d33</code>；rebase 後變成 <code>416ce71</code>、<code>3191e26</code>。內容一樣，但父節點換了，雜湊值就全部不同（commit 一段講過的那一點）。之後在 main 上合併 audit，因為 audit 已經在 main 正前方，是快轉。</p>
+<p>這就是 rebase 的代價：它不是搬動，是丟掉舊的 commit、做出新的。Pro Git 的<strong>黃金守則</strong>只有一句：「不要 rebase 已經存在於你的儲存庫之外、別人可能已經以它為基礎在工作的 commit」（Do not rebase commits that exist outside your repository and that people may have based work on.），因為「rebase 時你是在丟棄既有的 commit、建立相似但不同的新 commit」。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Rebasing" target="_blank" rel="noopener">出處</a> 實務上的分界：還沒 push 的、只有自己在用的分支，可以 rebase 整理；已經推到共用分支、同事可能已經拉下來的，用 merge。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>merge</th><th>rebase</th></tr></thead><tbody>
+<tr><th>做了什麼</th><td>多一個合併 commit 把兩條線接起來</td><td>把自己的 commit 重做在新起點後面</td></tr>
+<tr><th>舊 commit</th><td>原封不動</td><td>換成雜湊值不同的新 commit</td></tr>
+<tr><th>歷史長相</th><td>保留岔開又合併的真實過程</td><td>一條直線</td></tr>
+<tr><th>什麼時候用</th><td>共用分支、已經推出去的 commit</td><td>還沒推出去、只有自己用的分支</td></tr>
+</tbody></table></div>
+<p class="formula">rebase 會換掉 commit 的雜湊值；別人可能已經拿到的 commit，不要 rebase</p>
+
+<div class="drill">
+  <p class="dq">feature 分支有兩個 commit，雜湊值是 <code>595e</code> 開頭與 <code>07f2</code> 開頭。執行 <code>git rebase main</code> 之後，這兩個 commit 的雜湊值會？</p>
+  <ul class="dopts"><li>不變，rebase 只移動標籤</li><li data-ok>變成新的雜湊值，因為父節點換了</li><li>只有第一個會變</li><li>變成跟 main 最新的 commit 一樣</li></ul>
+  <p class="dexp">rebase 是在新起點上重做 commit，父節點不同，雜湊值就不同。實跑 595e91b、07f2d33 變成 416ce71、3191e26。</p>
+</div>
+<div class="drill">
+  <p class="dq">audit 分支 rebase 到 main 之後，在 main 上 <code>git merge audit</code>，會是哪一種合併？</p>
+  <ul class="dopts"><li>三方合併</li><li>一定衝突</li><li>不能合併，要先 push</li><li data-ok>快轉</li></ul>
+  <p class="dexp">rebase 之後 audit 的 commit 接在 main 最新的 commit 後面，main 只要往前移。實跑印的是 Fast-forward。</p>
+</div>
+<div class="drill">
+  <p class="dq">Pro Git 的 rebase 黃金守則是？</p>
+  <ul class="dopts"><li>每次 push 之前都要先 rebase 一次</li><li>只能 rebase main，不能 rebase 其他分支</li><li data-ok>別人可能拿到的 commit 不要 rebase</li><li>rebase 之後一定要刪掉舊的分支</li></ul>
+  <p class="dexp">rebase 丟棄舊 commit、建立新 commit；別人手上還有舊的，兩邊歷史就對不起來了。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪個情況<strong>最適合</strong>用 rebase？</p>
+  <ul class="dopts"><li>main 已經推到公司遠端，同事都拉過了</li><li>同事正在你推上去的 feature 上接著開發</li><li data-ok>自己本機、還沒推出去的分支</li><li>已經合併進 main、上線的 commit</li></ul>
+  <p class="dexp">只有自己有、還沒推出去的 commit，改寫歷史不會影響別人。其他三個都已經在別人手上。</p>
+</div>
+<div class="drill">
+  <p class="dq">merge 和 rebase 合併出來的最終檔案內容（沒有衝突的情況下），差在哪？</p>
+  <ul class="dopts"><li>rebase 合出來的內容比較新</li><li>merge 會遺失另一邊的一些修改</li><li data-ok>內容一樣，只差在歷史的長相</li><li>rebase 會刪掉另一個分支的修改</li></ul>
+  <p class="dexp">Pro Git 寫兩種方式的最終快照相同，差別只在歷史怎麼記錄。</p>
+</div>
+<div class="drill">
+  <p class="dq">rebase 之後，舊的那兩個 commit（<code>595e…</code>、<code>07f2…</code>）會怎樣？</p>
+  <ul class="dopts"><li>被合併進新的 commit 裡</li><li data-ok>還在儲存庫裡，只是沒有分支指著它們</li><li>被推到遠端備份</li><li>變成 main 的父節點</li></ul>
+  <p class="dexp">跟刪分支一樣，舊 commit 沒有標籤指著，但物件還在，reflog 也記得 rebase 之前的位置。</p>
+</div>
+</section>
+
+<section>
+<p class="era">本機的 Git 跟伺服器上的 Git 怎麼同步</p>
+<h3 class="head">遠端：fetch、pull、push 與追蹤分支</h3>
+<p><strong>遠端</strong>（remote）是放在別處的同一個儲存庫，例如公司的 GitLab 或 GitHub，慣例取名 <code>origin</code>。本機看得到的 <code>origin/main</code> 叫<strong>遠端追蹤分支</strong>（remote-tracking branch）。Pro Git：它們是「遠端分支狀態的參考，你不能自己移動，Git 會在每次跟遠端通訊時幫你移動」，可以想成「書籤，提醒你上次連線時遠端的分支在哪裡」（Think of them as bookmarks, to remind you where the branches in your remote repositories were the last time you connected to them.）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Remote-Branches" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><code>git fetch</code>：從遠端抓回你沒有的資料，更新 <code>origin/main</code> 這類書籤；Pro Git 說它「完全不會修改你的工作目錄」（it will not modify your working directory at all）。</li>
+<li><code>git pull</code>：「大多數情況下就是 <code>git fetch</code> 接著 <code>git merge</code>」（essentially a git fetch immediately followed by a git merge in most cases）。</li>
+<li><strong>追蹤分支</strong>（tracking branch）：跟某個遠端分支有直接關係的本機分支，被它追蹤的那個叫上游分支（upstream branch）；在追蹤分支上 <code>git pull</code>，Git 就知道要從哪裡抓、合併哪個分支。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Remote-Branches" target="_blank" rel="noopener">出處</a> 第一次 <code>git push -u origin main</code> 的 <code>-u</code> 就是設定這個關係。</li>
+</ul>
+<p>下面用一個本機資料夾假裝成遠端，再複製一份當作同事的電腦：</p>
+<pre><code>$ git init -q --bare ../origin.git
+
+$ git remote add origin ../origin.git
+
+$ git push -u origin main
+To ../origin.git
+ * [new branch]      main -&gt; main
+branch 'main' set up to track 'origin/main'.
+
+$ git branch -vv
+  audit  3191e26 新增登入鎖定
+* main   3191e26 [origin/main] 新增登入鎖定
+  rate   e2763c0 轉帳手續費調成 12 元
+  report 2bcb25e 新增對帳報表
+
+# 以下在同事的電腦（colleague 資料夾）
+
+$ git clone -q origin.git colleague
+
+$ echo "夜間批次 23:00" &gt; batch.txt
+
+$ git add batch.txt
+
+$ git commit -q -m "同事：新增夜間批次"
+
+$ git push
+To ../origin.git
+   3191e26..c64d654  main -&gt; main
+
+# 回到自己的電腦（bank-app 資料夾）
+
+$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+
+$ git fetch
+From ../origin
+   3191e26..c64d654  main       -&gt; origin/main
+
+$ git status
+On branch main
+Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+
+nothing to commit, working tree clean
+
+$ git log --oneline --decorate -3 --all
+c64d654 (origin/main, origin/HEAD) 同事：新增夜間批次
+3191e26 (HEAD -&gt; main, audit) 新增登入鎖定
+416ce71 新增稽核紀錄設定
+
+$ git pull
+Updating 3191e26..c64d654
+Fast-forward
+ batch.txt | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 batch.txt
+
+$ git log --oneline -2
+c64d654 同事：新增夜間批次
+3191e26 新增登入鎖定</code></pre>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="遠端追蹤分支。左圖：git fetch 之後，origin/main 移到同事推上去的 c64d，自己的 main 還在 3191，git status 說落後 1 個 commit。右圖：git pull 之後 main 快轉到 c64d，跟 origin/main 指向同一個 commit">
+<defs><marker id="gb-m5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="26" font-size="13" fill="var(--gold-deep)">git fetch 之後（還沒 pull）</text><circle cx="120" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="120" y="124" font-size="11.5" text-anchor="middle" class="mono">3191</text><circle cx="240" cy="120" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="240" y="124" font-size="11.5" text-anchor="middle" class="mono">c64d</text><line x1="219.0" y1="120.0" x2="143.0" y2="120.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m5)"/><rect x="94.2" y="54" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="120" y="70.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="120" y1="78" x2="120" y2="98" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m5)"/><rect x="184.8" y="166" width="110.4" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="240" y="182.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">origin/main</text><line x1="240" y1="166" x2="240" y2="143" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m5)"/><text x="180" y="222" font-size="12.5" text-anchor="middle">Your branch is behind 'origin/main' by 1 commit</text><line x1="390" y1="30" x2="390" y2="240" stroke="currentColor" stroke-opacity=".15"/><text x="420" y="26" font-size="13" fill="var(--gold-deep)">git pull 之後（快轉）</text><circle cx="480" cy="120" r="20" fill="var(--surface)" stroke="currentColor"/><text x="480" y="124" font-size="11.5" text-anchor="middle" class="mono">3191</text><circle cx="600" cy="120" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="600" y="124" font-size="11.5" text-anchor="middle" class="mono">c64d</text><line x1="579.0" y1="120.0" x2="503.0" y2="120.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m5)"/><rect x="574.2" y="54" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="600" y="70.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="600" y1="78" x2="600" y2="98" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m5)"/><rect x="544.8" y="166" width="110.4" height="24" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="600" y="182.5" font-size="12.5" text-anchor="middle" class="mono" fill="currentColor">origin/main</text><line x1="600" y1="166" x2="600" y2="143" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m5)"/><text x="40" y="256" font-size="12" opacity=".6">灰藍＝fetch 抓下來、但工作目錄還沒有的 commit；origin/main 是「上次連線時遠端 main 在哪」的書籤</text>
+</svg>
+<figcaption>fetch 只更新 origin/main 這個書籤，不動你的分支和檔案；pull 是 fetch 之後再把 origin/main 合併進來。</figcaption>
+</figure>
+<p>注意 fetch 之前的那次 <code>git status</code> 說「up to date」，但同事其實已經推了：<code>git status</code> 比的是你本機記得的 <code>origin/main</code>，沒連線就不會知道。要確認遠端最新狀態，先 <code>git fetch</code>。</p>
+<h4>push 被拒絕：先拿別人的，再推自己的</h4>
+<p>Pro Git：如果你和別人同時複製、對方先推了，「你的 push 會被拒絕，這是應該的。你得先把他們的工作抓下來、整合進你的，才能推」。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Basics-Working-with-Remotes" target="_blank" rel="noopener">出處</a> push 的文件說 rejected 的意思是 Git 根本沒有送出，「通常是因為它不是快轉，而你沒有強制更新」（typically because it is not a fast-forward and you did not force the update）。<a class="fixsrc" href="https://git-scm.com/docs/git-push" target="_blank" rel="noopener">出處</a></p>
+<pre><code># 同事的電腦：又推了一個 commit
+
+$ echo "批次失敗重試 3 次" &gt;&gt; batch.txt
+
+$ git add batch.txt
+
+$ git commit -q -m "同事：批次重試"
+
+$ git push -q
+
+# 自己的電腦：不知道同事又推了，自己也 commit 一個
+
+$ echo "外幣手續費 100 元" &gt;&gt; fee.txt
+
+$ git add fee.txt
+
+$ git commit -q -m "新增外幣手續費"
+
+$ git push
+To ../origin.git
+ ! [rejected]        main -&gt; main (fetch first)
+error: failed to push some refs to '../origin.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+
+$ git pull
+From ../origin
+   c64d654..a942f4a  main       -&gt; origin/main
+hint: You have divergent branches and need to specify how to reconcile them.
+hint: You can do so by running one of the following commands sometime before
+hint: your next pull:
+hint:
+hint:   git config pull.rebase false  # merge
+hint:   git config pull.rebase true   # rebase
+hint:   git config pull.ff only       # fast-forward only
+hint:
+hint: You can replace "git config" with "git config --global" to set a default
+hint: preference for all repositories. You can also pass --rebase, --no-rebase,
+hint: or --ff-only on the command line to override the configured default per
+hint: invocation.
+fatal: Need to specify how to reconcile divergent branches.
+
+$ git pull --no-rebase --no-edit
+Merge made by the 'ort' strategy.
+ batch.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+$ git log --oneline --graph -4
+*   bc4046c Merge branch 'main' of ../origin
+|\  
+| * a942f4a 同事：批次重試
+* | dc56214 新增外幣手續費
+|/  
+* c64d654 同事：新增夜間批次
+
+$ git push
+To ../origin.git
+   a942f4a..bc4046c  main -&gt; main</code></pre>
+<p>新版 Git 遇到兩邊都有新 commit 時，<code>git pull</code> 會停下來，要你明確選擇用合併（<code>--no-rebase</code>）、rebase（<code>--rebase</code>）還是只接受快轉（<code>--ff-only</code>），也可以照提示用 <code>git config</code> 設預設值。上面選了合併，所以多了一個 <code>Merge branch 'main' of ../origin</code> 的合併 commit，接著 push 就成功了。<strong>不要用 <code>git push --force</code> 硬推</strong>：那會讓遠端的分支直接改指向你的 commit，同事的 commit 就不在這個分支上了。</p>
+<p class="formula">fetch 只更新 origin/main 書籤；pull＝fetch＋merge；push 被拒絕就先 pull 再 push，不要 --force</p>
+
+<div class="drill">
+  <p class="dq">同事剛推了新 commit，你還沒做任何事就執行 <code>git status</code>。它最可能說？</p>
+  <ul class="dopts"><li>Your branch is behind 'origin/main' by 1 commit</li><li data-ok>Your branch is up to date with 'origin/main'</li><li>Your branch and 'origin/main' have diverged</li><li>error: remote has new commits</li></ul>
+  <p class="dexp">git status 比的是本機記得的 origin/main，不會自己連線。實跑在 fetch 之前就是 up to date；fetch 之後才變成 behind by 1 commit。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>git fetch</code> 之後，下面哪一項會改變？</p>
+  <ul class="dopts"><li>工作目錄的檔案</li><li>本機 main 指向的 commit</li><li>暫存區</li><li data-ok>origin/main 指向的 commit</li></ul>
+  <p class="dexp">fetch 只抓資料、更新遠端追蹤分支（書籤），不動你的分支、工作目錄與暫存區。實跑 fetch 後 log 看到 origin/main 在 c64d654、main 還在 3191e26。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>git pull</code> 在大多數情況下等於哪兩個動作？</p>
+  <ul class="dopts"><li>git add 加 git commit</li><li>git push 加 git fetch</li><li>git clone 加 git switch</li><li data-ok>git fetch 加 git merge</li></ul>
+  <p class="dexp">Pro Git 寫 pull 大多數情況是 fetch 之後立刻 merge。所以 pull 也可能產生合併 commit 或衝突。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>origin/main</code> 這個分支可以自己 commit 上去讓它往前移嗎？</p>
+  <ul class="dopts"><li data-ok>不行，只有 Git 會在連線時移動它</li><li>可以，跟一般分支一樣 commit 就好</li><li>可以，但 commit 時要加 --force</li><li>只有儲存庫的管理者可以</li></ul>
+  <p class="dexp">遠端追蹤分支是書籤，記錄上次連線時遠端在哪；要改遠端，是在本機分支 commit 再 push。</p>
+</div>
+<div class="drill">
+  <p class="dq">你 commit 完執行 <code>git push</code>，得到 <code>! [rejected] main -&gt; main (fetch first)</code>。最可能的原因是？</p>
+  <ul class="dopts"><li>你沒有寫 commit 訊息</li><li>網路斷線，連不到遠端</li><li data-ok>遠端有你沒有的 commit</li><li>遠端的 main 分支被刪掉了</li></ul>
+  <p class="dexp">提示寫著 the remote contains work that you do not have locally。先 pull 把別人的 commit 整合進來，再 push。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，正確的下一步是？</p>
+  <ul class="dopts"><li><code>git push --force</code> 直接蓋過去</li><li data-ok>先 <code>git pull</code>，再 <code>git push</code></li><li>刪掉本機的 commit，重新寫一次</li><li>換一個分支名稱推上去，不管 main</li></ul>
+  <p class="dexp">--force 會讓遠端分支改指向你的 commit，同事的 commit 就不在 main 上了。先拿別人的、再推自己的，實跑 pull --no-rebase 之後 push 就成功了。</p>
+</div>
+<div class="drill">
+  <p class="dq">你和同事各自在 main 上多了一個 commit，執行 <code>git pull</code> 卻得到 <code>fatal: Need to specify how to reconcile divergent branches.</code>。意思是？</p>
+  <ul class="dopts"><li>遠端的儲存庫壞掉了</li><li>你沒有 pull 這個儲存庫的權限</li><li data-ok>兩邊岔開，要你選怎麼整合</li><li>你的工作目錄裡有衝突沒解決</li></ul>
+  <p class="dexp">兩邊都有新 commit，不能快轉。提示列出 pull.rebase false（合併）、true（rebase）、pull.ff only 三種，也可以在指令加 --no-rebase、--rebase、--ff-only。</p>
+</div>
+<div class="drill">
+  <p class="dq">第一次推新分支時用 <code>git push -u origin main</code>，<code>-u</code> 的作用是？</p>
+  <ul class="dopts"><li data-ok>設定 main 追蹤 origin/main</li><li>強制推送，蓋掉遠端的內容</li><li>只推最新的那一個 commit</li><li>推完自動刪除本機的分支</li></ul>
+  <p class="dexp">實跑輸出 branch 'main' set up to track 'origin/main'.，git branch -vv 也顯示 [origin/main]。</p>
+</div>
+</section>
+
+<section>
+<p class="era">做錯了怎麼辦</p>
+<h3 class="head">救回：restore、revert、reset 與 reflog</h3>
+<p>先分清楚錯在哪一個區域，再挑指令：</p>
+<div class="tablewrap"><table><thead><tr><th>情況</th><th>指令</th><th>會不會改寫歷史</th></tr></thead><tbody>
+<tr><td>檔案改壞了，還沒 add</td><td><code>git restore 檔案</code></td><td>不會，只動工作目錄</td></tr>
+<tr><td>不小心 add 了，想拿出暫存區</td><td><code>git restore --staged 檔案</code></td><td>不會，修改還留在工作目錄</td></tr>
+<tr><td>錯的 commit 已經推出去</td><td><code>git revert 那個 commit</code></td><td>不會，多一個反向的 commit</td></tr>
+<tr><td>還沒推出去的 commit 整個不要</td><td><code>git reset --hard 某個 commit</code></td><td>會，分支標籤往回移</td></tr>
+<tr><td>reset 或刪分支之後反悔</td><td><code>git reflog</code> 找到位置再接回來</td><td>—</td></tr>
+</tbody></table></div>
+<h4>restore：還沒 commit 的修改</h4>
+<p><code>git restore</code> 的文件寫它「用還原來源的內容，還原工作目錄裡指定的路徑」，加 <code>--staged</code> 則還原暫存區。<a class="fixsrc" href="https://git-scm.com/docs/git-restore" target="_blank" rel="noopener">出處</a> 注意 <code>git restore 檔案</code> 會直接丟掉那個檔案還沒 commit 的修改，丟了就找不回來。</p>
+<pre><code>$ echo "打錯的一行" &gt;&gt; fee.txt
+
+$ git status --short
+ M fee.txt
+
+$ git restore fee.txt
+
+$ git status --short
+
+$ echo "也打錯了" &gt;&gt; fee.txt
+
+$ git add fee.txt
+
+$ git status --short
+M  fee.txt
+
+$ git restore --staged fee.txt
+
+$ git status --short
+ M fee.txt
+
+$ git restore fee.txt
+
+$ git status --short</code></pre>
+<h4>revert：已經推出去的錯 commit</h4>
+<p><code>git revert</code> 的文件：它「記錄一些新的 commit，來抵銷先前某些 commit 的效果（通常只是一個出錯的）」（git revert is used to record some new commits to reverse the effect of some earlier commits (often only a faulty one).）。<a class="fixsrc" href="https://git-scm.com/docs/git-revert" target="_blank" rel="noopener">出處</a> 歷史只往前加，同事手上的 commit 不會對不起來，所以已經推出去的錯誤用它。</p>
+<pre><code>$ printf "轉帳手續費 12 元\n跨行手續費 20 元\n臨櫃手續費 30 元\n外幣手續費 100 元\n" &gt; fee.txt
+
+$ git add fee.txt
+
+$ git commit -q -m "跨行手續費調成 20 元"
+
+$ git push -q
+
+# 上線後發現跨行手續費不該調：已經推出去了，用 revert
+
+$ git revert --no-edit HEAD
+[main 58c3d74] Revert "跨行手續費調成 20 元"
+ Date: Thu Oct 2 10:19:00 2025 +0800
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+$ git log --oneline -3
+58c3d74 Revert "跨行手續費調成 20 元"
+5599170 跨行手續費調成 20 元
+bc4046c Merge branch 'main' of ../origin
+
+$ cat fee.txt
+轉帳手續費 12 元
+跨行手續費 15 元
+臨櫃手續費 30 元
+外幣手續費 100 元
+
+$ git push -q</code></pre>
+<h4>reset 與 reflog：還沒推出去的 commit</h4>
+<p><code>git reset --hard</code> 把目前分支的標籤移回指定的 commit，文件寫它會「用那個 commit 的版本覆蓋所有檔案與目錄」，暫存區也會跟著更新。<a class="fixsrc" href="https://git-scm.com/docs/git-reset" target="_blank" rel="noopener">出處</a> Pro Git 特別提醒：<code>--hard</code> 是讓 reset 變危險的唯一方式，也是「Git 真的會毀掉資料的少數情況之一」，因為它強制覆蓋工作目錄。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Tools-Reset-Demystified" target="_blank" rel="noopener">出處</a> 實測 reset --hard 之前沒 commit 的修改就直接不見了。</p>
+<p>被跳過的 commit 還能救，靠的是 <strong>reflog</strong>：Pro Git 說 Git 在背景記錄「過去幾個月裡 HEAD 和分支參考去過哪裡」（a log of where your HEAD and branch references have been for the last few months）<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Tools-Revision-Selection" target="_blank" rel="noopener">出處</a>；<code>git reflog</code> 的文件舉例，<code>HEAD@{2}</code> 表示「HEAD 兩次移動之前在哪」。<a class="fixsrc" href="https://git-scm.com/docs/git-reflog" target="_blank" rel="noopener">出處</a> reflog 只存在你本機，記的是你自己做過的移動。</p>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="左圖 revert：main 原本在調成 20 元的 5599，git revert HEAD 新增一個改回 15 元的 commit 58c3，main 往前移到 58c3。右圖 reset：main 原本在草稿二 f080，git reset --hard HEAD~2 把 main 標籤移回 58c3，草稿一 067f 與草稿二 f080 變成虛線，沒有分支指著，但 reflog 還記得">
+<defs><marker id="gb-m6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="26" font-size="13" fill="var(--gold-deep)">git revert HEAD：多一個反向的 commit</text><circle cx="70" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="70" y="114" font-size="11.5" text-anchor="middle" class="mono">bc40</text><circle cx="170" cy="110" r="20" fill="var(--surface)" stroke="currentColor"/><text x="170" y="114" font-size="11.5" text-anchor="middle" class="mono">5599</text><circle cx="270" cy="110" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="270" y="114" font-size="11.5" text-anchor="middle" class="mono">58c3</text><line x1="149.0" y1="110.0" x2="93.0" y2="110.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m6)"/><line x1="249.0" y1="110.0" x2="193.0" y2="110.0" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#gb-m6)"/><rect x="244.2" y="44" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="270" y="60.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="270" y1="68" x2="270" y2="88" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m6)"/><text x="170" y="160" font-size="11.5" text-anchor="middle" opacity=".7">調成 20 元</text><text x="270" y="160" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">改回 15 元</text><text x="40" y="200" font-size="12.5">歷史只往前加，已經推出去也安全</text><line x1="370" y1="30" x2="370" y2="240" stroke="currentColor" stroke-opacity=".15"/><text x="400" y="26" font-size="13" fill="var(--gold-deep)">git reset --hard HEAD~2：標籤往回移</text><circle cx="440" cy="110" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="440" y="114" font-size="11.5" text-anchor="middle" class="mono">58c3</text><circle cx="540" cy="110" r="20" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".55"/><text x="540" y="114" font-size="11.5" text-anchor="middle" class="mono" opacity=".55">067f</text><circle cx="640" cy="110" r="20" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".55"/><text x="640" y="114" font-size="11.5" text-anchor="middle" class="mono" opacity=".55">f080</text><line x1="519.0" y1="110.0" x2="463.0" y2="110.0" stroke="currentColor" stroke-opacity=".3" stroke-width="1.5" marker-end="url(#gb-m6)"/><line x1="619.0" y1="110.0" x2="563.0" y2="110.0" stroke="currentColor" stroke-opacity=".3" stroke-width="1.5" marker-end="url(#gb-m6)"/><rect x="414.2" y="44" width="51.6" height="24" rx="5" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="440" y="60.5" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">main</text><line x1="440" y1="68" x2="440" y2="88" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" marker-end="url(#gb-m6)"/><path d="M640 64 Q560 30 470 50" fill="none" stroke="var(--slate)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#gb-m6)"/><text x="540" y="160" font-size="11.5" text-anchor="middle" opacity=".7">草稿一</text><text x="640" y="160" font-size="11.5" text-anchor="middle" opacity=".7">草稿二</text><text x="400" y="200" font-size="12.5">兩個草稿沒有分支指著，reflog 還找得到</text><text x="400" y="222" font-size="12.5">只用在還沒推出去的 commit</text><text x="40" y="256" font-size="12" opacity=".6">虛線圓圈＝沒有任何分支指著的 commit；灰藍虛線箭頭是 main 標籤往回移的方向</text>
+</svg>
+<figcaption>revert 用一個新 commit 抵銷舊的，歷史不改寫；reset 把分支標籤往回移，被跳過的 commit 只剩 reflog 記得。</figcaption>
+</figure>
+<pre><code>$ echo "草稿一" &gt; draft.txt
+
+$ git add draft.txt
+
+$ git commit -q -m "草稿一"
+
+$ echo "草稿二" &gt;&gt; draft.txt
+
+$ git add draft.txt
+
+$ git commit -q -m "草稿二"
+
+$ git log --oneline -3
+f0804cb 草稿二
+067f509 草稿一
+58c3d74 Revert "跨行手續費調成 20 元"
+
+# 兩個草稿都還沒推，決定整個不要
+
+$ git reset --hard HEAD~2
+HEAD is now at 58c3d74 Revert "跨行手續費調成 20 元"
+
+$ git log --oneline -2
+58c3d74 Revert "跨行手續費調成 20 元"
+5599170 跨行手續費調成 20 元
+
+# 反悔了：reflog 找得到剛剛的位置
+
+$ git reflog -3
+58c3d74 HEAD@{0}: reset: moving to HEAD~2
+f0804cb HEAD@{1}: commit: 草稿二
+067f509 HEAD@{2}: commit: 草稿一
+
+$ git reset --hard HEAD@{1}
+HEAD is now at f0804cb 草稿二
+
+$ git log --oneline -3
+f0804cb 草稿二
+067f509 草稿一
+58c3d74 Revert "跨行手續費調成 20 元"
+
+$ git switch -q -c tryout
+
+$ echo "試驗功能" &gt; tryout.txt
+
+$ git add tryout.txt
+
+$ git commit -q -m "試驗功能"
+
+$ git switch -q main
+
+$ git branch -D tryout
+Deleted branch tryout (was c104f03).
+
+$ git reflog -2
+f0804cb HEAD@{0}: checkout: moving from tryout to main
+c104f03 HEAD@{1}: commit: 試驗功能
+
+$ git branch tryout HEAD@{1}
+
+$ git log --oneline -1 tryout
+c104f03 試驗功能</code></pre>
+<p>最後幾行示範刪錯分支的救法：<code>git branch -D</code> 只撕掉標籤，reflog 裡還看得到那個 commit（<code>HEAD@{1}</code>），用 <code>git branch 名稱 HEAD@{1}</code> 重新貼一張標籤就回來了。</p>
+<p class="formula">沒 commit 用 restore；推出去了用 revert；沒推出去才用 reset；reset 或刪錯分支，先看 reflog</p>
+
+<div class="drill">
+  <p class="dq"><code>fee.txt</code> 改壞了，還沒 add，想恢復成最新 commit 的樣子。用哪個指令？</p>
+  <ul class="dopts"><li><code>git revert HEAD</code></li><li data-ok><code>git restore fee.txt</code></li><li><code>git reset --hard HEAD~1</code></li><li><code>git branch -D main</code></li></ul>
+  <p class="dexp">還沒 commit 的修改在工作目錄，git restore 把它還原。revert 是對已經存在的 commit 做反向 commit；reset HEAD~1 會連上一個 commit 都退掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">不小心 <code>git add</code> 了一個檔案，想拿出暫存區、但<strong>保留</strong>修改。用哪個？</p>
+  <ul class="dopts"><li><code>git restore fee.txt</code></li><li data-ok><code>git restore --staged fee.txt</code></li><li><code>git revert fee.txt</code></li><li><code>git reset --hard</code></li></ul>
+  <p class="dexp">--staged 只還原暫存區，修改還在工作目錄。實跑之後 git status --short 從 M（左）變回 M（右）。不加 --staged 會丟掉修改；reset --hard 更會連工作目錄一起覆蓋。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個調錯手續費的 commit 已經推到共用的 main，同事也拉了。要撤銷它，該用？</p>
+  <ul class="dopts"><li><code>git reset --hard HEAD~1</code> 再 <code>git push --force</code></li><li data-ok><code>git revert</code> 那個 commit，再正常 push</li><li>刪掉 main 重新建立</li><li><code>git restore fee.txt</code></li></ul>
+  <p class="dexp">revert 新增一個反向 commit，歷史只往前加，同事那邊不會對不起來。reset 加 force 會改寫共用歷史。</p>
+</div>
+<div class="drill">
+  <p class="dq">執行 <code>git revert HEAD</code> 之後，<code>git log --oneline -2</code> 最上面兩行會是？</p>
+  <ul class="dopts"><li>只剩原本 HEAD 的前一個 commit</li><li data-ok>上面多一個 Revert commit</li><li>原本的 HEAD 被改了訊息</li><li>兩個 commit 都從 log 消失</li></ul>
+  <p class="dexp">revert 不刪 commit，而是多一個。實跑 58c3d74 Revert "跨行手續費調成 20 元" 在上、5599170 跨行手續費調成 20 元 在下。</p>
+</div>
+<div class="drill">
+  <p class="dq">兩個還沒推出去的草稿 commit，決定整個不要了。下面哪個指令最直接？</p>
+  <ul class="dopts"><li><code>git revert HEAD</code> 兩次</li><li><code>git restore --staged .</code></li><li><code>git fetch</code></li><li data-ok><code>git reset --hard HEAD~2</code></li></ul>
+  <p class="dexp">沒推出去、沒人拿到，改寫歷史不影響別人，reset 把標籤移回兩代前。revert 也行但會多留兩個反向 commit；restore 不處理已經 commit 的東西。</p>
+</div>
+<div class="drill">
+  <p class="dq">工作目錄有一段還沒 commit 的修改，這時執行 <code>git reset --hard HEAD</code>，那段修改會？</p>
+  <ul class="dopts"><li>自動存成一個新 commit</li><li>移到暫存區</li><li data-ok>直接被覆蓋掉，找不回來</li><li>留在工作目錄不受影響</li></ul>
+  <p class="dexp">--hard 會用 commit 的版本覆蓋工作目錄。沒 commit 過的修改不在任何 commit 裡，reflog 也救不回來。這是 Pro Git 說 Git 會真的毀掉資料的少數情況。</p>
+</div>
+<div class="drill">
+  <p class="dq">剛用 <code>git reset --hard HEAD~2</code> 退掉兩個 commit，又後悔了。<code>git reflog -3</code> 顯示第二行是 <code>f0804cb HEAD@{1}: commit: 草稿二</code>。怎麼救？</p>
+  <ul class="dopts"><li>救不回來了，reset 已經刪掉 commit</li><li><code>git revert HEAD</code></li><li><code>git pull origin main</code></li><li data-ok><code>git reset --hard HEAD@{1}</code></li></ul>
+  <p class="dexp">HEAD@{1} 是 HEAD 上一次移動之前的位置，就是 reset 之前的草稿二。實跑之後 log 又看得到兩個草稿。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 <code>git branch -D tryout</code> 刪錯分支了。reflog 裡看得到那個分支最後的 commit 是 <code>c104f03</code>。怎麼接回來？</p>
+  <ul class="dopts"><li data-ok><code>git branch tryout c104f03</code></li><li><code>git revert c104f03</code></li><li><code>git restore tryout</code></li><li>只能從遠端重新複製整個儲存庫</li></ul>
+  <p class="dexp">分支只是標籤，commit 還在；在那個 commit 上重新建一個同名分支就回來了。實跑用的是 git branch tryout HEAD@{1}。</p>
+</div>
+<div class="drill">
+  <p class="dq">關於 reflog，哪一句對？</p>
+  <ul class="dopts"><li data-ok>它只在本機，記錄 HEAD 與分支去過哪</li><li>它記錄遠端上所有人的操作</li><li>push 時會跟著推到遠端</li><li>它永久保存每次修改，包括沒 commit 的</li></ul>
+  <p class="dexp">reflog 記的是本機參考的移動。沒 commit 過的修改從來沒進過 commit，reflog 也沒有它。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一個團隊怎麼用同一個儲存庫</p>
+<h3 class="head">分支策略、PR 流程與 code review</h3>
+<h4>短命的分支：GitHub flow 與 trunk-based</h4>
+<p>Pro Git 把分支分成兩種用法：長期存在、代表不同穩定程度的長期分支，以及<strong>主題分支</strong>（topic branch）：「為單一功能或相關工作建立、用完就合併的短命分支」（a short-lived branch that you create and use for a single particular feature or related work）。<a class="fixsrc" href="https://git-scm.com/book/en/v2/Git-Branching-Branching-Workflows" target="_blank" rel="noopener">出處</a> 現在常見的兩種團隊做法都以短命分支為主：</p>
+<ul class="plainlist">
+<li><strong>GitHub flow</strong>：GitHub Docs 說它是「輕量、以分支為基礎的工作流程」（a lightweight, branch-based workflow）。步驟是：建分支（取簡短、看得懂的名字，例如 <code>increase-test-timeout</code>）、在分支上 commit 並 push、開 PR 請同事給意見、依審查意見繼續修、PR 被核准後合併、合併後刪掉分支。<a class="fixsrc" href="https://docs.github.com/en/get-started/using-github/github-flow" target="_blank" rel="noopener">出處</a> 文件也建議每個 commit 是「一個獨立、完整的修改」，不相關的修改各開一個分支，審查和日後 revert 都比較容易。</li>
+<li><strong>trunk-based development</strong>（主幹開發）：DORA 的說明是每個開發者把工作切成小批，「每天至少一次」合併進主幹（trunk，也就是 main），分支「通常不超過幾個小時」；DORA 整理的資料顯示，活躍分支在三個以內、每天至少合併一次的團隊，交付表現比較好。<a class="fixsrc" href="https://dora.dev/capabilities/trunk-based-development/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<h4>PR 與 code review</h4>
+<p><strong>PR</strong>（pull request）在 GitHub Docs 的定義是「把程式碼修改合併進專案的提議」（proposals to merge code changes into a project），讓團隊「在合併前討論與審查修改」；PR 頁面有對話、commit、檢查（自動化測試與建置）、修改的檔案幾個分頁。<a class="fixsrc" href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests" target="_blank" rel="noopener">出處</a> GitHub flow 那頁說 PR 審查重要到「有些儲存庫要求一定要有核准的審查，PR 才能合併」，開 PR 時要寫清楚改了什麼、解決什麼問題。<a class="fixsrc" href="https://docs.github.com/en/get-started/using-github/github-flow" target="_blank" rel="noopener">出處</a> 公司內部用 GitLab 時叫 merge request，概念相同。</p>
+<h4>銀行職場：不能直接推 main</h4>
+<p>在銀行這類需要留下審核紀錄的職場，常見的設定是 main 分支不准直接推、一定要經過 PR 審核。GitHub 用<strong>保護分支</strong>（protected branch）做這件事：規則可以決定「協作者能不能刪除或強制推送這個分支」，並對推送設條件，例如通過狀態檢查；可開的設定包括「合併前要求 PR 審查」「合併前要求狀態檢查通過」「限制誰能推送」等，啟用審查要求後，PR 要拿到指定數量的核准才能合併進受保護的分支。<a class="fixsrc" href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches" target="_blank" rel="noopener">出處</a> 所以實際的一天大概是：</p>
+<ol class="plainlist">
+<li><code>git switch main</code>、<code>git pull</code>，從最新的 main 出發。</li>
+<li><code>git switch -c fix-fee-rounding</code>，在自己的分支上改、commit。</li>
+<li><code>git push -u origin fix-fee-rounding</code>，在網頁上開 PR，寫清楚改了什麼、為什麼、怎麼測的。</li>
+<li>自動化檢查跑完、同事審查並核准；有意見就在同一個分支繼續 commit、push，PR 會自動更新。</li>
+<li>合併進 main，刪掉分支。上線出問題時，用 revert 撤銷那個合併，而不是改寫 main 的歷史。</li>
+</ol>
+<p>面試講專題時，這段流程本身就是好素材：分支怎麼切、PR 怎麼審、衝突怎麼協調。怎麼把它講成一個有結構的故事，見〈行為面試與專題表達〉；〈軟體開發生命週期〉的實作階段說的「使用版本控制、程式碼審查與持續整合」，指的就是這一整套。</p>
+<p class="formula">短命分支 → push → 開 PR → 自動檢查與審查 → 核准才合併 → 刪分支；main 受保護，出錯用 revert</p>
+
+<div class="drill">
+  <p class="dq">照 GitHub flow，下面步驟的正確順序是？</p>
+  <ul class="dopts"><li>開 PR → 建分支 → commit → 合併 → 刪分支</li><li data-ok>建分支 → push → 開 PR → 審查 → 合併 → 刪分支</li><li>在 main 上 commit → push → 開 PR → 合併</li><li>合併 → 開 PR → 審查 → 建分支 → push</li></ul>
+  <p class="dexp">GitHub Docs 的步驟就是建分支、改並推送、開 PR、處理審查意見、合併、刪分支。PR 是對分支提出的，所以一定要先有分支。</p>
+</div>
+<div class="drill">
+  <p class="dq">公司的 main 開了「合併前要求 PR 審查」與「限制誰能推送」，你在本機 main 上 commit 後直接 <code>git push</code>，最可能的結果是？</p>
+  <ul class="dopts"><li>成功，保護規則只是提醒，不會擋</li><li data-ok>被拒絕，要推到自己的分支再開 PR</li><li>自動幫你開好 PR 並直接合併</li><li>本機的 commit 被遠端刪除</li></ul>
+  <p class="dexp">保護分支的用意就是讓修改一定經過 PR 與審查。正確做法是在分支上 commit、push 分支、開 PR。</p>
+</div>
+<div class="drill">
+  <p class="dq">DORA 對 trunk-based development 的描述，哪一句對？</p>
+  <ul class="dopts"><li>每個功能一個分支，做完（可能幾週）才合併</li><li data-ok>小批、每天至少合併一次，分支只活幾小時</li><li>完全不用分支，也不需要審查</li><li>每個版本保留一條長期存在的分支</li></ul>
+  <p class="dexp">DORA 說主幹開發的分支通常不超過幾個小時、每天至少合併一次；好幾週才合併的是它拿來對比的長期功能分支。</p>
+</div>
+<div class="drill">
+  <p class="dq">開 PR 時，描述裡最該寫的是？</p>
+  <ul class="dopts"><li>只寫「修正 bug」三個字就好</li><li>把所有修改的程式碼貼進描述</li><li data-ok>改了什麼、解決什麼、怎麼測</li><li>什麼都不寫，審查的人自己看 diff</li></ul>
+  <p class="dexp">GitHub flow 建議 PR 描述要寫改了什麼、解決什麼問題；diff 在「修改的檔案」分頁就看得到，不用重貼。寫上怎麼測的，審查者才能判斷風險。</p>
+</div>
+<div class="drill">
+  <p class="dq">PR 被審查者留了修改意見。接下來怎麼做？</p>
+  <ul class="dopts"><li>關掉這個 PR，重開一個新的</li><li data-ok>在同一個分支繼續 commit、push</li><li>直接推到 main，跳過審查</li><li>rebase 已經合併進 main 的 commit</li></ul>
+  <p class="dexp">GitHub flow 寫可以繼續在分支上 commit、push 回應審查，PR 會自動更新。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 PR 同時「重新命名變數」又「新增測試」，日後只想撤銷重新命名、保留測試。怎麼做事前準備最省事？</p>
+  <ul class="dopts"><li>全部放在同一個 commit，之後再手動改回</li><li data-ok>兩件事分成兩個 commit</li><li>乾脆不要寫測試，就不用拆</li><li>每改一行程式就 commit 一次</li></ul>
+  <p class="dexp">GitHub Docs 舉的正是這個例子：每個 commit 是一個獨立、完整的修改，日後 revert 才能只撤銷其中一個。</p>
+</div>
+<div class="drill">
+  <p class="dq">合併進 main、已經上線的 PR 造成問題，要盡快撤銷。在受保護的 main 上，合理的做法是？</p>
+  <ul class="dopts"><li>reset --hard 再 push --force 到 main</li><li>刪掉 main 分支，從頭重建</li><li data-ok>用 revert 產生反向 commit 走 PR</li><li>在 main 上直接改程式碼，不留紀錄</li></ul>
+  <p class="dexp">main 受保護，通常不允許強制推送；revert 不改寫歷史、留下紀錄，也能走一樣的審查流程。</p>
+</div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>三個區域：工作目錄改檔案、<code>git add</code> 放進暫存區、<code>git commit</code> 存成快照；<code>git diff</code> 看沒 add 的、<code>git diff --staged</code> 看要 commit 的；commit 存的是 add 當下的內容。</li><li>commit＝快照＋作者與訊息＋父節點，名字是內容算出的雜湊值；第一個 commit 沒有父節點、合併 commit 有兩個以上。</li><li>分支是指向 commit 的標籤（41 位元組的檔案），HEAD 指向目前的分支；commit 時只有 HEAD 指著的分支往前移；<code>git branch</code> 不切換，<code>git switch -c</code> 建立並切換。</li><li>merge：正前方就快轉；岔開就三方合併、產生雙父節點的合併 commit；改到同一處才衝突——改好檔案、刪標記、add、commit，或 <code>git merge --abort</code>。</li><li>rebase 在新起點上重做 commit，雜湊值全換、歷史變一條直線；不要 rebase 已經在別人手上的 commit。</li><li>fetch 只更新 <code>origin/main</code> 書籤、不動工作目錄；pull＝fetch＋merge；push 被拒絕就先 pull 再 push，不要 <code>--force</code>。</li><li>救回：沒 commit 用 <code>restore</code>（<code>--staged</code> 拿出暫存區）、推出去了用 <code>revert</code>、沒推出去才用 <code>reset --hard</code>；reset 或刪錯分支看 <code>reflog</code>。沒 commit 過的修改被 <code>--hard</code> 蓋掉就救不回來。</li><li>團隊：短命分支、push、開 PR、自動檢查與審查、核准才合併；main 用保護分支禁止直接推送，出錯用 revert。</li></ul></div>
