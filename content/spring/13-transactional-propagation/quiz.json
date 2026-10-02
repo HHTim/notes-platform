@@ -3,19 +3,19 @@
   {
    "q": "外層 @Transactional 方法寫一筆轉帳後呼叫內層 REQUIRED 方法，內層丟出 RuntimeException，外層把它 catch 住後正常結束。結果是？",
    "opts": [
-    "整筆還原，呼叫端收到 UnexpectedRollbackException",
+    "整筆還原，收到 UnexpectedRollbackException",
     "轉帳提交，因為外層 catch 住了例外",
     "只有內層還原，外層提交",
-    "轉帳提交，呼叫端收到原本的 RuntimeException，因為 catch 只是把例外記下來，之後還是會重新丟出"
+    "轉帳提交，呼叫端收到原本的 RuntimeException"
    ],
    "exp": "REQUIRED 共用同一筆實體交易，內層丟例外時整筆被標成只能還原；外層要求提交時改成還原，並丟 UnexpectedRollbackException 告訴呼叫端其實沒提交。"
   },
   {
    "q": "轉帳失敗時，「有人嘗試轉帳」的稽核紀錄也要留下來。稽核方法用哪種傳播行為？",
    "opts": [
-    "REQUIRES_NEW：另開一筆實體交易先提交，外層還原碰不到它",
+    "REQUIRES_NEW：另開一筆先提交",
     "REQUIRED：跟轉帳同一筆交易",
-    "NESTED：在外層交易裡設儲存點，外層失敗時只會退回儲存點，稽核留得住",
+    "NESTED：設儲存點，稽核留得住",
     "SUPPORTS：有交易就加入"
    ],
    "exp": "NESTED 仍是外層交易的一部分，外層還原它也一起還原；只有 REQUIRES_NEW 是獨立提交的。"
@@ -23,8 +23,8 @@
   {
    "q": "關於 REQUIRES_NEW，Spring 參考文件特別警告什麼？",
    "opts": [
-    "內層要另一條連線，可能耗盡連線池甚至死結；連線池至少要比同時執行的執行緒數多 1",
-    "它只對 JDBC 有效，JPA 專案用了會在啟動時直接報錯，所以 Spring Data JPA 一律不能用",
+    "內層多要一條連線，可能耗盡連線池甚至死結",
+    "它只對 JDBC 有效，JPA 專案不能用",
     "它會讓外層的隔離層級變成 SERIALIZABLE",
     "它不能跟 @Transactional 一起用"
    ],
@@ -34,7 +34,7 @@
    "q": "JPA 專案（JpaTransactionManager 預設設定）內層用 Propagation.NESTED，結果是？",
    "opts": [
     "丟出 NestedTransactionNotSupportedException",
-    "跟 JDBC 一樣在同一條連線上設儲存點，EntityManager 快取的物件也會一起退回儲存點",
+    "跟 JDBC 一樣設儲存點",
     "自動改成 REQUIRES_NEW",
     "自動改成 SUPPORTS"
    ],
@@ -53,8 +53,8 @@
   {
    "q": "外層交易是 READ_COMMITTED，內層方法標 @Transactional(isolation = SERIALIZABLE)，傳播是預設的 REQUIRED。內層實際的隔離層級是？",
    "opts": [
-    "READ_COMMITTED：加入既有交易時沿用外層特性，內層的隔離層級被忽略",
-    "SERIALIZABLE：比較嚴格的優先，Spring 會把整筆交易升級成內層要求的層級",
+    "READ_COMMITTED：沿用外層，內層的被忽略",
+    "SERIALIZABLE：比較嚴格的優先",
     "資料庫預設的層級",
     "丟出 IllegalTransactionStateException"
    ],
@@ -93,8 +93,8 @@
   {
    "q": "JPA、主鍵用 SEQUENCE、帳號欄位有唯一限制。交易方法裡用 save 存一個重複帳號，例外在哪裡出現？",
    "opts": [
-    "方法結束、交易提交 flush 時，方法裡包住 save 的 try／catch 接不到",
-    "save 那一行：Spring Data JPA 的 save 回來之前一定會先檢查唯一限制，所以包住 save 的 catch 接得到",
+    "提交時，catch 接不到",
+    "save 那一行，catch 接得到",
     "不會出現",
     "下一個交易開始時"
    ],
