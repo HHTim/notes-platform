@@ -34,7 +34,7 @@
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
 | `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | | |
-| `web/09-git-branching` Git 分支與協作 | 撰寫中（`write-algo-c` 轉做） | | | |
-| `web/10-cicd-pipeline` CI/CD：從 push 到上線 | 撰寫中（`write-algo-d` 轉做） | | | |
+| `web/09-git-branching` Git 分支與協作 | ✅ `08b2c08`（57 題、6 張圖、30 出處；mins 60） | 審查中（`review-algo-a`，09＋10 一起） | | |
+| `web/10-cicd-pipeline` CI/CD：從 push 到上線 | ✅ `4b74b0e`（60 題、6 張圖、53 出處；mins 80） | 同上 | | |
 
 Git 與 CI/CD 兩課放網頁模組，分組「開發流程」（跟〈軟體開發生命週期〉同組）；出處以 Pro Git（git-scm.com/book）與 GitHub Docs 為主；CI/CD 以本站自己的 `.github/workflows/deploy.yml` 當範例。
