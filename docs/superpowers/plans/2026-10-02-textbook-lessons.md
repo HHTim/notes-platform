@@ -12,7 +12,7 @@
 
 | 資料夾 | 課名 | 分組 | 對應面試集 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|---|---|---|
-| `database/06-index-internals` | 索引是怎麼運作的 | （新）效能 | 〈資料庫面試題：索引、交易隔離與鎖〉 | ✅ `8a99e64`（55 題、3 圖；mins 55） | 審查中（`review-algo-c`） | | |
+| `database/06-index-internals` | 索引是怎麼運作的 | （新）效能 | 〈資料庫面試題：索引、交易隔離與鎖〉 | ✅ `8a99e64`（55 題、3 圖；mins 55） | ✅ 10-02 審完：無錯誤級；B+ 樹圖葉節點掛錯、死結圖時間不符腳本、key_len 那句不是手冊說的；07 砍到 50 題；清單 `.superpowers/audit/database/findings-06-07.md`；修正交回 `write-algo-b`；「隔離層級」全站統一（`94fa56a`） | | |
 | `database/07-transaction-isolation-locks` | 交易隔離層級與鎖 | （新）效能 | 同上 | ✅ `452c1c5`（58 題、9 圖；mins 60） | 同上 | | |
 | `java/16-jvm-memory-gc` | JVM 記憶體與垃圾回收 | （新）JVM 與效能 | 〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉 | ✅ `90f6756`（49 題、2 圖、41 出處；mins 55） | ✅ 10-02 審完：遞迴層數重現不了要寫範圍、K8s requests 不算處理器數、CompletionException 的原因講錯、兩課測驗正解太常最長；清單 `.superpowers/audit/java/findings-16-17.md`；修正交回 `write-java-a`（順序：執行緒池排第 11 課後、JVM 開新組排最後） | | |
 | `java/17-thread-pool-concurrency` | 執行緒池與並行工具 | 並行與設計 | 〈Java 並行快答：執行緒池、鎖與並行集合〉 | ✅ `e3e7298`（51 題、1 圖、28 出處；mins 55） | 同上 | | |
