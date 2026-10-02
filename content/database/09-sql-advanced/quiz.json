@@ -38,7 +38,7 @@
     "SELECT branch_id, owner, COUNT(*) … GROUP BY branch_id HAVING owner IS NOT NULL",
     "SELECT branch_id, FIRST(owner), COUNT(*) … GROUP BY branch_id"
    ],
-   "exp": "手冊說不在乎挑哪一個值時，可以用 ANY_VALUE() 參考沒聚合的欄位，不必關掉 ONLY_FULL_GROUP_BY；實跑每組回一個戶名。直接寫 owner 是 ERROR 1055；MySQL 沒有 FIRST() 這個聚合函數。"
+   "exp": "手冊說不在乎挑哪一個值時，可以用 ANY_VALUE() 參考沒聚合的欄位，不必關掉 ONLY_FULL_GROUP_BY；實跑每組回一個戶名。直接寫 owner 是 ERROR 1055；MySQL 沒有 FIRST() 這個聚合函式。"
   },
   {
    "q": "每個分行依存款總額排名，取前三名；同分要並列，而且名次不跳號（兩個第一之後是第二）。排名函式該用哪個？",
@@ -58,7 +58,7 @@
     "amount / (SELECT SUM(amount) FROM transactions)",
     "amount / COUNT(*) OVER (PARTITION BY account_id ORDER BY tx_id)"
    ],
-   "exp": "視窗函式不併列，每筆存款旁邊都看得到自己帳戶的總和。實跑王小明的兩筆存款是 0.63 和 0.38。GROUP BY 會把每個帳戶併成一列，看不到個別存款；整張表的總和不是同一個帳戶的；COUNT 算的是筆數。"
+   "exp": "視窗函式不併列，每筆存款旁邊都看得到自己帳戶的總和。實跑王小明的兩筆存款是 0.6250 和 0.3750。GROUP BY 會把每個帳戶併成一列，看不到個別存款；整張表的總和不是同一個帳戶的；COUNT 算的是筆數。"
   },
   {
    "q": "交易表只有日期欄 tx_date，沒有時間。SUM(amount) OVER (PARTITION BY account_id ORDER BY tx_date) 算累計餘額，同一天有兩筆交易時，那兩列的累計值會怎樣？",
@@ -73,7 +73,7 @@
   {
    "q": "找「連續 3 天以上有交易的帳戶」時，第一步為什麼要先 SELECT DISTINCT account_id, DATE(tx_time)？",
    "opts": [
-    "同一天的多筆交易會佔用多個序號，日期減序號就錯位",
+    "同一天佔多個序號，相減就錯位",
     "DISTINCT 會讓 ROW_NUMBER 跑得比較快",
     "沒有 DISTINCT，DATE() 函式會報錯",
     "DISTINCT 會自動把日期依序排好"
