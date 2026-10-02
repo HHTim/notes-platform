@@ -1,5 +1,5 @@
 <!-- 來源：依 Java SE 25 API 文件（java.util.Arrays、Collections、List、Comparator）、OpenJDK jdk-25-ga 原始碼（Arrays.java、DualPivotQuicksort.java、TimSort.java、ArrayList.java）、普林斯頓 algs4.cs.princeton.edu 第 1.4、2.1、2.2、2.3、2.5 節與 introcs.cs.princeton.edu 第 4.2 節、MIT OpenCourseWare 6.006（2020 春）第 3、5 講與第 3、5 次習題課講義、Google Research 部落格〈Nearly All Binary Searches and Mergesorts are Broken〉新寫；程式碼與練習題全部自編並以 Java 21 實際執行 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出排序的「穩定」是什麼意思，知道什麼時候非要穩定不可（同金額的交易保持時間順序）</li><li>講出選擇、插入、氣泡排序的想法與 O(n²)，知道插入排序為什麼在「幾乎排好」時很快</li><li>畫出合併排序與快速排序的過程、寫出 Java 實作，比較兩者的時間、額外空間與穩定性</li><li>知道 Java 的 <code>Arrays.sort</code>、<code>Collections.sort</code>、<code>List.sort</code> 背後用什麼排序、誰保證穩定，並寫對 <code>Comparator</code></li><li>寫出不會出錯的二分搜尋（含「第一個 ≥ target 的位置」），看懂 <code>Arrays.binarySearch</code> 找不到時的回傳值，並會「在答案上二分」</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講出選擇、插入、氣泡排序的想法與 O(n²)，知道插入排序為什麼在「幾乎排好」時很快</li><li>畫出合併排序與快速排序的過程、寫出 Java 實作，比較兩者的時間、額外空間與穩定性</li><li>說出排序的「穩定」是什麼意思、什麼時候非要穩定不可（同金額的交易保持時間順序），知道 Java 的 <code>Arrays.sort</code>、<code>Collections.sort</code>、<code>List.sort</code> 背後用什麼排序、誰保證穩定，並寫對 <code>Comparator</code></li><li>寫出不會出錯的二分搜尋（含「第一個 ≥ target 的位置」），看懂 <code>Arrays.binarySearch</code> 找不到時的回傳值，並會「在答案上二分」</li></ul></div>
 
 <section>
 <p class="era">排好之後，很多事變簡單</p>
@@ -81,23 +81,18 @@ public class Stability {
 </div>
 <div class="drill">
   <p class="dq">一個排序法被稱為「穩定」，它保證的是哪一件事？</p>
-  <ul class="dopts"><li>最壞情況也是 O(n log n)</li><li>不需要額外的記憶體</li><li data-ok>比較起來相等的元素，排完後維持原本的相對順序</li><li>不管輸入長怎樣，比較次數都一樣</li></ul>
+  <ul class="dopts"><li>最壞情況也是 O(n log n)</li><li>不需要額外的記憶體</li><li data-ok>相等的元素排完後維持原本先後</li><li>不管輸入長怎樣，比較次數都一樣</li></ul>
   <p class="dexp">穩定性只講「相等的元素誰先誰後」，跟速度、記憶體無關。插入排序穩定但最壞 O(n²)；合併排序穩定但要額外 O(n) 的空間。</p>
 </div>
 <div class="drill">
   <p class="dq">排一個 <code>int[]</code>，排序法穩不穩定會不會影響結果？</p>
-  <ul class="dopts"><li data-ok>不會，兩個相等的 int 分不出誰是誰，怎麼排看起來都一樣</li><li>會，不穩定的排序可能把 3 排在 2 前面</li><li>會，不穩定的排序會讓相等的值消失</li><li>不會，因為 int 陣列一定用合併排序</li></ul>
+  <ul class="dopts"><li data-ok>不會，兩個相等的 int 分不出誰是誰</li><li>會，不穩定的排序可能把 3 排在 2 前面</li><li>會，不穩定的排序會讓相等的值消失</li><li>不會，因為 int 陣列一定用合併排序</li></ul>
   <p class="dexp">穩定性要有意義，相等的元素必須「還帶著別的資料」（例如時間）。兩個 5 就是兩個 5，換了位置也看不出來。不穩定的排序一樣會把值排對。</p>
 </div>
 <div class="drill">
   <p class="dq">交易清單要「依分行分組，同一分行內照時間由早到晚」。手上的排序是穩定的，打算排兩次。兩次的順序該怎麼安排？</p>
   <ul class="dopts"><li>先依分行排，再依時間排</li><li>兩次的順序不影響結果</li><li>只依分行排一次就夠了，同分行內自然會照時間</li><li data-ok>先依時間排，再依分行排</li></ul>
   <p class="dexp">最後一次排的是主要條件。先依時間排好，再穩定地依分行排：分行相同的交易保持上一次排出來的時間順序。反過來做，最後會變成全部照時間排、分行打散。只排分行一次的話，同分行內的順序是原始輸入的順序，不一定照時間。</p>
-</div>
-<div class="drill">
-  <p class="dq">algs4 說明排序的應用時，「找出陣列裡有沒有重複的值」它的做法是什麼？</p>
-  <ul class="dopts"><li>每一對都比一次，O(n²)</li><li>先算總和，再跟沒重複時的總和比</li><li>只看第一個和最後一個</li><li data-ok>先排序，再掃一遍看相鄰的有沒有一樣，O(n log n)</li></ul>
-  <p class="dexp">排好之後，相同的值一定擠在一起，掃一遍比相鄰兩格就知道。排序 O(n log n)、掃描 O(n)，合起來 O(n log n)。</p>
 </div>
 </section>
 
@@ -150,7 +145,7 @@ i = 5：[1, 2, 3, 4, 5, 6]</code></pre>
 <li>已經排好的陣列沒有反序對，最好的情況「n−1 次比較、0 次交換」（the best case is N-1 compares and 0 exchanges），是 O(n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/21elementary/" target="_blank" rel="noopener">出處</a></li>
 <li>幾乎排好（只有少數幾筆跑錯位置）的陣列，反序對很少，花的時間接近 O(n)。每天新增幾筆交易到已排好的清單後面，就是這種情況。</li>
 </ul>
-<p>這也是為什麼實際的排序程式庫常在小段或接近排好的資料上改用插入排序：algs4 在合併排序與快速排序的改良裡都寫「小的子陣列改用插入排序」（Use insertion sort for small subarrays.）<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a>，Java 的 TimSort 原始碼也寫「小陣列直接原地用二分插入排序」（Small arrays are sorted in place, using a binary insertion sort.）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/TimSort.java" target="_blank" rel="noopener">出處</a></p>
+<p>這也是為什麼實際的排序程式庫常在小段上改用插入排序：algs4 在合併排序與快速排序的改良裡都寫「小的子陣列改用插入排序」（Use insertion sort for small subarrays.）<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a>，Java 的 TimSort 原始碼也寫「小陣列直接原地用二分插入排序」（Small arrays are sorted in place, using a binary insertion sort.）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/TimSort.java" target="_blank" rel="noopener">出處</a></p>
 
 <h4>穩不穩定</h4>
 <p>MIT 6.006 的講義整理成一張表：插入排序 O(n²)、原地（in-place：只用常數個額外變數）、穩定；選擇排序 O(n²)、原地、<strong>不穩定</strong>。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/78a3c3444de1ff837f81e52991c24a86_MIT6_006S20_lec5.pdf" target="_blank" rel="noopener">出處</a> 插入排序穩定，是因為它只在「左邊比 key 大」時才往右挪，遇到相等的就停下來，所以相等的不會互相越過。選擇排序不穩定，是因為它會「遠距離交換」：把後面的最小值換到前面時，原本在前面的那個被丟到後面，可能越過跟它相等的元素。上一段的 T1、T3 就是這樣被換開的。</p>
@@ -178,7 +173,7 @@ i = 5：[1, 2, 3, 4, 5, 6]</code></pre>
 </div>
 <div class="drill">
   <p class="dq">對一個<strong>已經排好</strong>、長度 n 的陣列跑選擇排序，時間複雜度是？</p>
-  <ul class="dopts"><li>O(n)，因為不用交換</li><li data-ok>O(n²)，每一輪還是要把剩下的掃完才知道誰最小</li><li>O(log n)</li><li>O(n log n)</li></ul>
+  <ul class="dopts"><li>O(n)，已排好就不用交換</li><li data-ok>O(n²)，每輪仍要掃完剩下的</li><li>O(log n)</li><li>O(n log n)，跟合併排序一樣</li></ul>
   <p class="dexp">選擇排序不會因為「已經排好」而提早停：第一輪要看 n − 1 個、第二輪 n − 2 個……加起來約 n²/2 次比較。這是它跟插入排序最大的差別。</p>
 </div>
 <div class="drill">
@@ -188,7 +183,7 @@ i = 5：[1, 2, 3, 4, 5, 6]</code></pre>
 </div>
 <div class="drill">
   <p class="dq">每天收盤後，一份已照金額排好的 10 萬筆清單，尾端會再加上當天新進的 20 筆（沒排好）。只能從這三種簡單排序選一個，該選哪個？</p>
-  <ul class="dopts"><li data-ok>插入排序，前面已經排好，只有新的 20 筆要往前插</li><li>選擇排序，因為交換次數最少</li><li>氣泡排序，因為最好寫</li><li>三個都一樣，都是 O(n²)</li></ul>
+  <ul class="dopts"><li data-ok>插入排序，只有新的 20 筆要往前插</li><li>選擇排序，交換最多 n 次，搬動資料的成本最低</li><li>氣泡排序，因為最好寫</li><li>三個最壞都是 O(n²)，選哪個都一樣慢</li></ul>
   <p class="dexp">插入排序的工作量跟反序對數成正比。前面 10 萬筆已排好，只有新加的 20 筆會產生反序對，花的時間接近 O(n)。選擇排序不管怎樣都要約 n²/2 次比較。</p>
 </div>
 <div class="drill">
@@ -277,11 +272,6 @@ public class MergeSort {
   <p class="dexp">遞迴先一路往左切到 [0..0] 和 [1..1]，它們都只有一個元素、直接回傳，第一個真正發生的合併就是 [0..1]，得到 [27, 38]。</p>
 </div>
 <div class="drill">
-  <p class="dq">合併排序在<strong>最壞情況</strong>下的時間複雜度是？</p>
-  <ul class="dopts"><li>O(n²)</li><li data-ok>O(n log n)</li><li>O(n)</li><li>O(log n)</li></ul>
-  <p class="dexp">不管輸入長怎樣，切法都一樣（每次對半），每層合併都是 O(n)，共 log n 層。algs4 說它 no matter what the input 都是 N log N。</p>
-</div>
-<div class="drill">
   <p class="dq">合併排序需要多少額外空間（不算遞迴本身）？</p>
   <ul class="dopts"><li>O(1)</li><li>O(log n)</li><li data-ok>O(n)</li><li>O(n²)</li></ul>
   <p class="dexp">合併時要一塊跟原陣列一樣長的暫存區（程式裡的 tmp），所以是 O(n)。algs4 說這是它的主要缺點。</p>
@@ -298,13 +288,8 @@ public class MergeSort {
 </div>
 <div class="drill">
   <p class="dq">把 merge 裡的 <code>tmp[j] &lt; tmp[i]</code> 改成 <code>tmp[j] &lt;= tmp[i]</code>，會發生什麼事？</p>
-  <ul class="dopts"><li>排序結果會錯</li><li>會無窮迴圈</li><li data-ok>還是排得對，但相等時改拿右邊，排序不再穩定</li><li>變得比較快，因為少比一次</li></ul>
-  <p class="dexp">相等時拿右邊或左邊，數值順序都對。但右邊的元素原本在後面，相等時先拿它，就讓它越過了左邊相等的元素，穩定性就沒了。</p>
-</div>
-<div class="drill">
-  <p class="dq">合併排序把問題切成兩半、各自遞迴解完、再合起來。這種設計方法叫什麼？</p>
-  <ul class="dopts"><li>回溯法</li><li>貪婪法</li><li>雙指標</li><li data-ok>分治</li></ul>
-  <p class="dexp">切成同樣形狀的小問題、各自解、再合併，就是分治（divide and conquer）。回溯法是一路試選擇、走不通就撤銷，見〈遞迴與回溯〉。</p>
+  <ul class="dopts"><li>相等時會把同一個值放進兩次，結果出錯</li><li>會無窮迴圈，相等時兩根手指都不動</li><li data-ok>數值順序仍對，但不再穩定</li><li>變得比較快，因為少比一次</li></ul>
+  <p class="dexp">相等時拿右邊或左邊，數值順序都對。但右邊的元素原本在後面，相等時先拿它，就讓它越過了左邊相等的元素，穩定性就沒了。每一輪都會放一個進結果、某根手指往右一格，不會重複放，也不會卡住。</p>
 </div>
 </section>
 
@@ -400,18 +385,13 @@ pivot 6 → 索引 5：[1, 2, 3, 4, 5, 6, 7, 8]
 </div>
 <div class="drill">
   <p class="dq">分割做完之後，下面哪一句<strong>一定</strong>成立？</p>
-  <ul class="dopts"><li>整個陣列已經排好</li><li>pivot 左邊那群已經排好</li><li data-ok>pivot 已經在它最終的位置，左邊沒有比它大的、右邊沒有比它小的</li><li>pivot 一定在正中間</li></ul>
-  <p class="dexp">這就是 algs4 列的三個條件。左右兩群內部還是亂的，要再各自遞迴；pivot 在哪裡取決於有幾個比它小，不一定在中間。</p>
+  <ul class="dopts"><li>整個陣列已經排好，不必再遞迴</li><li>pivot 左邊那群已經由小到大排好</li><li data-ok>pivot 站在排好後的最終位置</li><li>pivot 一定落在陣列的正中間</li></ul>
+  <p class="dexp">pivot 站到最終位置，左邊沒有比它大的、右邊沒有比它小的，這就是 algs4 列的三個條件。左右兩群內部還是亂的，要再各自遞迴；pivot 在哪裡取決於有幾個比它小，不一定在中間。</p>
 </div>
 <div class="drill">
   <p class="dq">上面「拿最後一格當 pivot」的快速排序，遇到哪一種輸入會跑出 O(n²)？</p>
   <ul class="dopts"><li data-ok>已經排好的陣列</li><li>完全隨機的陣列</li><li>只有 2 個元素的陣列</li><li>沒有重複值的陣列</li></ul>
   <p class="dexp">已排好時，最後一格永遠是最大的，每次分割左邊剩 n − 1 個、右邊 0 個，比較次數 (n−1) + (n−2) + … ≈ n²/2。隨機陣列的 pivot 通常落在中間附近，平均 O(n log n)。</p>
-</div>
-<div class="drill">
-  <p class="dq">algs4 的快速排序在排序前先把陣列隨機洗牌一次，目的是？</p>
-  <ul class="dopts"><li>讓排序變穩定</li><li>減少額外記憶體</li><li>讓比較次數變成固定的 n log n</li><li data-ok>讓「pivot 每次都挑到最邊邊」的最壞情況幾乎不可能發生</li></ul>
-  <p class="dexp">algs4 寫最壞約 N²/2 次比較，但 random shuffling protects against this case。洗牌不改變穩定性，也不保證每次剛好 n log n，只是讓壞情況的機率小到可以忽略。</p>
 </div>
 <div class="drill">
   <p class="dq">用上面的 QuickSort 程式排 <code>[2甲, 2乙, 3]</code>（甲、乙只是標記，兩個 2 一樣大），結果是？</p>
@@ -420,7 +400,7 @@ pivot 6 → 索引 5：[1, 2, 3, 4, 5, 6, 7, 8]
 </div>
 <div class="drill">
   <p class="dq">記憶體很緊、資料是一大筆 <code>int</code>、不在乎穩定性。合併排序和快速排序，哪個比較合適？</p>
-  <ul class="dopts"><li>合併排序，因為最壞也是 O(n log n)</li><li data-ok>快速排序，它原地交換，只多用遞迴堆疊；int 也沒有穩定性的問題</li><li>合併排序，因為它不用遞迴</li><li>兩個都要 O(n) 額外空間，沒差</li></ul>
+  <ul class="dopts"><li>合併排序，因為最壞也是 O(n log n)</li><li data-ok>快速排序，原地交換，只多用遞迴堆疊</li><li>合併排序，因為它不用遞迴，不佔堆疊空間</li><li>兩個都要 O(n) 額外空間，沒差</li></ul>
   <p class="dexp">合併排序要 O(n) 的暫存陣列，快速排序只多用平均 O(log n) 的遞迴堆疊。int 相等的值分不出誰是誰，不穩定也沒關係。合併排序其實也是遞迴的。</p>
 </div>
 <div class="drill">
@@ -441,13 +421,13 @@ pivot 6 → 索引 5：[1, 2, 3, 4, 5, 6, 7, 8]
 
 <h4>物件：TimSort，保證穩定</h4>
 <p>物件陣列（例如 <code>Integer[]</code>、<code>String[]</code>、自訂類別）用的是另一套。<code>Arrays.sort(Object[])</code> 的文件：「這個排序保證穩定：相等的元素不會因為排序而改變順序」（This sort is guaranteed to be stable: equal elements will not be reordered as a result of the sort.）；實作是「穩定、自適應（會利用輸入裡已經排好的部分）、迭代的合併排序，輸入部分排好時比 n lg(n) 次比較少得多」，而且「輸入幾乎排好時，大約只要 n 次比較」（If the input array is nearly sorted, the implementation requires approximately n comparisons.）；額外空間「從幾乎排好時的一個小常數，到隨機順序時的 n/2 個物件參考」；這個實作「改編自 Tim Peters 為 Python 寫的串列排序（TimSort）」（The implementation was adapted from Tim Peters's list sort for Python ( TimSort ).）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#sort(java.lang.Object%5B%5D)" target="_blank" rel="noopener">出處</a> TimSort 的原始碼開頭也寫它「像所有正規的合併排序一樣是穩定的，最壞情況是 O(n log n)」（Like all proper mergesorts, this sort is stable and runs O(n log n) time (worst case).）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/TimSort.java" target="_blank" rel="noopener">出處</a></p>
-<p>為什麼分兩套？物件常常帶著別的欄位（交易的時間、編號），相等的兩筆要分得出先後，所以需要穩定；基本型別的兩個 5 分不出誰是誰，不必付穩定的代價，可以用通常更快、又不用額外空間的快速排序。</p>
+<p>為什麼分兩套？物件常常帶著別的欄位（交易的時間、編號），相等的兩筆要分得出先後，所以需要穩定；基本型別的兩個 5 分不出誰是誰，不必付穩定的代價，可以用通常更快的快速排序。不過它也不是完全不用額外空間：OpenJDK 25 碰到由好幾段已排好的資料組成的陣列時，會另開一個同樣大小的暫存陣列來合併（見〈複雜度：程式跑多快、吃多少記憶體〉）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/DualPivotQuicksort.java#L856" target="_blank" rel="noopener">出處</a></p>
 
 <h4>清單：<code>Collections.sort</code> 與 <code>List.sort</code> 其實是同一件事</h4>
 <ul class="plainlist">
 <li><code>Collections.sort(list)</code> 的文件：「保證穩定」（This sort is guaranteed to be stable），而實作「交給 <code>List.sort(Comparator)</code>，傳入這個清單與 null 比較器」（This implementation defers to the List.sort(Comparator) method using the specified list and a null comparator.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collections.html#sort(java.util.List)" target="_blank" rel="noopener">出處</a> null 比較器就是「用元素自己的自然順序」。</li>
 <li><code>List.sort(c)</code> 的文件：「這個排序是穩定的：這個方法不可以重排相等的元素」（The sort is stable: this method must not reorder equal elements.）。預設實作是「取出包含所有元素的陣列、排序那個陣列，再逐一把元素寫回清單」，這樣做是為了「避免直接在鏈結串列上原地排序會造成的 n² log(n) 效能」（This avoids the n² log(n) performance that would result from attempting to sort a linked list in place.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/List.html#sort(java.util.Comparator)" target="_blank" rel="noopener">出處</a></li>
-<li><code>ArrayList</code> 自己覆寫了 <code>sort</code>，直接對內部陣列呼叫 <code>Arrays.<wbr>sort(<wbr>elementData, 0, size, c)</code>，連複製都省了。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayList.java" target="_blank" rel="noopener">出處</a></li>
+<li><code>ArrayList</code> 自己覆寫了 <code>sort</code>，透過 <code>sortRange</code> 直接對內部陣列呼叫 <code>Arrays.<wbr>sort(<wbr>elementData, 0, size, c)</code>，連複製都省了。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayList.java#L1809" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <pre><code>import java.util.ArrayList;
 import java.util.Arrays;
@@ -523,7 +503,7 @@ compare：[-2147483648, -1, 1]
 <div class="drill">
   <p class="dq"><code>Arrays.sort(int[])</code> 用的是哪一種排序？</p>
   <ul class="dopts"><li>TimSort</li><li data-ok>雙軸快速排序</li><li>插入排序</li><li>計數排序</li></ul>
-  <p class="dexp">文件寫 The sorting algorithm is a Dual-Pivot Quicksort。TimSort 是物件陣列與清單用的。原始碼裡在特定情況也會呼叫插入排序、計數排序，但主體是雙軸快速排序。</p>
+  <p class="dexp">文件寫 The sorting algorithm is a Dual-Pivot Quicksort。TimSort 是物件陣列與清單用的。原始碼裡在特定情況也會改用插入排序、堆積排序或合併有序段，但主體是雙軸快速排序；計數排序只用在 byte[]、short[]、char[]。</p>
 </div>
 <div class="drill">
   <p class="dq">一份 <code>List&lt;Transaction&gt;</code> 已經照時間排好，再呼叫 <code>list.<wbr>sort(<wbr>Comparator.<wbr>comparingLong(<wbr>Transaction::amount))</code>。同金額的兩筆會怎樣？</p>
@@ -533,17 +513,12 @@ compare：[-2147483648, -1, 1]
 <div class="drill">
   <p class="dq">下面這行能不能編譯？（<code>nums</code> 是 <code>int[]</code>）</p>
 <pre><code>Arrays.sort(nums, Comparator.reverseOrder());</code></pre>
-  <ul class="dopts"><li>可以，結果由大到小</li><li>可以，但 Comparator 會被忽略</li><li>可以，但執行時丟出 ClassCastException</li><li data-ok>不行，收 Comparator 的 sort 參數是物件陣列 T[]，int[] 不符合</li></ul>
-  <p class="dexp">Arrays.sort 收 Comparator 的版本是 sort(T[] a, Comparator c)，T 必須是參考型別，int[] 傳不進去，javac 會報找不到合適的方法。要用 Integer[]。</p>
-</div>
-<div class="drill">
-  <p class="dq"><code>Collections.sort(list)</code> 實際上做了什麼？</p>
-  <ul class="dopts"><li data-ok>交給 list.sort(null)，也就是用元素的自然順序、穩定地排</li><li>把清單轉成 int[] 再用雙軸快速排序</li><li>用插入排序，因為清單可能是鏈結串列</li><li>建一棵 TreeSet 再倒回去</li></ul>
-  <p class="dexp">文件寫 This implementation defers to the List.sort(Comparator) method using the specified list and a null comparator。null 比較器表示用自然順序；List.sort 保證穩定。</p>
+  <ul class="dopts"><li>可以，int 會自動裝箱，結果由大到小</li><li>可以，但 Comparator 會被忽略</li><li>可以，但執行時丟出 ClassCastException</li><li data-ok>不行，int[] 不是物件陣列 T[]</li></ul>
+  <p class="dexp">Arrays.sort 收 Comparator 的版本是 sort(T[] a, Comparator c)，T 必須是參考型別，int[] 傳不進去，javac 會報找不到合適的方法。自動裝箱只會把單一個 int 包成 Integer，不會把 int[] 變成 Integer[]。要用 Integer[]。</p>
 </div>
 <div class="drill">
   <p class="dq">比較器寫成 <code>(x, y) -&gt; x - y</code>，排 <code>Integer[] {Integer.<wbr>MIN_VALUE, 1, -1}</code>，為什麼結果會錯？</p>
-  <ul class="dopts"><li>因為 Integer 不能相減</li><li>因為比較器一定要回傳 -1、0、1 三個值之一</li><li data-ok>1 − MIN_VALUE 超過 int 範圍，溢位成負數，比較器以為 1 比較小</li><li>因為 TimSort 不支援負數</li></ul>
+  <ul class="dopts"><li>因為 Integer 不能相減</li><li>因為比較器一定要回傳 -1、0、1 三個值之一</li><li data-ok>1 − MIN_VALUE 溢位，正負號反了</li><li>因為 TimSort 不支援負數，負的元素會被排到最後</li></ul>
   <p class="dexp">比較器只看正負號，不必剛好是 ±1。問題是相減會溢位：實跑 1 − MIN_VALUE 得到 −2147483647，正負號反了。改用 Integer.compare(x, y)。</p>
 </div>
 <div class="drill">
@@ -563,11 +538,6 @@ Collections.sort(names);
 System.out.println(names);</code></pre>
   <ul class="dopts"><li>[alice, Bob, Carol]</li><li data-ok>[Bob, Carol, alice]</li><li>[Carol, Bob, alice]</li><li>[alice, Carol, Bob]</li></ul>
   <p class="dexp">字串的自然順序照字元編碼比，大寫 B、C 的編碼比小寫 a 小，所以 Bob、Carol 排在 alice 前面。要不分大小寫得傳 String.CASE_INSENSITIVE_ORDER。</p>
-</div>
-<div class="drill">
-  <p class="dq"><code>List.sort</code> 的預設實作先把元素複製到陣列、排好再寫回清單。文件說這樣做是為了避免什麼？</p>
-  <ul class="dopts"><li>避免排序不穩定</li><li>避免清單被別的執行緒修改</li><li>避免用掉額外的記憶體</li><li data-ok>避免直接在鏈結串列上原地排序造成的 n² log(n) 效能</li></ul>
-  <p class="dexp">文件寫 This avoids the n² log(n) performance that would result from attempting to sort a linked list in place。鏈結串列不能一步跳到第 i 個，直接在上面排會很慢；複製到陣列反而多用了記憶體。</p>
 </div>
 </section>
 
@@ -607,8 +577,8 @@ public class CountingSort {
 </div>
 <div class="drill">
   <p class="dq">要排 100 萬筆交易的金額，金額從 1 元到 10 億元都有。計數排序適合嗎？</p>
-  <ul class="dopts"><li>適合，因為 n 很大時計數排序最快</li><li data-ok>不適合，值的範圍 k 約 10 億，計數陣列太大，O(n + k) 被 k 拖垮</li><li>適合，只要用 long 陣列計數</li><li>不適合，因為計數排序只能排負數</li></ul>
-  <p class="dexp">計數陣列長度要等於值的範圍，10 億格的 int 陣列就要約 4 GB。k 遠大於 n 時，O(n + k) 比 O(n log n) 還差。</p>
+  <ul class="dopts"><li>適合，n 很大時計數排序永遠最快</li><li data-ok>不適合，k 約 10 億，計數陣列太大</li><li>適合，只要把計數陣列改成 long[] 就裝得下</li><li>不適合，計數排序不能排重複的金額</li></ul>
+  <p class="dexp">計數陣列長度要等於值的範圍，10 億格的 int 陣列就要約 4 GB。k 遠大於 n 時，O(n + k) 比 O(n log n) 還差；改用 long[] 只會更大。重複的金額倒不是問題，計數排序本來就是在數每個值出現幾次。</p>
 </div>
 <div class="drill">
   <p class="dq">對 <code>[3, 1, 4, 1, 5]</code> 用 k = 6 做計數排序，數完之後的計數陣列 <code>count</code> 是？</p>
@@ -720,14 +690,9 @@ public class BinarySearch {
   <p class="dexp">lo = 4、hi = 6，mid = 4 + (6 − 4) / 2 = 5，a[5] = 11 等於 target，回傳 5。7 個元素只比了 2 次。</p>
 </div>
 <div class="drill">
-  <p class="dq">在排好的 100 萬筆資料裡用二分搜尋找一個值，最多大約要比幾次？</p>
-  <ul class="dopts"><li>約 1,000 次</li><li>約 50 萬次</li><li>約 100 次</li><li data-ok>約 20 次</li></ul>
-  <p class="dexp">每比一次剩一半，100 萬約是 2²⁰，砍 20 次就剩 1 筆。一個一個找最壞要 100 萬次。</p>
-</div>
-<div class="drill">
   <p class="dq">為什麼中間值要寫 <code>lo + (hi - lo) / 2</code>，而不是 <code>(lo + hi) / 2</code>？</p>
-  <ul class="dopts"><li>因為 (lo + hi) / 2 在 lo、hi 都是奇數時會算錯</li><li data-ok>lo + hi 可能超過 int 上限而溢位成負數，lo + (hi − lo) / 2 不會</li><li>因為 Java 的除法會四捨五入</li><li>兩種寫法完全等價，只是習慣</li></ul>
-  <p class="dexp">數學上兩者相等，但 int 有上限。陣列很大時 lo + hi 可能超過 2³¹ − 1、繞回負數，當索引用就丟 ArrayIndexOutOfBoundsException。hi − lo 不會超過陣列長度，安全。</p>
+  <ul class="dopts"><li>因為 (lo + hi) / 2 在 lo、hi 都是奇數時會算錯</li><li data-ok>lo + hi 可能超過 int 上限、溢位成負數</li><li>Java 整數除法會四捨五入，mid 可能偏右一格</li><li>兩種寫法在任何陣列長度下都等價，只是習慣</li></ul>
+  <p class="dexp">數學上兩者相等，但 int 有上限。陣列很大時 lo + hi 可能超過 2³¹ − 1、繞回負數，當索引用就丟 ArrayIndexOutOfBoundsException。hi − lo 不會超過陣列長度，安全。Java 的整數除法是直接捨去小數，不會四捨五入。</p>
 </div>
 <div class="drill">
   <p class="dq">把 <code>search</code> 的迴圈條件從 <code>lo &lt;= hi</code> 改成 <code>lo &lt; hi</code>，在只有一個元素的陣列 <code>{5}</code> 裡找 5，會回傳什麼？</p>
@@ -736,7 +701,7 @@ public class BinarySearch {
 </div>
 <div class="drill">
   <p class="dq"><code>search</code> 裡如果把 <code>lo = mid + 1</code> 寫成 <code>lo = mid</code>，在 <code>{1, 3}</code> 找 3 會怎樣？</p>
-  <ul class="dopts"><li data-ok>無窮迴圈：mid 一直是 0，lo 一直是 0</li><li>正常回傳 1</li><li>回傳 −1</li><li>回傳 0</li></ul>
+  <ul class="dopts"><li data-ok>無窮迴圈，停不下來</li><li>正常回傳 1，只是多跑一輪</li><li>回傳 −1，範圍縮成空的</li><li>回傳 0</li></ul>
   <p class="dexp">lo = 0、hi = 1，mid = 0，a[0] = 1 &lt; 3，lo = mid 還是 0，下一輪一模一樣，永遠停不下來。mid 比過了就要跳過它。</p>
 </div>
 <div class="drill">
@@ -756,7 +721,7 @@ public class BinarySearch {
 </div>
 <div class="drill">
   <p class="dq"><code>lowerBound</code> 在 <code>a[mid] &gt;= target</code> 時寫 <code>hi = mid</code>，而不是 <code>hi = mid - 1</code>，原因是？</p>
-  <ul class="dopts"><li>為了避免溢位</li><li data-ok>mid 本身可能就是第一個 ≥ target 的位置，不能把它丟掉</li><li>為了讓迴圈跑快一點</li><li>因為 hi 不能是負數</li></ul>
+  <ul class="dopts"><li>為了避免 lo + hi 相加時溢位</li><li data-ok>mid 可能就是答案，不能丟</li><li>為了讓迴圈少跑一輪、快一點</li><li>寫 mid − 1 會讓 hi 變成負數、索引越界</li></ul>
   <p class="dexp">a[mid] 已經 ≥ target，它可能就是答案；寫 mid − 1 就把答案排除在範圍外了。範圍 [lo, hi) 的 hi 本來就不包含，所以 hi = mid 剛好表示「答案在 mid 或它左邊」。</p>
 </div>
 <div class="drill">
@@ -771,12 +736,12 @@ public class BinarySearch {
 </div>
 <div class="drill">
   <p class="dq"><code>Arrays.binarySearch</code> 回傳 −1，代表什麼？</p>
-  <ul class="dopts"><li>陣列沒排好</li><li data-ok>找不到，而且它比陣列裡所有元素都小（插入點是 0）</li><li>找不到，而且它比所有元素都大</li><li>在索引 1 找到</li></ul>
-  <p class="dexp">−1 = −(0) − 1，插入點是 0，表示該插在最前面。比所有元素都大時，插入點是 a.length，回傳 −(a.length) − 1。</p>
+  <ul class="dopts"><li>陣列沒排好，結果沒有定義</li><li data-ok>找不到，該插在索引 0</li><li>找不到，而且它比所有元素都大</li><li>找不到，插入點是 1</li></ul>
+  <p class="dexp">−1 = −(0) − 1，插入點是 0，表示該插在最前面；插入點是 1 的話會回傳 −2。回傳值有沒有意義，前提是陣列已經排好。比所有元素都大時，插入點是 a.length，回傳 −(a.length) − 1。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>Arrays.<wbr>binarySearch(<wbr>new int[] {3, 3, 3}, 3)</code>，文件保證回傳哪個索引？</p>
-  <ul class="dopts"><li>0，第一個</li><li>2，最後一個</li><li>1，中間那個</li><li data-ok>只保證是 0、1、2 其中一個，不保證是哪一個</li></ul>
+  <ul class="dopts"><li>0，文件保證回傳第一個</li><li>2，最後一個</li><li>1，二分搜尋先比中間那個</li><li data-ok>不保證是哪一個</li></ul>
   <p class="dexp">文件寫 there is no guarantee which one will be found。要「第一個」就自己寫 lowerBound。</p>
 </div>
 <div class="drill">
@@ -851,7 +816,7 @@ public class BinarySearch {
 </div>
 <div class="drill">
   <p class="dq"><code>minCapacity</code> 裡 <code>lo</code> 的初始值是最重那件的重量，而不是 1。為什麼？</p>
-  <ul class="dopts"><li>只是為了少跑幾輪，對任何輸入設成 1 結果都一樣</li><li>因為容量不能是奇數</li><li data-ok>容量比最重的那件小時，那件根本裝不上船；daysNeeded 卻會把它算成獨佔一天，天數限制寬鬆時會誤判成做得到</li><li>因為二分搜尋的 lo 不能是 1</li></ul>
+  <ul class="dopts"><li>只是為了少跑幾輪，對任何輸入設成 1 結果都一樣</li><li>因為容量是奇數時二分會算錯</li><li data-ok>容量小於最重那件時，daysNeeded 會誤判成做得到</li><li>因為二分搜尋的 lo 不能從 1 開始</li></ul>
   <p class="dexp">容量小於某件貨，那件根本運不了，答案不可能在那裡。daysNeeded 遇到這種情況只會把它算成獨佔一天：例如允許 7 天、容量設 1，它算出 7 天、以為做得到，答案就錯了。所以範圍要從最重的那件開始。</p>
 </div>
 <div class="drill">
@@ -866,7 +831,7 @@ public class BinarySearch {
 </div>
 <div class="drill">
   <p class="dq">「在答案上二分」能用的關鍵條件是什麼？</p>
-  <ul class="dopts"><li data-ok>「x 做不做得到」隨 x 單調變化，只翻面一次</li><li>輸入陣列必須先排好</li><li>答案一定是整數</li><li>n 要小於 1,000</li></ul>
+  <ul class="dopts"><li data-ok>做不做得到隨 x 單調變化</li><li>輸入陣列必須先由小到大排好</li><li>答案一定要是整數</li><li>n 要小於 1,000，不然太慢</li></ul>
   <p class="dexp">貨物的順序不能動、也不用排序；需要的是「容量越大越容易做到」這種單調性，才能每次丟掉一半的答案。</p>
 </div>
 </section>
@@ -875,11 +840,11 @@ public class BinarySearch {
 <p class="era">刷題清單，先易後難</p>
 <h3 class="head">動手練</h3>
 <p>以下是 LeetCode 上考這課招式的題目，由易到難排。題目敘述請到題目頁看。</p>
-<div class="tablewrap"><table><thead><tr><th>題號與題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
 <tr><td><a href="https://leetcode.com/problems/search-insert-position/" target="_blank" rel="noopener">35. Search Insert Position</a></td><td>找第一個 ≥ target 的位置（lowerBound）</td><td>Easy</td></tr>
 <tr><td><a href="https://leetcode.com/problems/merge-sorted-array/" target="_blank" rel="noopener">88. Merge Sorted Array</a></td><td>合併兩段排好的陣列（從尾端倒著合）</td><td>Easy</td></tr>
 <tr><td><a href="https://leetcode.com/problems/sort-colors/" target="_blank" rel="noopener">75. Sort Colors</a></td><td>只有三種值：計數排序的想法</td><td>Medium</td></tr>
-<tr><td><a href="https://leetcode.com/problems/sort-an-array/" target="_blank" rel="noopener">912. Sort an Array</a></td><td>自己寫合併排序或快速排序</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/sort-an-array/" target="_blank" rel="noopener">912. Sort an Array</a></td><td>自己寫合併排序或快速排序；快速排序記得隨機挑 pivot（已排好或重複多的測資可能超時）</td><td>Medium</td></tr>
 <tr><td><a href="https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/" target="_blank" rel="noopener">34. Find First and Last Position of Element in Sorted Array</a></td><td>lowerBound(x) 與 lowerBound(x + 1) − 1</td><td>Medium</td></tr>
 <tr><td><a href="https://leetcode.com/problems/merge-intervals/" target="_blank" rel="noopener">56. Merge Intervals</a></td><td>先用 Comparator 依起點排序，再掃一遍</td><td>Medium</td></tr>
 <tr><td><a href="https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/" target="_blank" rel="noopener">1011. Capacity To Ship Packages Within D Days</a></td><td>在答案上二分</td><td>Medium</td></tr>

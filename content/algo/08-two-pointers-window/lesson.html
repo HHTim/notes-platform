@@ -84,7 +84,7 @@ left=2 right=3 和=10
 
 <h4>為什麼不會漏掉答案</h4>
 <p>關鍵在「排好了」。和太大時，<code>a[right]</code> 配上目前最小的 <code>a[left]</code> 都已經太大，配上 <code>left</code> 右邊更大的只會更大，所以 <code>a[right]</code> 跟誰都不可能湊出 target，可以整個丟掉。和太小時同理，<code>a[left]</code> 配上目前最大的都不夠，也可以丟掉。<strong>每一步都丟掉一個「確定沒用」的數</strong>，所以最多 n − 1 步，時間 O(n)、額外空間 O(1)。</p>
-<p>普林斯頓 algs4 的練習題也這樣要求：給一個排好的 N 個整數的串列和目標 x，「在線性時間內找出和最接近 x 的兩個」（Given a sorted list of N integers and a target integer x, determine in linear time the two whose sum is closest to x.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> 對照三種做法：</p>
+<p>普林斯頓 algs4 的練習題也這樣要求：給一個排好的 N 個整數的串列和目標 x，「在線性時間內找出和最接近 x 的兩個」（Given a sorted list of N integers and a target integer x, determine in linear time the two whose sum is closest to x.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> 對照四種做法：</p>
 <div class="tablewrap"><table><thead><tr><th>做法</th><th>時間</th><th>額外空間</th><th>前提</th></tr></thead><tbody>
 <tr><td>每一對都試</td><td>O(n²)</td><td>O(1)</td><td>無</td></tr>
 <tr><td>每個數用二分搜尋找補數</td><td>O(n log n)</td><td>O(1)</td><td>排好</td></tr>
@@ -109,7 +109,7 @@ left=2 right=3 和=10
 </div>
 <div class="drill">
   <p class="dq">和太大時為什麼是 <code>right--</code>，而不是 <code>left--</code> 或 <code>left++</code>？</p>
-  <ul class="dopts"><li data-ok>陣列由小到大，right−− 換成小一點的數，和才會變小；a[right] 配誰都已經太大，可以丟掉</li><li>因為 left 不能往左走，只好動 right</li><li>left++ 也可以，只是比較慢</li><li>為了避免索引超出範圍</li></ul>
+  <ul class="dopts"><li data-ok>a[right] 配最小的都太大，已經沒用</li><li>因為 left 不能往左走，只好動 right</li><li>left++ 也可以，只是會多比幾次、比較慢</li><li>為了避免 left 超出陣列範圍</li></ul>
   <p class="dexp">left++ 換成更大的數，和只會更大；left−− 會走到已經丟掉的範圍。a[right] 配上目前最小的 a[left] 都太大，跟誰都湊不出 target，所以丟掉它。</p>
 </div>
 <div class="drill">
@@ -139,7 +139,7 @@ left=2 right=3 和=10
 </div>
 <div class="drill">
   <p class="dq">用左右往中間判斷 <code>"level"</code> 是不是迴文，left 和 right 什麼時候停？</p>
-  <ul class="dopts"><li>left 走到最後一格</li><li>比了 n 次之後</li><li>遇到第一個母音時</li><li data-ok>left &gt;= right，也就是兩個在中間碰到或交錯</li></ul>
+  <ul class="dopts"><li>left 走到最後一格、right 走到第一格</li><li>比滿 n 次、每一格都比過之後</li><li>left 和 right 各走 n 步之後</li><li data-ok>left &gt;= right，兩個碰到或交錯</li></ul>
   <p class="dexp">每次比 s[left] 和 s[right]，一樣就各往內一步。level 長度 5，比完 (l, l)、(e, e) 後兩個都到索引 2，中間那格不用跟自己比，停。</p>
 </div>
 </section>
@@ -213,7 +213,7 @@ public class FastSlow {
 </div>
 <div class="drill">
   <p class="dq">在 <code>removeElement</code> 裡，迴圈跑到一半時 <code>slow</code> 的值代表什麼？</p>
-  <ul class="dopts"><li>目前讀到的位置</li><li>已經丟掉幾個元素</li><li data-ok>已經留下幾個元素，也是下一個要寫的位置</li><li>陣列剩下還沒讀的長度</li></ul>
+  <ul class="dopts"><li>目前讀到的位置，每輪都加一</li><li>已經丟掉幾個元素，遇到要刪的才加一</li><li data-ok>留下幾個，也是下一格要寫的位置</li><li>陣列剩下還沒讀的長度</li></ul>
   <p class="dexp">每留一個就寫到 a[slow] 再 slow++，所以 slow 同時是「留了幾個」和「下一格要寫哪裡」。讀到哪裡是 fast；丟掉幾個是 fast − slow。</p>
 </div>
 <div class="drill">
@@ -233,12 +233,12 @@ public class FastSlow {
 </div>
 <div class="drill">
   <p class="dq">快慢同向原地移除，寫 <code>a[slow] = a[fast]</code> 為什麼不會蓋掉還沒讀到的資料？</p>
-  <ul class="dopts"><li>因為 Java 會自動先複製一份陣列</li><li data-ok>slow 永遠 ≤ fast，寫的位置都是 fast 已經讀過的</li><li>因為只有在 slow == fast 時才寫</li><li>會蓋掉，所以要另外開一個陣列</li></ul>
+  <ul class="dopts"><li>因為 Java 會自動先複製一份陣列</li><li data-ok>slow 不會超過 fast，寫的格子都已讀過</li><li>因為只有在 slow == fast 時才寫</li><li>會蓋掉，所以要另外開一個陣列</li></ul>
   <p class="dexp">slow 只在留下元素時才走，fast 每次都走，slow 不可能超過 fast。寫進 a[slow] 時，那一格早就被 fast 讀過了。</p>
 </div>
 <div class="drill">
   <p class="dq">〈鏈結串列〉的快慢指標（slow 一步、fast 兩步）和這裡的快慢同向，下面哪一句正確？</p>
-  <ul class="dopts"><li>兩者完全一樣，都是 fast 一次走兩步</li><li>這裡的 slow 每次都會前進</li><li>鏈結串列那種需要 O(n) 額外空間</li><li data-ok>鏈結串列那種靠速度差；這裡 fast 每次走一步負責讀，slow 只在要留時才走、負責寫</li></ul>
+  <ul class="dopts"><li>兩者完全一樣，都是 fast 一次走兩步</li><li>這裡的 slow 每次都會前進，跟 fast 一樣快</li><li>鏈結串列那種需要 O(n) 額外空間記走過的節點</li><li data-ok>鏈結串列那種靠速度差；這裡是一個讀、一個寫</li></ul>
   <p class="dexp">名字一樣、用法不同：找中點、判環靠「fast 走兩步」造成的距離差；原地移除靠「讀和寫分開」。兩者都只用兩個變數，O(1) 額外空間。</p>
 </div>
 </section>
@@ -282,7 +282,7 @@ public class FastSlow {
 
 <div class="drill">
   <p class="dq">每天交易總額 <code>{5, 1, 3, 8, 2, 6, 4}</code>、k = 3。第二個視窗（索引 1〜3）的和是多少？用滑動的方式怎麼算？</p>
-  <ul class="dopts"><li>12，從頭加 1 + 3 + 8</li><li>17，9 + 8</li><li>4，9 − 5</li><li data-ok>12，第一個視窗的 9 減掉離開的 5、加上進來的 8</li></ul>
+  <ul class="dopts"><li>12，三天重新加一次：1 + 3 + 8</li><li>17，第一個視窗的 9 加上進來的 8</li><li>4，第一個視窗的 9 減掉離開的 5</li><li data-ok>12，9 減掉離開的 5、加上進來的 8</li></ul>
   <p class="dexp">第一個視窗 5 + 1 + 3 = 9。往右滑一格，5 離開、8 進來：9 − 5 + 8 = 12。結果跟從頭加一樣，但只做了兩次運算。</p>
 </div>
 <div class="drill">
@@ -299,11 +299,6 @@ public class FastSlow {
   <p class="dq">在 <code>FixedWindow</code> 的迴圈裡，<code>right</code> 是新進來的那一天。離開視窗的是哪一天的索引？</p>
   <ul class="dopts"><li>right − 1</li><li>right + k</li><li data-ok>right − k</li><li>right − k + 1</li></ul>
   <p class="dexp">新視窗是 right − k + 1 到 right，舊視窗是 right − k 到 right − 1，被擠出去的就是 right − k。right − k + 1 是新視窗的起點。</p>
-</div>
-<div class="drill">
-  <p class="dq">長度 7 的陣列、k = 3，總共有幾個視窗？</p>
-  <ul class="dopts"><li>3 個</li><li>7 個</li><li>4 個</li><li data-ok>5 個</li></ul>
-  <p class="dexp">起點可以是索引 0〜4，共 7 − 3 + 1 = 5 個。上面程式的迴圈也就比較了 5 個視窗的和。</p>
 </div>
 <div class="drill">
   <p class="dq">在字串 <code>"abab"</code> 裡，長度 2 的視窗有幾個是 <code>"ab"</code> 的重組字（字母相同、順序可以不同）？</p>
@@ -406,7 +401,7 @@ right=6 視窗=dab
 </div>
 <div class="drill">
   <p class="dq">可變長度的滑動視窗，外層 for 裡面還有一個 while，時間複雜度是？</p>
-  <ul class="dopts"><li data-ok>O(n)，left 只往右走、整個程式最多走 n 步</li><li>O(n²)，因為兩層迴圈</li><li>O(n log n)</li><li>O(n × k)，k 是視窗長度</li></ul>
+  <ul class="dopts"><li data-ok>O(n)，left 只往右、總共最多走 n 步</li><li>O(n²)，for 裡面包 while，兩層迴圈</li><li>O(n log n)，while 平均跑 log n 次</li><li>O(n × k)，k 是視窗長度</li></ul>
   <p class="dexp">while 每跑一次 left 就右移一格，left 從頭到尾最多走 n 格，所以 while 的總次數最多 n，不是每輪 n 次。加上 right 的 n 步，O(n)。</p>
 </div>
 <div class="drill">
@@ -416,7 +411,7 @@ right=6 視窗=dab
 </div>
 <div class="drill">
   <p class="dq"><code>minLen(<wbr>new int[] {1, -1, 5}, 5)</code> 實際回傳 3，但正確答案是 1（只取 5）。錯在哪裡？</p>
-  <ul class="dopts"><li>while 的條件應該是 sum &gt; target</li><li>best 的初始值應該是 0</li><li data-ok>有負數時，縮掉左邊不一定讓總和變小，「夠了就縮」的方向性不成立</li><li>陣列要先排序</li></ul>
+  <ul class="dopts"><li>while 的條件應該是 sum &gt; target</li><li>best 的初始值應該是 0</li><li data-ok>有負數，縮掉左邊不一定讓總和變小</li><li>陣列要先排序，視窗才有方向性</li></ul>
   <p class="dexp">縮掉 1 之後總和剩 4，迴圈以為「不夠了」就停，left 停在 −1 那一格，再也走不到只剩 5 的那段。滑動視窗靠「擴大總和變大、縮小總和變小」，負數破壞了它。改用前綴和。排序會打亂「連續」，不能用。</p>
 </div>
 <div class="drill">
@@ -426,7 +421,7 @@ right=6 視窗=dab
 </div>
 <div class="drill">
   <p class="dq">在 <code>minLen</code> 裡，答案 <code>best</code> 是在哪裡更新的？為什麼？</p>
-  <ul class="dopts"><li>在 while 外面，縮完之後才記</li><li data-ok>在 while 裡面、縮之前：只要總和 ≥ target，目前的視窗就是一個合法答案</li><li>在 for 一開始，擴之前</li><li>只在迴圈全部結束後算一次</li></ul>
+  <ul class="dopts"><li>在 while 外面，縮完、視窗最短時才記</li><li data-ok>在 while 裡、縮之前：總和夠了就是合法答案</li><li>在 for 一開始，把新元素加進來之前</li><li>只在迴圈全部結束後算一次</li></ul>
   <p class="dexp">找最短是「夠了就縮」：每次總和 ≥ target 都是一個候選，先記下長度再縮。縮完總和可能已經不夠，那時記就錯了。找最長則相反，縮完視窗合法才記。</p>
 </div>
 <div class="drill">
@@ -436,7 +431,7 @@ right=6 視窗=dab
 </div>
 <div class="drill">
   <p class="dq">找「最長」與找「最短」的可變視窗，縮左邊的時機差在哪？</p>
-  <ul class="dopts"><li>找最長每輪都縮一格；找最短從不縮</li><li data-ok>找最長是條件被破壞才縮；找最短是條件已經滿足就縮</li><li>兩者一樣，都是視窗長度超過 k 就縮</li><li>找最長從右邊縮；找最短從左邊縮</li></ul>
+  <ul class="dopts"><li>找最長每輪都縮一格；找最短從不縮</li><li data-ok>找最長是壞了才縮；找最短是夠了就縮</li><li>兩者一樣，都是視窗長度超過 k 就縮</li><li>找最長從右邊縮；找最短從左邊縮</li></ul>
   <p class="dexp">最長要把視窗撐大，只有出問題（例如重複）才不得不縮；最短要把視窗壓小，一滿足就試著縮。兩者都只從左邊縮、都只往右走。</p>
 </div>
 </section>
@@ -500,7 +495,7 @@ public class WindowMax {
 </div>
 <div class="drill">
   <p class="dq">deque 裡為什麼放<strong>索引</strong>，不直接放值？</p>
-  <ul class="dopts"><li>因為 ArrayDeque 不能放 int</li><li>放索引比較省記憶體</li><li>為了讓輸出照索引排序</li><li data-ok>要判斷前端那個是不是已經滑出視窗，只有值的話不知道它在哪個位置</li></ul>
+  <ul class="dopts"><li>因為 ArrayDeque 不能放 int</li><li>索引比值小，放索引比較省記憶體</li><li>為了讓輸出照索引排序</li><li data-ok>要判斷前端是否已滑出視窗，只有值不知道位置</li></ul>
   <p class="dexp">前端要不要丟，看的是它的索引是否 ≤ i − k。值相同的元素也可能在不同位置，只存值就判斷不了。ArrayDeque 放 Integer 是可以的。</p>
 </div>
 <div class="drill">
@@ -510,12 +505,12 @@ public class WindowMax {
 </div>
 <div class="drill">
   <p class="dq">新元素 x 進 deque 前，為什麼可以把尾端所有值 ≤ x 的都丟掉？</p>
-  <ul class="dopts"><li data-ok>它們比 x 小又比 x 早離開視窗，只要 x 還在，它們就不可能是最大值</li><li>為了讓 deque 不超過 k 個</li><li>因為它們已經滑出視窗了</li><li>丟掉是為了讓 deque 變成遞增</li></ul>
+  <ul class="dopts"><li data-ok>它們比 x 早離開又不比 x 大，輪不到當最大</li><li>為了讓 deque 裡最多只放 k 個索引</li><li>因為比 x 早進來的都已經滑出視窗了</li><li>丟掉是為了讓 deque 由前到後遞增</li></ul>
   <p class="dexp">比 x 早進來就比 x 早離開；在它們還在視窗的每一刻，x 也在、而且不比它們小，所以它們永遠輪不到當最大值。滑出視窗是前端那條規則管的。</p>
 </div>
 <div class="drill">
   <p class="dq">長度 n 的陣列、視窗 k，<code>maxOfWindows</code> 回傳的陣列長度是？</p>
-  <ul class="dopts"><li>n</li><li>k</li><li data-ok>n − k + 1</li><li>n − k</li></ul>
+  <ul class="dopts"><li>n</li><li>n − k − 1</li><li data-ok>n − k + 1</li><li>n − k</li></ul>
   <p class="dexp">每個視窗一個最大值，視窗起點可以是 0 到 n − k，共 n − k + 1 個。程式裡 out 的長度也是 a.length − k + 1。</p>
 </div>
 </section>
@@ -638,7 +633,7 @@ public class SubarraySumK {
 </div>
 <div class="drill">
   <p class="dq">前綴和陣列為什麼要多開一格、讓 <code>p[0] = 0</code>？</p>
-  <ul class="dopts"><li data-ok>讓 l = 0 的區間也能用 p[r + 1] − p[l] 算，不用特別處理</li><li>因為 Java 陣列的索引 0 不能用</li><li>為了避免溢位</li><li>為了讓 p 跟 a 一樣長</li></ul>
+  <ul class="dopts"><li data-ok>讓從索引 0 開始的區間也套同一個公式</li><li>因為 Java 陣列的索引 0 不能用</li><li>為了避免相加時溢位成負數</li><li>為了讓 p 跟 a 一樣長</li></ul>
   <p class="dexp">沒有 p[0] = 0 的話，從索引 0 開始的區間要另外寫一條「直接回傳 p[r]」。多一格之後所有區間都是同一個公式。p 反而比 a 長一格。</p>
 </div>
 <div class="drill">
@@ -656,12 +651,12 @@ System.out.println(Arrays.toString(b));</code></pre>
 </div>
 <div class="drill">
   <p class="dq"><code>count</code> 一開始為什麼要先 <code>seen.put(0, 1)</code>？</p>
-  <ul class="dopts"><li>避免 HashMap 是空的時候 get 丟例外</li><li data-ok>代表「什麼都還沒加」時前綴和是 0，從索引 0 開始的段才數得到</li><li>讓 k = 0 的情況回傳 0</li><li>只是習慣，拿掉結果不變</li></ul>
+  <ul class="dopts"><li>避免 HashMap 是空的時候 get 丟例外</li><li data-ok>還沒加任何數時和是 0，從頭開始的段才數得到</li><li>讓 k = 0 時直接回傳 0，不用另外判斷</li><li>只是習慣，拿掉結果不變</li></ul>
   <p class="dexp">以 {1, 2} 找 k = 3 為例：走到 2 時前綴和是 3，要查 3 − 3 = 0 出現過幾次；沒放 (0, 1) 就查不到，[1, 2] 這段就漏了。getOrDefault 在空表上也不會丟例外。</p>
 </div>
 <div class="drill">
   <p class="dq">「和為 k 的子陣列有幾段」，陣列<strong>有負數</strong>。下面哪個做法正確而且是 O(n)？</p>
-  <ul class="dopts"><li>可變長度滑動視窗</li><li>先排序再用左右往中間</li><li>兩層迴圈列出每一段</li><li data-ok>前綴和加 HashMap，查「目前前綴和 − k」出現過幾次</li></ul>
+  <ul class="dopts"><li>可變長度滑動視窗，夠了就縮</li><li>先排序再用左右往中間</li><li>兩層迴圈列出每一段</li><li data-ok>前綴和加 HashMap</li></ul>
   <p class="dexp">有負數時縮左邊不一定讓和變小，滑動視窗會漏；排序會打亂「連續」；兩層迴圈是 O(n²)。前綴和把區間和變成兩個前綴相減，雜湊表平均 O(1) 查到。</p>
 </div>
 <div class="drill">
@@ -697,7 +692,7 @@ System.out.println(Arrays.toString(b));</code></pre>
 </div>
 <div class="drill">
   <p class="dq">帳戶每月餘額變動的陣列不會再改，報表要被查上萬次「第 l 月到第 r 月的變動總和」。先想哪一招？</p>
-  <ul class="dopts"><li data-ok>前綴和，建一次表，每次查詢兩數相減</li><li>每次查詢跑一次滑動視窗</li><li>每次查詢重加一遍</li><li>快慢同向</li></ul>
+  <ul class="dopts"><li data-ok>前綴和，每次查詢兩數相減</li><li>每次查詢跑一次滑動視窗</li><li>每次查詢從 l 加到 r</li><li>快慢同向，邊讀邊寫</li></ul>
   <p class="dexp">陣列不變、查很多次區間和，正是前綴和：建表 O(n)，每次查詢 O(1)。每次重加要 O(n)，上萬次就慢了。</p>
 </div>
 <div class="drill">
@@ -716,7 +711,7 @@ System.out.println(Arrays.toString(b));</code></pre>
 <p class="era">刷題清單，先易後難</p>
 <h3 class="head">動手練</h3>
 <p>以下是 LeetCode 上考這課招式的題目，由易到難排。題目敘述請到題目頁看。</p>
-<div class="tablewrap"><table><thead><tr><th>題號與題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
 <tr><td><a href="https://leetcode.com/problems/remove-element/" target="_blank" rel="noopener">27. Remove Element</a></td><td>快慢同向：fast 讀、slow 寫</td><td>Easy</td></tr>
 <tr><td><a href="https://leetcode.com/problems/range-sum-query-immutable/" target="_blank" rel="noopener">303. Range Sum Query - Immutable</a></td><td>前綴和：p[r + 1] − p[l]</td><td>Easy</td></tr>
 <tr><td><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" target="_blank" rel="noopener">167. Two Sum II - Input Array Is Sorted</a></td><td>左右往中間找兩數和</td><td>Medium</td></tr>
