@@ -727,7 +727,7 @@ public class Notifier {
 </svg>
 <figcaption>一般的 @EventListener 在 publishEvent 當下就跑，比方法結束還早；AFTER_COMMIT 等提交成功才跑，還原時改由 AFTER_ROLLBACK 處理。</figcaption>
 </figure>
-<p>還原那次，<code>@EventListener</code> 還是收到了事件（它在發布當下就執行），AFTER_COMMIT 則沒有執行。所以「提交後才能做」的事（發通知、送訊息到外部系統）要用 AFTER_COMMIT。在 AFTER_COMMIT 裡要再寫資料庫時要小心：<code>TransactionSynchronization.afterCommit</code> 的 API 文件說，這時交易已經提交，但交易資源可能還開著，「這個時間點觸發的任何資料存取程式碼仍然會『參與』原本的交易……（之後不會再有提交！）」（any data access code triggered at this point will still "participate" in the original transaction……(with no commit following anymore!)），所以「從這裡呼叫的任何交易操作都要用 PROPAGATION_REQUIRES_NEW」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronization.html" target="_blank" rel="noopener">出處</a> 沒另開交易的寫入，等於加入一筆已經提交、不會再提交的交易。</p>
+<p>還原那次，<code>@EventListener</code> 還是收到了事件（它在發布當下就執行），AFTER_COMMIT 則沒有執行。所以「提交後才能做」的事（發通知、送訊息到外部系統）要用 AFTER_COMMIT。在 AFTER_COMMIT 裡要再寫資料庫時要小心：<code>TransactionSynchronization.afterCommit</code> 的 API 文件說，這時交易已經提交，但交易資源可能還開著，「這個時間點觸發的任何資料存取程式碼仍然會『參與』原本的交易……（之後不會再有提交！）」（any data access code triggered at this point will still "participate" in the original transaction……(with no commit following anymore!)），所以「從這裡呼叫的任何交易操作都要用 PROPAGATION_REQUIRES_NEW」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronization.html" target="_blank" rel="noopener">出處</a> 沒另開交易的寫入，等於加入一筆已經提交、不會再提交的交易。另外，AFTER_COMMIT 擋住的是「交易還原了，通知卻送出去」；擋不住「交易已經提交、通知還沒送出就當機」，這時通知就漏掉了。要做到提交與送出不會一邊成功一邊失敗，用交易式 Outbox，見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</p>
 
 <div class="drill">
   <p class="dq">交易方法裡發布事件，之後方法丟例外還原。哪個監聽器<strong>不會</strong>執行？</p>
