@@ -1,0 +1,572 @@
+<!-- 來源：依 Spring Boot 4.1 參考文件（actuator/observability、metrics、endpoints、tracing、features/logging、application-properties）、Micrometer 1.17 與 Micrometer Tracing 1.7 參考文件、Prometheus 總覽與 3.15 版 querying/functions、configuration/alerting_rules、practices/alerting、concepts/metric_types、OpenTelemetry 文件（signals、context-propagation）、W3C Trace Context Level 1 推薦標準（2021-11-23）與 Level 2 候選推薦草案（2024-03-28）、Google SRE 書第 6 章〈Monitoring Distributed Systems〉、Logback 手冊 MDC 章、Grafana Prometheus 資料來源文件新寫；兩個服務以 Spring Boot 4.1.1（Java 21）實跑，搭配 Docker 映像 prom/prometheus:v3.15.0 與 jaegertracing/jaeger:2.21.0，課文輸出皆為實跑結果 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清指標、日誌、追蹤三種訊號各回答什麼問題，用四個黃金訊號決定要量什麼</li><li>在 Spring Boot 4.1 打開 <code>/actuator/prometheus</code>，看懂 Prometheus 的計數器與直方圖，寫出 <code>rate</code>、<code>histogram_quantile</code> 與錯誤率的 PromQL</li><li>說明 trace ID 怎麼靠 W3C <code>traceparent</code> 標頭跨服務傳遞，並在兩個服務的日誌裡用同一個 traceId 找到同一個請求</li><li>開啟結構化日誌、用 MDC 放業務欄位，並照「看症狀不看原因」寫出告警規則</li></ul></div>
+
+<section>
+<p class="era">從外面看懂裡面</p>
+<h3 class="head">可觀測性與三種訊號</h3>
+<p>Spring Boot 文件的定義：「可觀測性是從外部觀察一個執行中系統內部狀態的能力，由三個支柱組成：日誌、指標、追蹤」（Observability is the ability to observe the internal state of a running system from the outside. It consists of the three pillars: logging, metrics and traces.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/observability.html" target="_blank" rel="noopener">出處</a> OpenTelemetry 對三種訊號各一句：追蹤是「請求穿過應用程式的路徑」（The path of a request through your application.）、指標是「執行期擷取的量測」（A measurement captured at runtime.）、日誌是「一件事情的紀錄」（A recording of an event.）。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/signals/" target="_blank" rel="noopener">出處</a></p>
+<p>用醫院比喻：<strong>指標</strong>像體溫、血壓這些一直量的數字，告訴你「有沒有事」；<strong>追蹤</strong>像病人從掛號、檢查到批價的動線紀錄，告訴你「卡在哪一站」；<strong>日誌</strong>像每一站的病歷，寫下「那一站發生了什麼」。下面這張圖的數字，全部來自這課實際跑起來的兩個服務：</p>
+<figure>
+<svg viewBox="0 0 760 266" role="img" aria-label="三種訊號：指標回答「有沒有事」，例如每秒請求數 10.9、錯誤率 1.2%、p95 延遲 0.134 秒；追蹤回答「事在哪一段」，transfer 花 335 毫秒，其中呼叫 account 331 毫秒、account 自己處理 314 毫秒；日誌回答「那一段發生了什麼」，例如查餘額失敗 status=503、核心帳務逾時。三者靠同一個 traceId 串起來">
+<rect x="30" y="20" width="200" height="44" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="130.0" y="47.0" font-size="15" text-anchor="middle">指標 Metrics</text><text x="130" y="88" font-size="13" text-anchor="middle" fill="var(--gold-deep)">有沒有事？</text><text x="44" y="116" font-size="12" text-anchor="start" opacity=".85" class="mono">每秒請求數 10.9</text><text x="44" y="138" font-size="12" text-anchor="start" opacity=".85" class="mono">錯誤率 1.2%</text><text x="44" y="160" font-size="12" text-anchor="start" opacity=".85" class="mono">p95 延遲 0.134 秒</text><rect x="280" y="20" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="380.0" y="47.0" font-size="15" text-anchor="middle">追蹤 Traces</text><text x="380" y="88" font-size="13" text-anchor="middle" fill="var(--gold-deep)">事在哪一段？</text><text x="294" y="116" font-size="12" text-anchor="start" opacity=".85" class="mono">transfer 335 毫秒</text><text x="294" y="138" font-size="12" text-anchor="start" opacity=".85" class="mono">└ 呼叫 account 331 毫秒</text><text x="294" y="160" font-size="12" text-anchor="start" opacity=".85" class="mono">　└ account 處理 314 毫秒</text><rect x="530" y="20" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="630.0" y="47.0" font-size="15" text-anchor="middle">日誌 Logs</text><text x="630" y="88" font-size="13" text-anchor="middle" fill="var(--gold-deep)">那一段發生了什麼？</text><text x="544" y="116" font-size="12" text-anchor="start" opacity=".85" class="mono">WARN 查餘額失敗 status=503</text><text x="544" y="138" font-size="12" text-anchor="start" opacity=".85" class="mono">ERROR 核心帳務逾時</text><text x="544" y="160" font-size="12" text-anchor="start" opacity=".85" class="mono">account=X999</text><rect x="30" y="196" width="700" height="34" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380" y="218" font-size="13" text-anchor="middle" fill="var(--slate-deep)" class="mono">同一個 traceId：67e70a401431e867dab5b5ae6729fde2</text><line x1="130" y1="182" x2="130" y2="196" stroke="var(--slate)" stroke-width="1.5"/><line x1="380" y1="182" x2="380" y2="196" stroke="var(--slate)" stroke-width="1.5"/><line x1="630" y1="182" x2="630" y2="196" stroke="var(--slate)" stroke-width="1.5"/><text x="30" y="254" font-size="12" text-anchor="start" opacity=".6">數字取自本課實跑：指標從 Prometheus 查出，追蹤從 Jaeger 查出，日誌從兩個服務的主控台輸出</text>
+</svg>
+<figcaption>指標先告訴你「出事了」，追蹤指出「慢在 account」，日誌說明「核心帳務逾時」；串起三者的是同一個 traceId。</figcaption>
+</figure>
+<p>這課搭了一套最小的環境：<code>transfer</code> 服務（轉帳前檢查）呼叫 <code>account</code> 服務（查餘額），帳號 <code>X999</code> 會模擬核心帳務逾時、回 503。兩個服務都用 Spring Boot 4.1.1、Java 21；Prometheus 收指標、Jaeger 收追蹤，都用 Docker 跑。面試怎麼把三種訊號講成一句答案，見〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉；端到端監控那題見〈後端與雲端面試題庫〉。</p>
+<p class="formula">指標說「有沒有事」、追蹤說「事在哪一段」、日誌說「那一段發生了什麼」；三者靠同一個 traceId 串起來</p>
+
+<div class="drill">
+  <p class="dq">網銀 API 的錯誤率在 10:05 突然升到 5%。這個「有沒有事」最先從哪一種訊號看出來？</p>
+  <ul class="dopts"><li>日誌</li><li data-ok>指標</li><li>追蹤</li><li>程式碼</li></ul>
+  <p class="dexp">錯誤率是一直在量的數字，屬於指標。指標先告訴你出事了，接著才用追蹤找慢在哪一段、用日誌看那一段發生什麼。</p>
+</div>
+<div class="drill">
+  <p class="dq">已經知道「轉帳檢查變慢了」，想知道慢在 transfer 自己還是它呼叫的 account。最直接的是看哪一種？</p>
+  <ul class="dopts"><li data-ok>那個請求的追蹤</li><li>兩台機器的 CPU 使用率</li><li>兩個服務的每秒請求數</li><li>把全部服務的日誌從頭讀一遍</li></ul>
+  <p class="dexp">追蹤記錄請求穿過每個服務的路徑與每段耗時。實跑那條追蹤顯示 transfer 335 毫秒裡，有 314 毫秒花在 account。</p>
+</div>
+<div class="drill">
+  <p class="dq">追蹤指出慢在 account，想知道 account 那一段到底發生了什麼錯。下一步看哪裡？</p>
+  <ul class="dopts"><li>Prometheus 的錯誤率圖</li><li>Grafana 的儀表板</li><li>把 account 服務重開一次</li><li data-ok>account 的日誌，用 traceId 篩</li></ul>
+  <p class="dexp">日誌寫下那一段發生的事。實跑時 account 那行日誌寫著「核心帳務逾時 account=X999」，靠的是它跟追蹤帶著同一個 traceId。</p>
+</div>
+<div class="drill">
+  <p class="dq">OpenTelemetry 對「追蹤」的定義是？</p>
+  <ul class="dopts"><li>執行期擷取的量測</li><li>一件事情的紀錄</li><li data-ok>請求穿過應用程式的路徑</li><li>每秒的請求數</li></ul>
+  <p class="dexp">追蹤是請求的路徑；執行期的量測是指標，一件事情的紀錄是日誌。</p>
+</div>
+<div class="drill">
+  <p class="dq">三種訊號是靠什麼串在一起，讓你能從一個錯誤的請求找到它的追蹤和日誌？</p>
+  <ul class="dopts"><li>相同的主機名稱與連接埠</li><li>相同的時間戳記，精確到秒</li><li>相同的程式碼行號</li><li data-ok>同一個 trace ID</li></ul>
+  <p class="dexp">同一個請求在每個服務、每一行日誌、每一段 span 都帶著同一個 trace ID。只靠時間戳記，同一秒有幾百個請求時分不出誰是誰。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先決定量什麼，再決定什麼時候叫人</p>
+<h3 class="head">四個黃金訊號，與「看症狀不看原因」的告警</h3>
+<p>Google 的 SRE 書第 6 章：「監控的四個黃金訊號是延遲、流量、錯誤與飽和。如果面向使用者的系統只能量四個指標，就專注在這四個」（The four golden signals of monitoring are latency, traffic, errors, and saturation. If you can only measure four metrics of your user-facing system, focus on these four.）。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>訊號</th><th>SRE 書的定義（節譯）</th><th>本課實跑怎麼量</th></tr></thead><tbody>
+<tr><th>延遲 latency</th><td>服務一個請求要多久；要分開看成功與失敗的延遲，「慢的錯誤比快的錯誤更糟」</td><td><code>histogram_quantile(0.95, …)</code> 算出 p95 約 0.134 秒</td></tr>
+<tr><th>流量 traffic</th><td>系統承受多少需求，網路服務通常是每秒 HTTP 請求數</td><td><code>rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m])</code> 約每秒 10.9 個</td></tr>
+<tr><th>錯誤 errors</th><td>失敗請求的比例：明確失敗（HTTP 500）、隱性失敗（回 200 但內容錯）、違反政策的</td><td>5xx 次數除以全部次數，約 1.2%</td></tr>
+<tr><th>飽和 saturation</th><td>服務有多「滿」，強調最受限的資源</td><td>本課沒量；網銀常見的是核心帳務連線池的使用率</td></tr>
+</tbody></table></div>
+<p>實跑也印證了「慢的錯誤」：失敗的 X999 請求每個要等 300 毫秒逾時，比成功的請求還慢。如果把錯誤從延遲裡濾掉，平均延遲反而變好看，這就是書裡要你分開看的原因。</p>
+<h4>告警看症狀，不看原因</h4>
+<p>同一章說，監控系統要回答兩個問題：「什麼壞了、為什麼壞」，「什麼壞了」是<strong>症狀</strong>（symptom），「為什麼」是<strong>原因</strong>（cause）；例如「回應變慢」是症狀，「CPU 被一支爛排序程式吃滿」是原因。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a> Prometheus 官方的告警建議總結成：「告警保持簡單、對症狀告警、有好的主控台讓人找出原因、避免發出沒事可做的呼叫」（keep alerting simple, alert on symptoms, have good consoles to allow pinpointing causes, and avoid having pages where there is nothing to do），並建議「告警盡量少，對跟使用者痛苦相關的症狀告警，而不是想抓住每一種可能造成痛苦的方式」。<a class="fixsrc" href="https://prometheus.io/docs/practices/alerting/" target="_blank" rel="noopener">出處</a> SRE 書的另一句話是判斷標準：「每一次呼叫都應該要能採取行動」（Every page should be actionable.）。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
+<p>照這個原則寫兩條規則：錯誤率與 p95 延遲，都是使用者感受得到的症狀。<code>for</code> 子句讓 Prometheus「在第一次符合條件之後，等一段時間才把告警算成觸發」（The optional for clause causes Prometheus to wait for a certain duration between first encountering a new expression output vector element and counting an alert as firing），用來忽略一閃而過的波動。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/configuration/alerting_rules/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>groups:
+  - name: transfer-symptoms
+    rules:
+      # 症狀一：使用者看到錯誤。轉帳檢查的 5xx 比例連續 5 分鐘超過 2%
+      - alert: TransferHighErrorRatio
+        expr: |
+          sum(rate(http_server_requests_seconds_count{job="transfer",uri="/transfers/check",status=~"5.."}[5m]))
+            / sum(rate(http_server_requests_seconds_count{job="transfer",uri="/transfers/check"}[5m])) &gt; 0.02
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "轉帳檢查錯誤率超過 2%"
+      # 症狀二：使用者覺得慢。p95 延遲連續 10 分鐘超過 0.5 秒
+      - alert: TransferSlowP95
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="transfer",uri="/transfers/check"}[5m]))) &gt; 0.5
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "轉帳檢查 p95 延遲超過 0.5 秒"</code></pre>
+<p>用 Prometheus 映像裡的 <code>promtool</code> 檢查語法：</p>
+<pre><code>$ promtool check rules rules.yml
+Checking rules.yml
+  SUCCESS: 2 rules found</code></pre>
+<p>CPU 90%、某台機器記憶體高這類「原因」，適合放在儀表板上，出事時幫你找原因；直接拿來半夜叫人，常常是 CPU 高但使用者沒感覺，叫醒了也沒事可做。</p>
+<p class="formula">量延遲、流量、錯誤、飽和；告警只對使用者感受得到的症狀，原因放在儀表板上查</p>
+
+<div class="drill">
+  <p class="dq">SRE 書的四個黃金訊號是哪四個？</p>
+  <ul class="dopts"><li>CPU、記憶體、磁碟、網路</li><li data-ok>延遲、流量、錯誤、飽和</li><li>指標、日誌、追蹤、告警</li><li>可用性、一致性、分區容錯、延遲</li></ul>
+  <p class="dexp">原文：latency, traffic, errors, and saturation。CPU、記憶體是資源，可以拿來量飽和，但不是四個訊號本身。</p>
+</div>
+<div class="drill">
+  <p class="dq">網銀轉帳 API 的「流量」最適合用什麼量？</p>
+  <ul class="dopts"><li data-ok>每秒的 HTTP 請求數</li><li>CPU 使用率的百分比</li><li>JVM 堆積的用量</li><li>日誌檔每天長多大</li></ul>
+  <p class="dexp">SRE 書說網路服務的流量通常是每秒 HTTP 請求數。實跑用 rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m]) 算出約每秒 10.9 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">某 API 都回 HTTP 200，但回傳的餘額是錯的。依 SRE 書，這算不算錯誤？</p>
+  <ul class="dopts"><li>不算，狀態碼是 200 就是成功</li><li data-ok>算，這是隱性失敗</li><li>不算，那是延遲的問題</li><li>超過 1% 的請求出錯才算</li></ul>
+  <p class="dexp">SRE 書把錯誤分成明確失敗（HTTP 500）、隱性失敗（200 但內容錯）與違反政策的。所以只數 5xx 會漏掉這種，需要端到端的檢查才抓得到。</p>
+</div>
+<div class="drill">
+  <p class="dq">計算延遲時，為什麼不該直接把失敗的請求濾掉？</p>
+  <ul class="dopts"><li>失敗的請求一定比較快</li><li>Prometheus 不允許過濾狀態碼</li><li data-ok>失敗的可能更慢，濾掉會失真</li><li>濾掉會讓流量的數字變少</li></ul>
+  <p class="dexp">SRE 書說慢的錯誤比快的錯誤更糟。實跑的 X999 每個等 300 毫秒才失敗，比成功的請求還慢。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個比較適合當「半夜叫醒值班人員」的告警？</p>
+  <ul class="dopts"><li data-ok>5xx 比例連續 5 分鐘超過 2%</li><li>某台機器 CPU 超過 80%</li><li>JVM 執行緒數比昨天多一倍</li><li>日誌裡出現一行 WARN</li></ul>
+  <p class="dexp">錯誤率是使用者感受得到的症狀；CPU、執行緒數是可能的原因，使用者不一定有感覺，叫醒了常常沒事可做。原因放在儀表板上幫忙查。</p>
+</div>
+<div class="drill">
+  <p class="dq">告警規則裡的 <code>for: 5m</code> 作用是？</p>
+  <ul class="dopts"><li>每 5 分鐘發一次告警</li><li>告警發出後只保留 5 分鐘</li><li data-ok>條件持續 5 分鐘才算觸發</li><li>只看最近 5 分鐘的日誌</li></ul>
+  <p class="dexp">Prometheus 文件：for 子句讓它在第一次符合條件後等一段時間，才把告警算成觸發。</p>
+</div>
+<div class="drill">
+  <p class="dq">「每一次呼叫都應該要能採取行動」這句話，用來篩掉哪一種告警？</p>
+  <ul class="dopts"><li>錯誤率太高時發出的告警</li><li>延遲太高時發出的告警</li><li data-ok>收到了也沒事可做的告警</li><li>寫在 rules.yml 裡的所有告警</li></ul>
+  <p class="dexp">SRE 書：Every page should be actionable。收到後只會「再觀察看看」的，不該是半夜叫人的告警。</p>
+</div>
+<div class="drill">
+  <p class="dq">網銀 API 的「飽和」最該量什麼？</p>
+  <ul class="dopts"><li data-ok>最受限的資源</li><li>每秒的請求數</li><li>失敗請求的比例</li><li>首頁的載入時間</li></ul>
+  <p class="dexp">SRE 書說飽和要強調最受限的資源。如果瓶頸是連到核心帳務的連線數，CPU 再低也沒用。</p>
+</div>
+</section>
+
+<section>
+<p class="era">指標從哪裡來</p>
+<h3 class="head">Micrometer 與 Actuator：<code>/actuator/prometheus</code></h3>
+<p><strong>Micrometer</strong> 是 Spring Boot 收集指標用的程式庫。官方文件說它在各種監控系統的用戶端之上「提供一層簡單的門面」，讓你寫程式時不被特定廠商綁住，「就像 SLF4J，只是用在可觀測性」（Think SLF4J, but for observability.）。<a class="fixsrc" href="https://docs.micrometer.io/micrometer/reference/1.17/" target="_blank" rel="noopener">出處</a> 意思是：程式裡只用 Micrometer 的計數器、計時器，要送去 Prometheus 還是別的系統，換一個相依套件就好。</p>
+<p>Spring Boot 4.1 的相依套件（兩個服務都有；transfer 另外加 <code>spring-boot-starter-restclient</code> 來呼叫 account）：</p>
+<pre><code>&lt;dependencies&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-webmvc&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-restclient&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-actuator&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-opentelemetry&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;io.micrometer&lt;/groupId&gt;
+    &lt;artifactId&gt;micrometer-registry-prometheus&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+<p>Spring Boot 文件：「Prometheus 預期去抓取或輪詢各個應用程式實例的指標，Spring Boot 在 <code>/actuator/prometheus</code> 提供一個端點」，但「預設這個端點不可用，必須曝露」（By default, the endpoint is not available and must be exposed.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a> 端點那頁也說「預設只有 health 端點透過 HTTP 與 JMX 曝露」，而且端點可能含敏感資訊，要想清楚再開。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 設定檔（account 的，transfer 只差名字與埠號）：</p>
+<pre><code>spring.application.name=account
+server.port=8081
+# 預設只有 health；打開 prometheus 端點
+management.endpoints.web.exposure.include=health,prometheus
+# 預設取樣 10%；示範時全取樣
+management.tracing.sampling.probability=1.0
+# 追蹤用 OTLP 送到 Jaeger（4318 是 OTLP over HTTP 的埠）
+management.opentelemetry.tracing.export.otlp.endpoint=http://localhost:4318/v1/traces
+# OpenTelemetry starter 也會用 OTLP 推指標；這裡指標交給 Prometheus 來拉，所以關掉推送
+management.otlp.metrics.export.enabled=false
+# 讓 http.server.requests 輸出直方圖桶，PromQL 才能算百分位數
+management.metrics.distribution.percentiles-histogram.http.server.requests=true
+# 內建結構化日誌（Spring Boot 3.4 起）：主控台輸出 JSON（ECS 格式）
+logging.structured.format.console=ecs</code></pre>
+<p>只打開 <code>health</code> 與 <code>prometheus</code>，所以 <code>/actuator/metrics</code> 回 404。打開的 <code>/actuator/prometheus</code> 是純文字，每行一個時間序列（指標名稱加上一組標籤）：</p>
+<pre><code>$ curl -s -o /dev/null -w "%{http_code}\n" localhost:8080/actuator/metrics
+404
+
+$ curl -s localhost:8080/actuator/prometheus | grep -E "^http_server_requests_seconds_(count|sum)\{.*uri=\"/transfers/check\""
+http_server_requests_seconds_count{error="ServiceUnavailable",exception="ServiceUnavailable",method="GET",outcome="SERVER_ERROR",status="500",uri="/transfers/check"} 10
+http_server_requests_seconds_sum{error="ServiceUnavailable",exception="ServiceUnavailable",method="GET",outcome="SERVER_ERROR",status="500",uri="/transfers/check"} 3.129694042
+http_server_requests_seconds_count{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check"} 793
+http_server_requests_seconds_sum{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check"} 89.261272875</code></pre>
+<p><code>http_<wbr>server_<wbr>requests_<wbr>seconds</code> 是 Spring 自動量的每個 HTTP 請求耗時。標籤把它切成好幾條：成功（<code>status="200"</code>）793 次、失敗（<code>status="500"</code>）10 次；<code>_count</code> 是次數，<code>_sum</code> 是總秒數。這些數字只會一直往上加，叫<strong>計數器</strong>（counter）：Prometheus 的定義是「只會增加、或在重新啟動時歸零的累計值」（A counter is a cumulative metric that represents a single monotonically increasing counter whose value can only increase or be reset to zero on restart.）。<a class="fixsrc" href="https://prometheus.io/docs/concepts/metric_types/" target="_blank" rel="noopener">出處</a></p>
+<p>業務指標自己加。transfer 用 Micrometer 的 <code>Counter</code> 記檢查結果（完整程式在後面的追蹤段）：</p>
+<pre><code>Counter.builder("transfer.checks").tag("result", "ok").register(registry).increment();</code></pre>
+<pre><code>$ curl -s localhost:8080/actuator/prometheus | grep -E "^(# TYPE )?transfer_checks"
+# TYPE transfer_checks_total counter
+transfer_checks_total{result="error"} 10.0
+transfer_checks_total{result="ok"} 793.0</code></pre>
+<p>程式裡取名 <code>transfer.checks</code>，送到 Prometheus 時點換成底線、計數器加上 <code>_total</code>，變成 <code>transfer_checks_total</code>；<code>result</code> 標籤把成功與失敗分開。</p>
+<p class="formula">Micrometer 是指標的門面；Actuator 預設只開 health，/actuator/prometheus 要自己打開；計數器只增不減，重啟歸零</p>
+
+<div class="drill">
+  <p class="dq">Micrometer 官方說它「就像 SLF4J，只是用在可觀測性」。這個比喻的意思是？</p>
+  <ul class="dopts"><li>Micrometer 會取代 SLF4J 印日誌</li><li data-ok>換監控系統只要換相依套件</li><li>Micrometer 只能搭配 Logback</li><li>Micrometer 會把指標寫進日誌檔</li></ul>
+  <p class="dexp">SLF4J 讓你不綁定 Logback 或 Log4j；Micrometer 讓你不綁定 Prometheus 或其他監控系統，兩者都是門面。</p>
+</div>
+<div class="drill">
+  <p class="dq">加了 Actuator 和 <code>micrometer-registry-prometheus</code>，但沒設定任何曝露屬性。<code>GET /actuator/prometheus</code> 會？</p>
+  <ul class="dopts"><li data-ok>拿不到，預設只曝露 health</li><li>回傳所有指標</li><li>回傳 health 的結果</li><li>自動跳轉到 Prometheus</li></ul>
+  <p class="dexp">Spring Boot 文件：預設只有 health 端點透過 HTTP 曝露，prometheus 端點要用 management.<wbr>endpoints.<wbr>web.<wbr>exposure.<wbr>include 打開。</p>
+</div>
+<div class="drill">
+  <p class="dq">設定 <code>management.<wbr>endpoints.<wbr>web.<wbr>exposure.<wbr>include=<wbr>health,<wbr>prometheus</code> 之後，<code>GET /actuator/metrics</code> 會？</p>
+  <ul class="dopts"><li>回 200 並列出所有指標名稱</li><li>回 500，因為設定錯了</li><li data-ok>回 404，沒在曝露清單裡</li><li>自動導向 /actuator/prometheus</li></ul>
+  <p class="dexp">只曝露清單裡的端點，其他都不對外。實跑 curl 這個網址得到 404。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count{…status="200"…} 793</code> 中的 793 是什麼？</p>
+  <ul class="dopts"><li>最近一秒內的請求數</li><li>平均每個請求耗時 793 毫秒</li><li data-ok>啟動以來成功請求的累計次數</li><li>目前同時在處理的請求數</li></ul>
+  <p class="dexp">_count 是計數器，從啟動起一直累加；要「每秒幾個」得交給 PromQL 的 rate 算。</p>
+</div>
+<div class="drill">
+  <p class="dq">服務重新啟動之後，<code>transfer_checks_total</code> 會變成多少？</p>
+  <ul class="dopts"><li>維持重啟前的值繼續加</li><li>變成負數</li><li>Prometheus 會自動補回重啟前的值</li><li data-ok>從 0 重新開始加</li></ul>
+  <p class="dexp">計數器只會增加，或在重新啟動時歸零。計數器歸零時，rate 會自動處理（後面講），所以不用自己補。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式裡建立 <code>Counter.<wbr>builder(<wbr>"transfer.<wbr>checks")</code>，在 Prometheus 裡看到的名稱是？</p>
+  <ul class="dopts"><li>transfer.checks</li><li>transfer-checks</li><li>TransferChecks</li><li data-ok>transfer_checks_total</li></ul>
+  <p class="dexp">送到 Prometheus 時點換成底線，計數器加上 _total。實跑的端點輸出就是 transfer_<wbr>checks_<wbr>total{result=<wbr>"ok"}。</p>
+</div>
+<div class="drill">
+  <p class="dq">想分開統計「檢查成功」和「檢查失敗」的次數，Micrometer 的做法是？</p>
+  <ul class="dopts"><li>建兩個不同名字的指標</li><li data-ok>同一個名字，加上 result 標籤</li><li>寫進日誌，事後再用工具數</li><li>每次檢查都建一個新的 MeterRegistry</li></ul>
+  <p class="dexp">用標籤切維度，PromQL 才能 sum by (result) 一起看或分開看。實跑的 transfer_checks_total 就有 result="ok" 與 result="error" 兩條。</p>
+</div>
+<div class="drill">
+  <p class="dq">Actuator 的端點為什麼不建議全部打開（<code>include=*</code>）？</p>
+  <ul class="dopts"><li>會讓服務的啟動變慢</li><li>Prometheus 會因此拉不到資料</li><li>Spring Boot 根本不允許這樣設</li><li data-ok>可能含敏感資訊</li></ul>
+  <p class="dexp">Spring Boot 文件說端點可能含敏感資訊，曝露前要仔細考慮。只開需要的，例如 health 與 prometheus。</p>
+</div>
+</section>
+
+<section>
+<p class="era">Prometheus 自己來拿</p>
+<h3 class="head">拉取模型與 PromQL：<code>rate</code>、<code>histogram_quantile</code>、錯誤率</h3>
+<p>Prometheus 官方總覽列的特性：「時間序列的收集透過 HTTP 拉取模型進行」（time series collection happens via a pull model over HTTP），推送則「透過中介的 gateway 支援」。<a class="fixsrc" href="https://prometheus.io/docs/introduction/overview/" target="_blank" rel="noopener">出處</a> 意思是服務不用知道 Prometheus 在哪，只要提供 <code>/actuator/prometheus</code>，Prometheus 照設定定時來拉。實跑的設定：</p>
+<pre><code>global:
+  scrape_interval: 5s          # 每 5 秒去拉一次（示範用；預設是 1 分鐘）
+scrape_configs:
+  - job_name: transfer
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+  - job_name: account
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8081"]</code></pre>
+<figure>
+<svg viewBox="0 0 760 344" role="img" aria-label="本課實跑的架構：transfer 服務在 8080 埠，用 HTTP 呼叫 8081 埠的 account 服務，請求帶著 traceparent 標頭。Prometheus 每 5 秒到兩個服務的 /actuator/prometheus 拉指標；Grafana 用 PromQL 向 Prometheus 查詢畫圖。兩個服務把每個 span 用 OTLP 推給 Jaeger。日誌以每行一筆 JSON 印在主控台">
+<defs><marker id="ob-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="40" y="150" width="170" height="60" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="125.0" y="177.0" font-size="13.5" text-anchor="middle">transfer</text><text x="125.0" y="195.0" font-size="11.5" text-anchor="middle" opacity=".7">:8080</text><rect x="330" y="150" width="170" height="60" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="415.0" y="177.0" font-size="13.5" text-anchor="middle">account</text><text x="415.0" y="195.0" font-size="11.5" text-anchor="middle" opacity=".7">:8081</text><line x1="212" y1="172" x2="328" y2="172" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#ob-m2)"/><text x="270" y="162" font-size="11.5" text-anchor="middle" class="mono">HTTP</text><text x="270" y="196" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">帶 traceparent</text><rect x="165" y="20" width="200" height="52" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="265.0" y="43.0" font-size="13.5" text-anchor="middle">Prometheus</text><text x="265.0" y="61.0" font-size="11.5" text-anchor="middle" opacity=".7">:9090，每 5 秒拉一次</text><line x1="215" y1="74" x2="140" y2="148" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#ob-m2)"/><line x1="315" y1="74" x2="400" y2="148" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#ob-m2)"/><text x="20" y="98" font-size="11" text-anchor="start" opacity=".8" class="mono">GET /actuator/prometheus</text><text x="410" y="110" font-size="11" text-anchor="start" opacity=".8" class="mono">GET /actuator/prometheus</text><rect x="580" y="20" width="150" height="52" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="655.0" y="43.0" font-size="13.5" text-anchor="middle">Grafana</text><text x="655.0" y="61.0" font-size="11.5" text-anchor="middle" opacity=".7">畫圖、看儀表板</text><line x1="578" y1="46" x2="367" y2="46" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#ob-m2)"/><text x="472" y="38" font-size="11.5" text-anchor="middle">PromQL 查詢</text><rect x="560" y="240" width="170" height="52" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="645.0" y="263.0" font-size="13.5" text-anchor="middle">Jaeger</text><text x="645.0" y="281.0" font-size="11.5" text-anchor="middle" opacity=".7">:4318 收 OTLP</text><line x1="125" y1="212" x2="558" y2="262" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ob-m2)"/><line x1="415" y1="212" x2="558" y2="256" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ob-m2)"/><text x="470" y="228" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)">每個 span 用 OTLP 推過去</text><rect x="40" y="260" width="300" height="40" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="190.0" y="285.0" font-size="12.5" text-anchor="middle">主控台：每行一筆 JSON 日誌（ECS）</text><line x1="125" y1="212" x2="125" y2="258" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="3 3"/><text x="40" y="330" font-size="12" text-anchor="start" opacity=".6">指標是 Prometheus 主動來拉（實線往下）；追蹤是服務自己推出去（虛線）；Grafana 本課沒有實跑，畫出來是說明它在哪裡</text>
+</svg>
+<figcaption>指標是被拉、追蹤是被推：Prometheus 定時來抓，span 則由服務自己送給 Jaeger。</figcaption>
+</figure>
+<p>下面是打了 70 秒流量之後，用 Prometheus 的 HTTP API 查的實際結果（<code>jq</code> 只是把回應整理成一行一筆）。先看 <code>up</code>：1 表示上一次拉取成功。</p>
+<pre><code>$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=up' | jq -c '.data.result[] | {job: .metric.job, value: .value[1]}'
+{"job":"account","value":"1"}
+{"job":"transfer","value":"1"}</code></pre>
+<h4>流量：<code>rate</code></h4>
+<p>計數器一直往上加，原始值看不出快慢。<code>rate</code>「計算區間向量裡時間序列每秒的平均增加量」，而且計數器重啟歸零造成的斷點「會自動調整」（Breaks in monotonicity (such as counter resets due to target restarts) are automatically adjusted for.）。要加總時有一條規則：「一定先 rate，再加總，否則 rate 偵測不到目標重啟造成的計數器歸零」（always take a rate() first, then aggregate.）。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a> <code>[1m]</code> 是取最近一分鐘；<code>uri!~"/actuator.*"</code> 排除 Prometheus 自己來拉的請求。</p>
+<pre><code>$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (job) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[1m]))' | jq -c '.data.result[] | {job: .metric.job, value: .value[1]}'
+{"job":"account","value":"10.745454545454544"}
+{"job":"transfer","value":"10.927272727272726"}</code></pre>
+<h4>延遲：直方圖與 <code>histogram_quantile</code></h4>
+<p>設定檔那行 <code>percentiles-histogram</code> 讓耗時輸出成<strong>直方圖</strong>：不存每一筆耗時，只存「耗時不超過某條線的有幾筆」，每條線是一個桶（bucket），用 <code>le</code>（less than or equal）標籤標出。下面挑出 p95 附近的幾個桶（中間還有很多桶，這裡用 grep 只挑幾個）：</p>
+<pre><code>$ curl -s localhost:8080/actuator/prometheus | grep -E "^http_server_requests_seconds_bucket\{.*status=\"200\".*uri=\"/transfers/check\"" | grep -E "le=\"(0.089478485|0.111848106|0.134217727|0.156587348|\+Inf)\""
+http_server_requests_seconds_bucket{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check",le="0.089478485"} 0
+http_server_requests_seconds_bucket{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check",le="0.111848106"} 432
+http_server_requests_seconds_bucket{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check",le="0.134217727"} 774
+http_server_requests_seconds_bucket{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check",le="0.156587348"} 792
+http_server_requests_seconds_bucket{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check",le="+Inf"} 793</code></pre>
+<figure>
+<svg viewBox="0 0 760 276" role="img" aria-label="transfer 成功請求的直方圖桶，取自實跑的 /actuator/prometheus：不超過 0.0895 秒的有 0 次、不超過 0.1118 秒的 432 次、不超過 0.1342 秒的 774 次、不超過 0.1566 秒的 792 次、全部 793 次。95% 的虛線落在 0.1118 到 0.1342 秒那個桶，在桶內線性內插估出 p95 約 0.133 秒">
+<rect x="120" y="220.0" width="90" height="0.0" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="165.0" y="214.0" font-size="12" text-anchor="middle" class="mono">0</text><text x="165.0" y="238" font-size="11.5" text-anchor="middle" opacity=".8" class="mono">le="0.0895"</text><rect x="240" y="121.9" width="90" height="98.1" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="285.0" y="115.9419924337957" font-size="12" text-anchor="middle" class="mono">432</text><text x="285.0" y="238" font-size="11.5" text-anchor="middle" opacity=".8" class="mono">le="0.1118"</text><rect x="360" y="44.3" width="90" height="175.7" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="405.0" y="38.31273644388398" font-size="12" text-anchor="middle" class="mono">774</text><text x="405.0" y="238" font-size="11.5" text-anchor="middle" opacity=".8" class="mono">le="0.1342"</text><rect x="480" y="40.2" width="90" height="179.8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="525.0" y="34.22698612862547" font-size="12" text-anchor="middle" class="mono">792</text><text x="525.0" y="238" font-size="11.5" text-anchor="middle" opacity=".8" class="mono">le="0.1566"</text><rect x="600" y="40.0" width="90" height="180.0" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="645.0" y="34.0" font-size="12" text-anchor="middle" class="mono">793</text><text x="645.0" y="238" font-size="11.5" text-anchor="middle" opacity=".8" class="mono">le="+Inf"</text><line x1="110" y1="49.0" x2="690" y2="49.0" stroke="var(--gold-deep)" stroke-dasharray="5 4"/><text x="106" y="53.0" font-size="12" text-anchor="end" fill="var(--gold-deep)">95%</text><text x="30" y="30" font-size="12" text-anchor="start" opacity=".7">累計次數（成功請求）</text><text x="40" y="262" font-size="12" text-anchor="start" opacity=".6">95% 落在 0.1118 到 0.1342 之間；在這個桶裡線性內插，用圖上的數字算約 0.133 秒</text>
+</svg>
+<figcaption>直方圖不存每一筆耗時，只存「多少筆不超過這條線」；百分位數是從桶裡估出來的，桶越細越準。</figcaption>
+</figure>
+<p><code>histogram_quantile</code> 從這些桶估出百分位數。文件寫：百分位數沒剛好落在桶邊界時，它「在百分位數所在的桶裡內插」，傳統直方圖「假設觀測值在桶內均勻分布，也叫線性內插」（it assumes a uniform distribution of observations within the bucket (also called linear interpolation)）；要彙總時用 <code>sum</code> 包住 <code>rate</code>，而且 <code>le</code> 一定要留在 <code>by</code> 裡。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[1m])))' | jq -c '.data.result[] | {job: .metric.job, value: .value[1]}'
+{"job":"account","value":"0.12986914981422415"}
+{"job":"transfer","value":"0.1337764512732422"}</code></pre>
+<p>p95 約 0.134 秒：100 個請求裡有 95 個在 0.134 秒內完成。它是估出來的，準不準看桶切得細不細；圖上用累計數字算出約 0.133 秒，Prometheus 用最近一分鐘的速率、也算進了失敗請求，所以差一點點。</p>
+<h4>錯誤率與業務指標</h4>
+<p>錯誤率是「5xx 的速率除以全部的速率」；<code>increase</code> 是「rate 乘以區間秒數」，主要讓人看得懂。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(http_server_requests_seconds_count{job="transfer",uri!~"/actuator.*",status=~"5.."}[1m])) / sum(rate(http_server_requests_seconds_count{job="transfer",uri!~"/actuator.*"}[1m]))' | jq -c '.data.result[] | {value: .value[1]}'
+{"value":"0.011647254575707155"}
+
+$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (result) (increase(transfer_checks_total[1m]))' | jq -c '.data.result[] | {result: .metric.result, value: .value[1]}'
+{"result":"error","value":"7.636363636363636"}
+{"result":"ok","value":"648"}</code></pre>
+<p>錯誤率約 1.2%：打流量時每 10 輪混一個 X999，大致對得上。最近一分鐘約 648 次成功、7.6 次失敗；increase 是從速率推回來的，所以會出現小數。</p>
+<p class="formula">Prometheus 定時來拉；看快慢用 rate（先 rate 再 sum）；百分位數用 histogram_quantile 從桶裡估，le 要留在 by 裡</p>
+
+<div class="drill">
+  <p class="dq">Prometheus 怎麼拿到 transfer 服務的指標？</p>
+  <ul class="dopts"><li>transfer 每 5 秒把指標推給 Prometheus</li><li data-ok>Prometheus 每 5 秒來拉</li><li>transfer 把指標寫進日誌，Prometheus 讀日誌</li><li>Prometheus 直接連資料庫查</li></ul>
+  <p class="dexp">Prometheus 是拉取模型：照 prometheus.yml 的 scrape_configs 定時去拉。這課 scrape_interval 設 5 秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">PromQL 查 <code>up</code> 得到 transfer 是 1。代表？</p>
+  <ul class="dopts"><li>transfer 目前有 1 個錯誤</li><li>transfer 每秒收到 1 個請求</li><li data-ok>上一次拉取成功</li><li>transfer 只部署了 1 個實例</li></ul>
+  <p class="dexp">up 是 Prometheus 替每個拉取目標記的：拉成功是 1、失敗是 0。服務掛掉時最先變的就是它。</p>
+</div>
+<div class="drill">
+  <p class="dq">想知道「每秒幾個請求」，該對 <code>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count</code> 用哪個函式？</p>
+  <ul class="dopts"><li data-ok>rate(…[1m])</li><li>直接查原始值</li><li>histogram_quantile</li><li>max</li></ul>
+  <p class="dexp">原始值是啟動以來的累計，rate 才是每秒的平均增加量。實跑算出 transfer 約每秒 10.9 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">要算所有實例加總的每秒請求數，下面哪一個寫法對？</p>
+  <ul class="dopts"><li>rate(<wbr>sum(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count)[1m])</li><li data-ok>sum(<wbr>rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m]))</li><li>sum(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count) / 60</li><li>max(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count)</li></ul>
+  <p class="dexp">文件：一定先 rate 再加總，否則 rate 偵測不到某個實例重啟造成的計數器歸零。</p>
+</div>
+<div class="drill">
+  <p class="dq">某台實例重啟，它的計數器從 800 掉回 0。<code>rate</code> 會算出一個很大的負數嗎？</p>
+  <ul class="dopts"><li>會，所以要手動排除那一段</li><li>會，所以計數器不能用 rate</li><li data-ok>不會，rate 會自動調整</li><li>不會，因為 rate 只看最後一個值</li></ul>
+  <p class="dexp">文件寫明計數器重啟造成的斷點會自動調整。前提是先 rate 再 sum。</p>
+</div>
+<div class="drill">
+  <p class="dq">直方圖的桶 <code>le="0.134217727"} 774</code> 是什麼意思？</p>
+  <ul class="dopts"><li>有 774 個請求剛好花 0.134 秒</li><li data-ok>累計 774 個不超過 0.134 秒</li><li>第 774 個請求花了 0.134 秒</li><li>代表 p95 是 0.134 秒</li></ul>
+  <p class="dexp">le 是 less than or equal，每個桶是累計數：不超過 0.1118 秒的 432 個，不超過 0.1342 秒的 774 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 <code>histogram_quantile</code> 彙總多個實例時，<code>by</code> 裡一定要留哪個標籤？</p>
+  <ul class="dopts"><li>job</li><li>instance</li><li data-ok>le</li><li>status</li></ul>
+  <p class="dexp">histogram_quantile 靠 le 知道每個桶的上界；sum 時把 le 加總掉，就算不出百分位數了。文件的範例是 sum by (job, le)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>histogram_quantile</code> 算出的 p95 是精確值嗎？</p>
+  <ul class="dopts"><li>是，它記得每一筆耗時</li><li data-ok>不是，在桶裡內插估出來的</li><li>是，只要桶夠多就跟平均一樣</li><li>不是，它只是把最大值乘以 0.95</li></ul>
+  <p class="dexp">直方圖只存累計數，文件說它假設觀測值在桶內均勻分布、線性內插。實跑 p95 落在 0.1118 到 0.1342 秒的桶裡。</p>
+</div>
+<div class="drill">
+  <p class="dq">錯誤率的 PromQL 最合理的寫法是？</p>
+  <ul class="dopts"><li data-ok>5xx 的 rate 除以全部的 rate</li><li>sum(…{status=~"5.."}) 的累計值</li><li>rate(…_seconds_sum[1m])</li><li>max(…_seconds_max)</li></ul>
+  <p class="dexp">比例要兩個速率相除；只看 5xx 的累計次數看不出比例，也看不出是不是最近才發生。實跑結果約 0.012。</p>
+</div>
+</section>
+
+<section>
+<p class="era">把查詢變成圖</p>
+<h3 class="head">Grafana 一眼</h3>
+<p>Prometheus 擅長存與查，看圖通常交給 <strong>Grafana</strong>。Grafana 文件：Prometheus 資料來源「已經預先安裝在 Grafana 裡」，在查詢編輯器「用 PromQL 寫查詢」（Write queries using PromQL in the query editor）。<a class="fixsrc" href="https://grafana.com/docs/grafana/latest/datasources/prometheus/" target="_blank" rel="noopener">出處</a> 所以上一段的每一條 PromQL，貼進 Grafana 就是一張隨時間變化的圖。這課沒有實跑 Grafana。常見的第一個儀表板就是四個黃金訊號各一張圖，加上 <code>up</code>；SRE 書也說儀表板「通常包含某種形式的四個黃金訊號」。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">在 Grafana 裡畫「transfer 每秒請求數」的圖，查詢要寫什麼語言？</p>
+  <ul class="dopts"><li>SQL</li><li data-ok>PromQL</li><li>Java</li><li>jq</li></ul>
+  <p class="dexp">Grafana 的 Prometheus 資料來源在查詢編輯器用 PromQL；上一段的 rate 查詢可以直接貼上。</p>
+</div>
+<div class="drill">
+  <p class="dq">Prometheus 與 Grafana 的分工是？</p>
+  <ul class="dopts"><li>Grafana 拉指標，Prometheus 負責畫圖</li><li>兩個都要各自去拉一次指標</li><li>Grafana 會取代 Prometheus</li><li data-ok>Prometheus 拉與存，Grafana 查與畫</li></ul>
+  <p class="dexp">拉取與儲存是 Prometheus 的事；Grafana 把查詢結果畫成儀表板，本身不去拉服務的指標。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一個請求，跨兩個服務</p>
+<h3 class="head">分散式追蹤：Micrometer Tracing、OpenTelemetry 與 <code>traceparent</code></h3>
+<p>一個請求從 transfer 走到 account，要把兩邊的紀錄接起來，就要給它一個貫穿全程的編號。一次<strong>追蹤</strong>（trace）由好幾段 <strong>span</strong> 組成，span 是其中一段工作，各有自己的 span ID，並記得自己的父節點。OpenTelemetry 文件說：「A 服務呼叫 B 服務時，A 把 trace ID 與 span ID 放進情境裡。B 用這些值建立一個屬於同一條 trace 的新 span，並把 A 的那段設成父節點」（When Service A calls Service B, Service A includes a trace ID and a span ID as part of the context. Service B uses these values to create a new span that belongs to the same trace, setting the span from Service A as its parent.）；傳播「通常由 instrumentation 函式庫處理」，預設用「W3C TraceContext 規格定義的標頭」。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank" rel="noopener">出處</a></p>
+<p>Spring 這邊是 <strong>Micrometer Tracing</strong>：它「替最常見的追蹤程式庫提供一層簡單的門面」（provides a simple facade for the most popular tracer libraries），原本是 Spring Cloud Sleuth 的那一套。<a class="fixsrc" href="https://docs.micrometer.io/tracing/reference/1.7/" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 內建兩種組合：OpenTelemetry 用 OTLP（OpenTelemetry 自己的傳輸協定）送出，或 Brave 用 Zipkin 送出；前者要加 <code>spring-boot-starter-opentelemetry</code>，用 <code>management.<wbr>opentelemetry.<wbr>tracing.<wbr>export.<wbr>otlp.<wbr>*</code> 設定送到哪。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a> 這課用前者，送到 Jaeger（它直接收 OTLP）。</p>
+<p>transfer 的程式：用 Spring Boot 自動設定的 <code>RestClient.Builder</code> 建立用戶端。文件特別警告：「如果不是用自動設定的 builder 建立 RestTemplate、RestClient 或 WebClient，自動的追蹤傳播就不會生效！」（If you create the RestTemplate, the RestClient or the WebClient without using the auto-configured builders, automatic trace propagation won’t work!）<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>package demo.transfer;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+
+@SpringBootApplication
+@RestController
+public class TransferApp {
+    private static final Logger log = LoggerFactory.getLogger(TransferApp.class);
+    private final RestClient accountClient;
+    private final MeterRegistry registry;
+
+    // 用 Spring Boot 自動設定的 RestClient.Builder 建立，追蹤標頭才會自動帶過去
+    TransferApp(RestClient.Builder builder, MeterRegistry registry) {
+        this.accountClient = builder.baseUrl("http://localhost:8081").build();
+        this.registry = registry;
+    }
+
+    public static void main(String[] args) {
+        SpringApplication.run(TransferApp.class, args);
+    }
+
+    @GetMapping("/transfers/check")
+    public String check(@RequestParam String account) {
+        MDC.put("account", account);                       // 業務欄位放進 MDC，這次請求的每行日誌都會帶著
+        try {
+            log.info("轉帳前檢查餘額");
+            String body = accountClient.get().uri("/accounts/{id}/balance", account)
+                    .retrieve().body(String.class);
+            Counter.builder("transfer.checks").tag("result", "ok").register(registry).increment();
+            return body;
+        } catch (RestClientResponseException e) {
+            Counter.builder("transfer.checks").tag("result", "error").register(registry).increment();
+            log.warn("查餘額失敗 status={}", e.getStatusCode().value());
+            throw e;
+        } finally {
+            MDC.remove("account");
+        }
+    }
+}</code></pre>
+<p>account 收到請求時，順手把上游傳來的 <code>traceparent</code> 標頭印出來：</p>
+<pre><code>// 查餘額：模擬 20〜120 毫秒的處理時間；帳號 X999 模擬核心帳務逾時
+@GetMapping("/accounts/{id}/balance")
+public String balance(@PathVariable String id,
+                      @RequestHeader(value = "traceparent", required = false) String traceparent)
+        throws InterruptedException {
+    log.info("查詢餘額 account={} traceparent={}", id, traceparent);   // 看上游傳來的 W3C 標頭
+    if (id.equals("X999")) {
+        Thread.sleep(300);
+        log.error("核心帳務逾時 account={}", id);
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "core timeout");
+    }
+    Thread.sleep(20 + Math.floorMod(id.hashCode(), 100));
+    return "{\"account\":\"" + id + "\",\"balance\":12000}";
+}</code></pre>
+<h4><code>traceparent</code> 標頭長什麼樣</h4>
+<p>W3C Trace Context 推薦標準：「traceparent 標頭識別追蹤系統裡傳入的請求，有四個欄位：version、trace-id、parent-id、trace-flags」。trace-id「是整個追蹤森林的 ID」，16 個位元組；parent-id「是呼叫端所知的這個請求的 ID（有些追蹤系統叫 span-id）」，8 個位元組；全部為零都是無效值。trace-flags 的最低位元是 sampled，表示「呼叫端可能已經記錄了追蹤資料」。<a class="fixsrc" href="https://www.w3.org/TR/2021/REC-trace-context-1-20211123/" target="_blank" rel="noopener">出處</a> 實跑時 account 收到的是：</p>
+<pre><code>traceparent=00-67e70a401431e867dab5b5ae6729fde2-ceae3b4330fd56b3-03
+             │  │                                │                └ trace-flags：03＝sampled（01）加 random（02）
+             │  │                                └ parent-id：transfer 發出呼叫那一段 span 的 ID
+             │  └ trace-id：整條追蹤的 ID，兩個服務都是這一個
+             └ version：00</code></pre>
+<p>flags 是 <code>03</code> 而不是常見範例的 <code>01</code>：多出來的 <code>02</code> 是 Level 2 草案新增的 random-trace-id 旗標，「trace-flags 的第二個最低位元」，表示 trace-id 至少右邊 7 個位元組是隨機產生的。<a class="fixsrc" href="https://www.w3.org/TR/2024/CRD-trace-context-2-20240328/" target="_blank" rel="noopener">出處</a> Level 2 目前是候選推薦草案；本課實跑的 OpenTelemetry 1.62（Spring Boot 4.1.1 管理的版本）有設這個旗標。</p>
+<h4>到 Jaeger 查這條追蹤</h4>
+<p>用上面那個 trace ID 去 Jaeger 的查詢 API 拿資料，三段 span 依開始時間排好：</p>
+<pre><code>$ curl -s localhost:16686/api/traces/67e70a401431e867dab5b5ae6729fde2 | jq -c '.data[0] as $t | $t.spans | sort_by(.startTime)[] | {service: $t.processes[.processID].serviceName, name: .operationName, id: .spanID, parent: (.references[0].spanID // null), ms: (.duration / 1000 | floor)}'
+{"service":"transfer","name":"http get /transfers/check","id":"078dd44cd50adb93","parent":null,"ms":335}
+{"service":"transfer","name":"http get","id":"ceae3b4330fd56b3","parent":"078dd44cd50adb93","ms":331}
+{"service":"account","name":"http get /accounts/{id}/balance","id":"8b5c899fd52d0c0f","parent":"ceae3b4330fd56b3","ms":314}</code></pre>
+<figure>
+<svg viewBox="0 0 760 264" role="img" aria-label="追蹤的瀑布圖，取自 Jaeger 實跑結果。第一段是 transfer 收到請求，花 335 毫秒；第二段是 transfer 發出呼叫，2 毫秒後開始、花 331 毫秒，父節點是第一段；第三段是 account 處理請求，4 毫秒後開始、花 314 毫秒，父節點是第二段。account 收到的 traceparent 標頭第三欄 ceae3b4330fd56b3 就是第二段的 span ID">
+<defs><marker id="ob-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="250" y="26" font-size="11" text-anchor="start" opacity=".6">0 毫秒</text><text x="726.0" y="26" font-size="11" text-anchor="end" opacity=".6">340 毫秒</text><line x1="250" y1="34" x2="726.0" y2="34" stroke="currentColor" stroke-opacity=".3"/><text x="30" y="66" font-size="12.5" text-anchor="start">transfer・SERVER</text><text x="30" y="84" font-size="11" text-anchor="start" opacity=".7" class="mono">span 078dd44c…</text><rect x="250.0" y="50" width="469.7" height="24" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="258.0" y="66" font-size="11.5" text-anchor="start" class="mono">http get /transfers/check　335 毫秒</text><text x="44" y="128" font-size="12.5" text-anchor="start">transfer・CLIENT</text><text x="44" y="146" font-size="11" text-anchor="start" opacity=".7" class="mono">span ceae3b43…</text><rect x="253.1" y="112" width="463.8" height="24" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="261.08000000000004" y="128" font-size="11.5" text-anchor="start" class="mono">http get　331 毫秒</text><text x="261.08000000000004" y="150" font-size="11" text-anchor="start" opacity=".7" class="mono">父節點 078dd44c…</text><text x="58" y="190" font-size="12.5" text-anchor="start">account・SERVER</text><text x="58" y="208" font-size="11" text-anchor="start" opacity=".7" class="mono">span 8b5c899f…</text><rect x="256.0" y="174" width="440.9" height="24" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="264.02" y="190" font-size="11.5" text-anchor="start" class="mono">http get /accounts/{id}/balance　314 毫秒</text><text x="264.02" y="212" font-size="11" text-anchor="start" opacity=".7" class="mono">父節點 ceae3b43…</text><path d="M254 138 Q236 156 254 172" fill="none" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#ob-m3)"/><text x="450" y="150" font-size="11.5" text-anchor="start" fill="var(--gold-deep)" class="mono">traceparent: 00-67e70a40…-ceae3b43…-03</text><text x="30" y="250" font-size="12" text-anchor="start" opacity=".6">三段同屬一條 trace；account 那段的父節點，就是 transfer 發出呼叫那段的 span ID，也就是 traceparent 的第三欄</text>
+</svg>
+<figcaption>一條 trace 由好幾段 span 組成，每段記得自己的父節點；跨服務時，父節點的 ID 就放在 traceparent 標頭裡傳過去。</figcaption>
+</figure>
+<p>對照起來：transfer 收到請求那段（<code>078dd44c…</code>）沒有父節點，是這條追蹤的根；transfer 發出呼叫那段（<code>ceae3b43…</code>）的父節點是根；account 那段（<code>8b5c899f…</code>）的父節點是 <code>ceae3b43…</code>，正是 <code>traceparent</code> 的第三欄。335 毫秒裡有 314 毫秒花在 account，問題在哪一段一眼就看出來。</p>
+<p>取樣要注意：Spring Boot 預設「只取樣 10% 的請求，避免把追蹤後端壓垮」（By default, Spring Boot samples only 10% of requests to prevent overwhelming the trace backend.），這課為了示範設成 1.0。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">trace ID 貫穿全程、span ID 標每一段；跨服務靠 traceparent 傳父節點；用自動設定的 builder 建用戶端，傳播才會生效；預設取樣 10%</p>
+
+<div class="drill">
+  <p class="dq">transfer 呼叫 account 時，account 要怎麼知道「這個請求屬於哪一條追蹤」？</p>
+  <ul class="dopts"><li>account 自己產生一個新的 trace ID</li><li>兩邊去同一個資料庫查</li><li>靠兩邊的時間戳記對齊</li><li data-ok>用 traceparent 標頭傳過去</li></ul>
+  <p class="dexp">OpenTelemetry 文件：A 呼叫 B 時把 trace ID 與 span ID 放進情境，B 用它們建立同一條 trace 的新 span、把 A 的那段設成父節點。HTTP 上就是 traceparent 標頭。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>traceparent: 00-67e70a40…e2-ceae3b4330fd56b3-03</code> 裡，<code>ceae3b4330fd56b3</code> 是？</p>
+  <ul class="dopts"><li>trace-id</li><li>account 自己的 span ID</li><li>version</li><li data-ok>parent-id：呼叫端那一段 span 的 ID</li></ul>
+  <p class="dexp">四個欄位依序是 version、trace-id、parent-id、trace-flags。parent-id 是呼叫端所知的這個請求的 ID，也就是 transfer 發出呼叫那段的 span ID。</p>
+</div>
+<div class="drill">
+  <p class="dq">W3C 規格裡，trace-id 有多長？</p>
+  <ul class="dopts"><li>8 個位元組（16 個十六進位字元）</li><li data-ok>16 個位元組（32 個十六進位字元）</li><li>4 個位元組</li><li>沒有規定長度</li></ul>
+  <p class="dexp">trace-id 是 16 位元組的陣列，寫成 32 個十六進位字元；parent-id 是 8 位元組。實跑的 67e70a401431e867dab5b5ae6729fde2 正好 32 個字元。</p>
+</div>
+<div class="drill">
+  <p class="dq">實跑的 trace-flags 是 <code>03</code>。拆開來是？</p>
+  <ul class="dopts"><li data-ok>sampled 加 random</li><li>版本號 3，代表第三版規格</li><li>這條追蹤一共有 3 段 span</li><li>錯誤碼 3，代表呼叫失敗</li></ul>
+  <p class="dexp">最低位元是 sampled；第二個最低位元是 Level 2 草案的 random-trace-id 旗標，表示 trace-id 至少右邊 7 個位元組是隨機的。</p>
+</div>
+<div class="drill">
+  <p class="dq">同事自己 <code>RestClient.create()</code> 出一個用戶端去呼叫 account，結果 account 的 trace ID 跟 transfer 對不上。最可能的原因是？</p>
+  <ul class="dopts"><li data-ok>沒用自動設定的 RestClient.Builder</li><li>Jaeger 那邊壞掉了</li><li>account 沒有開 Prometheus 端點</li><li>取樣率設得太高</li></ul>
+  <p class="dexp">Spring Boot 文件明白警告：不用自動設定的 builder 建立 RestTemplate、RestClient 或 WebClient，自動的追蹤傳播就不會生效。</p>
+</div>
+<div class="drill">
+  <p class="dq">Jaeger 查出三段 span，其中 account 那段的 parent 是 <code>ceae3b43…</code>。<code>ceae3b43…</code> 是哪一段？</p>
+  <ul class="dopts"><li data-ok>transfer 發出 HTTP 呼叫那段</li><li>transfer 收到請求那段（根）</li><li>account 自己</li><li>Prometheus 拉指標那段</li></ul>
+  <p class="dexp">transfer 收到請求是根；它發出呼叫是子段（CLIENT）；account 處理請求那段的父節點就是這個 CLIENT 段，也就是 traceparent 的 parent-id。</p>
+</div>
+<div class="drill">
+  <p class="dq">Spring Boot 沒設定 <code>management.<wbr>tracing.<wbr>sampling.<wbr>probability</code> 時，大約多少比例的請求會被送去追蹤後端？</p>
+  <ul class="dopts"><li>100%</li><li>50%</li><li data-ok>10%</li><li>0%，要手動開</li></ul>
+  <p class="dexp">Spring Boot 預設只取樣 10%，避免壓垮追蹤後端。示範時設成 1.0 是為了每個請求都看得到。</p>
+</div>
+<div class="drill">
+  <p class="dq">Spring Boot 4.1 要用 OpenTelemetry 送追蹤，加哪個 starter？</p>
+  <ul class="dopts"><li>spring-cloud-starter-sleuth</li><li data-ok>spring-boot-starter-opentelemetry</li><li>spring-boot-starter-zipkin</li><li>spring-boot-starter-jaeger</li></ul>
+  <p class="dexp">Spring Boot 4.1 文件：OpenTelemetry 加 OTLP 需要 spring-boot-starter-opentelemetry；spring-boot-starter-zipkin 是 Brave 加 Zipkin 那一組。Sleuth 是 Spring Boot 2 時代的東西。</p>
+</div>
+<div class="drill">
+  <p class="dq">實跑時加了 OpenTelemetry starter，又設了 <code>management.<wbr>otlp.<wbr>metrics.<wbr>export.<wbr>enabled=<wbr>false</code>。為什麼？</p>
+  <ul class="dopts"><li>不關的話追蹤送不出去</li><li>Prometheus 規定一定要關</li><li>不關的話日誌不會是 JSON</li><li data-ok>starter 也會推指標，這課改用拉</li></ul>
+  <p class="dexp">spring-boot-starter-opentelemetry 帶著 micrometer-registry-otlp，指標推送預設是開的；Jaeger 只收追蹤，指標這邊用 /actuator/prometheus 讓 Prometheus 拉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">讓機器讀得懂的日誌</p>
+<h3 class="head">結構化日誌與 MDC</h3>
+<p>Spring Boot 文件：「結構化日誌是把日誌輸出寫成定義清楚、通常機器可讀的格式」（Structured logging is a technique where the log output is written in a well-defined, often machine-readable format.），內建支援 Elastic Common Schema（ECS）、Graylog（GELF）、Logstash 三種 JSON 格式，設定 <code>logging.<wbr>structured.<wbr>format.<wbr>console</code> 就能開。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/logging.html" target="_blank" rel="noopener">出處</a> 這個功能是 Spring Boot 3.4 加進來的（Support for structured logging has been introduced），4.1 照樣用。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a> 設成 <code>ecs</code> 之後，transfer 的一行日誌長這樣：</p>
+<pre><code>$ grep 67e70a401431e867dab5b5ae6729fde2 transfer.log | head -1 | jq .
+{
+  "@timestamp": "2026-10-02T15:56:10.412703Z",
+  "log": {
+    "level": "INFO",
+    "logger": "demo.transfer.TransferApp"
+  },
+  "process": {
+    "pid": 43777,
+    "thread": {
+      "name": "http-nio-8080-exec-3"
+    }
+  },
+  "service": {
+    "name": "transfer",
+    "version": "1.0",
+    "node": {}
+  },
+  "message": "轉帳前檢查餘額",
+  "traceId": "67e70a401431e867dab5b5ae6729fde2",
+  "spanId": "078dd44cd50adb93",
+  "account": "X999",
+  "ecs": {
+    "version": "8.11"
+  }
+}</code></pre>
+<p>每個欄位都有名字，日誌平台可以直接用 <code>service.name</code>、<code>log.level</code>、<code>traceId</code> 篩選，不用寫正規表示式去切字串。<code>traceId</code> 與 <code>spanId</code> 是 Micrometer Tracing 自動放的：文件說「用了 Micrometer Tracing，Spring Boot 預設就會在日誌裡加上關聯 ID」，由 MDC 裡的 traceId 與 spanId 組成。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>account</code> 那個欄位是程式自己放的，用的是 <strong>MDC</strong>（Mapped Diagnostic Context，對應式診斷情境）。Logback 手冊：MDC「讓開發者把資訊放進診斷情境，之後由 logback 的元件取出」，而且「以執行緒為單位管理」（The MDC manages contextual information on a per thread basis.）；典型用法是開始處理一個請求時，把客戶 ID 這類資訊放進去。<a class="fixsrc" href="https://logback.qos.ch/manual/mdc.html" target="_blank" rel="noopener">出處</a> 因為是綁在執行緒上，而 Tomcat 會重複使用執行緒，所以 transfer 的程式在 <code>finally</code> 裡 <code>MDC.remove</code>，不然下一個請求會帶著上一個人的帳號。</p>
+<h4>同一個 traceId，跨兩個服務</h4>
+<p>把兩個服務的日誌合在一起，用 trace ID 篩出同一個請求（<code>jq</code> 只挑出幾個欄位，並略過錯誤堆疊那一行）：</p>
+<pre><code>$ cat transfer.log account.log | grep 67e70a401431e867dab5b5ae6729fde2 | jq -c 'select(.error == null) | {service: .service.name, level: .log.level, message, traceId, spanId}'
+{"service":"transfer","level":"INFO","message":"轉帳前檢查餘額","traceId":"67e70a401431e867dab5b5ae6729fde2","spanId":"078dd44cd50adb93"}
+{"service":"transfer","level":"WARN","message":"查餘額失敗 status=503","traceId":"67e70a401431e867dab5b5ae6729fde2","spanId":"078dd44cd50adb93"}
+{"service":"account","level":"INFO","message":"查詢餘額 account=X999 traceparent=00-67e70a401431e867dab5b5ae6729fde2-ceae3b4330fd56b3-03","traceId":"67e70a401431e867dab5b5ae6729fde2","spanId":"8b5c899fd52d0c0f"}
+{"service":"account","level":"ERROR","message":"核心帳務逾時 account=X999","traceId":"67e70a401431e867dab5b5ae6729fde2","spanId":"8b5c899fd52d0c0f"}</code></pre>
+<p>四行來自兩個服務，trace ID 都是同一個；transfer 的兩行 spanId 相同（同一段），account 的兩行是 account 自己那段。從指標看到錯誤率升高，到追蹤看到慢在 account，再到這裡看到「核心帳務逾時」，三種訊號就這樣接起來。日誌不要寫進身分證字號、卡號這類敏感資料；結構化之後欄位更容易被整批搜出來，更要小心。</p>
+<p class="formula">結構化日誌讓欄位可以篩選；traceId、spanId 由 Micrometer Tracing 自動放進 MDC；業務欄位自己放進 MDC，用完一定要清</p>
+
+<div class="drill">
+  <p class="dq">開啟 <code>logging.<wbr>structured.<wbr>format.<wbr>console=<wbr>ecs</code> 之後，主控台的日誌會變成？</p>
+  <ul class="dopts"><li>彩色的純文字</li><li data-ok>每行一筆 JSON（ECS）</li><li>直接寫進資料庫</li><li>只剩 ERROR 等級的日誌</li></ul>
+  <p class="dexp">ECS 是 Spring Boot 內建的三種結構化格式之一。實跑的每一行都是 JSON，有 service.name、log.level、message、traceId、spanId 等欄位。</p>
+</div>
+<div class="drill">
+  <p class="dq">結構化日誌比一般純文字日誌好在哪？</p>
+  <ul class="dopts"><li>日誌檔案會比較小</li><li>寫日誌的速度比較快</li><li data-ok>欄位有名字，可以直接篩選</li><li>不需要時間戳記了</li></ul>
+  <p class="dexp">純文字要寫正規表示式切出欄位，格式一改就壞；結構化日誌的欄位機器直接讀得懂。</p>
+</div>
+<div class="drill">
+  <p class="dq">日誌裡的 <code>traceId</code> 與 <code>spanId</code> 是誰放進去的？</p>
+  <ul class="dopts"><li>程式設計師在每一行手動加</li><li data-ok>Micrometer Tracing 自動放進 MDC</li><li>Prometheus 拉指標時順便加上</li><li>Jaeger 收到 span 後回寫</li></ul>
+  <p class="dexp">Spring Boot 文件：用了 Micrometer Tracing，預設就會在日誌加上關聯 ID，由 MDC 的 traceId 與 spanId 組成。</p>
+</div>
+<div class="drill">
+  <p class="dq">MDC 的資料是以什麼為單位管理的？</p>
+  <ul class="dopts"><li>以整個應用程式為單位，所有請求共用</li><li>以 HTTP 連線為單位</li><li>以 logger 名稱為單位</li><li data-ok>以執行緒為單位</li></ul>
+  <p class="dexp">Logback 手冊：MDC 以執行緒為單位管理情境資訊。所以同一條執行緒處理下一個請求時，沒清掉的值還在。</p>
+</div>
+<div class="drill">
+  <p class="dq">transfer 在請求開始時 <code>MDC.put("account", …)</code>，卻忘了在 <code>finally</code> 裡 <code>MDC.remove</code>。可能出什麼事？</p>
+  <ul class="dopts"><li>程式會編譯不過</li><li>traceId 會從日誌裡不見</li><li data-ok>下個請求可能帶著上個人的帳號</li><li>Prometheus 會拉不到指標</li></ul>
+  <p class="dexp">MDC 綁在執行緒上，執行緒池會把同一條執行緒交給下一個請求；沒清掉，舊值就跟著寫進別人的日誌。</p>
+</div>
+<div class="drill">
+  <p class="dq">把兩個服務的日誌合起來，怎麼找出「同一個請求」的所有紀錄？</p>
+  <ul class="dopts"><li>找同一秒的日誌</li><li>找同一個執行緒名稱</li><li>找同一個 logger</li><li data-ok>用同一個 traceId 篩選</li></ul>
+  <p class="dexp">不同服務的執行緒、logger 都不一樣，同一秒也有很多請求；只有 traceId 是同一個請求全程共用的。實跑篩出四行，兩個服務各兩行。</p>
+</div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>三種訊號：指標說「有沒有事」、追蹤說「在哪一段」、日誌說「發生了什麼」，靠同一個 trace ID 串起來。</li><li>四個黃金訊號：延遲、流量、錯誤、飽和；延遲要把失敗請求算進去，飽和看最受限的資源。告警只對使用者感受得到的症狀，加 <code>for</code> 忽略一閃而過的波動，每次呼叫都要能採取行動。</li><li>Micrometer 是指標的門面；Actuator 預設只曝露 health，要打開 <code>prometheus</code>；計數器只增不減、重啟歸零，名稱的點換底線並加 <code>_total</code>。</li><li>Prometheus 定時來拉；<code>rate</code> 算每秒增加量，先 rate 再 sum；<code>histogram_quantile</code> 從直方圖的桶線性內插估百分位數，<code>le</code> 要留在 by 裡；錯誤率是兩個 rate 相除。</li><li>追蹤：trace ID 貫穿全程，span 記得父節點；跨服務靠 W3C <code>traceparent</code>（version、trace-id、parent-id、trace-flags）；用自動設定的 builder 建 HTTP 用戶端；預設取樣 10%。Spring Boot 4.1 用 <code>spring-boot-starter-opentelemetry</code> 以 OTLP 送出。</li><li>結構化日誌（3.4 起內建，<code>logging.<wbr>structured.<wbr>format.<wbr>console=<wbr>ecs</code>）讓欄位可篩選；traceId 與 spanId 自動進 MDC；業務欄位自己放進 MDC，用完在 finally 清掉；敏感資料不進日誌。</li></ul></div>

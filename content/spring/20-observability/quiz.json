@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "錯誤率升高、追蹤顯示慢在 account、account 日誌寫著核心帳務逾時。這三種訊號依序回答了哪三個問題？",
+   "opts": [
+    "有沒有事、事在哪一段、那一段發生了什麼",
+    "發生了什麼、有沒有事、事在哪一段",
+    "事在哪一段、有沒有事、發生了什麼",
+    "三個都在回答同一個問題"
+   ],
+   "exp": "指標說有沒有事，追蹤說事在哪一段，日誌說那一段發生了什麼；三者靠同一個 traceId 串起來。"
+  },
+  {
+   "q": "下面哪一個最適合當半夜叫醒值班人員的告警？",
+   "opts": [
+    "5xx 比例連續 5 分鐘超過 2%",
+    "某台機器的 CPU 超過 80%",
+    "JVM 執行緒數比昨天多一倍",
+    "日誌裡出現一行 WARN"
+   ],
+   "exp": "Prometheus 建議對症狀告警：錯誤率是使用者感受得到的；CPU、執行緒數是可能的原因，適合放在儀表板上幫忙找原因。"
+  },
+  {
+   "q": "Spring Boot 加了 Actuator 與 micrometer-registry-prometheus，什麼都沒設定，GET /actuator/prometheus 會怎樣？",
+   "opts": [
+    "拿不到，預設只曝露 health",
+    "回傳所有指標",
+    "回傳 health 的結果",
+    "自動推送到 Prometheus"
+   ],
+   "exp": "Spring Boot 文件：預設只有 health 端點透過 HTTP 曝露，prometheus 端點要用 management.​endpoints.​web.​exposure.​include 打開。"
+  },
+  {
+   "q": "Prometheus 是怎麼拿到服務的指標的？",
+   "opts": [
+    "定時到 /actuator/prometheus 拉",
+    "服務每次收到請求就主動推給 Prometheus",
+    "讀取服務寫在磁碟上的日誌檔",
+    "連到服務背後的資料庫直接查"
+   ],
+   "exp": "Prometheus 總覽：時間序列透過 HTTP 拉取模型收集；推送要經過中介的 gateway。"
+  },
+  {
+   "q": "要算所有實例加總的每秒請求數，哪一個寫法對？",
+   "opts": [
+    "sum(​rate(​http_​server_​requests_​seconds_​count[1m]))",
+    "rate(​sum(​http_​server_​requests_​seconds_​count)[1m])",
+    "sum(​http_​server_​requests_​seconds_​count) / 60",
+    "max(​http_​server_​requests_​seconds_​count)"
+   ],
+   "exp": "Prometheus 文件：一定先 rate 再加總，否則 rate 偵測不到目標重啟造成的計數器歸零。"
+  },
+  {
+   "q": "histogram_quantile(0.95, sum by (le, job) (rate(…_bucket[1m]))) 算出 0.134，下面哪一句對？",
+   "opts": [
+    "從桶裡線性內插估出來的",
+    "最近一分鐘最慢那個請求的耗時",
+    "平均耗時乘以 0.95 的結果",
+    "精確值，因為它記得每一筆耗時"
+   ],
+   "exp": "直方圖只存「不超過某條線」的累計數；文件說 histogram_quantile 假設桶內均勻分布、線性內插。le 要留在 by 裡。"
+  },
+  {
+   "q": "traceparent 是 00-67e70a401431e867dab5b5ae6729fde2-ceae3b4330fd56b3-03，其中 ceae3b4330fd56b3 是什麼？",
+   "opts": [
+    "parent-id",
+    "trace-id，整條追蹤的 ID",
+    "接收端自己這一段的 span ID",
+    "traceparent 的版本號"
+   ],
+   "exp": "W3C 規格的四個欄位依序是 version、trace-id、parent-id、trace-flags；parent-id 是呼叫端所知的這個請求的 ID。"
+  },
+  {
+   "q": "自己 new 出來的 RestClient 去呼叫下游，下游的 trace ID 跟上游對不上。最可能的原因是？",
+   "opts": [
+    "沒用自動設定的 Builder 建立",
+    "取樣率設得太高，被丟掉了",
+    "Prometheus 端點沒有打開",
+    "下游沒有開結構化日誌"
+   ],
+   "exp": "Spring Boot 文件：不用自動設定的 builder 建立 RestTemplate、RestClient 或 WebClient，自動的追蹤傳播就不會生效。"
+  },
+  {
+   "q": "Spring Boot 沒設 management.​tracing.​sampling.​probability 時，大約多少請求的追蹤會送到後端？",
+   "opts": [
+    "10%",
+    "100%",
+    "50%",
+    "0%"
+   ],
+   "exp": "Spring Boot 預設只取樣 10%，避免把追蹤後端壓垮；示範時才設成 1.0。"
+  },
+  {
+   "q": "在請求開始時 MDC.put(\"account\", …)，為什麼一定要在 finally 裡 MDC.remove？",
+   "opts": [
+    "MDC 綁在會被重用的執行緒上",
+    "不移除的話程式會編譯不過",
+    "不移除的話 traceId 會消失",
+    "不移除的話 Prometheus 拉不到"
+   ],
+   "exp": "Logback 手冊：MDC 以執行緒為單位管理；Tomcat 重複使用執行緒，沒清掉的值會跑進下一個人的日誌。"
+  }
+ ]
+}
