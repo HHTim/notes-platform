@@ -1,0 +1,54 @@
+{
+ "questions": [
+  {
+   "q": "Spring Security 資源伺服器用 issuer-uri 設定後，預設會檢查 JWT 的哪些項目？",
+   "opts": ["簽章，以及 exp、nbf 與 iss；aud 要另外加", "只檢查簽章", "簽章、exp、nbf、iss 與 aud 全部", "只檢查 exp，簽章交給授權伺服器"],
+   "exp": "文件列的預設是驗簽章、exp 與 nbf、iss，並把 scope 轉成 SCOPE_ 權限；aud 要用 audiences 屬性或自訂驗證器。"
+  },
+  {
+   "q": "一張 JWT 的聲明被竄改過（簽章沒動），資源伺服器回什麼？",
+   "opts": ["401，WWW-Authenticate 寫 invalid_token", "403，insufficient_scope", "200，簽章本身沒有被改", "400，請求格式錯誤"],
+   "exp": "簽章算的是原本的內容，驗不過就是權杖不可信，回 401 invalid_token；403 是權杖有效但權限不夠。"
+  },
+  {
+   "q": "權杖過期 30 秒，Spring Security 資源伺服器預設會怎樣？",
+   "opts": ["接受，因為預設容許 60 秒時鐘誤差", "拒絕，exp 一過就拒絕", "接受，因為 exp 預設不檢查", "拒絕，而且把權杖加進黑名單"],
+   "exp": "文件：By default, Resource Server configures a clock skew of 60 seconds。這課實跑：過期 30 秒回 200，過期 2 分鐘回 401。"
+  },
+  {
+   "q": "使用者把網址從 /accounts/alice 改成 /accounts/bob，想看別人的餘額。要擋住這件事，最直接的做法是？",
+   "opts": ["在 Service 方法上用 @PreAuthorize 比對參數與 authentication.name", "把 bob 的帳戶網址改成亂碼", "在路徑規則加 hasAuthority('SCOPE_accounts:read')", "前端把查別人的按鈕藏起來"],
+   "exp": "路徑規則只看得出有沒有權限，看不出是不是自己的資料；@PreAuthorize(\"#owner == authentication.name\") 才擋得住。"
+  },
+  {
+   "q": "帶著 Bearer 權杖的 POST 請求，Spring Security 資源伺服器的 CSRF 檢查會怎樣？",
+   "opts": ["不檢查，OAuth2ResourceServerConfigurer 把這類請求排除在外", "一定檢查，缺 CSRF 權杖就 403", "要手動關掉 CSRF 才會放行", "只在有 Session 時檢查"],
+   "exp": "原始碼裡 registerDefaultCsrfOverride 對帶 Bearer 權杖的請求呼叫 ignoringRequestMatchers；瀏覽器不會自動附帶 Bearer 權杖。"
+  },
+  {
+   "q": "授權碼流程裡，PKCE 防的是什麼？",
+   "opts": ["授權碼被攔截後被拿去換權杖", "使用者密碼被暴力破解", "存取權杖在資源伺服器被竄改", "跨網站指令碼攻擊"],
+   "exp": "授權請求只送 code_challenge，換權杖時要拿出原本的 code_verifier；攔到授權碼的人沒有 verifier，實跑得到 invalid_grant。"
+  },
+  {
+   "q": "授權請求的 redirect_uri 沒有登記過，Spring 授權伺服器怎麼處理？",
+   "opts": ["直接回 400，不導到那個網址", "導到那個網址並帶上錯誤", "導到那個網址並帶上授權碼", "改導到登記過的第一個網址"],
+   "exp": "網址不可信就不能往那裡導；RFC 9700 也要求導回網址完全相同的字串比對。"
+  },
+  {
+   "q": "同一個授權碼被拿去換第二次權杖，照 RFC 6749 與這課實跑會怎樣？",
+   "opts": ["第二次被拒，之前用它發的權杖也被撤銷", "第二次成功，拿到另一組權杖", "第二次被拒，之前的權杖不受影響", "授權伺服器停用這個用戶端"],
+   "exp": "RFC 6749：必須拒絕，並應撤銷之前用它簽發的權杖。實跑 introspect 從 active=true 變 false；不過離線驗 JWT 的 API 在權杖到期前仍會接受。"
+  },
+  {
+   "q": "Spring 授權伺服器設了 reuseRefreshTokens(false)，用過的更新權杖再拿去換會怎樣？",
+   "opts": ["400 invalid_grant，每次換發後舊的就作廢", "照樣成功，只要還沒過期", "成功，但不再發新的更新權杖", "整個使用者的所有權杖都被撤銷"],
+   "exp": "這就是更新權杖輪替。這課實跑舊的 rt1 被拒，但新的 rt2 仍可用；RFC 9700 描述的「偵測到重複使用就撤銷現行那把」要另外實作。"
+  },
+  {
+   "q": "DelegatingPasswordEncoder 遇到存成 {noop}bob-pw 的舊密碼，使用者用正確密碼登入後會怎樣？",
+   "opts": ["DaoAuthenticationProvider 用剛輸入的密碼以 bcrypt 重新編碼並存回去", "登入失敗，{noop} 已不支援", "登入成功，密碼維持 {noop}", "丟出 IllegalArgumentException"],
+   "exp": "upgradeEncoding 對舊格式回 true，有 UserDetailsPasswordService 時就升級。沒有任何前綴的密碼才會丟例外。"
+  }
+ ]
+}
