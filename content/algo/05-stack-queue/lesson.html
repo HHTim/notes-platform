@@ -1,0 +1,784 @@
+<!-- 來源：依 Java SE 25 API 文件（java.util.Deque、ArrayDeque、Queue、Stack、Vector、LinkedList）、OpenJDK jdk-25-ga 原始碼 ArrayDeque.java、普林斯頓 algs4.cs.princeton.edu 第 1.3 節與 introcs.cs.princeton.edu 第 4.3 節新寫；程式碼與練習題全部自編並以 Java 21 實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用疊盤子與排隊講清楚堆疊（後進先出）與佇列（先進先出），說出每個操作為什麼是 O(1)</li><li>在 Java 裡用 <code>ArrayDeque</code> 同時當堆疊與佇列，分清 <code>push</code>／<code>pop</code>／<code>peek</code> 與 <code>offer</code>／<code>poll</code>／<code>peek</code>，知道為什麼不用 <code>Stack</code> 類別</li><li>寫出括號配對、退格字串、逆波蘭式計算這類「用堆疊模擬」的題目</li><li>看懂單調堆疊為什麼能在 O(n) 找出「下一個更大的元素」，以及兩個堆疊怎麼拼成一個佇列</li></ul></div>
+
+<section>
+<p class="era">一個開口，最後放的最先拿</p>
+<h3 class="head">堆疊：疊盤子</h3>
+<p>洗好的盤子一個一個往上疊，要用的時候只能從最上面拿。最後放上去的那個，最先被拿走。這種「只開一個口、後放的先拿」的資料結構叫<strong>堆疊</strong>（stack），規則叫<strong>後進先出</strong>（last-in-first-out，簡稱 LIFO）。普林斯頓的《Algorithms》課本網站這樣定義：「下推堆疊是依後進先出原則運作的集合」（A pushdown stack is a collection that is based on the last-in-first-out (LIFO) policy.），並舉瀏覽器當例子：點連結時新頁面被放進堆疊，按「上一頁」就是把它拿出來（When you click a hyperlink, your browser displays the new page (and pushes onto a stack). … by clicking the back button (popping it from the stack).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<p>堆疊只有三個基本動作，全都只碰最上面那一個（叫<strong>頂端</strong>，top）：</p>
+<ul class="plainlist">
+<li><code>push(x)</code>：把 x 放到頂端（「推進去」）。</li>
+<li><code>pop()</code>：拿走頂端那個，並把它回傳（「彈出來」）。</li>
+<li><code>peek()</code>：看一眼頂端是誰，不拿走。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 262" role="img" aria-label="堆疊的五個步驟：依序 push 1、2、3，三個數由下往上疊；pop 拿走最上面的 3；peek 只看頂端的 2、不拿走">
+<defs><marker id="sq-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="86" y="30" font-size="14" text-anchor="middle" class="mono" fill="var(--gold-deep)">push(1)</text><path d="M52.0 56 L52.0 196 L120.0 196 L120.0 56" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="58.0" y="150" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="86.0" y="175.0" font-size="14" text-anchor="middle" class="mono">1</text><text x="86" y="226" font-size="12.5" text-anchor="middle">頂端是 1</text><line x1="126" y1="120" x2="190" y2="120" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m1)"/><text x="233" y="30" font-size="14" text-anchor="middle" class="mono" fill="var(--gold-deep)">push(2)</text><path d="M199.0 56 L199.0 196 L267.0 196 L267.0 56" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="205.0" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="233.0" y="175.0" font-size="14" text-anchor="middle" class="mono">1</text><rect x="205.0" y="110" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="233.0" y="135.0" font-size="14" text-anchor="middle" class="mono">2</text><text x="233" y="226" font-size="12.5" text-anchor="middle">頂端是 2</text><line x1="273" y1="120" x2="337" y2="120" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m1)"/><text x="380" y="30" font-size="14" text-anchor="middle" class="mono" fill="var(--gold-deep)">push(3)</text><path d="M346.0 56 L346.0 196 L414.0 196 L414.0 56" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="352.0" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="380.0" y="175.0" font-size="14" text-anchor="middle" class="mono">1</text><rect x="352.0" y="110" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="380.0" y="135.0" font-size="14" text-anchor="middle" class="mono">2</text><rect x="352.0" y="70" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380.0" y="95.0" font-size="14" text-anchor="middle" class="mono">3</text><text x="380" y="226" font-size="12.5" text-anchor="middle">頂端是 3</text><line x1="420" y1="120" x2="484" y2="120" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m1)"/><text x="527" y="30" font-size="14" text-anchor="middle" class="mono" fill="var(--gold-deep)">pop() → 3</text><path d="M493.0 56 L493.0 196 L561.0 196 L561.0 56" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="499.0" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="527.0" y="175.0" font-size="14" text-anchor="middle" class="mono">1</text><rect x="499.0" y="110" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="527.0" y="135.0" font-size="14" text-anchor="middle" class="mono">2</text><text x="527" y="226" font-size="12.5" text-anchor="middle">拿走 3，頂端變 2</text><line x1="567" y1="120" x2="631" y2="120" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m1)"/><text x="674" y="30" font-size="14" text-anchor="middle" class="mono" fill="var(--gold-deep)">peek() → 2</text><path d="M640.0 56 L640.0 196 L708.0 196 L708.0 56" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="646.0" y="150" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="674.0" y="175.0" font-size="14" text-anchor="middle" class="mono">1</text><rect x="646.0" y="110" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="674.0" y="135.0" font-size="14" text-anchor="middle" class="mono">2</text><text x="674" y="226" font-size="12.5" text-anchor="middle">只看不拿</text><text x="40" y="250" font-size="12" opacity=".6">古銅格＝這一步之後的頂端；所有動作都只碰頂端</text>
+</svg>
+<figcaption>堆疊只開一個口：最後放進去的 3 最先被拿出來（後進先出）。</figcaption>
+</figure>
+<p>因為三個動作都只碰頂端、不用往下翻，不管堆疊裡有 10 個還是 100 萬個元素，每個動作都是固定幾步完成，也就是 O(1)（複雜度的講法見〈複雜度：程式跑多快、吃多少記憶體〉）。反過來，堆疊<strong>不提供</strong>「直接拿第 k 個」：想拿最底下那個，得先把上面的全部彈出來。</p>
+<p class="formula">堆疊＝只開一個口：push、pop、peek 都只碰頂端，所以都是 O(1)</p>
+
+<div class="drill">
+  <p class="dq">依序把 A、B、C 三個盤子疊上去，然後拿走一個。拿走的是哪一個？</p>
+  <ul class="dopts"><li>A</li><li>B</li><li data-ok>C</li><li>看當時哪個在最前面，不一定</li></ul>
+  <p class="dexp">堆疊後進先出：C 最後放上去，壓在最上面，所以最先被拿走。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段執行完，<code>peek()</code> 看到的是什麼？</p>
+<pre><code>stack.push(1);
+stack.push(2);
+stack.push(3);
+stack.pop();
+stack.push(4);
+System.out.println(stack.peek());</code></pre>
+  <ul class="dopts"><li>1</li><li>2</li><li>3</li><li data-ok>4</li></ul>
+  <p class="dexp">push 三次後頂端是 3；pop 拿走 3，頂端回到 2；再 push 4，4 成為新的頂端。peek 只看不拿，印出 4。</p>
+</div>
+<div class="drill">
+  <p class="dq">依序 push 5、6、7，接著 pop 兩次，這時頂端是誰？</p>
+  <ul class="dopts"><li data-ok>5</li><li>6</li><li>7</li><li>堆疊已經空了</li></ul>
+  <p class="dexp">兩次 pop 依序拿走 7 和 6，只剩最早放進去的 5，它就是頂端。</p>
+</div>
+<div class="drill">
+  <p class="dq">依序 push 1、2、3，然後一直 pop 到空為止，彈出來的順序是？</p>
+  <ul class="dopts"><li data-ok>3、2、1</li><li>1、2、3</li><li>2、3、1</li><li>1、3、2</li></ul>
+  <p class="dexp">每次 pop 拿的都是當下的頂端：先 3、再 2、最後 1。整批放進去再整批拿出來，順序剛好反過來。</p>
+</div>
+<div class="drill">
+  <p class="dq">1、2、3 依序 push 進堆疊，過程中可以隨時 pop。下面哪一種彈出順序<strong>不可能</strong>出現？</p>
+  <ul class="dopts"><li>1、2、3</li><li>2、3、1</li><li>3、2、1</li><li data-ok>3、1、2</li></ul>
+  <p class="dexp">要先彈出 3，1、2、3 必須都已經在堆疊裡，這時頂端下面是 2，接著不可能先拿到 1。1、2、3 是「放一個拿一個」；2、3、1 是放 1、放 2、拿 2、放 3、拿 3、拿 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">堆疊裡有 5 個元素，你只能用 <code>pop()</code>。最底下那個元素會在第幾次 pop 時拿到？</p>
+  <ul class="dopts"><li>第 1 次</li><li>第 4 次</li><li data-ok>第 5 次</li><li>拿不到，堆疊不能碰底部</li></ul>
+  <p class="dexp">上面壓著 4 個，前 4 次 pop 拿走它們，第 5 次才輪到最底下那個。這也說明堆疊不適合「常常要拿中間或底部」的需求。</p>
+</div>
+<div class="drill">
+  <p class="dq">堆疊裡有 n 個元素，呼叫一次 <code>peek()</code> 的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)</li><li>O(log n)</li><li data-ok>O(1)</li><li>O(n²)</li></ul>
+  <p class="dexp">peek 只看頂端那一格，不用往下翻，步數跟 n 無關，是 O(1)。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？（<code>stack</code> 是 <code>ArrayDeque</code>，印出時頂端在最左邊）</p>
+<pre><code>stack.push("a");
+stack.push("b");
+stack.pop();
+stack.push("c");
+stack.push("d");
+stack.pop();
+System.out.println(stack);</code></pre>
+  <ul class="dopts"><li>[a, c]</li><li data-ok>[c, a]</li><li>[d, c, a]</li><li>[c, d]</li></ul>
+  <p class="dexp">push a、b，pop 拿走 b；push c、d，pop 拿走 d，剩下 a（底）和 c（頂）。ArrayDeque 印出時從頂端開始，所以是 [c, a]。</p>
+</div>
+</section>
+
+<section>
+<p class="era">兩個開口，先來的先走</p>
+<h3 class="head">佇列：排隊</h3>
+<p>銀行櫃檯排隊，先來的先辦，後來的排到隊伍最後面。這種「從一頭進、另一頭出、先來的先走」的資料結構叫<strong>佇列</strong>（queue），規則叫<strong>先進先出</strong>（first-in-first-out，簡稱 FIFO）。algs4 的定義：「先進先出佇列是依先進先出原則運作的集合」（A FIFO queue is a collection that is based on the first-in-first-out (FIFO) policy.），例子有戲院排隊、收費站前排隊的車，以及電腦上等著被處理的工作。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<p>排隊的最前面叫<strong>前端</strong>（head），最後面叫<strong>尾端</strong>（tail）。Java 的 <code>Queue</code> 介面用這三個動作：</p>
+<ul class="plainlist">
+<li><code>offer(x)</code>：x 排到尾端。</li>
+<li><code>poll()</code>：拿走前端那個並回傳。</li>
+<li><code>peek()</code>：看前端是誰，不拿走。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 136" role="img" aria-label="佇列：A、B、C、D 由左到右排成一列，左邊是前端、右邊是尾端。offer 從尾端加入新元素 E，poll 從前端拿走最早來的 A">
+<g transform="translate(0,-40)"><defs><marker id="sq-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="250" y="80" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="278.0" y="105.0" font-size="14" text-anchor="middle" class="mono">A</text><rect x="306" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="334.0" y="105.0" font-size="14" text-anchor="middle" class="mono">B</text><rect x="362" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="390.0" y="105.0" font-size="14" text-anchor="middle" class="mono">C</text><rect x="418" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="446.0" y="105.0" font-size="14" text-anchor="middle" class="mono">D</text><text x="278" y="66" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">前端（head）</text><text x="446" y="66" font-size="12.5" text-anchor="middle">尾端（tail）</text><line x1="640" y1="100" x2="482" y2="100" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sq-m2)"/><text x="560" y="88" font-size="13" text-anchor="middle" class="mono">offer(E)</text><text x="560" y="124" font-size="12" text-anchor="middle" opacity=".7">新來的排到尾端</text><line x1="244" y1="100" x2="90" y2="100" stroke="currentColor" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#sq-m2)"/><text x="168" y="88" font-size="13" text-anchor="middle" class="mono">poll() → A</text><text x="168" y="124" font-size="12" text-anchor="middle" opacity=".7">最早來的先離開</text><text x="40" y="160" font-size="12" opacity=".6">A、B、C、D 依序進來；古銅格是下一個要離開的</text></g>
+</svg>
+<figcaption>佇列兩頭各開一個口：從尾端進、從前端出，所以最早進來的 A 最先出去（先進先出）。</figcaption>
+</figure>
+<p>佇列的三個動作一樣只碰兩頭，不用動到中間，所以也都是 O(1)。堆疊與佇列的差別只有一句話：<strong>拿的時候拿「最新的」還是「最舊的」</strong>。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>堆疊（stack）</th><th>佇列（queue）</th></tr></thead><tbody>
+<tr><th>規則</th><td>後進先出：拿最新放進去的</td><td>先進先出：拿最早放進去的</td></tr>
+<tr><th>生活比喻</th><td>疊盤子、瀏覽器上一頁、文書軟體的復原</td><td>排隊、客服依來電順序接聽、印表機依送出順序列印</td></tr>
+<tr><th>放進去</th><td><code>push</code>：放到頂端</td><td><code>offer</code>：排到尾端</td></tr>
+<tr><th>拿出來</th><td><code>pop</code>：拿頂端</td><td><code>poll</code>：拿前端</td></tr>
+<tr><th>每個動作</th><td colspan="2">都只碰端點，O(1)</td></tr>
+</tbody></table></div>
+
+<div class="drill">
+  <p class="dq">依序 offer A、B、C 進佇列，接著 poll 兩次。第二次 poll 拿到的是？</p>
+  <ul class="dopts"><li data-ok>B</li><li>A</li><li>C</li><li>null</li></ul>
+  <p class="dexp">先進先出：第一次拿到最早來的 A，第二次輪到 B。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？</p>
+<pre><code>queue.offer(1);
+queue.offer(2);
+queue.offer(3);
+queue.poll();
+queue.offer(4);
+System.out.println(queue.peek());</code></pre>
+  <ul class="dopts"><li>1</li><li data-ok>2</li><li>3</li><li>4</li></ul>
+  <p class="dexp">poll 拿走最早的 1，前端變成 2；4 排到尾端，不影響前端。peek 看前端，印出 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？（<code>queue</code> 是 <code>ArrayDeque</code>，印出時前端在最左邊）</p>
+<pre><code>queue.offer(10);
+queue.offer(20);
+queue.poll();
+queue.offer(30);
+System.out.println(queue);</code></pre>
+  <ul class="dopts"><li>[10, 20, 30]</li><li>[30, 20]</li><li data-ok>[20, 30]</li><li>[10, 30]</li></ul>
+  <p class="dexp">poll 拿走前端的 10，剩 20；30 排到尾端。由前到後是 [20, 30]。</p>
+</div>
+<div class="drill">
+  <p class="dq">客服中心要讓來電「依打進來的順序」被接聽，等待中的來電最適合放在哪種結構？</p>
+  <ul class="dopts"><li data-ok>佇列</li><li>堆疊</li><li>只用一個變數記最新的來電</li><li>每次接聽前把來電按電話號碼排序</li></ul>
+  <p class="dexp">先打進來的先接，就是先進先出，用佇列。用堆疊會變成最後打進來的先接，先來的人一直等。</p>
+</div>
+<div class="drill">
+  <p class="dq">文書軟體的「復原」（Ctrl+Z）每按一次就撤銷最近一次的動作。做過的動作最適合記在哪種結構？</p>
+  <ul class="dopts"><li>佇列</li><li>依時間排序的陣列，每次從頭找</li><li>雜湊表</li><li data-ok>堆疊</li></ul>
+  <p class="dexp">要撤銷的永遠是「最近一次」，也就是最後放進去的，後進先出，用堆疊：做一個動作 push 一次，按復原就 pop 一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 1、2、3 依序放進一個堆疊，也依序放進一個佇列，然後兩邊各拿出一個。拿出來的分別是？</p>
+  <ul class="dopts"><li data-ok>堆疊 3、佇列 1</li><li>堆疊 1、佇列 3</li><li>兩邊都是 1</li><li>兩邊都是 3</li></ul>
+  <p class="dexp">堆疊拿最新的 3，佇列拿最早的 1。放進去的順序一樣，拿出來的規則相反。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一個類別，兩種用法</p>
+<h3 class="head">Java 怎麼寫：用 <code>ArrayDeque</code>，不要用 <code>Stack</code></h3>
+<p>Java 有一個介面叫 <code>Deque</code>，文件說這個名字是「double ended queue 的縮寫，通常念作 deck」（The name deque is short for "double ended queue" and is usually pronounced "deck".），中文叫<strong>雙端佇列</strong>：兩頭都能進、兩頭都能出。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Deque.html" target="_blank" rel="noopener">出處</a>兩頭都能進出，只用一頭就是堆疊，一頭進另一頭出就是佇列，所以一個 <code>Deque</code> 兩種都能當。<code>Deque</code> 的文件寫：「Deque 也能當後進先出的堆疊用。應該優先用這個介面，而不是舊的 <code>Stack</code> 類別」（Deques can also be used as LIFO (Last-In-First-Out) stacks. This interface should be used in preference to the legacy Stack class.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Deque.html" target="_blank" rel="noopener">出處</a> <code>Stack</code> 自己的文件也這樣說，還直接給了寫法：「<code>Deque</code> 介面與它的實作提供更完整、一致的後進先出操作，應該優先使用它們，而不是這個類別。例如：<code>Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;();</code>」（A more complete and consistent set of LIFO stack operations is provided by the Deque interface and its implementations, which should be used in preference to this class.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a></p>
+<p>最常用的實作是 <code>ArrayDeque</code>。它的文件寫：「當堆疊用時可能比 <code>Stack</code> 快，當佇列用時可能比 <code>LinkedList</code> 快」（This class is likely to be faster than Stack when used as a stack, and faster than LinkedList when used as a queue.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Queue;
+
+public class DequeBasics {
+    public static void main(String[] args) {
+        // 當堆疊用：push、pop、peek 都在「頂端」（deque 的前端）
+        Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+        stack.push(1);
+        stack.push(2);
+        stack.push(3);
+        System.out.println(stack);          // [3, 2, 1]：頂端在最左邊
+        System.out.println(stack.peek());   // 3：看頂端，不拿走
+        System.out.println(stack.pop());    // 3：拿走頂端
+        System.out.println(stack);          // [2, 1]
+
+        // 當佇列用：offer 從尾端進、poll 從前端出
+        Queue&lt;String&gt; queue = new ArrayDeque&lt;&gt;();
+        queue.offer("A");
+        queue.offer("B");
+        queue.offer("C");
+        System.out.println(queue);          // [A, B, C]：最左邊是下一個出去的
+        System.out.println(queue.poll());   // A：最早進來的先出去
+        System.out.println(queue.peek());   // B
+        System.out.println(queue);          // [B, C]
+
+        // 空的時候：poll、peek 回傳 null；pop、remove 丟例外
+        Deque&lt;Integer&gt; empty = new ArrayDeque&lt;&gt;();
+        System.out.println(empty.poll());   // null
+        System.out.println(empty.peek());   // null
+        try {
+            empty.pop();
+        } catch (java.util.NoSuchElementException e) {
+            System.out.println("pop 空的 deque：" + e.getClass().getSimpleName());
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[3, 2, 1]
+3
+3
+[2, 1]
+[A, B, C]
+A
+B
+[B, C]
+null
+null
+pop 空的 deque：NoSuchElementException</code></pre>
+<p>宣告型別寫介面（<code>Deque</code> 或 <code>Queue</code>）、<code>new</code> 的時候才寫實作，這是集合的一般寫法（見〈集合與泛型〉）。宣告成 <code>Queue</code> 有個好處：編譯器只讓你用佇列的方法，不會不小心呼叫到 <code>push</code>。</p>
+
+<h4>兩頭都能進出：<code>push</code> 和 <code>offer</code> 進的不是同一頭</h4>
+<p>文件把對應關係寫得很清楚。當堆疊用時，「元素從 deque 的開頭推進、彈出」（When a deque is used as a stack, elements are pushed and popped from the beginning of the deque.），<code>push</code> 等於 <code>addFirst</code>、<code>pop</code> 等於 <code>removeFirst</code>、<code>peek</code> 等於 <code>peekFirst</code>。當佇列用時，「元素加在 deque 的尾端、從開頭移除」（Elements are added at the end of the deque and removed from the beginning.），<code>offer</code> 等於 <code>offerLast</code>、<code>poll</code> 等於 <code>pollFirst</code>。<code>peek</code> 兩種用法都是看開頭那個。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Deque.html" target="_blank" rel="noopener">出處</a></p>
+<p>所以同一個 deque 混著用 <code>push</code> 和 <code>offer</code>，元素會從兩頭進來，結果常常出乎意料：</p>
+<pre><code>Deque&lt;Integer&gt; d = new ArrayDeque&lt;&gt;();
+d.push(1);    // 前端
+d.offer(2);   // 尾端
+d.push(3);    // 前端
+System.out.println(d);          // [3, 1, 2]
+System.out.println(d.poll());   // 3：poll 跟 pop 都從前端拿</code></pre>
+<p class="formula">一個 deque 只選一種用法：當堆疊就只用 push／pop／peek，當佇列就只用 offer／poll／peek</p>
+
+<h4>每個動作都有兩個版本：丟例外，或回傳特殊值</h4>
+<p><code>Queue</code> 文件說每個方法「都有兩種形式：一種在操作失敗時丟出例外，另一種回傳特殊值（<code>null</code> 或 <code>false</code>，看是哪個操作）」（Each of these methods exists in two forms: one throws an exception if the operation fails, the other returns a special value (either null or false, depending on the operation).）。拿與看的那兩對，差別只在佇列空的時候：「<code>remove()</code> 丟出例外，<code>poll()</code> 回傳 <code>null</code>」（the remove() method throws an exception, while the poll() method returns null.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Queue.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>動作</th><th>失敗時丟例外</th><th>失敗時回傳特殊值</th></tr></thead><tbody>
+<tr><th>放進去</th><td><code>add(e)</code></td><td><code>offer(e)</code>：回傳 <code>false</code></td></tr>
+<tr><th>拿出來</th><td><code>remove()</code></td><td><code>poll()</code>：空的時候回傳 <code>null</code></td></tr>
+<tr><th>看一眼</th><td><code>element()</code></td><td><code>peek()</code>：空的時候回傳 <code>null</code></td></tr>
+</tbody></table></div>
+<p>堆疊那一組的 <code>pop()</code> 屬於丟例外的那一邊：<code>ArrayDeque.pop()</code> 在 deque 空的時候丟 <code>NoSuchElementException</code>，而 <code>ArrayDeque.peek()</code> 空的時候回傳 <code>null</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a> 這跟舊的 <code>Stack</code> 不一樣：<code>Stack.peek()</code> 在空的時候丟 <code>EmptyStackException</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a> 解題時的習慣是先用 <code>isEmpty()</code> 檢查再拿，兩種寫法就都不會出事。</p>
+<p>也因為 <code>null</code> 被拿來代表「空了」，<code>ArrayDeque</code> 直接「禁止 null 元素」（Null elements are prohibited.），放 <code>null</code> 會丟 <code>NullPointerException</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a> <code>Queue</code> 文件也提醒：就算 <code>LinkedList</code> 這種實作允許 <code>null</code>，「也不應該把 null 放進佇列，因為 poll 方法也用 null 當特殊回傳值，表示佇列裡沒有元素」（null should not be inserted into a Queue, as null is also used as a special return value by the poll method to indicate that the queue contains no elements.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Queue.html" target="_blank" rel="noopener">出處</a></p>
+
+<h4>為什麼不要用 <code>Stack</code> 和 <code>LinkedList</code></h4>
+<ul class="plainlist">
+<li><strong><code>Stack</code></strong>：文件寫它「繼承 <code>Vector</code> 類別，加上五個操作，讓 vector 可以當堆疊用」（It extends class Vector with five operations that allow a vector to be treated as a stack.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a> 繼承的結果是 <code>Vector</code> 的方法它全都有，例如用 <code>add(0, x)</code> 插到最底下，堆疊「只碰頂端」的規矩就守不住了。而 <code>Vector</code> 文件說它「是同步的」（Vector is synchronized），不需要執行緒安全時建議改用 <code>ArrayList</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Vector.html" target="_blank" rel="noopener">出處</a> 解題時只有一條執行緒，用不到這層保護。</li>
+<li><strong><code>LinkedList</code></strong>：它也實作了 <code>Deque</code>，可以當堆疊和佇列，但 <code>ArrayDeque</code> 文件說自己當佇列用時可能比它快（上面那句原文）。它還允許放 <code>null</code>（permits all elements (including null)）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a>，正好是 <code>Queue</code> 文件叫你不要做的事。鏈結串列本身的結構見〈鏈結串列〉。</li>
+</ul>
+<p>還有一個實際會踩到的差別：印出來的順序。<code>Stack</code> 的頂端是「<code>Vector</code> 物件的最後一個元素」（the last item of the Vector object）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a>，印出時從底部印到頂端；<code>ArrayDeque</code> 從頂端（開頭）印起：</p>
+<pre><code>Stack&lt;Integer&gt; old = new Stack&lt;&gt;();
+Deque&lt;Integer&gt; deque = new ArrayDeque&lt;&gt;();
+for (int i = 1; i &lt;= 3; i++) {
+    old.push(i);
+    deque.push(i);
+}
+System.out.println("Stack 印出：" + old);        // [1, 2, 3]：頂端在最右邊
+System.out.println("ArrayDeque 印出：" + deque); // [3, 2, 1]：頂端在最左邊
+
+old.add(0, 99);   // Stack 繼承 Vector，可以插到任何位置，堆疊的規矩就破了
+System.out.println("插到底部之後：" + old);       // [99, 1, 2, 3]
+
+try {
+    deque.push(null);
+} catch (NullPointerException e) {
+    System.out.println("ArrayDeque 不收 null：" + e.getClass().getSimpleName());
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>Stack 印出：[1, 2, 3]
+ArrayDeque 印出：[3, 2, 1]
+插到底部之後：[99, 1, 2, 3]
+ArrayDeque 不收 null：NullPointerException</code></pre>
+
+<h4><code>ArrayDeque</code> 裡面長什麼樣：環狀陣列</h4>
+<p>OpenJDK 的原始碼裡，<code>ArrayDeque</code> 的元素放在一個陣列 <code>elements</code>，另外用兩個索引記位置：<code>head</code> 是「會被 <code>remove()</code> 或 <code>pop()</code> 拿走的那個元素」的索引，<code>tail</code> 是「下一個加到尾端的元素要放的位置」（The index at which the next element would be added to the tail of the deque）。註解裡直接稱它為「環狀陣列」（in a circular array）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayDeque.java" target="_blank" rel="noopener">出處</a> <strong>環狀陣列</strong>（circular array）就是把陣列頭尾接起來看：索引走到最後一格的下一步，繞回 0。</p>
+<figure>
+<svg viewBox="0 0 760 258" role="img" aria-label="ArrayDeque 的環狀陣列：容量 8 格，索引 0 到 7。A 在索引 6、B 在索引 7、C 繞回索引 0，其餘格子是 null。head 指在索引 6，tail 指在索引 1，虛線箭頭表示走到最後一格會繞回開頭">
+<defs><marker id="sq-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="156" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="184.0" y="115.0" font-size="14" text-anchor="middle" class="mono">C</text><text x="184.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">0</text><rect x="212" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="240.0" y="115" font-size="12" text-anchor="middle" class="mono" opacity=".5">null</text><text x="240.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">1</text><rect x="268" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="296.0" y="115" font-size="12" text-anchor="middle" class="mono" opacity=".5">null</text><text x="296.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">2</text><rect x="324" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="352.0" y="115" font-size="12" text-anchor="middle" class="mono" opacity=".5">null</text><text x="352.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">3</text><rect x="380" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408.0" y="115" font-size="12" text-anchor="middle" class="mono" opacity=".5">null</text><text x="408.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">4</text><rect x="436" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="464.0" y="115" font-size="12" text-anchor="middle" class="mono" opacity=".5">null</text><text x="464.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">5</text><rect x="492" y="90" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="520.0" y="115.0" font-size="14" text-anchor="middle" class="mono">A</text><text x="520.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">6</text><rect x="548" y="90" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="576.0" y="115.0" font-size="14" text-anchor="middle" class="mono">B</text><text x="576.0" y="146" font-size="12" text-anchor="middle" opacity=".6" class="mono">7</text><text x="520.0" y="58" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">head</text><path d="M514.0 66 L526.0 66 L520.0 78z" fill="var(--gold-deep)"/><text x="240.0" y="58" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">tail</text><path d="M234.0 66 L246.0 66 L240.0 78z" fill="var(--gold-deep)"/><path d="M594 152 Q594 196 380 196 Q166 196 184.0 154" fill="none" stroke="var(--slate)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#sq-m3)"/><text x="380" y="218" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">走到最後一格就繞回索引 0</text><text x="40" y="244" font-size="12" opacity=".6">先進出過六個元素，head 走到索引 6；接著 offer A、B、C，C 繞回索引 0，下一個 offer 放進 tail 指的索引 1</text>
+</svg>
+<figcaption>環狀陣列：head、tail 兩個索引往前走，到底就繞回 0，所以兩頭進出都不用搬動其他元素。</figcaption>
+</figure>
+<p>這樣設計的好處：從前端拿走一個，只要把 <code>head</code> 往後挪一格；從前端加一個，把 <code>head</code> 往前挪一格（到 0 再往前就繞到最後一格）。兩頭進出都不用搬動其他元素。如果用一般陣列、每次從索引 0 拿走元素，後面的全部要往前搬一格，那就是 O(n)（陣列搬動的成本見〈陣列與字串〉）。</p>
+<p>陣列滿了怎麼辦？原始碼的 <code>grow</code> 方法換一個更大的陣列、把元素搬過去，註解寫「小的時候容量加倍，否則增加 50%」（Double capacity if small; else grow by 50%）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayDeque.java" target="_blank" rel="noopener">出處</a> 搬家那一次要搬全部元素，是 O(n)；但搬一次之後要再放很多個才會再滿，平均分攤到每次操作還是常數。這叫<strong>攤銷</strong>（把偶爾一次很貴的成本平均分攤到每次操作）O(1)。<code>ArrayDeque</code> 文件的寫法是：「大部分 <code>ArrayDeque</code> 操作在攤銷常數時間內完成。例外包括 <code>remove</code>、<code>removeFirstOccurrence</code>、<code>removeLastOccurrence</code>、<code>contains</code>、<code>iterator.remove()</code> 與批次操作，這些都是線性時間」（Most ArrayDeque operations run in amortized constant time. Exceptions include remove, removeFirstOccurrence, removeLastOccurrence, contains, iterator.remove(), and the bulk operations, all of which run in linear time.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a>（這裡的 <code>remove</code> 指 <code>remove(Object o)</code>，從中間找一個指定元素刪掉；不帶參數的 <code>remove()</code> 是拿前端，屬於常數時間那一邊。）</p>
+<p class="formula">ArrayDeque：兩頭進出攤銷 O(1)；contains、刪中間的指定元素是 O(n)；不收 null</p>
+
+<div class="drill">
+  <p class="dq">下面這段印出什麼？</p>
+<pre><code>Deque&lt;Integer&gt; d = new ArrayDeque&lt;&gt;();
+d.push(1);
+d.push(2);
+System.out.println(d);</code></pre>
+  <ul class="dopts"><li data-ok>[2, 1]</li><li>[1, 2]</li><li>[2]</li><li>2</li></ul>
+  <p class="dexp">push 從開頭加，2 在 1 的前面；ArrayDeque 從開頭印起，所以是 [2, 1]。</p>
+</div>
+<div class="drill">
+  <p class="dq">把上一題的 <code>ArrayDeque</code> 換成 <code>Stack</code>，同樣 push 1、push 2，印出什麼？</p>
+<pre><code>Stack&lt;Integer&gt; s = new Stack&lt;&gt;();
+s.push(1);
+s.push(2);
+System.out.println(s);</code></pre>
+  <ul class="dopts"><li data-ok>[1, 2]</li><li>[2, 1]</li><li>[2]</li><li>編譯錯誤，Stack 不能印</li></ul>
+  <p class="dexp">Stack 底層是 Vector 的陣列，push 加在陣列尾巴，印出時從底部印到頂端，所以是 [1, 2]。同樣兩個動作，兩個類別印出來的順序相反。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？</p>
+<pre><code>Deque&lt;Integer&gt; d = new ArrayDeque&lt;&gt;();
+d.push(1);
+d.offer(2);
+d.push(3);
+System.out.println(d);</code></pre>
+  <ul class="dopts"><li>[3, 2, 1]</li><li>[1, 2, 3]</li><li data-ok>[3, 1, 2]</li><li>[2, 1, 3]</li></ul>
+  <p class="dexp">push 從開頭加、offer 從尾端加：1 先進來，2 接在 1 後面，3 插到最前面，由前到後是 [3, 1, 2]。</p>
+</div>
+<div class="drill">
+  <p class="dq">接續上一題的 <code>d</code>（內容 [3, 1, 2]），呼叫 <code>d.poll()</code> 會拿到什麼？</p>
+  <ul class="dopts"><li>2</li><li>1</li><li>null</li><li data-ok>3</li></ul>
+  <p class="dexp">poll 從開頭拿，開頭是 3。poll 跟 pop 拿的是同一頭，差別只在空的時候一個回 null、一個丟例外。</p>
+</div>
+<div class="drill">
+  <p class="dq">對一個空的 <code>ArrayDeque</code> 分別呼叫下面四個方法，哪一個會丟出例外？</p>
+  <ul class="dopts"><li>poll()</li><li>peek()</li><li data-ok>pop()</li><li>isEmpty()</li></ul>
+  <p class="dexp">pop 等於 removeFirst，空的時候丟 NoSuchElementException。poll 與 peek 空的時候回傳 null，isEmpty 回傳 true。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>Deque</code> 文件強烈建議不要把 <code>null</code> 放進 deque，理由是？</p>
+  <ul class="dopts"><li>null 會讓 deque 的容量變成 0</li><li data-ok>poll、peek 這些方法用 null 表示「空了」，放了 null 就分不出是真的拿到 null 還是空了</li><li>null 會被自動轉成 0</li><li>放 null 會讓 deque 從堆疊變成佇列</li></ul>
+  <p class="dexp">文件的理由是 null 被許多方法當成特殊回傳值，表示 deque 是空的。ArrayDeque 乾脆禁止，放 null 直接丟 NullPointerException。</p>
+</div>
+<div class="drill">
+  <p class="dq">新寫的 Java 程式需要一個堆疊，照 Java 文件的建議該怎麼宣告？</p>
+  <ul class="dopts"><li><code>Stack&lt;Integer&gt; s = new Stack&lt;&gt;();</code></li><li><code>Vector&lt;Integer&gt; s = new Vector&lt;&gt;();</code></li><li><code>List&lt;Integer&gt; s = new ArrayList&lt;&gt;();</code></li><li data-ok><code>Deque&lt;Integer&gt; s = new ArrayDeque&lt;&gt;();</code></li></ul>
+  <p class="dexp">Stack 的文件自己說應優先用 Deque 介面與它的實作，並舉 Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;() 當例子。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？</p>
+<pre><code>Stack&lt;Integer&gt; s = new Stack&lt;&gt;();
+s.push(1);
+s.push(2);
+s.add(0, 9);
+System.out.println(s.peek());</code></pre>
+  <ul class="dopts"><li>9</li><li data-ok>2</li><li>1</li><li>編譯錯誤，Stack 沒有 add(int, E)</li></ul>
+  <p class="dexp">Stack 繼承 Vector，所以有 add(0, 9)，9 被插到最底下，頂端還是 2。程式能編譯也能跑，這正是 Stack 守不住堆疊規矩的地方。</p>
+</div>
+<div class="drill">
+  <p class="dq">程式只有一條執行緒，需要一個佇列。<code>ArrayDeque</code> 和 <code>LinkedList</code> 該選哪個？</p>
+  <ul class="dopts"><li>LinkedList，因為只有它實作了 Queue</li><li data-ok>ArrayDeque，文件說它當佇列用時可能比 LinkedList 快，而且不收 null</li><li>LinkedList，因為 ArrayDeque 的 poll 是 O(n)</li><li>兩個都不行，要用 Stack</li></ul>
+  <p class="dexp">ArrayDeque 文件寫它當佇列用時可能比 LinkedList 快；它的 poll 是攤銷常數時間。LinkedList 也實作了 Queue 與 Deque，只是允許 null，正好違背 Queue 文件的建議。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>ArrayDeque</code> 的 <code>offer</code> 為什麼說是「攤銷 O(1)」，而不是每次都 O(1)？</p>
+  <ul class="dopts"><li>因為 offer 每次都要從頭找空位</li><li>因為環狀陣列每放一個就要整理一次</li><li data-ok>陣列滿了要換更大的陣列、把元素全部搬過去，那一次是 O(n)，平均分攤到每次還是常數</li><li>因為 offer 有時候會失敗回傳 false</li></ul>
+  <p class="dexp">平常 offer 只是把元素放進 tail 那一格、tail 往後挪；偶爾陣列滿了才搬家。搬家很貴但很少發生，平均下來每次是常數，這就是攤銷。</p>
+</div>
+<div class="drill">
+  <p class="dq">在有 n 個元素的 <code>ArrayDeque</code> 上呼叫 <code>contains(x)</code>，時間複雜度是？</p>
+  <ul class="dopts"><li>O(1)</li><li>攤銷 O(1)</li><li>O(log n)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">deque 只記兩頭的位置，要知道中間有沒有 x 只能一個一個看。文件也把 contains 列在線性時間的例外裡。</p>
+</div>
+<div class="drill">
+  <p class="dq">看上面的環狀陣列圖：容量 8，A、B、C 在索引 6、7、0，<code>tail</code> 指在 1。再 <code>offer("D")</code>，D 會放在哪個索引？</p>
+  <ul class="dopts"><li>索引 8</li><li data-ok>索引 1</li><li>索引 5</li><li>先把 A、B、C 搬到索引 0、1、2，再放到 3</li></ul>
+  <p class="dexp">offer 從尾端加，放進 tail 指的那一格，也就是索引 1，然後 tail 往後挪到 2。環狀陣列不用先搬動其他元素。</p>
+</div>
+</section>
+
+<section>
+<p class="era">右邊要配最近的左邊</p>
+<h3 class="head">面試經典一：括號配對</h3>
+<p>給一個只含 <code>()[]{}</code> 的字串，判斷括號是不是正確配對、正確巢狀（巢狀：一層包一層）。algs4 把它當堆疊的練習題：用堆疊判斷左右小括號、大括號、中括號的序列是否「正確平衡」（properly balanced），例如 <code>[()]{}{[()()]()}</code> 要回答 true、<code>[(])</code> 要回答 false。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<p>關鍵觀察：<strong>每個右括號都要配「最近一個還沒配到的左括號」</strong>。「最近的」就是「最後放進去的」，正好是堆疊的頂端。所以做法是：讀到左括號就 push；讀到右括號就 pop，看彈出來的是不是同一種左括號。</p>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="括號配對的過程：字串是 ([]{})。讀到左括號就放進堆疊；讀到右括號就彈出頂端，看是不是同一種的左括號。六步之後堆疊清空，字串合法">
+<text x="78" y="30" font-size="12" text-anchor="middle" opacity=".7">讀到</text><text x="78" y="54" font-size="18" text-anchor="middle" class="mono" fill="var(--gold-deep)">(</text><path d="M44.0 76 L44.0 176 L112.0 176 L112.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="50.0" y="130" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="78.0" y="155.0" font-size="14" text-anchor="middle" class="mono">(</text><text x="78" y="204" font-size="12.5" text-anchor="middle" fill="currentColor">push</text><text x="199" y="30" font-size="12" text-anchor="middle" opacity=".7">讀到</text><text x="199" y="54" font-size="18" text-anchor="middle" class="mono" fill="var(--gold-deep)">[</text><path d="M165.0 76 L165.0 176 L233.0 176 L233.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="171.0" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="199.0" y="155.0" font-size="14" text-anchor="middle" class="mono">(</text><rect x="171.0" y="90" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="199.0" y="115.0" font-size="14" text-anchor="middle" class="mono">[</text><text x="199" y="204" font-size="12.5" text-anchor="middle" fill="currentColor">push</text><text x="320" y="30" font-size="12" text-anchor="middle" opacity=".7">讀到</text><text x="320" y="54" font-size="18" text-anchor="middle" class="mono" fill="var(--gold-deep)">]</text><path d="M286.0 76 L286.0 176 L354.0 176 L354.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="292.0" y="130" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="320.0" y="155.0" font-size="14" text-anchor="middle" class="mono">(</text><text x="320" y="204" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">彈出 [，配對</text><text x="441" y="30" font-size="12" text-anchor="middle" opacity=".7">讀到</text><text x="441" y="54" font-size="18" text-anchor="middle" class="mono" fill="var(--gold-deep)">{</text><path d="M407.0 76 L407.0 176 L475.0 176 L475.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="413.0" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="441.0" y="155.0" font-size="14" text-anchor="middle" class="mono">(</text><rect x="413.0" y="90" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="441.0" y="115.0" font-size="14" text-anchor="middle" class="mono">{</text><text x="441" y="204" font-size="12.5" text-anchor="middle" fill="currentColor">push</text><text x="562" y="30" font-size="12" text-anchor="middle" opacity=".7">讀到</text><text x="562" y="54" font-size="18" text-anchor="middle" class="mono" fill="var(--gold-deep)">}</text><path d="M528.0 76 L528.0 176 L596.0 176 L596.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="534.0" y="130" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="562.0" y="155.0" font-size="14" text-anchor="middle" class="mono">(</text><text x="562" y="204" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">彈出 {，配對</text><text x="683" y="30" font-size="12" text-anchor="middle" opacity=".7">讀到</text><text x="683" y="54" font-size="18" text-anchor="middle" class="mono" fill="var(--gold-deep)">)</text><path d="M649.0 76 L649.0 176 L717.0 176 L717.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><text x="683" y="204" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">彈出 (，配對</text><text x="40" y="236" font-size="12" opacity=".6">每一欄是讀完那個字元之後的堆疊；讀完時堆疊是空的，所以 ([]{}) 合法</text>
+</svg>
+<figcaption>右括號永遠要配「最近一個還沒配到的左括號」，正好就是堆疊的頂端。</figcaption>
+</figure>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class Brackets {
+    static boolean isValid(String s) {
+        Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+        for (char c : s.toCharArray()) {
+            if (c == '(' || c == '[' || c == '{') {
+                stack.push(c);                       // 左括號：先記下來，等它的另一半
+            } else {
+                if (stack.isEmpty()) return false;   // 右括號來了，卻沒有左括號在等
+                char open = stack.pop();             // 最近的那個左括號
+                if (c == ')' &amp;&amp; open != '(') return false;
+                if (c == ']' &amp;&amp; open != '[') return false;
+                if (c == '}' &amp;&amp; open != '{') return false;
+            }
+        }
+        return stack.isEmpty();                      // 還有左括號沒配到，也不合法
+    }
+
+    public static void main(String[] args) {
+        for (String s : new String[] {"([]{})", "([)]", "((", "())", ""}) {
+            System.out.println("\"" + s + "\" → " + isValid(s));
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>"([]{})" → true
+"([)]" → false
+"((" → false
+"())" → false
+"" → true</code></pre>
+<p>不合法有三種情況，程式各擋一次：右括號配錯種類（<code>([)]</code>）、右括號來的時候堆疊是空的（<code>())</code>）、讀完了堆疊還有剩（<code>((</code>）。最後一種最常漏掉：只檢查「有沒有配錯」而忘了最後的 <code>stack.isEmpty()</code>，<code>((</code> 就會被當成合法。每個字元只 push 或 pop 一次，時間 O(n)；最壞情況全是左括號，堆疊放 n 個，空間 O(n)。</p>
+
+<div class="drill">
+  <p class="dq">用上面的方法檢查 <code>([]{})</code>，剛讀完前兩個字元 <code>([</code> 時，堆疊的頂端是？</p>
+  <ul class="dopts"><li>(</li><li data-ok>[</li><li>]</li><li>堆疊是空的</li></ul>
+  <p class="dexp">兩個都是左括號，依序 push，後放的 [ 在頂端。下一個字元 ] 來的時候，彈出來的就是它，剛好配對。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個字串括號配對正確？</p>
+  <ul class="dopts"><li>([)]</li><li>(()</li><li>)(</li><li data-ok>{[()]}</li></ul>
+  <p class="dexp">{[()]} 一層包一層，每個右括號彈出的都是同一種左括號，讀完堆疊是空的。([)] 交錯、(() 少一個右括號、)( 一開始就沒有左括號可配。</p>
+</div>
+<div class="drill">
+  <p class="dq">檢查 <code>([)]</code> 時，程式在哪一刻判定不合法？</p>
+  <ul class="dopts"><li data-ok>讀到 ) 時，彈出來的是 [，種類對不上</li><li>讀到 [ 時，因為前面已經有一個 (</li><li>讀完整個字串，發現堆疊還有剩</li><li>讀到 ] 時，堆疊是空的</li></ul>
+  <p class="dexp">push (、push [ 之後讀到 )，彈出頂端的 [，跟 ) 不是同一種，當場回傳 false，後面的 ] 根本沒讀到。</p>
+</div>
+<div class="drill">
+  <p class="dq">如果把程式最後一行 <code>return stack.isEmpty();</code> 改成 <code>return true;</code>，哪一個字串會被<strong>誤判</strong>成合法？</p>
+  <ul class="dopts"><li>())</li><li>([)]</li><li data-ok>((</li><li>([]{})</li></ul>
+  <p class="dexp">(( 讀完時兩個左括號都還在堆疊裡等，原本靠 isEmpty 擋下來；改成直接回傳 true 就放過了。()) 和 ([)] 在迴圈裡就已經回傳 false，不受影響；([]{}) 本來就合法。</p>
+</div>
+<div class="drill">
+  <p class="dq">字串長度是 n，用這個方法檢查，堆疊裡最多會同時放幾個字元？</p>
+  <ul class="dopts"><li>1 個</li><li>n / 2 個</li><li>log n 個</li><li data-ok>n 個</li></ul>
+  <p class="dexp">最壞情況整個字串都是左括號，每個都 push、沒有一個被彈出，堆疊放 n 個。所以空間複雜度是 O(n)。（這種字串最後會判定不合法，但判定之前堆疊已經放滿了。）</p>
+</div>
+</section>
+
+<section>
+<p class="era">照規則一步一步做</p>
+<h3 class="head">面試經典二：用堆疊模擬</h3>
+<p>有一類題目，題目描述的過程本身就是「後進先出」，照著用堆疊模擬就解完了。兩個代表：退格字串與逆波蘭式計算。</p>
+<h4>退格字串</h4>
+<p>模擬在鍵盤上打字，<code>#</code> 代表按一下退格鍵（刪掉前一個字；沒字可刪就什麼都不發生），問最後螢幕上的字。退格刪的永遠是「最後打的那個字」，所以打一個字 push、按退格 pop。</p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class Backspace {
+    // '#' 代表按一下退格鍵
+    static String type(String keys) {
+        Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+        for (char c : keys.toCharArray()) {
+            if (c == '#') {
+                if (!stack.isEmpty()) stack.pop();   // 沒字可刪時按退格，什麼都不發生
+            } else {
+                stack.push(c);
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        while (!stack.isEmpty()) sb.append(stack.pollLast());  // 從底部（最早打的字）開始拿
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        System.out.println(type("ab#c"));     // ac
+        System.out.println(type("a##b"));     // b
+        System.out.println(type("xy#z#w"));   // xw
+        System.out.println(type("ab#c").equals(type("ad#c")));  // true
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>ac
+b
+xw
+true</code></pre>
+<p>最後組字串時用 <code>pollLast()</code> 從底部拿，因為堆疊底部是最早打的字；如果用 <code>pop()</code> 從頂端拿，字會整串反過來。這裡用到 deque 兩頭都能拿的特性。</p>
+<h4>逆波蘭式計算</h4>
+<p>平常寫的 <code>(3 + 4) * 2</code> 叫<strong>中序式</strong>（infix，運算子夾在兩個數中間），要靠括號和先乘除後加減決定順序。<strong>逆波蘭式</strong>（reverse Polish notation，也叫<strong>後序式</strong> postfix）把運算子寫在兩個數後面：<code>3 4 + 2 *</code>，不需要括號。算法：讀到數字就 push；讀到運算子就 pop 兩個數、算完把結果 push 回去；最後堆疊裡剩的那個就是答案。普林斯頓的《Computer Science》課本網站在堆疊那一節就出了「寫一個程式讀入後序式、計算並印出值」的練習（Write a program EvaluatePostfix.java that takes a postfix expression from standard input, evaluates it, and prints the value.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/43stack/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class Rpn {
+    static int eval(String[] tokens) {
+        Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+        for (String t : tokens) {
+            switch (t) {
+                case "+", "-", "*", "/" -&gt; {
+                    int b = stack.pop();   // 先拿出來的是右邊那個數
+                    int a = stack.pop();
+                    stack.push(switch (t) {
+                        case "+" -&gt; a + b;
+                        case "-" -&gt; a - b;
+                        case "*" -&gt; a * b;
+                        default -&gt; a / b;
+                    });
+                }
+                default -&gt; stack.push(Integer.parseInt(t));
+            }
+        }
+        return stack.pop();
+    }
+
+    public static void main(String[] args) {
+        System.out.println(eval("3 4 + 2 *".split(" ")));    // (3 + 4) * 2 = 14
+        System.out.println(eval("5 1 2 + 4 * + 3 -".split(" ")));  // 5 + (1 + 2) * 4 - 3 = 14
+        System.out.println(eval("8 2 -".split(" ")));         // 8 - 2 = 6
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>14
+14
+6</code></pre>
+<p>最容易錯的是減法和除法的順序：<strong>先 pop 出來的是右邊那個數</strong>。<code>8 2 -</code> 先彈出 2、再彈出 8，要算 8 − 2，寫成 <code>b - a</code> 就會得到 −6。（程式用的是 Java 14 正式加入的 <code>switch</code> 箭頭寫法：符合的那個 <code>case</code> 只執行箭頭右邊、不會往下掉，一個 <code>case</code> 也可以列好幾個值，用逗號隔開。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a>）</p>
+<p class="muted">同一節也介紹了 Dijkstra 的「雙堆疊」演算法，用一個堆疊放數字、一個放運算子，直接計算加滿括號的中序式。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 面試題比較常直接給逆波蘭式。</p>
+
+<div class="drill">
+  <p class="dq">用上面的退格規則，<code>abc##d</code> 打完之後螢幕上是什麼？</p>
+  <ul class="dopts"><li>abd</li><li data-ok>ad</li><li>d</li><li>abcd</li></ul>
+  <p class="dexp">push a、b、c，兩次退格依序刪掉 c、b，剩 a；再打 d，結果是 ad。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>#a#b</code> 打完之後螢幕上是什麼？</p>
+  <ul class="dopts"><li>ab</li><li>a</li><li data-ok>b</li><li>空字串</li></ul>
+  <p class="dexp">第一個 # 時沒有字可刪，什麼都不發生；打 a、退格刪掉 a；再打 b。只剩 b。</p>
+</div>
+<div class="drill">
+  <p class="dq">把退格程式最後組字串那一行的 <code>stack.pollLast()</code> 換成 <code>stack.pop()</code>，<code>ab#c</code> 會得到什麼？</p>
+  <ul class="dopts"><li>ac</li><li data-ok>ca</li><li>abc</li><li>c</li></ul>
+  <p class="dexp">堆疊裡由底到頂是 a、c。pop 從頂端拿，先拿到 c 再拿到 a，組出來是 ca，整串反了。pollLast 從底部拿才是打字的順序。</p>
+</div>
+<div class="drill">
+  <p class="dq">逆波蘭式 <code>2 3 4 * +</code> 的值是？</p>
+  <ul class="dopts"><li>20</li><li>9</li><li data-ok>14</li><li>24</li></ul>
+  <p class="dexp">push 2、3、4；讀到 * 彈出 4 和 3，算 3 × 4 = 12 推回去；讀到 + 彈出 12 和 2，算 2 + 12 = 14。對應中序式 2 + 3 × 4。</p>
+</div>
+<div class="drill">
+  <p class="dq">逆波蘭式 <code>6 2 / 1 -</code> 的值是？</p>
+  <ul class="dopts"><li data-ok>2</li><li>-2</li><li>6</li><li>3</li></ul>
+  <p class="dexp">讀到 / 時彈出 2、再彈出 6，算 6 ÷ 2 = 3；讀到 - 時彈出 1、再彈出 3，算 3 − 1 = 2。兩次都是「後彈出的在左邊」。</p>
+</div>
+<div class="drill">
+  <p class="dq">計算 <code>10 4 -</code>，讀到減號時第一次 pop 拿到 4、第二次拿到 10。正確的結果是？</p>
+  <ul class="dopts"><li>-6</li><li>14</li><li>4</li><li data-ok>6</li></ul>
+  <p class="dexp">先彈出的 4 是右邊的數，後彈出的 10 是左邊的數，算 10 − 4 = 6。寫反就會得到 −6。</p>
+</div>
+<div class="drill">
+  <p class="dq">中序式 <code>(1 + 2) * 3</code> 寫成逆波蘭式是？</p>
+  <ul class="dopts"><li>1 2 3 + *</li><li data-ok>1 2 + 3 *</li><li>+ 1 2 * 3</li><li>1 + 2 3 *</li></ul>
+  <p class="dexp">先算 1 + 2，寫成 1 2 +；結果再乘 3，寫成「（前面的結果） 3 *」。合起來是 1 2 + 3 *。1 2 3 + * 算的是 1 × (2 + 3)。</p>
+</div>
+</section>
+
+<section>
+<p class="era">等一個比自己大的人出現</p>
+<h3 class="head">面試經典三：單調堆疊</h3>
+<p>題目長這樣：給一串數字，對每個位置找出「右邊第一個比它大的數」（下一個更大的元素）；或給每天的溫度，對每一天算出「要再等幾天才會更熱」（每日溫度）。天真的寫法是每個位置往右一個一個找，最壞 O(n²)。</p>
+<p>換個角度：從左往右走，還沒找到答案的位置先放進堆疊<strong>排隊等</strong>。每來一個新數字，就看堆疊頂端那個等待者：新數字比它大，它就等到了答案，彈出來記下；一直彈到頂端比新數字大（或堆疊空了）為止，再把新數字放進去等。這樣堆疊裡的值由底到頂一路變小（或相等），所以叫<strong>單調堆疊</strong>（monotonic stack：裡面的值由底到頂只往同一個方向變的堆疊）。</p>
+<p>algs4 的練習題就是這一型：給每天的股價，算出每一天要等幾天股價才會超過當天，提示是「演算法應該是線性時間，並用一個放陣列索引的堆疊」（Hint: your algorithm should take linear time and use a stack of array indices.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 338" role="img" aria-label="單調堆疊處理每日溫度：溫度陣列是 23、24、21、20、25、22，現在處理索引 4 的 25。處理前堆疊由底到頂是索引 1、2、3（24、21、20），一路變小。25 比它們都高，依序彈出索引 3、2、1，各自的答案是 1、2、3 天；最後放入索引 4">
+<defs><marker id="sq-m5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="44" font-size="12.5">溫度</text><rect x="212" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="240.0" y="45.0" font-size="14" text-anchor="middle" class="mono">23</text><text x="240.0" y="76" font-size="12" text-anchor="middle" opacity=".6" class="mono">0</text><rect x="268" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="296.0" y="45.0" font-size="14" text-anchor="middle" class="mono">24</text><text x="296.0" y="76" font-size="12" text-anchor="middle" opacity=".6" class="mono">1</text><rect x="324" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="352.0" y="45.0" font-size="14" text-anchor="middle" class="mono">21</text><text x="352.0" y="76" font-size="12" text-anchor="middle" opacity=".6" class="mono">2</text><rect x="380" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="408.0" y="45.0" font-size="14" text-anchor="middle" class="mono">20</text><text x="408.0" y="76" font-size="12" text-anchor="middle" opacity=".6" class="mono">3</text><rect x="436" y="20" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="464.0" y="45.0" font-size="14" text-anchor="middle" class="mono">25</text><text x="464.0" y="76" font-size="12" text-anchor="middle" opacity=".6" class="mono">4</text><rect x="492" y="20" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="520.0" y="45.0" font-size="14" text-anchor="middle" class="mono">22</text><text x="520.0" y="76" font-size="12" text-anchor="middle" opacity=".6" class="mono">5</text><text x="464.0" y="96" font-size="12.5" text-anchor="middle" class="mono" fill="var(--gold-deep)">i = 4</text><path d="M116.0 134 L116.0 274 L184.0 274 L184.0 134" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="122.0" y="228" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="150.0" y="253.0" font-size="14" text-anchor="middle" class="mono">24</text><text x="108.0" y="252.0" font-size="11.5" text-anchor="end" opacity=".6" class="mono">1</text><rect x="122.0" y="188" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="150.0" y="213.0" font-size="14" text-anchor="middle" class="mono">21</text><text x="108.0" y="212.0" font-size="11.5" text-anchor="end" opacity=".6" class="mono">2</text><rect x="122.0" y="148" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="150.0" y="173.0" font-size="14" text-anchor="middle" class="mono">20</text><text x="108.0" y="172.0" font-size="11.5" text-anchor="end" opacity=".6" class="mono">3</text><text x="150" y="300" font-size="12.5" text-anchor="middle">處理 25 之前</text><text x="40" y="324" font-size="11.5" opacity=".6">格子左邊的小字是索引</text><line x1="214" y1="200" x2="300" y2="200" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m5)"/><text x="316" y="150" font-size="13" fill="var(--slate-deep)">20 &lt; 25：彈出索引 3，答案 4 − 3 = 1</text><text x="316" y="180" font-size="13" fill="var(--slate-deep)">21 &lt; 25：彈出索引 2，答案 4 − 2 = 2</text><text x="316" y="210" font-size="13" fill="var(--slate-deep)">24 &lt; 25：彈出索引 1，答案 4 − 1 = 3</text><text x="316" y="240" font-size="13" fill="var(--gold-deep)">堆疊空了：放入索引 4</text><line x1="590" y1="200" x2="640" y2="200" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m5)"/><path d="M666.0 134 L666.0 274 L734.0 274 L734.0 134" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="672.0" y="228" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="700.0" y="253.0" font-size="14" text-anchor="middle" class="mono">25</text><text x="658.0" y="252.0" font-size="11.5" text-anchor="end" opacity=".6" class="mono">4</text><text x="700" y="300" font-size="12.5" text-anchor="middle">處理之後</text>
+</svg>
+<figcaption>堆疊裡的溫度由底到頂一路變小；新的一天比頂端熱，頂端那天就等到了答案，彈出來記下天數。</figcaption>
+</figure>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+
+public class NextGreater {
+    // 每個位置右邊第一個比它大的數；沒有就是 -1
+    static int[] nextGreater(int[] a) {
+        int[] ans = new int[a.length];
+        Arrays.fill(ans, -1);
+        Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();   // 放索引；由底到頂，對應的值一路變小
+        for (int i = 0; i &lt; a.length; i++) {
+            while (!stack.isEmpty() &amp;&amp; a[stack.peek()] &lt; a[i]) {
+                ans[stack.pop()] = a[i];             // a[i] 就是那些等待者的答案
+            }
+            stack.push(i);
+        }
+        return ans;
+    }
+
+    // 每日溫度：要再等幾天才會更熱；等不到就是 0
+    static int[] dailyTemperatures(int[] t) {
+        int[] ans = new int[t.length];
+        Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+        for (int i = 0; i &lt; t.length; i++) {
+            while (!stack.isEmpty() &amp;&amp; t[stack.peek()] &lt; t[i]) {
+                int j = stack.pop();
+                ans[j] = i - j;
+            }
+            stack.push(i);
+        }
+        return ans;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Arrays.toString(nextGreater(new int[] {2, 1, 5, 3, 4})));
+        System.out.println(Arrays.toString(dailyTemperatures(new int[] {23, 24, 21, 20, 25, 22})));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[5, 5, -1, 4, -1]
+[1, 3, 2, 1, 0, 0]</code></pre>
+<p><strong>為什麼是 O(n) 而不是 O(n²)？</strong>雖然 <code>for</code> 裡面包著 <code>while</code>，但每個索引只會被 push 一次、最多被 pop 一次。整個程式跑完，<code>while</code> 裡的 pop 加起來最多 n 次，push 也是 n 次，總共 O(n)。看複雜度不能只數迴圈有幾層，要看每個元素總共被處理幾次。</p>
+<p><strong>為什麼放索引不放值？</strong>每日溫度要算「隔幾天」，需要位置；有了索引，值可以隨時用 <code>t[j]</code> 查回來，反過來就查不到。</p>
+<p class="formula">單調堆疊：還沒找到答案的先進堆疊等；新來的比頂端大，頂端就等到了答案。每個元素進出各一次，O(n)</p>
+
+<div class="drill">
+  <p class="dq">對 <code>[4, 1, 2, 5]</code> 求「下一個更大的元素」（沒有就是 -1），結果是？</p>
+  <ul class="dopts"><li>[5, 2, 5, 5]</li><li>[1, 2, 5, -1]</li><li data-ok>[5, 2, 5, -1]</li><li>[-1, 2, 5, -1]</li></ul>
+  <p class="dexp">4 右邊第一個比它大的是 5；1 的是 2；2 的是 5；5 右邊沒有更大的，是 -1。</p>
+</div>
+<div class="drill">
+  <p class="dq">每日溫度 <code>[30, 20, 25, 35]</code>，每一天要再等幾天才會更熱（等不到是 0）？</p>
+  <ul class="dopts"><li data-ok>[3, 1, 1, 0]</li><li>[1, 1, 1, 0]</li><li>[3, 2, 1, 0]</li><li>[0, 1, 1, 0]</li></ul>
+  <p class="dexp">30 要等到第 3 天之後的 35，等 3 天；20 隔天就是 25，等 1 天；25 隔天是 35，等 1 天；35 之後沒有更熱的，是 0。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>nextGreater</code> 處理 <code>[2, 1, 5, 3, 4]</code>，處理完索引 1（值 1）之後，堆疊裡由頂到底對應的<strong>值</strong>是？</p>
+  <ul class="dopts"><li>2、1</li><li data-ok>1、2</li><li>只有 1</li><li>堆疊是空的</li></ul>
+  <p class="dexp">2 先進堆疊；1 比頂端的 2 小，不彈出，直接 push。頂端是 1、下面是 2，值由底到頂一路變小。</p>
+</div>
+<div class="drill">
+  <p class="dq">接續上一題，接著處理索引 2（值 5），<code>while</code> 迴圈會 pop 幾次？</p>
+  <ul class="dopts"><li>0 次</li><li>1 次</li><li data-ok>2 次</li><li>3 次</li></ul>
+  <p class="dexp">5 比頂端的 1 大，彈出（1 的答案是 5）；再比新頂端的 2 大，彈出（2 的答案也是 5）；堆疊空了，停。共 2 次，然後把 5 的索引 push 進去。</p>
+</div>
+<div class="drill">
+  <p class="dq">單調堆疊的程式是 <code>for</code> 裡面包 <code>while</code>，時間複雜度卻是 O(n)。原因是？</p>
+  <ul class="dopts"><li>while 迴圈每次最多跑一圈</li><li>堆疊的大小永遠是常數</li><li>因為用的是 ArrayDeque，所以 while 不算時間</li><li data-ok>每個索引最多 push 一次、pop 一次，整個程式的 pop 加起來最多 n 次</li></ul>
+  <p class="dexp">有時候一次 while 會連續 pop 好幾個，但被 pop 的元素不會再回來。全部加起來 push n 次、pop 最多 n 次，所以是 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">每日溫度那題，堆疊裡放的是索引而不是溫度值。主要原因是？</p>
+  <ul class="dopts"><li>索引比較小，比較省記憶體</li><li data-ok>答案要算「隔幾天」，需要位置；有索引就能查回溫度，有溫度卻查不回位置</li><li>ArrayDeque 只能放 int 索引</li><li>放溫度值會讓時間複雜度變成 O(n²)</li></ul>
+  <p class="dexp">ans[j] = i − j 要用到兩個位置。溫度可能重複，光有值不知道是哪一天；有索引則隨時能用 t[j] 查回溫度。</p>
+</div>
+<div class="drill">
+  <p class="dq">把題目改成「右邊第一個比它<strong>小</strong>的數」，程式最主要要改哪裡？</p>
+  <ul class="dopts"><li>改成從右往左走，其他不變</li><li>改用佇列</li><li data-ok>while 條件裡的 <code>&lt;</code> 改成 <code>&gt;</code>：頂端比新來的大才彈出，堆疊裡的值變成由底到頂一路變大</li><li>不用改，同一個程式就能算</li></ul>
+  <p class="dexp">新來的比頂端小，頂端就等到「下一個更小的」。比較方向一反，堆疊裡留下來的值也跟著反過來，由底到頂一路變大。</p>
+</div>
+</section>
+
+<section>
+<p class="era">倒一次，順序就翻正</p>
+<h3 class="head">面試經典四：用兩個堆疊做佇列，順便做最小值堆疊</h3>
+<p>題目：只准用堆疊，做出一個佇列。堆疊拿的是最新的，佇列要拿最舊的，順序剛好相反。algs4 的提示：「把元素 push 進一個堆疊再全部 pop 出來，順序會反過來；再做一次，順序就回來了」（If you push elements onto a stack and then pop them all, they appear in reverse order. If you repeat this process, they're now back in order.），並要求「每個佇列操作只花攤銷常數個堆疊操作」（each queue operations takes a constant amortized number of stack operations）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<p>做法：準備兩個堆疊 <code>in</code> 和 <code>out</code>。新來的一律 push 進 <code>in</code>；要拿的時候從 <code>out</code> 拿，<code>out</code> 空了才把 <code>in</code> 整批倒過去。</p>
+<figure>
+<svg viewBox="0 0 760 282" role="img" aria-label="用兩個堆疊做佇列，分三格：第一格 offer 1、2、3 之後，in 堆疊由底到頂是 1、2、3，out 是空的。第二格 poll 時 out 是空的，把 in 整批彈出、推進 out，out 由底到頂變成 3、2、1。第三格 out 彈出頂端的 1">
+<defs><marker id="sq-m6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="125" y="28" font-size="13" text-anchor="middle" fill="var(--gold-deep)">offer 1、2、3 之後</text><path d="M41.0 76 L41.0 216 L109.0 216 L109.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="47.0" y="170" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="75.0" y="195.0" font-size="14" text-anchor="middle" class="mono">1</text><rect x="47.0" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="75.0" y="155.0" font-size="14" text-anchor="middle" class="mono">2</text><rect x="47.0" y="90" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="75.0" y="115.0" font-size="14" text-anchor="middle" class="mono">3</text><path d="M141.0 76 L141.0 216 L209.0 216 L209.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><text x="75" y="240" font-size="13" text-anchor="middle" class="mono">in</text><text x="175" y="240" font-size="13" text-anchor="middle" class="mono">out</text><text x="125" y="266" font-size="12.5" text-anchor="middle">in 頂端是 3</text><line x1="242" y1="140" x2="276" y2="140" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m6)"/><text x="375" y="28" font-size="13" text-anchor="middle" fill="var(--gold-deep)">poll()：out 空了，整批倒過去</text><path d="M291.0 76 L291.0 216 L359.0 216 L359.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><path d="M391.0 76 L391.0 216 L459.0 216 L459.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="397.0" y="170" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="425.0" y="195.0" font-size="14" text-anchor="middle" class="mono">3</text><rect x="397.0" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="425.0" y="155.0" font-size="14" text-anchor="middle" class="mono">2</text><rect x="397.0" y="90" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="425.0" y="115.0" font-size="14" text-anchor="middle" class="mono">1</text><text x="325" y="240" font-size="13" text-anchor="middle" class="mono">in</text><text x="425" y="240" font-size="13" text-anchor="middle" class="mono">out</text><text x="375" y="266" font-size="12.5" text-anchor="middle">out 頂端變成 1</text><path d="M325 70 Q375 40 420 70" fill="none" stroke="var(--slate)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#sq-m6)"/><line x1="492" y1="140" x2="526" y2="140" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" marker-end="url(#sq-m6)"/><text x="625" y="28" font-size="13" text-anchor="middle" fill="var(--gold-deep)">out.pop() → 1</text><path d="M541.0 76 L541.0 216 L609.0 216 L609.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><path d="M641.0 76 L641.0 216 L709.0 216 L709.0 76" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><rect x="647.0" y="170" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="675.0" y="195.0" font-size="14" text-anchor="middle" class="mono">3</text><rect x="647.0" y="130" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="675.0" y="155.0" font-size="14" text-anchor="middle" class="mono">2</text><text x="575" y="240" font-size="13" text-anchor="middle" class="mono">in</text><text x="675" y="240" font-size="13" text-anchor="middle" class="mono">out</text><text x="625" y="266" font-size="12.5" text-anchor="middle">最早進來的 1 先出去</text>
+</svg>
+<figcaption>倒一次順序反過來：in 裡最早進來的 1 被壓在最底，倒進 out 之後跑到頂端。</figcaption>
+</figure>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class TwoStackQueue {
+    private final Deque&lt;Integer&gt; in = new ArrayDeque&lt;&gt;();    // 新來的都先放這裡
+    private final Deque&lt;Integer&gt; out = new ArrayDeque&lt;&gt;();   // 要出去的從這裡拿
+
+    void offer(int x) {
+        in.push(x);
+    }
+
+    int poll() {
+        if (out.isEmpty()) {
+            while (!in.isEmpty()) out.push(in.pop());   // 倒過去，順序剛好翻正
+        }
+        return out.pop();
+    }
+
+    public static void main(String[] args) {
+        TwoStackQueue q = new TwoStackQueue();
+        q.offer(1);
+        q.offer(2);
+        q.offer(3);
+        System.out.println(q.poll());   // 1
+        q.offer(4);
+        System.out.println(q.poll());   // 2
+        System.out.println(q.poll());   // 3
+        System.out.println(q.poll());   // 4
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>1
+2
+3
+4</code></pre>
+<p>注意 4 是在 <code>out</code> 還有 2、3 的時候進來的，它留在 <code>in</code>，等 2、3 都出去、<code>out</code> 空了才被倒過去，所以順序沒亂。如果 <code>out</code> 還有東西就倒，4 會壓在 2、3 上面先出去，就錯了。</p>
+<p><strong>複雜度：</strong>單看一次 <code>poll</code>，遇到要倒的時候得搬 <code>in</code> 裡全部的元素，最壞是 O(n)。但每個元素一輩子只會被搬一次（從 <code>in</code> 到 <code>out</code>），所以做 n 次操作總共 O(n)，平均每次攤銷 O(1)。面試時兩個都要講：<strong>單次最壞 O(n)、攤銷 O(1)</strong>。</p>
+<h4>最小值堆疊</h4>
+<p>同一個「多開一個堆疊」的想法還能做出「隨時 O(1) 拿到目前最小值」的堆疊。algs4 的提示：「維護兩個堆疊，一個放所有元素，另一個放最小值」（maintain two stacks, one which contains all of the items and another which contains the minima.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class MinStack {
+    private final Deque&lt;Integer&gt; all = new ArrayDeque&lt;&gt;();
+    private final Deque&lt;Integer&gt; mins = new ArrayDeque&lt;&gt;();   // 頂端永遠是目前的最小值
+
+    void push(int x) {
+        all.push(x);
+        if (mins.isEmpty() || x &lt;= mins.peek()) mins.push(x);   // 一樣小也要記，否則 pop 時會少一份
+    }
+
+    int pop() {
+        int x = all.pop();
+        if (x == mins.peek()) mins.pop();
+        return x;
+    }
+
+    int min() {
+        return mins.peek();
+    }
+
+    public static void main(String[] args) {
+        MinStack s = new MinStack();
+        s.push(5);
+        s.push(3);
+        s.push(7);
+        s.push(3);
+        System.out.println(s.min());   // 3
+        s.pop();                       // 拿走 3
+        System.out.println(s.min());   // 3（還有一個 3）
+        s.pop();                       // 拿走 7
+        s.pop();                       // 拿走 3
+        System.out.println(s.min());   // 5
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>3
+3
+5</code></pre>
+<p><code>x &lt;= mins.peek()</code> 的等號不能省：如果兩個 3 只在 <code>mins</code> 記一次，第一個 3 被 pop 時 <code>mins</code> 的 3 也跟著被拿走，但 <code>all</code> 裡還有另一個 3，最小值就錯了。</p>
+
+<div class="drill">
+  <p class="dq">用上面的兩個堆疊佇列，offer 1、2、3 之後呼叫一次 <code>poll()</code>。呼叫完之後，<code>out</code> 由頂到底是？</p>
+  <ul class="dopts"><li>3、2</li><li>1、2、3</li><li>空的</li><li data-ok>2、3</li></ul>
+  <p class="dexp">poll 時 out 是空的，把 in 的 3、2、1 依序彈出推進 out，out 由頂到底變成 1、2、3；彈出 1 之後剩 2、3，in 是空的。</p>
+</div>
+<div class="drill">
+  <p class="dq">依序執行 offer 1、offer 2、poll、offer 3、poll、poll，三次 poll 拿到的依序是？</p>
+  <ul class="dopts"><li data-ok>1、2、3</li><li>2、1、3</li><li>1、3、2</li><li>3、2、1</li></ul>
+  <p class="dexp">不管內部怎麼倒，它對外就是佇列，先進先出。第一次 poll 把 1、2 倒進 out，拿到 1；3 進 in；第二次 poll 時 out 還有 2，直接拿；第三次 out 空了，把 3 倒過來拿。</p>
+</div>
+<div class="drill">
+  <p class="dq">如果把 <code>poll()</code> 改成「不管 <code>out</code> 空不空，每次都先把 <code>in</code> 倒進 <code>out</code>」，會出什麼事？</p>
+  <ul class="dopts"><li>沒差，結果一樣</li><li>每次 poll 都變成 O(n²)</li><li data-ok>後來的元素會壓在 out 裡還沒出去的舊元素上面，先被拿走，順序就亂了</li><li>out 永遠是空的</li></ul>
+  <p class="dexp">例如 out 還有 2、3 時進來 4，若立刻倒，4 會到 out 頂端，下一次 poll 拿到 4 而不是 2。只有 out 空了才倒，才能保證舊的全出去了。</p>
+</div>
+<div class="drill">
+  <p class="dq">兩個堆疊做的佇列，單次 <code>poll</code> 最壞和攤銷的複雜度分別是？</p>
+  <ul class="dopts"><li>最壞 O(1)，攤銷 O(1)</li><li data-ok>最壞 O(n)，攤銷 O(1)</li><li>最壞 O(n)，攤銷 O(n)</li><li>最壞 O(n²)，攤銷 O(n)</li></ul>
+  <p class="dexp">碰到要倒的那一次得搬 in 裡全部元素，最壞 O(n)；但每個元素只會被搬一次，n 次操作總共 O(n)，平均每次攤銷 O(1)。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>MinStack</code> 依序 push 4、2、6、2，接著 pop 三次，這時 <code>min()</code> 回傳什麼？</p>
+  <ul class="dopts"><li>2</li><li>6</li><li data-ok>4</li><li>堆疊空了，丟例外</li></ul>
+  <p class="dexp">三次 pop 依序拿走 2、6、2，all 只剩 4。mins 記了 4、2、2，拿走兩個 2 之後頂端是 4。</p>
+</div>
+</section>
+
+<section>
+<p class="era">後面的課會再用到</p>
+<h3 class="head">堆疊與佇列還在哪裡出現</h3>
+<ul class="plainlist">
+<li><strong>佇列是廣度優先搜尋（BFS）的骨架。</strong>BFS（breadth-first search）是一層一層往外找：先看離起點一步的、再看兩步的。先發現的先處理，正好是先進先出。細節在〈圖：BFS、DFS 與拓樸排序〉。</li>
+<li><strong>雙端佇列解滑動視窗最大值。</strong>一個固定長度的視窗在陣列上往右滑，要隨時知道視窗裡的最大值。做法是用 deque 兩頭都能進出的特性：新元素從尾端進來前，把尾端比它小的都拿掉（跟單調堆疊同一個想法），滑出視窗的從前端拿掉。細節在〈雙指標、滑動視窗與前綴和〉。</li>
+<li><strong>方法呼叫本身就是堆疊。</strong>普林斯頓的課本寫：「實作方法呼叫最自然的方式是用堆疊。呼叫一個方法時，把狀態推進堆疊；方法回傳時，從堆疊彈出狀態，恢復呼叫前所有變數的值」（The natural way to implement the function-call abstraction is to use a stack. To call a function, push the state on a stack. To return from a function call, pop the state from the stack to restore all variables to their values before the function call…）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/43stack/" target="_blank" rel="noopener">出處</a> 這就是下一課〈遞迴與回溯〉的呼叫堆疊；JVM 怎麼替每條執行緒配這塊記憶體，見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。注意這裡的「堆疊」跟 JVM 裡放物件的「堆」（heap）是兩回事。</li>
+</ul>
+
+<div class="drill">
+  <p class="dq">廣度優先搜尋（BFS）要「先發現的先處理」，一層一層往外找。它用哪種結構存放「發現了但還沒處理」的點？</p>
+  <ul class="dopts"><li>堆疊</li><li data-ok>佇列</li><li>單調堆疊</li><li>兩個堆疊，一個放偶數層、一個放奇數層</li></ul>
+  <p class="dexp">先發現的先處理就是先進先出，用佇列。換成堆疊，最後發現的先處理，會一路往深處鑽，變成另一種搜尋方式。</p>
+</div>
+<div class="drill">
+  <p class="dq">滑動視窗最大值要在視窗兩頭都能加入或拿掉元素，最適合用哪種結構？</p>
+  <ul class="dopts"><li>堆疊</li><li>只能從尾端進、前端出的佇列</li><li data-ok>雙端佇列（deque）</li><li>雜湊表</li></ul>
+  <p class="dexp">新元素進來前要從尾端拿掉比它小的，滑出視窗的要從前端拿掉，兩頭都要進出，所以用 deque。</p>
+</div>
+<div class="drill">
+  <p class="dq">方法 A 呼叫 B，B 又呼叫 C。C 執行完之後，程式回到哪裡繼續？</p>
+  <ul class="dopts"><li data-ok>回到 B 呼叫 C 的下一行</li><li>回到 A 呼叫 B 的下一行</li><li>回到 A 的第一行</li><li>程式結束</li></ul>
+  <p class="dexp">方法呼叫用堆疊記狀態：A、B、C 依序推進去，C 回傳時彈出 C，頂端是 B，所以回到 B 呼叫 C 的地方繼續。後呼叫的先回傳，後進先出。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，先易後難</p>
+<h3 class="head">動手練</h3>
+<p>以下是 LeetCode 上考這課招式的題目，由易到難排。題目敘述請到題目頁看。</p>
+<div class="tablewrap"><table><thead><tr><th>題號與題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/valid-parentheses/" target="_blank" rel="noopener">20. Valid Parentheses</a></td><td>括號配對：右括號配頂端，最後堆疊要空</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/backspace-string-compare/" target="_blank" rel="noopener">844. Backspace String Compare</a></td><td>用堆疊模擬退格</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/implement-queue-using-stacks/" target="_blank" rel="noopener">232. Implement Queue using Stacks</a></td><td>兩個堆疊做佇列，out 空了才倒</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/next-greater-element-i/" target="_blank" rel="noopener">496. Next Greater Element I</a></td><td>單調堆疊找下一個更大的元素</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/min-stack/" target="_blank" rel="noopener">155. Min Stack</a></td><td>多開一個堆疊記最小值</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/evaluate-reverse-polish-notation/" target="_blank" rel="noopener">150. Evaluate Reverse Polish Notation</a></td><td>逆波蘭式：先彈出的是右邊的數</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/daily-temperatures/" target="_blank" rel="noopener">739. Daily Temperatures</a></td><td>單調堆疊放索引，算隔幾天</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank" rel="noopener">239. Sliding Window Maximum</a></td><td>雙端佇列兩頭進出（搭配〈雙指標、滑動視窗與前綴和〉）</td><td>Hard</td></tr>
+</tbody></table></div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>堆疊後進先出、佇列先進先出；兩者的 push／pop／offer／poll／peek 都只碰端點，O(1)。</li><li>Java 用 <code>ArrayDeque</code>：當堆疊用 <code>push</code>／<code>pop</code>／<code>peek</code>，當佇列用 <code>offer</code>／<code>poll</code>／<code>peek</code>，一個 deque 只選一種用法。<code>Deque</code> 與 <code>Stack</code> 的文件都建議用 <code>Deque</code> 取代 <code>Stack</code>。</li><li>空的時候 <code>poll</code>／<code>peek</code> 回傳 <code>null</code>、<code>pop</code>／<code>remove</code> 丟例外；所以 <code>ArrayDeque</code> 不收 <code>null</code>。</li><li><code>ArrayDeque</code> 是環狀陣列：兩頭進出攤銷 O(1)，<code>contains</code> 與刪中間的指定元素是 O(n)。</li><li>括號配對：右括號配頂端，三種不合法（配錯、堆疊空、最後有剩）。逆波蘭式：先彈出的是右邊的數。</li><li>單調堆疊：還沒找到答案的進堆疊等，每個元素進出各一次，O(n)；堆疊放索引。</li><li>兩個堆疊做佇列：out 空了才倒，單次最壞 O(n)、攤銷 O(1)。佇列是 BFS 的骨架，方法呼叫本身就是堆疊。</li></ul></div>
