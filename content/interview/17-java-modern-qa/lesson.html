@@ -1,4 +1,4 @@
-<!-- 來源：依 Java SE 21 API 文件（java.util.function、java.util.stream、Collectors、Optional、Record、LambdaMetafactory）、Java 語言規格 SE 21 第 4.12.4、15.13、15.27 節、OpenJDK JEP 286、361、394、395、409、440、441、456、dev.java 教學（lambdas、method-references、optionals、parallel-streams）新寫；程式碼全部自編，以 Java 21 實際編譯執行 · 收錄日期：2026-10-02 -->
+<!-- 來源：依 Java SE 21 API 文件（java.util.function、java.util.stream、Collectors、Optional、Record、LambdaMetafactory、FunctionalInterface、CompletableFuture）、Java 語言規格 SE 21 第 4.12.4、11.2.3、15.13、15.27 節、OpenJDK JEP 286、361、394、395、409、440、441、456、OpenJDK Amber 專案 var 風格指南（lvti-style-guide）、Oracle Java 教學 parallelism 頁、dev.java 教學（lambdas、method-references、optionals、parallel-streams）新寫；程式碼全部自編，以 Java 21 實際編譯執行 · 收錄日期：2026-10-02 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>答出 lambda 跟匿名類別的兩個差別（this 指誰、會不會多一個類別檔），函式介面的定義，以及 lambda 為什麼只能讀 effectively final 的變數</li><li>說清楚 Stream 的惰性求值、只能用一次、中間對終端操作，map 對 flatMap，以及 <code>toMap</code> 鍵重複、<code>toList()</code> 不可修改這兩個常見地雷</li><li>判斷平行流與 Optional 什麼時候該用、什麼時候不該用</li><li>講出 record、<code>var</code>、switch 運算式與模式比對、sealed 各解決什麼問題、各有什麼限制</li></ul></div>
 <section>
     <p class="era">Lambda 與函式介面</p>
@@ -7,7 +7,7 @@
 
     <p class="q">面試官：lambda 跟匿名類別差在哪？</p>
     <p><strong>一句話定義：</strong>lambda 是只留參數與本體的匿名方法，用來實作函式介面那唯一的抽象方法；dev.java 說它是在某些情況下「寫匿名類別實例的另一種、更簡單的方式」（another, simpler way of writing instances of anonymous classes, in some precise cases）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>差別一，this 指誰：</strong>匿名類別是一個新類別，裡面的 <code>this</code> 指那個匿名物件；JLS 說 lambda 本體裡的名稱與 <code>this</code>、<code>super</code>「跟周圍的程式碼意義相同」（are the same as in the surrounding context）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> <strong>差別二，編譯方式（點到即可）：</strong>匿名類別會多編出一個 <code>外層$1.class</code>；lambda 不會，本體編成外層類別裡的私有方法，執行時才由 <code>invokedynamic</code> 指令透過 <code>LambdaMetafactory</code> 產生實作物件，API 文件說這些方法「通常當作 invokedynamic 呼叫點的啟動方法，用來支援 lambda 運算式與方法參考」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/LambdaMetafactory.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>差別一，this 指誰：</strong>匿名類別是一個新類別，裡面的 <code>this</code> 指那個匿名物件；JLS 說 lambda 本體裡的名稱與 <code>this</code>、<code>super</code>「跟周圍的程式碼意義相同」（are the same as in the surrounding context）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> <strong>差別二，編譯方式（點到即可）：</strong>匿名類別會多編出一個 <code>外層$1.class</code>；lambda 不會，本體編成外層類別裡的私有方法（javac 的做法，Java 21 實測），執行時才由 <code>invokedynamic</code> 指令透過 <code>LambdaMetafactory</code> 產生實作物件，API 文件說這些方法「通常當作 invokedynamic 呼叫點的啟動方法，用來支援 lambda 運算式與方法參考」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/LambdaMetafactory.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>public class ThisDemo {
     String name = "外層物件";
 
@@ -35,7 +35,7 @@ $ javap -c -p -cp out ThisDemo | grep -E 'invokedynamic|lambda\$'
       10: invokedynamic #20,  0             // InvokeDynamic #0:run:(LThisDemo;)Ljava/lang/Runnable;
   private void lambda$run$0();
        7: invokedynamic #36,  0             // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;</code></pre>
-    <p class="muted">只有匿名類別多了 <code>ThisDemo$1.class</code>；lambda 的本體編成私有方法 <code>lambda$run$0</code>，執行時由 <code>invokedynamic</code> 指令產生 <code>Runnable</code> 物件。最後一行是字串串接，跟 lambda 無關。</p>
+    <p class="muted">只有匿名類別多了 <code>ThisDemo$1.class</code>；lambda 的本體編成私有方法 <code>lambda$run$0</code>（javac 的做法，Java 21 實測），執行時由 <code>invokedynamic</code> 指令產生 <code>Runnable</code> 物件。最後一行是字串串接，跟 lambda 無關。</p>
 
     <p class="q">面試官：什麼是函式介面？@FunctionalInterface 一定要加嗎？</p>
     <p><strong>一句話定義：</strong>「概念上，函式介面恰好有一個抽象方法」，default 方法有實作所以不算，跟 <code>Object</code> 公開方法同名的抽象方法也不算；lambda 只能放在需要函式介面的地方。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a></p>
@@ -65,7 +65,7 @@ public class FuncIface {
 大額 一般</code></pre>
 
     <p class="q">面試官：lambda 裡為什麼不能改外面的區域變數？什麼是 effectively final？</p>
-    <p><strong>一句話定義：</strong>lambda 用到的外部區域變數「必須是 final 或 effectively final」；effectively final 是沒寫 <code>final</code>、但「加上 final 也不會有任何編譯錯誤」的變數，也就是宣告後從沒被重新指派。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.4" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>lambda 用到但沒在裡面宣告的區域變數、參數或例外參數「必須是 final 或 effectively final」（must either be final or effectively final）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a>；effectively final 是沒寫 <code>final</code>、但「加上 final 也不會有任何編譯錯誤」的變數，也就是宣告後從沒被重新指派。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.4" target="_blank" rel="noopener">出處</a></p>
     <p><strong>為什麼：</strong>JLS 的理由是這樣「禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題」（whose capture would likely introduce concurrency problems）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> lambda 可能在別的執行緒、之後才執行，捕獲的其實是「值」。要加總就讓結果變成回傳值：</p>
     <pre><code>import java.util.List;
 
@@ -99,7 +99,7 @@ public class CaptureFix {
     <p><strong>常被追問：</strong>lambda 能不能丟受檢例外？要看函式介面的方法有沒有宣告 throws：JLS 規定 lambda 本體丟出的受檢例外，必須是目標方法 throws 子句所列例外的子類別<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a>，而 <code>Function.apply</code>、<code>Consumer.accept</code> 都沒宣告，所以在 <code>forEach</code> 裡直接讀檔會編不過，只能在 lambda 裡自己 try／catch，或改回一般迴圈。</p>
 
     <p class="q">面試官：方法參考有哪幾種？</p>
-    <p><strong>一句話定義：</strong>方法參考用 <code>::</code>「指稱一個方法的呼叫，而不實際執行那個呼叫」，是「只把參數轉交給現成方法」那種 lambda 的簡寫。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a> dev.java 分四種：靜態方法（<code>Integer::parseInt</code>）、特定物件的實例方法（<code>System.out::println</code>，也叫綁定）、某型別任意物件的實例方法（<code>String::toUpperCase</code>，未綁定，第一個參數當呼叫者）、建構子（<code>ArrayList::new</code>，依目標型別決定呼叫哪個建構子）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>方法參考用 <code>::</code>「指稱一個方法的呼叫，而不實際執行那個呼叫」（to refer to the invocation of a method without actually performing the invocation）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a>；dev.java 說它是用來取代那種「只是呼叫某個在別處定義好的方法」的 lambda（lambda expressions that are just calls to specific methods defined somewhere else）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a> dev.java 分四種：靜態方法（<code>Integer::parseInt</code>）、特定物件的實例方法（<code>System.out::println</code>，也叫綁定）、某型別任意物件的實例方法（<code>String::toUpperCase</code>，未綁定，第一個參數當呼叫者）、建構子（<code>ArrayList::new</code>，依目標型別決定呼叫哪個建構子）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
     <pre><code>import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
@@ -135,7 +135,7 @@ same true
 
     <p class="q">面試官：Stream 的惰性求值是什麼？為什麼一條流只能用一次？中間操作跟終端操作差在哪？</p>
     <p><strong>一句話定義：</strong>管線是「來源＋零個或多個中間操作＋一個終端操作」；中間操作（<code>filter</code>、<code>map</code>、<code>sorted</code>……）回傳新的流而且「一律是惰性的」，終端操作（<code>toList</code>、<code>collect</code>、<code>count</code>、<code>findFirst</code>……）執行之前「不會開始走訪來源」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>只能用一次：</strong>流「跟 Iterator 一樣」，元素只會被走訪一次，要再走就得產生新的流；Stream 文件說偵測到重用時「可能丟出 IllegalStateException」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 下面的輸出還看得出 Java 21 的循序流是一筆一筆走完整條管線，不是全部 filter 完才 map：</p>
+    <p><strong>只能用一次：</strong>套件說明說流的元素「在一條流的生命期間只會被走訪一次」（The elements of a stream are only visited once during the life of a stream），而且「跟 Iterator 一樣」要再走就得產生新的流（Like an Iterator, a new stream must be generated to revisit the same elements of the source）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> Stream 文件說偵測到重用時「可能丟出 IllegalStateException」（A stream implementation may throw IllegalStateException if it detects that the stream is being reused）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 下面的輸出還看得出 Java 21 的循序流是一筆一筆走完整條管線，不是全部 filter 完才 map：</p>
     <pre><code>import java.util.List;
 import java.util.stream.Stream;
 
@@ -162,7 +162,7 @@ filter 8
 map 8
 [200, 80]
 stream has already been operated upon or closed</code></pre>
-    <p><strong>實務註記：</strong>中間操作再分無狀態（<code>filter</code>、<code>map</code>）與有狀態（<code>distinct</code>、<code>sorted</code>，要看過全部元素才能輸出）；<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 是短路操作，答案確定就停。<code>peek</code> 只給除錯用，<code>count()</code> 能直接算出筆數時甚至不執行管線。細節見〈Stream API：把迴圈寫成資料流〉。</p>
+    <p><strong>實務註記：</strong>中間操作再分無狀態（<code>filter</code>、<code>map</code>）與有狀態（<code>distinct</code>、<code>sorted</code>，要看過全部元素才能輸出）；<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 是短路操作，答案確定就停。<code>peek</code>「主要給除錯用」（exists mainly to support debugging）；<code>count()</code> 能直接從來源算出筆數時，實作「可能選擇不執行管線」（An implementation may choose to not execute the stream pipeline）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 細節見〈Stream API：把迴圈寫成資料流〉。</p>
 
     <p class="q">面試官：map 跟 flatMap 差在哪？</p>
     <p><strong>一句話定義：</strong><code>map</code> 一進一出；<code>flatMap</code> 把每個元素換成一條流再接起來，文件說是「一對多的轉換，再把產生的元素攤平成一條新的流」（a one-to-many transformation ... and then flattening the resulting elements into a new stream）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 迴圈的對應是「兩層 for」：外層走帳戶、內層走交易。</p>
@@ -257,7 +257,7 @@ toUnmodifiableList 不收 null
 
     <p class="q">面試官：平行流什麼時候不該用？</p>
     <p><strong>一句話定義：</strong><code>parallelStream()</code> 把工作切給整個 JVM 共用的 Fork/Join 池；Oracle 教學說「平行不會自動比循序快」，資料夠多、核心夠多時才可能。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/collections/streams/parallelism.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>不該用的情況：</strong>資料量小；來源難切（dev.java 舉 <code>LinkedList</code>）或合併成本高；lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）；lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> 這個共用池的平行度預設是處理器數減一，整個 JVM 共用，一個平行流卡住，其他用到它的地方（包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作）都跟著慢。dev.java 的守則是「不要猜，量測你的程式碼的效能」。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
+    <p><strong>不該用的情況：</strong>資料量小；來源難切（dev.java 舉 <code>LinkedList</code>）或合併成本高；lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）；lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> 這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：文件說「沒有明確 Executor 參數的非同步方法，都用 ForkJoinPool.commonPool() 執行」（All async methods without an explicit Executor argument are performed using the ForkJoinPool.commonPool()）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> dev.java 的守則是「不要猜，量測你的程式碼的效能」。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
     <pre><code>import java.util.List;
 import java.util.stream.IntStream;
 
@@ -419,7 +419,7 @@ B 銀行 轉帳 5000
 
     <p class="q">面試官：sealed 類別解決什麼問題？</p>
     <p><strong>一句話定義：</strong>JEP 409（Java 17）：sealed 類別與介面「限制哪些類別或介面可以延伸或實作它們」，用 <code>permits</code> 列出名單；每個子類別都要寫 <code>final</code>、<code>sealed</code> 或 <code>non-sealed</code> 表明要不要繼續開放（record 隱含 final）。<a class="fixsrc" href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>用途：</strong>上一題的 <code>Payment</code> 只有三種，switch 不寫 <code>default</code> 編譯器也知道已經窮舉；JEP 441 說選擇值是 sealed 型別時，窮舉檢查會參考 permits 清單。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a> 好處是之後新增第四種付款方式，所有沒處理它的 switch 會<strong>編譯失敗</strong>，而不是默默掉進 <code>default</code>。少寫一種的實跑結果：</p>
+    <p><strong>用途：</strong>上一題的 <code>Payment</code> 只有三種，switch 不寫 <code>default</code> 編譯器也知道已經窮舉；JEP 441 說選擇值是 sealed 型別時，窮舉檢查會參考 permits 清單。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a> 好處是之後新增第四種付款方式，沒寫 <code>default</code> 的模式 switch，重新編譯時就會<strong>編譯失敗</strong>，而不是默默掉進 <code>default</code>。少寫一種的實跑結果：</p>
     <pre><code>public class SealedBad {
     sealed interface Payment permits Card, Cash {}
     record Card(long amount) implements Payment {}
@@ -438,4 +438,4 @@ B 銀行 轉帳 5000
     <p><strong>跟 enum 比：</strong>enum 是固定的幾個「值」，sealed 是固定的幾種「型別」，每種可以帶不同的欄位（刷卡有卡號末四碼、轉帳有銀行）。sealed 加 record 加模式 switch，就是 Java 表達「這筆資料是 A、B、C 其中一種」的寫法。教材見〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。</p>
     <p class="formula">Java 21 的現代寫法：record 裝資料、sealed 定種類、模式 switch 分情況、Stream 做轉換、Optional 表達沒有結果</p>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>lambda 實作函式介面唯一的抽象方法；裡面的 <code>this</code> 指外層物件；匿名類別會多一個 <code>$1.class</code>，lambda 靠 <code>invokedynamic</code> 執行時產生。</li><li>lambda 只能讀 final 或 effectively final 的區域變數，理由是避免並行問題；要累加就讓 Stream 回傳結果。方法參考四種：靜態、特定物件、任意物件（第一個參數當呼叫者）、建構子。</li><li>Stream 中間操作是惰性的，終端操作才開始跑；一條流只能用一次，重用丟 <code>IllegalStateException</code>。<code>flatMap</code> 是一對多再攤平。</li><li><code>toMap</code> 鍵重複丟 <code>IllegalStateException</code>，要給合併函式；<code>toList()</code> 不可修改，<code>Collectors.toList()</code> 不保證可變性，要可修改用 <code>toCollection(ArrayList::new)</code>。</li><li>平行流不一定快：資料少、難切、有阻塞 I/O、lambda 有副作用時不要用，先量再用。</li><li>Optional 只當回傳型別，不放欄位、參數、集合；本身不要是 null；預設值很貴用 <code>orElseGet</code>。</li><li>record 自動產生讀取方法與依值的 <code>equals</code>，不能繼承、只到第一層不可變；var 只用在區域變數、右邊看得出型別時才用；switch 運算式要窮舉、箭頭不穿透；sealed 讓模式 switch 不寫 default 也能窮舉，新增子型別時編譯器會提醒。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>lambda 實作函式介面唯一的抽象方法；裡面的 <code>this</code> 指外層物件；匿名類別會多一個 <code>$1.class</code>，lambda 靠 <code>invokedynamic</code> 執行時產生。</li><li>lambda 只能讀 final 或 effectively final 的區域變數，理由是避免並行問題；要累加就讓 Stream 回傳結果。方法參考四種：靜態、特定物件、任意物件（第一個參數當呼叫者）、建構子。</li><li>Stream 中間操作是惰性的，終端操作才開始跑；一條流只能用一次，重用時可能丟 <code>IllegalStateException</code>（Java 21 實跑會丟）。<code>flatMap</code> 是一對多再攤平。</li><li><code>toMap</code> 鍵重複丟 <code>IllegalStateException</code>，要給合併函式；<code>toList()</code> 不可修改，<code>Collectors.toList()</code> 不保證可變性，要可修改用 <code>toCollection(ArrayList::new)</code>。</li><li>平行流不一定快：資料少、難切、有阻塞 I/O、lambda 有副作用時不要用，先量再用。</li><li>Optional 只當回傳型別，不放欄位、參數、集合；本身不要是 null；預設值很貴用 <code>orElseGet</code>。</li><li>record 自動產生讀取方法與依值的 <code>equals</code>，不能繼承、只到第一層不可變；var 只用在區域變數、右邊看得出型別時才用；switch 運算式要窮舉、箭頭不穿透；sealed 讓模式 switch 不寫 default 也能窮舉，新增子型別時編譯器會提醒。</li></ul></div>
