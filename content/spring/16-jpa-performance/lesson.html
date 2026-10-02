@@ -1,11 +1,11 @@
 <!-- 來源：依 Hibernate ORM 7.4 使用指南（docs.hibernate.org/orm/7.4/userguide，Flushing、Fetching、Batching、HQL、Performance Tuning and Best Practices、Configuration Settings 各章）、Hibernate ORM 6.0 遷移指南、Spring Data JPA 4.1 參考文件（Query Methods、Projections）、Spring Boot 4.1 文件（Common Application Properties）與 v4.1.1 原始碼（JpaBaseConfiguration）、Spring Framework 7.0 參考文件（JPA）與 API 文件（OpenEntityManagerInViewInterceptor）、Jakarta Persistence 3.2 API 文件、MySQL Connector/J 文件新寫；範例與練習題全部自編，示範專案以 Spring Boot 4.1.1（Spring Framework 7.0.9、Spring Data JPA 4.1.1、Hibernate 7.4.5）、Java 21 在 H2 2.4.240 與 Docker 的 MySQL 8.4（Connector/J 9.7.0）實際執行，SQL 次數用 datasource-proxy 1.11.0 實測 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看一段 JPA 程式就算得出會送幾次 SQL，說清楚 N+1 查詢怎麼發生，以及多對一預設 EAGER 為什麼也會造成它</li><li>依情境選 JOIN FETCH、<code>@EntityGraph</code>、批次抓取（<code>@BatchSize</code>、<code>hibernate.default_batch_fetch_size</code>）或 DTO 投影，知道各自的代價</li><li>解釋 <code>spring.jpa.open-in-view</code> 開著與關掉時的差別，以及為什麼關掉之後會冒出 <code>LazyInitializationException</code></li><li>說出一級快取擋掉了哪些查詢、flush 在什麼時候發生，並用 <code>hibernate.jdbc.batch_size</code> 做批次寫入，知道 IDENTITY 主鍵會讓它失效</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看一段 JPA 程式就算得出會送幾次 SQL，說清楚 N+1 查詢怎麼發生，以及多對一預設 EAGER 為什麼也會造成它</li><li>依情境選 JOIN FETCH、<code>@EntityGraph</code>、批次抓取（<code>@BatchSize</code>、<code>hibernate.<wbr>default_<wbr>batch_<wbr>fetch_<wbr>size</code>）或 DTO 投影，知道各自的代價</li><li>解釋 <code>spring.jpa.open-in-view</code> 開著與關掉時的差別，以及為什麼關掉之後會冒出 <code>LazyInitializationException</code></li><li>說出一級快取擋掉了哪些查詢、flush 在什麼時候發生，並用 <code>hibernate.<wbr>jdbc.<wbr>batch_<wbr>size</code> 做批次寫入，知道 IDENTITY 主鍵會讓它失效</li></ul></div>
 
 <section>
 <p class="era">程式只寫了一行，資料庫卻被問了好幾次</p>
 <h3 class="head">N+1 查詢怎麼發生：先數清楚送了幾次 SQL</h3>
-<p>〈Hibernate 入門與環境〉講過延遲載入：關聯的資料先不查，等程式真的去讀才查。〈Hibernate 查詢與關聯〉講過 <code>@OneToMany</code>、<code>@ManyToOne</code> 與 LAZY、EAGER 怎麼設定。這一課把它們放到效能上看：<strong>同一段程式，到底送了幾次 SQL 給資料庫？</strong>每一次都是一個來回（round trip，程式送出一句 SQL、等資料庫回覆），來回越多，回應越慢。</p>
-<p>這課的示範專案用 Spring Boot 4.1.1（內含 Spring Framework 7.0.9、Hibernate 7.4.5）、Java 21、H2 記憶體資料庫。資料是三個部門、六名員工：研發部 2 人、業務部 3 人、客服部 1 人。實體跟〈Hibernate 查詢與關聯〉同一套寫法：</p>
+<p>〈Hibernate 入門與環境〉講過延遲載入（關聯的資料等程式真的去讀才查），〈Hibernate 查詢與關聯〉講過 LAZY、EAGER 怎麼設定。這一課只問一件事：<strong>同一段程式送了幾次 SQL？</strong>每一次都是一個來回（round trip，送出一句 SQL、等資料庫回覆），來回越多，回應越慢。</p>
+<p>示範專案用 Spring Boot 4.1.1（Spring Framework 7.0.9、Hibernate 7.4.5）、Java 21、H2 記憶體資料庫，資料是三個部門、六名員工（研發部 2 人、業務部 3 人、客服部 1 人）：</p>
 <pre><code>@Entity
 public class Department {
     @Id @GeneratedValue(strategy = GenerationType.SEQUENCE)
@@ -27,8 +27,8 @@ public class Employee {
     private Department department;
     // 建構子、getter 省略
 }</code></pre>
-<p>怎麼數 SQL？最簡單的是設 <code>spring.jpa.show-sql=true</code>（Spring Boot 的說明：「是否記錄 SQL 敘述」，Whether to enable logging of SQL statements）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 這課改用 datasource-proxy 這個函式庫把 <code>DataSource</code> 包一層，每次真的送到資料庫就記一筆、編號印出來。Hibernate 使用指南也這樣建議：用 DataSource 代理的另一個好處是「可以在測試時檢查執行了幾句 SQL」，讓整合測試在自動偵測到 N+1 時失敗（Another advantage of using a DataSource proxy is that you can assert the number of executed statements at test time. This way, you can have the integration tests fail when a N+1 query issue is automatically detected.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-logging" target="_blank" rel="noopener">出處</a></p>
-<p>第一段：在一筆交易裡（<code>tx</code> 是 <code>TransactionTemplate</code>，〈Spring AOP 與交易控制〉提過的程式化交易），查出所有部門，再印出每個部門有幾個人。<code>depts</code> 是 <code>DepartmentRepository</code>，繼承 <code>JpaRepository</code>（〈Spring 資料存取〉）。</p>
+<p>最簡單的看法是設 <code>spring.jpa.show-sql=true</code>（Whether to enable logging of SQL statements）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 這課改用 datasource-proxy 函式庫把 <code>DataSource</code> 包一層，每次真的送到資料庫就編號印出來。使用指南也建議這樣做：DataSource 代理「可以在測試時檢查執行了幾句 SQL」，讓整合測試在偵測到 N+1 時失敗（you can assert the number of executed statements at test time. This way, you can have the integration tests fail when a N+1 query issue is automatically detected.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-logging" target="_blank" rel="noopener">出處</a></p>
+<p>在一筆交易裡（<code>tx</code> 是〈Spring AOP 與交易控制〉提過的 <code>TransactionTemplate</code>）查出所有部門，再印每個部門的人數；<code>depts</code> 是繼承 <code>JpaRepository</code> 的 Repository：</p>
 <pre><code>tx.executeWithoutResult(s -&gt; {
     List&lt;Department&gt; list = depts.findAll();
     for (Department d : list) {
@@ -44,7 +44,7 @@ public class Employee {
   SQL 4：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
 客服部 有 1 人
 共 4 次 SQL</code></pre>
-<p><code>findAll()</code> 只送了一句（SQL 1）。員工集合是延遲載入，迴圈每碰一次 <code>getEmployees().size()</code>，Hibernate 才替那個部門補查一次員工（SQL 2〜4）。三個部門就是 1 + 3 次；一百個部門就是 1 + 100 次。這就叫 <strong>N+1 查詢</strong>：1 次查清單，再為清單裡的 N 筆各查 1 次。Hibernate 使用指南把「另外送一句 SELECT 去載入」這種抓法叫 SELECT，並說它「就是一般說的 N+1」（This is the strategy generally termed N+1.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-strategies" target="_blank" rel="noopener">出處</a></p>
+<p><code>findAll()</code> 只送了 SQL 1。員工集合是延遲載入，迴圈每碰一次 <code>getEmployees()</code>，Hibernate 才替那個部門補查一次（SQL 2〜4）。這就是 <strong>N+1 查詢</strong>：1 次查清單，再為 N 筆各查 1 次；一百個部門就是 101 次。使用指南說「另外送一句 SELECT 去載入」的抓法「就是一般說的 N+1」（This is the strategy generally termed N+1.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-strategies" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="同樣印出三個部門的人數，三種寫法送出的 SQL 次數：預設延遲載入是 N+1，先查部門清單，再為研發部、業務部、客服部各查一次，共 4 次；批次抓取一次處理 2 個部門，部門清單、研發部加業務部、客服部，共 3 次；JOIN FETCH 或 EntityGraph 一句部門左外部連接員工，共 1 次">
   <text x="20" y="34" font-size="13" font-weight="700">預設延遲載入（N+1）</text>
@@ -66,16 +66,9 @@ public class Employee {
 <figcaption>同一個需求（印出三個部門各有幾人），三種寫法實跑送出的 SQL 次數。部門越多，第一列越長，下面兩列幾乎不變。</figcaption>
 </figure>
 <h4>多對一預設 EAGER，也會造成 N+1</h4>
-<p>JPA 規格規定 <code>@ManyToOne</code> 與 <code>@OneToOne</code> 預設是 EAGER（立即載入）。Hibernate 使用指南說：Hibernate 建議全部關聯都標成延遲載入、需要時再在查詢上指定要一起抓，可惜這跟 JPA 規格「一對一與多對一預設立即載入」相衝，而 Hibernate 身為 JPA 實作「會遵守那個預設」（Hibernate, as a Jakarta Persistence provider, honors that default.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-strategies" target="_blank" rel="noopener">出處</a> EAGER 不代表「一句 SQL 就拿齊」。示範專案多一個筆電實體，<code>owner</code> 沒寫 <code>fetch</code>，就是 EAGER。四台筆電分給阿明（兩台）、小美、志豪：</p>
-<pre><code>@Entity
-public class Laptop {
-    @Id @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
-    private String serial;
-
-    @ManyToOne                                      // 沒寫 fetch：照 JPA 預設是 EAGER
-    private Employee owner;
-}
+<p>JPA 規格規定 <code>@ManyToOne</code>、<code>@OneToOne</code> 預設 EAGER（立即載入）。Hibernate 建議全部標 LAZY，但身為 JPA 實作「會遵守那個預設」（Hibernate, as a Jakarta Persistence provider, honors that default.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-strategies" target="_blank" rel="noopener">出處</a> EAGER 不等於一句拿齊。示範專案的筆電實體 <code>owner</code> 沒寫 <code>fetch</code>，四台筆電分給阿明（兩台）、小美、志豪：</p>
+<pre><code>@ManyToOne                                      // 沒寫 fetch：照 JPA 預設是 EAGER
+private Employee owner;                         // Laptop 實體的欄位
 
 // 在交易裡
 List&lt;Laptop&gt; list = laptops.findAll();
@@ -87,49 +80,39 @@ System.out.println("拿到 " + list.size() + " 台筆電");</code></pre>
   SQL 4：select e1_0.id,e1_0.department_id,e1_0.name from employee e1_0 where e1_0.id=?
 拿到 4 台筆電
 共 4 次 SQL</code></pre>
-<p>程式根本沒碰 <code>owner</code>，Hibernate 還是在查詢時順手為每個不同的主人補查一次。四台筆電只補了 3 次，是因為阿明的兩台共用同一個 <code>Employee</code> 物件，第二次直接從一級快取拿（後面會講）。使用指南在最佳實務一章講得很重：「EAGER 幾乎總是不好的選擇」（EAGER fetching is almost always a bad choice.），因為它「不能針對單一查詢覆蓋掉」，而且 JPQL 查詢忘了 JOIN FETCH 一個 EAGER 關聯時，Hibernate 會用第二句 SQL 去初始化它，「進而可能造成 N+1 查詢」（which in turn can lead to N+1 query issues）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-fetching-associations" target="_blank" rel="noopener">出處</a> 所以實務上 <code>@ManyToOne</code>、<code>@OneToOne</code> 都明寫 <code>fetch = FetchType.LAZY</code>，再依每個查詢的需要決定要不要一起抓。</p>
+<p>程式沒碰 <code>owner</code>，Hibernate 還是為每個不同的主人補查一次；阿明的兩台共用同一個物件，第二次從一級快取拿（後面會講），所以補 3 次。最佳實務一章說「EAGER 幾乎總是不好的選擇」（EAGER fetching is almost always a bad choice.）：它不能針對單一查詢關掉，JPQL 忘了 JOIN FETCH 時還會另外補查，「進而可能造成 N+1」（which in turn can lead to N+1 query issues）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-fetching-associations" target="_blank" rel="noopener">出處</a> 所以多對一、一對一都明寫 <code>fetch = FetchType.LAZY</code>，需要時再在查詢上指定一起抓。</p>
 
 <div class="drill">
-  <p class="dq">照上面的資料（3 個部門），先 <code>findAll()</code> 再對每個部門呼叫 <code>getEmployees().size()</code>，總共送幾次 SQL？</p>
+  <p class="dq">3 個部門，先 <code>findAll()</code> 再逐一讀 <code>getEmployees()</code>，共送幾次 SQL？</p>
   <ul class="dopts"><li>1 次</li><li>3 次</li><li data-ok>4 次</li><li>7 次</li></ul>
-  <p class="dexp">查部門清單 1 次，三個部門的員工集合各補查 1 次，共 4 次。實跑最後一行就是「共 4 次 SQL」。</p>
+  <p class="dexp">清單 1 次，三個部門的員工各補查 1 次，共 4 次。</p>
 </div>
 <div class="drill">
-  <p class="dq">同一段程式，如果部門有 100 個，會送幾次 SQL？</p>
-  <ul class="dopts"><li>100 次</li><li data-ok>101 次</li><li>2 次</li><li>200 次</li></ul>
-  <p class="dexp">清單 1 次加上每個部門 1 次，1 + 100。查詢次數跟著資料筆數長，這就是 N+1 危險的地方。</p>
-</div>
-<div class="drill">
-  <p class="dq">「N+1」裡的 1 和 N 各指什麼？</p>
-  <ul class="dopts"><li data-ok>1 是查清單，N 是每筆補查</li><li>1 是交易數，N 是連線數量</li><li>1 是主鍵，N 是外來鍵</li><li>1 是 Repository，N 是實體</li></ul>
-  <p class="dexp">先 1 次查出 N 筆資料，再為每一筆的關聯各送 1 次，所以是 N + 1 次。</p>
-</div>
-<div class="drill">
-  <p class="dq">筆電範例裡，四台筆電屬於三個人，<code>owner</code> 是預設的 EAGER。<code>laptops.findAll()</code> 送了幾次 SQL？</p>
+  <p class="dq">四台筆電屬於三個人，<code>owner</code> 是預設的 EAGER。<code>laptops.findAll()</code> 送幾次 SQL？</p>
   <ul class="dopts"><li data-ok>4 次</li><li>1 次</li><li>5 次</li><li>2 次</li></ul>
-  <p class="dexp">查筆電 1 次，三個不同的主人各補查 1 次。阿明有兩台，第二台的主人已經在一級快取裡，不必再查，所以不是 5 次。</p>
+  <p class="dexp">筆電 1 次，三個不同的主人各補 1 次；阿明的第二台從一級快取拿，所以不是 5 次。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>@ManyToOne</code> 沒寫 <code>fetch</code> 時，照 JPA 規格是哪一種？</p>
   <ul class="dopts"><li>LAZY</li><li data-ok>EAGER</li><li>看資料庫決定</li><li>看 Hibernate 版本</li></ul>
-  <p class="dexp">規格規定一對一、多對一預設立即載入，Hibernate 身為實作會遵守。一對多、多對多預設才是 LAZY。</p>
+  <p class="dexp">規格規定一對一、多對一預設立即載入；一對多、多對多預設才是 LAZY。</p>
 </div>
 <div class="drill">
   <p class="dq">Hibernate 使用指南對關聯載入的建議是什麼？</p>
   <ul class="dopts"><li>全部標 EAGER，省得之後還要再查一次</li><li>只有一對多標 LAZY</li><li>不寫關聯，全部改用原生 SQL 查</li><li data-ok>全標 LAZY，需要時在查詢指定</li></ul>
-  <p class="dexp">原文是「把所有關聯靜態地標成延遲載入，要立即載入時用動態的抓取策略」。EAGER 不能針對單一查詢關掉，還可能造成 N+1。</p>
+  <p class="dexp">EAGER 不能針對單一查詢關掉，還可能造成 N+1，所以指南建議全部 LAZY、需要時再指定。</p>
 </div>
 <div class="drill">
   <p class="dq">想在整合測試裡自動抓出 N+1，使用指南建議的做法是哪一個？</p>
   <ul class="dopts"><li data-ok>用 DataSource 代理數句數</li><li>把 show-sql 打開，靠眼睛一行一行看</li><li>全部改成 EAGER</li><li>把測試資料改成只有一筆就好</li></ul>
-  <p class="dexp">DataSource 代理會記下每次真的送出的 SQL，測試裡斷言句數，多出來就失敗。只看日誌靠人工；只放一筆資料反而看不出 N+1。</p>
+  <p class="dexp">代理記下每次真的送出的 SQL，測試裡檢查句數，多出來就失敗；只放一筆資料反而看不出 N+1。</p>
 </div>
 </section>
 
 <section>
 <p class="era">一次把要用的都拿回來</p>
 <h3 class="head">JOIN FETCH 與 @EntityGraph：在查詢上指定要一起抓</h3>
-<p>解法的方向是：<strong>這個使用情境要用到員工，就在查詢時一起抓</strong>。HQL／JPQL 用 <code>join fetch</code>。使用指南：抓取連接「蓋過某個關聯的延遲設定，指定用 SQL 的 join 一起抓」（A fetch join overrides the laziness of a given association, specifying that the association should be fetched with a SQL join.），而且這是 Hibernate 最重要的功能之一，「沒有它，你很快就會遇上可怕的 n+1 selects 問題」（Without it, you’ll quickly run into the dreaded "n+1 selects" problem.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a></p>
+<p>這個使用情境要用到員工，就在查詢時一起抓。HQL／JPQL 用 <code>join fetch</code>，使用指南：它「蓋過關聯的延遲設定，指定用 SQL 的 join 一起抓」（A fetch join overrides the laziness of a given association, specifying that the association should be fetched with a SQL join.），「沒有它，你很快就會遇上可怕的 n+1 selects 問題」（Without it, you’ll quickly run into the dreaded "n+1 selects" problem.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a></p>
 <pre><code>interface DepartmentRepository extends JpaRepository&lt;Department, Long&gt; {
     @Query("select d from Department d left join fetch d.employees order by d.id")
     List&lt;Department&gt; findAllWithEmployees();
@@ -148,32 +131,21 @@ list.size() = 3
 業務部 有 3 人
 客服部 有 1 人
 共 1 次 SQL</code></pre>
-<p>一句 SQL 拿齊。注意兩件事：</p>
 <ul class="plainlist">
-<li><strong><code>left join fetch</code> 與 <code>join fetch</code> 不一樣。</strong>使用指南：<code>join fetch</code>（內部連接）「只回傳有關聯實體的那些」，<code>left join fetch</code>「回傳所有的基本實體，包括沒有任何關聯實體的」。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a> 一個人都沒有的部門也要列出來，就要用 <code>left</code>。</li>
-<li><strong>從 Hibernate 6 起不必再寫 <code>distinct</code>。</strong>SQL 的 left join 會回 6 列（一個員工一列），但 <code>list.size()</code> 是 3。使用指南：「從 Hibernate 6 起，join fetch 造成的重複結果會由 Hibernate 在記憶體裡自動去掉……不再需要明確去重，尤其不該為了這個目的用 distinct」（As of Hibernate 6, duplicate results arising from the use of join fetch are automatically removed by Hibernate in memory … It’s no longer necessary to remove duplicate results explicitly, and, in particular, distinct should not be used for this purpose.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-distinct" target="_blank" rel="noopener">出處</a> 舊教材的 <code>select distinct d … join fetch</code> 是 Hibernate 5 的寫法。<a class="fixsrc" href="https://docs.jboss.org/hibernate/orm/6.0/migration-guide/migration-guide.html#query-sqm-distinct" target="_blank" rel="noopener">遷移指南</a></li>
+<li><strong><code>left join fetch</code> 與 <code>join fetch</code> 不一樣。</strong><code>join fetch</code>（內部連接）「只回傳有關聯實體的那些」（only returns base entities with an associated entity），一個人都沒有的部門也要列出來就用 <code>left</code>。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a></li>
+<li><strong>從 Hibernate 6 起不必再寫 <code>distinct</code>。</strong>SQL 回 6 列（一個員工一列），<code>list.size()</code> 卻是 3：join fetch 造成的重複結果「由 Hibernate 在記憶體裡自動去掉」（automatically removed by Hibernate in memory），「不該為了這個目的用 distinct」（distinct should not be used for this purpose）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-distinct" target="_blank" rel="noopener">出處</a> 舊教材的 <code>select distinct d … join fetch</code> 是 Hibernate 5 的寫法。<a class="fixsrc" href="https://docs.jboss.org/hibernate/orm/6.0/migration-guide/migration-guide.html#query-sqm-distinct" target="_blank" rel="noopener">遷移指南</a></li>
 </ul>
-<h4>@EntityGraph：不寫 JPQL 也能指定要一起抓</h4>
-<p>用方法名稱衍生查詢（〈Spring 資料存取〉）時沒有地方寫 <code>join fetch</code>，Spring Data JPA 提供 <code>@EntityGraph</code>。參考文件：可以用 <code>@EntityGraph</code> 臨時定義實體圖，「給的 attributePaths 會轉成對應的 EntityGraph，不必在實體上另外加 @NamedEntityGraph」（The provided attributePaths are translated into the according EntityGraph without needing to explicitly add @NamedEntityGraph to your domain types）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/jpa/query-methods.html#jpa.entity-graph" target="_blank" rel="noopener">出處</a> 實體圖（entity graph）就是一張「這次查詢要一起載入哪些關聯」的清單。</p>
+<h4>@EntityGraph：衍生查詢也能一起抓</h4>
+<p>方法名稱衍生查詢（〈Spring 資料存取〉）沒有地方寫 <code>join fetch</code>，改用 <code>@EntityGraph</code>：「給的 attributePaths 會轉成對應的 EntityGraph，不必在實體上另外加 @NamedEntityGraph」（The provided attributePaths are translated into the according EntityGraph without needing to explicitly add @NamedEntityGraph to your domain types）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/jpa/query-methods.html#jpa.entity-graph" target="_blank" rel="noopener">出處</a> 實體圖（entity graph）就是「這次查詢要一起載入哪些關聯」的清單。</p>
 <pre><code>@EntityGraph(attributePaths = "employees")
-List&lt;Department&gt; findByNameEndingWith(String suffix);
-
-// 在交易裡
-for (Department d : depts.findByNameEndingWith("部")) {
-    System.out.println(d.getName() + " 有 " + d.getEmployees().size() + " 人");
-}</code></pre>
+List&lt;Department&gt; findByNameEndingWith(String suffix);</code></pre>
 <pre><code>== graph
   SQL 1：select d1_0.id,e1_0.department_id,e1_0.id,e1_0.name,d1_0.name from department d1_0 left join employee e1_0 on d1_0.id=e1_0.department_id where d1_0.name like ? escape '\'
-研發部 有 2 人
-業務部 有 3 人
-客服部 有 1 人
+（中略：三個部門的人數，跟上面相同）
 共 1 次 SQL</code></pre>
-<p>產生的 SQL 跟 <code>left join fetch</code> 一樣是左外部連接。兩者效果相同，差在寫在哪裡：JOIN FETCH 寫在查詢字串裡，<code>@EntityGraph</code> 是方法上的註解，衍生查詢也能用。</p>
+<p>一樣是一句左外部連接。差別只在寫在哪：JOIN FETCH 在查詢字串裡，<code>@EntityGraph</code> 是方法上的註解。</p>
 <h4>抓取連接的三個注意事項</h4>
-<p>使用指南列了幾條限制，下面是最常踩到的三條。先看分頁，再看另外兩條。</p>
-<ul class="plainlist">
-<li><strong>搭配分頁時，要看 Hibernate 版本與資料庫。</strong>JOIN FETCH 一個集合時，SQL 一列是「一個部門配一名員工」，直接在外層加 limit 切的是列，不是部門。實跑看 Hibernate 7.4 怎麼處理：</li>
-</ul>
+<p><strong>分頁要看 Hibernate 版本與資料庫。</strong>抓取集合時 SQL 一列是「一個部門配一名員工」，外層直接 limit 切的是列，不是部門。Hibernate 7.4 的實跑：</p>
 <pre><code>@Query(value = "select d from Department d left join fetch d.employees",
        countQuery = "select count(d) from Department d")
 Page&lt;Department&gt; findPageWithEmployees(Pageable pageable);
@@ -186,88 +158,63 @@ System.out.println("這一頁 " + page.getContent().size() + " 個部門，共 "
   SQL 1：select d1_0.id,e1_0.department_id,e1_0.id,e1_0.name,d1_0.name from (select d1_0.id,d1_0.name from department d1_0 offset ? rows fetch first ? rows only) d1_0(id,name) left join employee e1_0 on d1_0.id=e1_0.department_id
   SQL 2：select count(d1_0.id) from department d1_0
 這一頁 2 個部門，共 3 個
-共 2 次 SQL
-
-（MySQL 8.4，只列 SQL 1）
-  SQL 1：select d1_0.id,e1_0.department_id,e1_0.id,e1_0.name,d1_0.name from (select d1_0.id,d1_0.name from department d1_0 limit ?,?) d1_0(id,name) left join employee e1_0 on d1_0.id=e1_0.department_id</code></pre>
-<p>Hibernate 7.4 把分頁放進子查詢：先在子查詢 <code>(select … from department … fetch first ? rows only)</code> 裡切出這一頁的 2 個部門，再拿它們去 left join 員工，所以每個部門的員工都完整。MySQL 上一樣，只是寫成 <code>limit ?,?</code>。資料庫不支援這種寫法時就不一樣了，<code>hibernate.query.fail_on_pagination_over_collection_fetch</code> 這個設定的說明是：「分頁跟集合或多值關聯的抓取連接一起用，而資料庫不支援在子查詢裡用 LIMIT 時，筆數限制只能在記憶體裡套用，不能交給資料庫。這通常效能很差，應該避免」（When pagination is used in combination with a fetch join applied to a collection or many-valued association, and the database does not support LIMIT inside a subquery, the limit must be applied in-memory instead of on the database. This typically has terrible performance characteristics and should be avoided.）。它預設關閉，意思是「不丟例外，糟糕效能的可能性留給使用者自己避免」（no exception is thrown, and the possibility of terrible performance is left as a problem for the client to avoid）；打開它，遇到要在記憶體裡分頁的查詢就直接丟例外。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#settings-hibernate.query.fail_on_pagination_over_collection_fetch" target="_blank" rel="noopener">出處</a></p>
-<p>舊版本要特別小心。同一支程式改用 Spring Boot 3.5.16（Hibernate 6.6.53）在 H2 上跑，Hibernate 沒有用子查詢，而是印出 HHH90003004 警告（「指定了 firstResult／maxResults 又抓取集合，改在記憶體裡套用」），SQL 1 沒有任何筆數限制，所有部門與員工都撈回來才切出前 2 個部門：</p>
-<pre><code>（Spring Boot 3.5.16、Hibernate 6.6.53、H2）
-== page
-2026-10-02T19:16:30.881+08:00  WARN 95355 --- [           main] org.hibernate.orm.query                  : HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
-  SQL 1：select d1_0.id,e1_0.department_id,e1_0.id,e1_0.name,d1_0.name from department d1_0 left join employee e1_0 on d1_0.id=e1_0.department_id
-  SQL 2：select count(d1_0.id) from department d1_0
-這一頁 2 個部門，共 3 個
 共 2 次 SQL</code></pre>
-<p class="muted">資料一多，這等於每翻一頁都把整張表搬回來。維護中的舊專案若還在 Hibernate 6，或資料庫不支援子查詢裡的 LIMIT，分頁列表改用下一段的批次抓取比較保險。</p>
-<ul class="plainlist">
-<li><strong>不要同時抓兩個以上的集合。</strong>「平行抓取多個集合或對多關聯，會在資料庫產生笛卡兒積，效能可能非常差」（fetching multiple collections or to-many associations in parallel results in a Cartesian product at the database level, and might exhibit very poor performance）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a> 笛卡兒積就是兩邊兩兩配對：一個部門 10 名員工、10 個專案，join 起來是 100 列。最佳實務一章的建議是 JOIN FETCH「最多只抓一個集合」，其他集合用第二句查詢。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-fetching-associations" target="_blank" rel="noopener">出處</a></li>
-<li><strong>不要在被抓的那一邊加條件。</strong>使用指南：對 join fetch 進來的實體加限制條件「通常是壞主意，因為抓回來的集合元素會不完整」（since the elements of the fetched collection would be incomplete）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a> 例如 <code>join fetch d.employees e where e.name like '阿%'</code>，拿到的 <code>d.getEmployees()</code> 只剩名字開頭是「阿」的人，看起來卻像完整的集合。</li>
-</ul>
+<p>Hibernate 7.4 先在子查詢裡切出這一頁的 2 個部門，再 left join 員工，每個部門的員工都完整；MySQL 8.4 上一樣，只是寫成 <code>limit ?,?</code>。資料庫不支援子查詢裡的 LIMIT 時，<code>hibernate.<wbr>query.<wbr>fail_on_<wbr>pagination_<wbr>over_<wbr>collection_<wbr>fetch</code> 的說明是筆數限制只能「在記憶體裡套用」（the limit must be applied in-memory instead of on the database），預設關閉，打開才會直接丟例外。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#settings-hibernate.query.fail_on_pagination_over_collection_fetch" target="_blank" rel="noopener">出處</a> 舊版本要特別小心：同一支程式用 Spring Boot 3.5.16（Hibernate 6.6.53）在 H2 上跑，沒有子查詢，而是印出警告、把整張表撈回來才切：</p>
+<pre><code>（Spring Boot 3.5.16、Hibernate 6.6.53、H2，只列警告與 SQL 1）
+2026-10-02T19:16:30.881+08:00  WARN 95355 --- [           main] org.hibernate.orm.query                  : HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+  SQL 1：select d1_0.id,e1_0.department_id,e1_0.id,e1_0.name,d1_0.name from department d1_0 left join employee e1_0 on d1_0.id=e1_0.department_id</code></pre>
+<p><strong>不要同時抓兩個以上的集合。</strong>這會「在資料庫產生笛卡兒積，效能可能非常差」（results in a Cartesian product at the database level, and might exhibit very poor performance）：一個部門 10 名員工、10 個專案，join 起來是 100 列。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a> 最佳實務一章建議 JOIN FETCH「最多只抓一個集合」（at most one collection），其他集合用第二句查詢。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-fetching-associations" target="_blank" rel="noopener">出處</a></p>
+<p><strong>不要在被抓的那一邊加條件。</strong>那樣「抓回來的集合元素會不完整」（the elements of the fetched collection would be incomplete）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a> 例如 <code>join fetch d.employees e where e.name like '阿%'</code>，<code>d.getEmployees()</code> 只剩名字開頭是「阿」的人，看起來卻像完整的集合。</p>
 
 <div class="drill">
   <p class="dq">改用 <code>left join fetch d.employees</code> 查部門再印人數，總共送幾次 SQL？</p>
   <ul class="dopts"><li>4 次</li><li data-ok>1 次</li><li>2 次</li><li>3 次</li></ul>
-  <p class="dexp">部門和員工在同一句 left join 裡一起拿回來，迴圈讀員工集合時不必再查。實跑「共 1 次 SQL」。</p>
+  <p class="dexp">部門和員工在同一句 left join 裡拿回來，讀集合時不必再查。</p>
 </div>
 <div class="drill">
-  <p class="dq">3 個部門、6 名員工，<code>left join fetch</code> 的 SQL 回 6 列。用本課的 Hibernate 7.4，<code>list.size()</code> 是多少？</p>
+  <p class="dq"><code>left join fetch</code> 的 SQL 回 6 列（6 名員工、3 個部門）。<code>list.size()</code> 是多少？</p>
   <ul class="dopts"><li>6</li><li>9</li><li data-ok>3</li><li>1</li></ul>
-  <p class="dexp">從 Hibernate 6 起會在記憶體裡把 join fetch 造成的重複部門去掉，所以每個部門只出現一次。實跑印出 list.size() = 3。</p>
-</div>
-<div class="drill">
-  <p class="dq">在 Hibernate 6 以後的版本寫 <code>join fetch</code> 查一對多，還要不要加 <code>distinct</code> 去掉重複的父實體？</p>
-  <ul class="dopts"><li>要，不然結果一定會有重複的部門</li><li>要，寫在 SQL 裡</li><li>看資料庫有沒有支援 distinct</li><li data-ok>不用，Hibernate 會自動去重</li></ul>
-  <p class="dexp">使用指南明寫不再需要明確去重，也不該為了這個用 distinct。要加 distinct 是 Hibernate 5 的寫法。</p>
+  <p class="dexp">從 Hibernate 6 起，join fetch 造成的重複部門會在記憶體裡去掉。</p>
 </div>
 <div class="drill">
   <p class="dq">想列出所有部門和員工，<strong>連一個人都沒有的部門也要出現</strong>，該用哪一個？</p>
   <ul class="dopts"><li><code>join fetch</code></li><li><code>inner join fetch</code></li><li data-ok><code>left join fetch</code></li><li>不寫 fetch，用延遲載入</li></ul>
-  <p class="dexp">內部連接只回傳有關聯實體的部門；left join fetch 才會連沒有員工的部門一起回傳。join fetch 跟 inner join fetch 是同一個意思。不寫 fetch 會回到 N+1。</p>
+  <p class="dexp">內部連接只回傳有員工的部門；join fetch 就是 inner join fetch；不寫 fetch 會回到 N+1。</p>
 </div>
 <div class="drill">
   <p class="dq">衍生查詢 <code>findByNameEndingWith</code> 沒有地方寫 <code>join fetch</code>，想讓它一起抓員工，Spring Data JPA 的做法是？</p>
   <ul class="dopts"><li data-ok>加 <code>@EntityGraph(attributePaths = "employees")</code></li><li>把 Department.employees 改成 FetchType.EAGER</li><li>在方法名稱裡加上 FetchEmployees 關鍵字</li><li>把 spring.jpa.open-in-view 打開</li></ul>
-  <p class="dexp">@EntityGraph 的 attributePaths 會轉成這次查詢的實體圖，不必另外定義 @NamedEntityGraph。改 EAGER 會影響所有查詢；方法名稱沒有 Fetch 這種關鍵字。</p>
+  <p class="dexp">attributePaths 會轉成這次查詢的實體圖。改 EAGER 會影響所有查詢；方法名稱沒有 Fetch 這種關鍵字。</p>
 </div>
 <div class="drill">
-  <p class="dq">用本課的 Hibernate 7.4 在 H2 上跑 <code>left join fetch d.employees</code> 加 <code>PageRequest.of(0, 2)</code>，SQL 1 怎麼切出這一頁？</p>
+  <p class="dq">Hibernate 7.4 跑 <code>left join fetch</code> 加 <code>PageRequest.of(0, 2)</code>，SQL 1 怎麼切出這一頁？</p>
   <ul class="dopts"><li data-ok>子查詢先切部門，再 join</li><li>全部撈回來，再在記憶體裡切</li><li>外層直接 limit 2，只拿兩列</li><li>直接丟例外，不送 SQL</li></ul>
-  <p class="dexp">實跑的 SQL 1 是 from (select … from department … fetch first ? rows only) left join employee，先在子查詢裡切部門，員工才不會被切掉。全部撈回再在記憶體裡切，是 Hibernate 6.6 的行為，或資料庫不支援子查詢 LIMIT 時的退路。</p>
+  <p class="dexp">實跑是先在子查詢裡切部門、再 join 員工。整批撈回在記憶體裡切，是 Hibernate 6.6 的行為。</p>
 </div>
 <div class="drill">
-  <p class="dq">假設部門還有一個專案集合 <code>projects</code>。一個查詢同時 <code>left join fetch d.employees</code> 和 <code>left join fetch d.projects</code>，使用指南警告什麼？</p>
+  <p class="dq">假設部門還有專案集合 <code>projects</code>，一句查詢同時 join fetch 員工與專案。使用指南警告什麼？</p>
   <ul class="dopts"><li>編譯會失敗</li><li>交易會自動還原，資料讀不到</li><li data-ok>產生笛卡兒積，可能很慢</li><li>第二個集合會被 Hibernate 忽略</li></ul>
-  <p class="dexp">兩個集合平行 join，員工與專案兩兩配對，列數相乘。建議 JOIN FETCH 最多抓一個集合，其他集合用第二句查詢。</p>
+  <p class="dexp">兩個集合平行 join，列數相乘。JOIN FETCH 最多抓一個集合，其他用第二句查詢。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>select d from Department d join fetch d.employees e where e.name like '阿%'</code>，拿到的 <code>d.getEmployees()</code> 有什麼問題？</p>
   <ul class="dopts"><li>會再補查一次，變成 N+1</li><li data-ok>只剩符合條件的員工，集合不完整</li><li>會丟出 LazyInitializationException</li><li>沒有問題，跟不加條件一樣</li></ul>
-  <p class="dexp">條件套在被抓的那一邊，集合裡只剩名字開頭是「阿」的人，但它看起來像完整的員工集合，之後的程式會被誤導。</p>
+  <p class="dexp">集合裡只剩名字開頭是「阿」的人，卻看起來像完整的員工集合。</p>
 </div>
 </section>
 
 <section>
 <p class="era">一次問好幾個，少跑幾趟</p>
-<h3 class="head">批次抓取：@BatchSize 與 hibernate.default_batch_fetch_size</h3>
-<p>JOIN FETCH 一次最好只抓一個集合，分頁也不一定能交給資料庫做。這時還有一招：<strong>延遲載入照舊，但補查時一次補好幾個</strong>。使用指南把這種抓法叫 BATCH：「用一句另外的 SQL，在 WHERE 裡用 IN 條件依批次大小載入好幾筆關聯資料」（Performs a separate SQL select to load a number of related data items using an IN-restriction as part of the SQL WHERE-clause based on a batch size.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-strategies" target="_blank" rel="noopener">出處</a></p>
-<p>有兩種開法。全站一起開：Spring Boot 的 <code>spring.jpa.properties.*</code> 會原樣交給 Hibernate（說明是「要設定在 JPA 實作上的額外原生屬性」，Additional native properties to set on the JPA provider）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></p>
+<h3 class="head">批次抓取：@BatchSize 與 hibernate.<wbr>default_<wbr>batch_<wbr>fetch_<wbr>size</h3>
+<p>JOIN FETCH 最好只抓一個集合，分頁也不一定能交給資料庫。這時還有一招：<strong>延遲載入照舊，但補查時一次補好幾個</strong>。使用指南叫它 BATCH：「用一句另外的 SQL，在 WHERE 裡用 IN 條件依批次大小載入」（using an IN-restriction as part of the SQL WHERE-clause based on a batch size）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-strategies" target="_blank" rel="noopener">出處</a> 全站一起開用 <code>spring.<wbr>jpa.<wbr>properties.*</code>（原樣交給 JPA 實作的屬性，Additional native properties to set on the JPA provider）：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></p>
+
 <pre><code>spring.jpa.properties.hibernate.default_batch_fetch_size=10</code></pre>
-<p>只開某一個關聯：在那個集合上加 Hibernate 的 <code>@BatchSize</code>。使用指南對預設批次大小的說明是：「預設情況下，Hibernate 只對明確標了 @BatchSize 的實體與集合做批次抓取」（By default, Hibernate only uses batch fetching for entities and collections explicitly annotated @BatchSize.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#settings-hibernate.default_batch_fetch_size" target="_blank" rel="noopener">出處</a></p>
+<p>只開某一個關聯就在集合上加 <code>@BatchSize</code>；預設「只對明確標了 @BatchSize 的實體與集合做批次抓取」（By default, Hibernate only uses batch fetching for entities and collections explicitly annotated @BatchSize.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#settings-hibernate.default_batch_fetch_size" target="_blank" rel="noopener">出處</a></p>
 <pre><code>@OneToMany(mappedBy = "department")
 @BatchSize(size = 2)                               // org.hibernate.annotations.BatchSize
 private List&lt;Employee&gt; employees = new ArrayList&lt;&gt;();</code></pre>
-<p>第一段那支 N+1 程式一個字都不改，只改設定，實跑三次：</p>
-<pre><code>（default_batch_fetch_size=10）
-== nplus1
-  SQL 1：select d1_0.id,d1_0.name from department d1_0
-  SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id in (?,?,?,?,?,?,?,?,?,?)
-研發部 有 2 人
-業務部 有 3 人
-客服部 有 1 人
-共 2 次 SQL
-
-（default_batch_fetch_size=2）
+<p>第一段那支 N+1 程式一個字都不改，只改設定再跑：</p>
+<pre><code>（default_batch_fetch_size=2）
 == nplus1
   SQL 1：select d1_0.id,d1_0.name from department d1_0
   SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id in (?,?)
@@ -277,55 +224,50 @@ private List&lt;Employee&gt; employees = new ArrayList&lt;&gt;();</code></pre>
 客服部 有 1 人
 共 3 次 SQL
 
-（不設全站，只在 employees 加 @BatchSize(size = 2)）
-== nplus1
-  SQL 1：select d1_0.id,d1_0.name from department d1_0
-  SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id in (?,?)
-研發部 有 2 人
-業務部 有 3 人
-  SQL 3：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
-客服部 有 1 人
-共 3 次 SQL</code></pre>
-<p>讀第一個部門的員工時，Hibernate 順便把<strong>還沒載入員工的其他部門</strong>一起放進 IN 條件。批次大小 10 時三個部門一次補完；大小 2 時先補研發部和業務部，客服部再補一次。N 個部門、批次大小 b，補查次數大約是 N ÷ b 無條件進位：100 個部門、大小 10，是 1 + 10 次，不是 1 + 100 次。</p>
-<p>批次抓取比 N+1 好很多，但使用指南也提醒：「雖然 @BatchSize 比遇上 N+1 好，多數時候 DTO 投影或 JOIN FETCH 是好得多的選擇，因為它們一句查詢就拿齊需要的資料」（most of the time, a DTO projection or a JOIN FETCH is a much better alternative since it allows you to fetch all the required data with a single query）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-batch" target="_blank" rel="noopener">出處</a> 它最適合的位置是 JOIN FETCH 用不上的地方：要抓兩個以上集合的畫面，以及沒辦法用子查詢分頁的列表。</p>
+（default_batch_fetch_size=10，只列 SQL 2 與最後一行）
+  SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id in (?,?,?,?,?,?,?,?,?,?)
+共 2 次 SQL</code></pre>
+<p>不設全站、只在 <code>employees</code> 加 <code>@BatchSize(size = 2)</code> 再跑一次，輸出跟上面 size=2 那組逐字相同。</p>
+<p>讀第一個部門的員工時，Hibernate 順便把<strong>還沒載入員工的其他部門</strong>一起放進 IN。N 個部門、批次大小 b，補查約 N ÷ b 次（無條件進位）：100 個部門、大小 10 是 1 + 10 次，不是 1 + 100 次。</p>
+<p>不過使用指南也說，「多數時候 DTO 投影或 JOIN FETCH 是好得多的選擇，因為一句查詢就拿齊」（most of the time, a DTO projection or a JOIN FETCH is a much better alternative since it allows you to fetch all the required data with a single query）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#fetching-batch" target="_blank" rel="noopener">出處</a> 批次抓取適合 JOIN FETCH 用不上的地方：要抓兩個以上集合，或沒辦法用子查詢分頁的列表。</p>
 
 <div class="drill">
-  <p class="dq">設 <code>default_batch_fetch_size=10</code>，3 個部門跑第一段那支程式，共送幾次 SQL？</p>
+  <p class="dq">設 <code>default_<wbr>batch_<wbr>fetch_<wbr>size=10</code>，3 個部門跑第一段那支程式，共送幾次 SQL？</p>
   <ul class="dopts"><li>4 次</li><li>1 次</li><li data-ok>2 次</li><li>11 次</li></ul>
-  <p class="dexp">部門清單 1 次，三個部門的員工用一句 IN 補完，共 2 次。實跑第一組輸出。</p>
+  <p class="dexp">清單 1 次，三個部門的員工用一句 IN 補完，共 2 次。</p>
 </div>
 <div class="drill">
   <p class="dq">批次大小改成 2，同樣 3 個部門，共送幾次 SQL？</p>
   <ul class="dopts"><li data-ok>3 次</li><li>2 次</li><li>4 次</li><li>5 次</li></ul>
-  <p class="dexp">清單 1 次；研發部與業務部一起補 1 次；剩下客服部再補 1 次。實跑第二組輸出。</p>
+  <p class="dexp">清單 1 次；研發部與業務部一起補 1 次；客服部再補 1 次。</p>
 </div>
 <div class="drill">
   <p class="dq">100 個部門、批次大小 10，讀完所有部門的員工集合，大約送幾次 SQL？</p>
   <ul class="dopts"><li>101 次</li><li>2 次</li><li>10 次</li><li data-ok>11 次</li></ul>
-  <p class="dexp">清單 1 次，員工每 10 個部門補 1 次、補 10 次，共 11 次。不設批次是 101 次。</p>
+  <p class="dexp">清單 1 次，員工每 10 個部門補 1 次、共補 10 次。不設批次是 101 次。</p>
 </div>
 <div class="drill">
   <p class="dq">批次抓取補查時，SQL 用哪一種條件把好幾個部門一起問？</p>
   <ul class="dopts"><li><code>department_id = ?</code>，一次一個</li><li data-ok><code>department_id in (?, ?, …)</code></li><li><code>left join department</code></li><li><code>department_id between ? and ?</code></li></ul>
-  <p class="dexp">使用指南說 BATCH 用 IN 條件依批次大小載入；實跑也是 in (?,?)。只剩一個時才退回 = ?。</p>
+  <p class="dexp">BATCH 用 IN 條件依批次大小載入；只剩一個時才退回 = ?。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>@BatchSize</code> 和 <code>hibernate.default_batch_fetch_size</code> 差在哪？</p>
+  <p class="dq"><code>@BatchSize</code> 和 <code>hibernate.<wbr>default_<wbr>batch_<wbr>fetch_<wbr>size</code> 差在哪？</p>
   <ul class="dopts"><li>@BatchSize 管寫入，另一個管讀取</li><li data-ok>@BatchSize 只管標了它的關聯，另一個是全站預設</li><li>@BatchSize 是 JPA 標準，另一個是 Hibernate 專屬</li><li>兩個一模一樣，只是寫的位置不同</li></ul>
-  <p class="dexp">預設情況下 Hibernate 只對標了 @BatchSize 的實體與集合做批次抓取；default_batch_fetch_size 把它變成全站預設。兩個都是 Hibernate 專屬，管的都是讀取。</p>
+  <p class="dexp">預設只對標了 @BatchSize 的關聯做批次抓取；default_batch_fetch_size 把它變成全站預設。兩者都是 Hibernate 專屬。</p>
 </div>
 <div class="drill">
   <p class="dq">使用指南怎麼比較 <code>@BatchSize</code> 與 JOIN FETCH、DTO 投影？</p>
   <ul class="dopts"><li>@BatchSize 永遠是三者裡最快的</li><li data-ok>多數時候後兩者更好</li><li>三者效果完全相同，只是寫法不同</li><li>JOIN FETCH 已經不建議再使用</li></ul>
-  <p class="dexp">原文：@BatchSize 比 N+1 好，但多數時候 DTO 投影或 JOIN FETCH 是好得多的選擇，因為一句查詢就能拿齊需要的資料。</p>
+  <p class="dexp">多數時候 DTO 投影或 JOIN FETCH 更好，一句查詢就能拿齊。</p>
 </div>
 </section>
 
 <section>
 <p class="era">畫面都快寫完了，還在查資料庫</p>
 <h3 class="head">open-in-view 的坑</h3>
-<p>〈Hibernate 入門與環境〉提過 Open Session in View 與 <code>spring.jpa.open-in-view</code>。這裡把它實際跑一次。Spring Boot 對這個屬性的說明：「註冊 OpenEntityManagerInViewInterceptor，在處理請求的整段期間把 JPA EntityManager 綁在執行緒上」（Register OpenEntityManagerInViewInterceptor. Binds a JPA EntityManager to the thread for the entire processing of the request.），預設值 <code>true</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html#application-properties.data.spring.jpa.open-in-view" target="_blank" rel="noopener">出處</a> 那個攔截器的 API 文件寫它的用途是「讓網頁畫面在原本的交易已經結束之後，仍然可以延遲載入」（to allow for lazy loading in web views despite the original transactions already being completed）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/orm/jpa/support/OpenEntityManagerInViewInterceptor.html" target="_blank" rel="noopener">出處</a></p>
-<p>示範專案加了一個 REST 端點。服務層的方法有交易，查出部門就回傳；Controller 拿到部門後，才去讀員工集合組成回應：</p>
+<p>〈Hibernate 入門與環境〉提過 <code>spring.<wbr>jpa.<wbr>open-in-view</code>，這裡實際跑一次。Spring Boot 的說明：它「在處理請求的整段期間把 JPA EntityManager 綁在執行緒上」（Binds a JPA EntityManager to the thread for the entire processing of the request.），預設 <code>true</code>；<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html#application-properties.data.spring.jpa.open-in-view" target="_blank" rel="noopener">出處</a> 用途是「在原本的交易已經結束之後，仍然可以延遲載入」（to allow for lazy loading in web views despite the original transactions already being completed）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/orm/jpa/support/OpenEntityManagerInViewInterceptor.html" target="_blank" rel="noopener">出處</a> 示範端點：服務層在交易裡查出部門就回傳，Controller 才去讀員工集合：</p>
+
 <pre><code>@Service
 class DepartmentService {
     @Transactional(readOnly = true)
@@ -343,7 +285,7 @@ class DepartmentController {
         return new DepartmentView(d.getName(), names);
     }
 }</code></pre>
-<p>沒設 <code>spring.jpa.open-in-view</code>（用預設值 true）時，啟動先印一行警告，呼叫端點的結果是：</p>
+<p>沒設這個屬性時，啟動先印一行警告，呼叫端點的結果是：</p>
 <pre><code>2026-10-02T19:23:17.764+08:00  WARN 19769 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
 
 == GET /departments/1
@@ -351,7 +293,7 @@ class DepartmentController {
   SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
 200 {"name":"研發部","employees":["阿明","小美"]}
 共 2 次 SQL</code></pre>
-<p>能動，但 SQL 2 是在 Controller 裡、服務層交易已經結束之後才送的。警告的原文就在 Spring Boot 的原始碼裡：「spring.jpa.open-in-view 預設開著，因此在畫面渲染期間可能會執行資料庫查詢」。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-jpa/src/main/java/org/springframework/boot/jpa/autoconfigure/JpaBaseConfiguration.java" target="_blank" rel="noopener">出處</a> 改成 <code>spring.jpa.open-in-view=false</code> 再跑：</p>
+<p>能動，但 SQL 2 是在 Controller 裡、交易結束之後才送的，警告講的就是這件事（原文在 Boot 的原始碼裡）。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-jpa/src/main/java/org/springframework/boot/jpa/autoconfigure/JpaBaseConfiguration.java" target="_blank" rel="noopener">出處</a> 改成 <code>false</code> 再跑：</p>
 <pre><code>== GET /departments/1
   SQL 1：select d1_0.id,d1_0.name from department d1_0 where d1_0.id=?
 500 LazyInitializationException：Cannot lazily initialize collection of role 'demo.Department.employees' with key '1' (no session)
@@ -381,50 +323,65 @@ class DepartmentController {
 </svg>
 <figcaption>開著 open-in-view，EntityManager 從請求進來活到回應寫完，Controller 讀延遲載入的集合時還能補查；關掉之後它跟著交易結束，讀不到就丟例外。</figcaption>
 </figure>
-<p>開著看起來比較方便，坑在三個地方：</p>
-<ul class="plainlist">
-<li><strong>查詢時機散掉。</strong>SQL 不只出現在服務層，Controller、把物件轉成 JSON 的階段都可能觸發延遲載入。直接把實體回傳給 Jackson 轉 JSON 時，它會走遍每個 getter，一個列表就可能在序列化時跑出 N+1，而且服務層的程式看不出來。</li>
-<li><strong>那些查詢不在你的交易裡。</strong>API 文件的說法就是「原本的交易已經結束之後」仍然可以延遲載入。服務層的 <code>@Transactional</code> 設定（唯讀、隔離層級、逾時）管不到它們。</li>
-<li><strong>錯誤被藏起來。</strong>關掉之後的 <code>LazyInitializationException</code> 其實是好訊號：它指出「這個使用情境要的資料，服務層沒準備好」。</li>
-</ul>
-<p>所以常見的做法是明確設 <code>spring.jpa.open-in-view=false</code>，讓服務層在交易裡把回應要的資料準備齊：用 JOIN FETCH、<code>@EntityGraph</code>，或直接查成下一段之後會講的 DTO。使用指南對 <code>LazyInitializationException</code> 的建議也是一樣：「最好的處理方式是在關閉持久化環境（persistence context，下一段會講）之前，把需要的關聯都抓好」（The best way to deal with LazyInitializationException is to fetch all the required associations prior to closing the Persistence Context.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-fetching-associations" target="_blank" rel="noopener">出處</a></p>
+<p>開著看起來方便，坑在：SQL 散到 Controller 與轉 JSON 的階段，服務層看不出來；那些查詢也不在服務層的交易裡。關掉之後的 <code>LazyInitializationException</code> 反而是好訊號，它指出「這個使用情境要的資料，服務層沒準備好」。直接回傳實體給 Jackson 還有另一個坑：</p>
+<p>Controller 直接回傳 <code>List&lt;Department&gt;</code> 實體（open-in-view 開著）：</p>
+<pre><code>@GetMapping("/departments")
+List&lt;Department&gt; all() {
+    return service.findAll();                       // 直接把實體交給 Jackson 轉 JSON
+}</code></pre>
+<pre><code>== GET /departments
+  SQL 1：select d1_0.id,d1_0.name from department d1_0
+  SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
+200 [{"name":"研發部","employees":[{"name":"阿明","department":{"name":"研發部","employees":[{"name":"阿明","department":（中略）}}]}]HttpMessageNotWritableException：Could not write JSON: Document nesting depth (501) exceeds the maximum allowed (500, from `StreamWriteConstraints.getMaxNestingDepth()`)
+共 2 次 SQL</code></pre>
+<p>部門有員工、員工又有部門，Jackson 在兩邊來回，寫到第 501 層才失敗，這時狀態碼 200 已經送出、本體只寫了一半（〈Hibernate 查詢與關聯〉提醒過雙向關聯直接序列化會無限遞迴）。在員工的 <code>department</code> 欄位加 <code>@com.fasterxml.<wbr>jackson.<wbr>annotation.<wbr>JsonIgnore</code>（不輸出這一側）再跑：</p>
+
+<pre><code>== GET /departments
+  SQL 1：select d1_0.id,d1_0.name from department d1_0
+  SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
+  SQL 3：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
+  SQL 4：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
+200 [{"name":"研發部","employees":[{"name":"阿明","id":1},{"name":"小美","id":2}],"id":1},（中略）]
+共 4 次 SQL</code></pre>
+<p>這次回 200，但序列化時替每個部門補查一次員工，正是 N+1。兩個問題的解法一樣：不要把實體直接交給 Jackson，在服務層查成 DTO。</p>
+<p>常見的做法是明確設 <code>open-in-view=false</code>，讓服務層在交易裡用 JOIN FETCH、<code>@EntityGraph</code> 或 DTO 把資料準備齊。使用指南也說：「最好的處理方式是在關閉持久化環境（persistence context，下一段會講）之前，把需要的關聯都抓好」（The best way to deal with LazyInitializationException is to fetch all the required associations prior to closing the Persistence Context.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#best-practices-fetching-associations" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">Spring Boot 4.1 沒設定 <code>spring.jpa.open-in-view</code> 時，它的值是什麼？</p>
   <ul class="dopts"><li>false，要自己打開</li><li>沒有值，這個功能不存在</li><li>看資料庫種類決定</li><li data-ok>true，啟動時印警告</li></ul>
-  <p class="dexp">屬性說明的預設值是 true；沒有明確設定時，JpaBaseConfiguration 會印出「spring.jpa.open-in-view is enabled by default…」的警告。</p>
+  <p class="dexp">預設值是 true；沒明確設定時會印出 enabled by default 的警告。</p>
 </div>
 <div class="drill">
   <p class="dq">open-in-view 開著時，示範端點的 SQL 2（查員工）是在哪裡送出的？</p>
   <ul class="dopts"><li>服務層方法的那筆交易裡</li><li>應用程式剛啟動的時候</li><li>回應寫完之後的背景執行緒</li><li data-ok>Controller，交易已結束</li></ul>
-  <p class="dexp">服務層只查了部門就回傳，交易隨即提交。Controller 讀 getEmployees() 時，靠綁在執行緒上的 EntityManager 補查。</p>
+  <p class="dexp">服務層查完部門交易就提交；Controller 讀 getEmployees() 時，靠綁在執行緒上的 EntityManager 補查。</p>
 </div>
 <div class="drill">
   <p class="dq">把 <code>spring.jpa.open-in-view</code> 設成 false，同一個端點會怎樣？</p>
   <ul class="dopts"><li>200，但員工清單是空的陣列</li><li>200，而且整個請求只送 1 次 SQL</li><li>應用程式啟動時就失敗</li><li data-ok>500，延遲載入的例外</li></ul>
-  <p class="dexp">EntityManager 跟著服務層交易結束，Controller 再讀還沒載入的集合就失敗：Cannot lazily initialize collection … (no session)。實跑回 500。</p>
+  <p class="dexp">EntityManager 跟著交易結束，Controller 再讀還沒載入的集合就失敗，實跑回 500。</p>
 </div>
 <div class="drill">
   <p class="dq">Spring Boot 啟動時為什麼要對 open-in-view 印警告？</p>
   <ul class="dopts"><li data-ok>查詢可能跑到畫面渲染時</li><li>因為這個屬性下一版就要移除</li><li>讓交易變唯讀</li><li>因為它會拖慢應用程式啟動</li></ul>
-  <p class="dexp">警告原文：database queries may be performed during view rendering。它提醒你這個預設會讓查詢跑到服務層以外。</p>
+  <p class="dexp">原文：database queries may be performed during view rendering。</p>
 </div>
 <div class="drill">
   <p class="dq">關掉 open-in-view 之後冒出 <code>LazyInitializationException</code>，比較好的修法是哪一個？</p>
   <ul class="dopts"><li>把 spring.jpa.open-in-view 打開回去</li><li>把 employees 關聯改成 EAGER</li><li data-ok>服務層用 JOIN FETCH 或 DTO 查齊</li><li>在 Controller 方法上也加 @Transactional</li></ul>
-  <p class="dexp">使用指南說最好的處理方式是在關閉持久化環境之前把需要的關聯抓好。改 EAGER 會讓所有查詢都多抓；打開回去或在 Controller 開交易，只是把查詢時機又搬回畫面層。</p>
+  <p class="dexp">在關閉持久化環境之前把需要的關聯抓好。改 EAGER 會讓所有查詢都多抓；打開回去或在 Controller 開交易，只是把查詢搬回畫面層。</p>
 </div>
 <div class="drill">
-  <p class="dq">open-in-view 開著，Controller 直接回傳 <code>List&lt;Department&gt;</code> 實體讓 Jackson 轉 JSON，最可能出什麼事？</p>
-  <ul class="dopts"><li data-ok>序列化時觸發延遲載入，N+1</li><li>編譯不過，實體不能轉成 JSON</li><li>JSON 裡員工集合一定是空的</li><li>只會送一句 SQL，沒有影響</li></ul>
-  <p class="dexp">Jackson 會呼叫每個 getter，碰到延遲載入的集合就補查一次，列表有幾個部門就多幾次，而且這些查詢發生在服務層看不到的地方。</p>
+  <p class="dq">open-in-view 開著，員工那一側的 <code>department</code> 加了 <code>@JsonIgnore</code>，Controller 直接回傳 3 個部門的 <code>List&lt;Department&gt;</code> 實體。實跑共送幾次 SQL？</p>
+  <ul class="dopts"><li>1 次</li><li>2 次</li><li>3 次</li><li data-ok>4 次</li></ul>
+  <p class="dexp">查部門 1 次，序列化時三個部門各補查員工 1 次，共 4 次。沒加 @JsonIgnore 的話會先無限遞迴而失敗。</p>
 </div>
 </section>
 
 <section>
 <p class="era">查過的不再查，改過的晚點一起送</p>
 <h3 class="head">一級快取與 flush 時機</h3>
-<p>Hibernate 在一個 <code>Session</code>（JPA 叫 <code>EntityManager</code>）裡維護一個<strong>持久化環境</strong>（persistence context）：這段工作範圍裡它正在管的那一批實體物件，也叫<strong>一級快取</strong>（first-level cache）。使用指南說 Session「維護一個通常可重複讀取的持久化環境（一級快取）」（It maintains a generally "repeatable read" persistence context (first level cache) of the application domain model.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#architecture-overview" target="_blank" rel="noopener">出處</a> 在 Spring 裡，注入的 <code>EntityManager</code> 是個代理，官方文件說它「把所有呼叫轉給目前那筆交易的 EntityManager；沒有交易時，每次操作改用一個新建的 EntityManager」（It delegates all calls to the current transactional EntityManager, if any. Otherwise, it falls back to a newly created EntityManager per operation）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/data-access/orm/jpa.html" target="_blank" rel="noopener">出處</a> 所以一級快取通常跟著一筆交易走（開著 open-in-view 時跟著整個請求），不是全站共用的快取。</p>
+<p>Hibernate 在一個 <code>Session</code>（JPA 叫 <code>EntityManager</code>）裡維護一個<strong>持久化環境</strong>（persistence context）：這段工作範圍裡它正在管的那批實體物件，也叫<strong>一級快取</strong>（first level cache）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#architecture-overview" target="_blank" rel="noopener">出處</a> 在這個範圍裡，「Hibernate 保證資料庫的一列與 Java 的一個物件一一對應」（Hibernate guarantees equivalence of persistent identity (database row) and Java identity inside a particular session scope.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#mapping-model-pojo-equalshashcode" target="_blank" rel="noopener">出處</a> Spring 注入的 <code>EntityManager</code> 是代理，「把所有呼叫轉給目前那筆交易的 EntityManager」（It delegates all calls to the current transactional EntityManager, if any.），<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/data-access/orm/jpa.html" target="_blank" rel="noopener">出處</a> 所以一級快取通常跟著一筆交易走（開著 open-in-view 時跟著整個請求），不是全站共用。</p>
 <h4>查過的不再查</h4>
 <pre><code>Long id = depts.findAll().get(0).getId();
 em.clear();                                       // 先清空，從頭示範
@@ -443,15 +400,15 @@ a == b：true，a == c：true
   SQL 2：select d1_0.id,d1_0.name from department d1_0 where d1_0.id=?
 a == q：true
 共 2 次 SQL</code></pre>
-<p>（第一行是取得 id 的 <code>findAll()</code>，之後計數歸零重新編號。）第一次 <code>find</code> 查了資料庫；第二次 <code>find</code> 和 Spring Data 的 <code>findById</code> 都沒有 SQL，直接從一級快取拿到<strong>同一個物件</strong>。JPQL 查詢則一定會送 SQL（Hibernate 不知道結果會有哪些列，得問資料庫），但查回來的那一列已經在快取裡，回傳的還是同一個物件 <code>a</code>。筆電範例只補查 3 個主人，也是這個原因。</p>
+<p>（第一行是取得 id 的 <code>findAll()</code>，之後計數歸零。）第二次 <code>find</code> 與 <code>findById</code> 都沒有 SQL，拿到的是<strong>同一個物件</strong>。JPQL 查詢一定會送 SQL（不問資料庫不知道有哪些列），但回傳的仍是快取裡那個 <code>a</code>。</p>
 <h4>改過的晚點一起送：flush</h4>
-<p>使用指南：flush 是「把持久化環境的狀態同步到資料庫的過程」；持久化環境像一個交易範圍內的延後寫入快取（transactional write-behind cache），「變更先套用在記憶體，在 flush 時才同步到資料庫」（changes are first applied in-memory and synchronized with the database during the flush time）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#flushing" target="_blank" rel="noopener">出處</a> 預設的 AUTO 模式會在這三個時機 flush：<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#flushing-auto" target="_blank" rel="noopener">出處</a></p>
+<p>持久化環境像一個延後寫入的快取，「變更先套用在記憶體，在 flush 時才同步到資料庫」（changes are first applied in-memory and synchronized with the database during the flush time）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#flushing" target="_blank" rel="noopener">出處</a> 預設的 AUTO 模式在三個時機 flush：<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#flushing-auto" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li>交易提交之前（prior to committing a Transaction）</li>
 <li>執行一個跟排隊中的變更有重疊的 JPQL／HQL 查詢之前（prior to executing a JPQL/HQL query that overlaps with the queued entity actions）</li>
-<li>執行沒有登記同步對象的原生 SQL 查詢之前（before executing any native SQL query that has no registered synchronization）</li>
+<li>執行沒有宣告會影響哪些資料表的原生 SQL 查詢之前（before executing any native SQL query that has no registered synchronization）：原生 SQL 是手寫字串，Hibernate 看不出它碰哪些表，沒宣告就先全部 flush</li>
 </ul>
-<p>先看第一個時機。改名字之後沒有呼叫任何 <code>save</code>：</p>
+<p>改名字之後不呼叫任何 <code>save</code>：</p>
 <pre><code>Department d = depts.findAll().get(0);
 SqlLog.reset();
 d.setName("研究部");
@@ -463,15 +420,10 @@ System.out.println("方法結束，準備提交");</code></pre>
 方法結束，準備提交
   SQL 1：update department set name=? where id=?
 共 1 次 SQL</code></pre>
-<p>UPDATE 出現在「準備提交」之後：提交前 flush，Hibernate 做髒資料檢查（〈Hibernate 入門與環境〉），看出名字變了就送 UPDATE。再看第二個時機，改名字之後馬上查同一張表：</p>
-<pre><code>Department d = depts.findAll().get(0);
-SqlLog.reset();
-d.setName("研究部");
-System.out.println("改完名字");
-Long n = em.createQuery("select count(d) from Department d where d.name = '研究部'", Long.class)
+<p>UPDATE 出現在「準備提交」之後：提交前 flush，髒資料檢查（〈Hibernate 入門與環境〉）看出名字變了。同一段程式在改名字後多一行查同一張表（印出的提示字也改短）：</p>
+<pre><code>Long n = em.createQuery("select count(d) from Department d where d.name = '研究部'", Long.class)
         .getSingleResult();
-System.out.println("查到改名後的部門 " + n + " 個");
-System.out.println("方法結束，準備提交");</code></pre>
+System.out.println("查到改名後的部門 " + n + " 個");</code></pre>
 <pre><code>== flush
   SQL 1：select d1_0.id,d1_0.name from department d1_0
 改完名字
@@ -480,7 +432,7 @@ System.out.println("方法結束，準備提交");</code></pre>
 查到改名後的部門 1 個
 方法結束，準備提交
 共 2 次 SQL</code></pre>
-<p>查詢會碰到 department 表，跟排隊中的 UPDATE 重疊，所以 Hibernate 先 flush 再查，查出來才會是 1 而不是 0。查的是不相干的表就不必先 flush，使用指南的例子是查 <code>Advertisement</code> 不會觸發 <code>Person</code> 的 INSERT。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#_auto_flush_on_jpqlhql_query" target="_blank" rel="noopener">出處</a> 提交時已經沒有東西要送，所以「準備提交」之後沒有新的 SQL。</p>
+<p>查詢碰到 department 表，跟排隊中的 UPDATE 重疊，所以先 flush 再查，才會查到 1；查不相干的表就不必先 flush。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#_auto_flush_on_jpqlhql_query" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="持久化環境像一個延後寫入的佇列：改名字、新增序列主鍵的物件，都先排在記憶體裡，等 flush 才變成 UPDATE 與 INSERT 送到資料庫。flush 的時機有三個：交易提交之前、要查重疊的表之前、手動呼叫 flush。IDENTITY 主鍵的物件例外，persist 當下就直接送 INSERT">
   <defs><marker id="jp-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="jp-a1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs>
@@ -505,52 +457,46 @@ System.out.println("方法結束，準備提交");</code></pre>
 <p class="muted">flush 和 commit 是兩件事（〈Hibernate 入門與環境〉）：flush 把 SQL 送出去，但交易還沒結束，之後還原的話，已經 flush 的變更也一起還原。</p>
 
 <div class="drill">
-  <p class="dq">同一筆交易裡，<code>em.find(Department.class, 1L)</code> 連續呼叫兩次（之前沒載入過），送幾次 SQL？</p>
+  <p class="dq">同一筆交易裡連續兩次 <code>em.<wbr>find(Department.<wbr>class, 1L)</code>（之前沒載入過），送幾次 SQL？</p>
   <ul class="dopts"><li>0 次</li><li data-ok>1 次</li><li>2 次</li><li>看有沒有開二級快取</li></ul>
-  <p class="dexp">第一次查資料庫，第二次直接從一級快取拿，而且是同一個物件。一級快取不用另外開。</p>
+  <p class="dexp">第二次直接從一級快取拿同一個物件；一級快取不用另外開。</p>
 </div>
 <div class="drill">
   <p class="dq">已經 <code>find</code> 過部門 1，再用 JPQL <code>select d from Department d where d.id = :id</code> 查同一筆，會怎樣？</p>
   <ul class="dopts"><li>不送 SQL，直接回傳快取裡的物件</li><li>送 SQL，回傳一個新的物件</li><li>丟出例外，同一筆不能查兩次</li><li data-ok>送 SQL，但回傳同一個物件</li></ul>
-  <p class="dexp">JPQL 查詢要問資料庫才知道有哪些列，所以一定送 SQL；查回來的那一列已經被管理，Hibernate 回傳快取裡那個物件。實跑 a == q：true。</p>
+  <p class="dexp">JPQL 一定要問資料庫，但查回來的那一列已被管理，回傳的是快取裡那個物件。</p>
 </div>
 <div class="drill">
   <p class="dq">交易裡查出部門、呼叫 <code>setName("研究部")</code>，沒有呼叫 <code>save</code>。交易提交時會怎樣？</p>
   <ul class="dopts"><li data-ok>提交前 flush，送出 UPDATE</li><li>什麼都不送，沒呼叫 save 就不算</li><li>丟出例外，要求先呼叫 save</li><li>送 DELETE 再送 INSERT</li></ul>
-  <p class="dexp">被管理的實體改了屬性，flush 時髒資料檢查會看出來並送 UPDATE。實跑 UPDATE 出現在「方法結束，準備提交」之後。</p>
+  <p class="dexp">髒資料檢查在提交前 flush 時看出變化並送 UPDATE。</p>
 </div>
 <div class="drill">
   <p class="dq">改完部門名字，接著在同一筆交易裡用 JPQL 數「名字是研究部的部門」，SQL 的順序是？</p>
   <ul class="dopts"><li>先 SELECT，提交時才 UPDATE</li><li>只有 SELECT，查到 0 個</li><li>只有 UPDATE，查詢被略過</li><li data-ok>先 UPDATE，再 SELECT</li></ul>
-  <p class="dexp">查詢碰到 department 表，跟排隊中的 UPDATE 重疊，AUTO 模式先 flush 再查，所以查到 1 個。</p>
+  <p class="dexp">查詢跟排隊中的 UPDATE 重疊，AUTO 模式先 flush 再查，所以查到 1 個。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一個<strong>不是</strong> AUTO 模式會 flush 的時機？</p>
-  <ul class="dopts"><li>交易提交之前</li><li>查跟排隊變更重疊的 JPQL 之前</li><li data-ok>每次呼叫 setter 之後</li><li>沒登記同步對象的原生 SQL 之前</li></ul>
-  <p class="dexp">setter 只改記憶體裡的物件，變更排著等 flush。使用指南列的三個時機是提交前、重疊的 JPQL／HQL 前、沒登記同步對象的原生 SQL 前。</p>
+  <ul class="dopts"><li>交易提交之前</li><li>查跟排隊變更重疊的 JPQL 之前</li><li data-ok>每次呼叫 setter 之後</li><li>沒宣告影響哪些表的原生 SQL 之前</li></ul>
+  <p class="dexp">setter 只改記憶體；三個時機是提交前、重疊的 JPQL 前、沒宣告影響哪些表的原生 SQL 前。</p>
 </div>
 <div class="drill">
   <p class="dq">交易裡先 <code>em.flush()</code>，之後丟出 RuntimeException 讓交易還原。flush 送出去的 UPDATE 呢？</p>
   <ul class="dopts"><li>已經送出，留在資料庫</li><li>只有一半留下來</li><li data-ok>跟著交易一起還原</li><li>flush 會自動提交交易</li></ul>
-  <p class="dexp">flush 只是把 SQL 送到資料庫，交易還沒結束；還原時同一筆交易裡的變更都會還原。flush 不等於 commit。</p>
-</div>
-<div class="drill">
-  <p class="dq">使用指南的例子：排隊中有一筆 <code>Person</code> 的 INSERT，這時查 <code>Advertisement</code>。查詢前會不會 flush？</p>
-  <ul class="dopts"><li>會，任何查詢前都會 flush</li><li data-ok>不會，兩張表沒有重疊</li><li>會，而且會先提交交易</li><li>不會，因為 INSERT 不能 flush</li></ul>
-  <p class="dexp">AUTO 只在查詢跟排隊的變更有重疊時才先 flush。Advertisement 跟 Person 不相干，INSERT 留到之後查 Person 或提交時才送。</p>
+  <p class="dexp">flush 只是送出 SQL，交易還沒結束，還原時一起還原。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Spring 的一般設定下（沒開 open-in-view），一級快取的範圍是什麼？</p>
   <ul class="dopts"><li>整個應用程式共用一份</li><li>每個 Repository 各一份</li><li data-ok>跟著 EntityManager 走</li><li>每張資料表各有一份</li></ul>
-  <p class="dexp">持久化環境屬於一個 EntityManager（Session），Spring 預設讓它跟著交易走，不同請求、不同交易各有各的，不是全站共用的快取。</p>
+  <p class="dexp">持久化環境屬於一個 EntityManager，Spring 預設讓它跟著交易走，不是全站共用。</p>
 </div>
 </section>
 
 <section>
 <p class="era">一句一句送，不如一批一批送</p>
-<h3 class="head">批次寫入：hibernate.jdbc.batch_size 與 IDENTITY 主鍵</h3>
-<p>寫入也有來回次數的問題。JDBC 可以把同一句 SQL 的多組參數打包，一次交給資料庫（〈Spring 資料存取〉的 <code>batchUpdate</code> 就是）。Hibernate 也能這樣做，但<strong>預設沒開</strong>。使用指南：「JDBC 批次預設沒有開啟，所以每一句 INSERT 都要一次資料庫來回。要開啟 JDBC 批次，把 hibernate.jdbc.batch_size 設成 10 到 50 之間的整數」（JDBC batching is not enabled by default, so every insert statement requires a database round trip. To enable JDBC batching, set the hibernate.jdbc.batch_size property to an integer between 10 and 50.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-session-batch" target="_blank" rel="noopener">出處</a> 這個設定「控制 Hibernate 最多把幾句打包在一起，才請驅動程式執行這一批」（Controls the maximum number of statements Hibernate will batch together before asking the driver to execute the batch.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-jdbcbatch" target="_blank" rel="noopener">出處</a></p>
-<p>示範專案有兩個只差主鍵策略的便條實體。SEQUENCE 用資料庫的序列（sequence，資料庫裡專門發號碼的物件）先拿號碼；IDENTITY 用自動遞增欄位，INSERT 時由資料庫給號碼：</p>
+<h3 class="head">批次寫入：hibernate.<wbr>jdbc.<wbr>batch_size 與 IDENTITY 主鍵</h3>
+<p>JDBC 可以把同一句 SQL 的多組參數打包一次送（〈Spring 資料存取〉的 <code>batchUpdate</code>），Hibernate 也能，但<strong>預設沒開</strong>：「JDBC 批次預設沒有開啟，所以每一句 INSERT 都要一次資料庫來回。要開啟，把 hibernate.jdbc.batch_size 設成 10 到 50 之間的整數」（JDBC batching is not enabled by default, so every insert statement requires a database round trip. To enable JDBC batching, set the hibernate.jdbc.batch_size property to an integer between 10 and 50.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-session-batch" target="_blank" rel="noopener">出處</a> 示範專案有兩個只差主鍵策略的便條實體：SEQUENCE 先從序列（sequence，資料庫裡專門發號碼的物件）拿號碼；IDENTITY 用自動遞增欄位，INSERT 時才由資料庫給號碼。</p>
 <pre><code>@Entity
 public class SeqNote {
     @Id @GeneratedValue(strategy = GenerationType.SEQUENCE)   // 序列：先拿號碼，INSERT 可以晚點一起送
@@ -570,15 +516,7 @@ for (int i = 1; i &lt;= 12; i++) {
     em.persist(new SeqNote("便條 " + i));
 }
 System.out.println("迴圈結束，準備提交");</code></pre>
-<p>沒設 <code>batch_size</code> 時，SeqNote 是 12 句單獨的 INSERT，全部出現在「迴圈結束，準備提交」之後（提交前 flush）：</p>
-<pre><code>== batchseq
-迴圈結束，準備提交
-  SQL 1：insert into seq_note (text,id) values (?,?)
-  SQL 2：insert into seq_note (text,id) values (?,?)
-  （中間 SQL 3〜11 都一樣，省略）
-  SQL 12：insert into seq_note (text,id) values (?,?)
-共 12 次 SQL</code></pre>
-<p>加上 <code>spring.jpa.properties.hibernate.jdbc.batch_size=5</code> 再跑兩種：</p>
+<p>沒設 <code>batch_size</code> 時 SeqNote 是 12 句單獨的 INSERT（提交前 flush 才送）。加上 <code>spring.<wbr>jpa.<wbr>properties.<wbr>hibernate.<wbr>jdbc.<wbr>batch_size=5</code> 再跑兩種：</p>
 <pre><code>== batchseq
 迴圈結束，準備提交
   SQL 1：（批次 5 筆）insert into seq_note (text,id) values (?,?)
@@ -592,8 +530,7 @@ System.out.println("迴圈結束，準備提交");</code></pre>
   SQL 12：insert into id_note (text,id) values (?,default)
 迴圈結束，準備提交
 共 12 次 SQL</code></pre>
-<p>「（批次 5 筆）」是示範專案的計數器加的標記：這一次送出是一批，裡面有 5 組參數。SeqNote 變成 5、5、2 三批。IdNote 設了同樣的 <code>batch_size</code>，還是 12 句，而且全部在「迴圈結束」<strong>之前</strong>就送了。使用指南寫明：「如果用 identity 主鍵產生器，Hibernate 會在 JDBC 層悄悄關掉 INSERT 批次」（Hibernate disables insert batching at the JDBC level transparently if you use an identity identifier generator.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-session-batch" target="_blank" rel="noopener">出處</a> 原因在 flush 那一章：「IDENTITY 產生器必須在呼叫 persist() 之後馬上執行 INSERT」（The IDENTITY generator must execute the insert right after calling persist().）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#_auto_flush_on_commit" target="_blank" rel="noopener">出處</a> 主鍵是資料庫在 INSERT 時才給的，Hibernate 要拿到號碼才能把物件放進持久化環境，只好一筆一筆立刻送，沒有東西可以排隊打包。</p>
-<p>序列主鍵不會這樣：號碼先從序列拿，INSERT 可以排著等 flush。拿號碼本身也要問資料庫，但 JPA 的 <code>allocationSize</code> 預設 50（The amount to increment by when allocating sequence numbers from the sequence. Default: 50），Hibernate 一次配一批號碼，示範專案在準備資料時已經配好，所以上面的輸出沒有拿號碼的 SQL。<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/sequencegenerator" target="_blank" rel="noopener">出處</a></p>
+<p>「（批次 5 筆）」是計數器加的標記：一次送出一批、裡面 5 組參數。SeqNote 變成 5、5、2 三批；IdNote 還是 12 句，而且在「迴圈結束」<strong>之前</strong>就送了。使用指南：「用 identity 主鍵產生器時，Hibernate 會在 JDBC 層悄悄關掉 INSERT 批次」（Hibernate disables insert batching at the JDBC level transparently if you use an identity identifier generator.）；<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-session-batch" target="_blank" rel="noopener">出處</a> 因為「IDENTITY 產生器必須在呼叫 persist() 之後馬上執行 INSERT」（The IDENTITY generator must execute the insert right after calling persist().），號碼要 INSERT 完才拿得到，沒有東西能排隊打包。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#_auto_flush_on_commit" target="_blank" rel="noopener">出處</a> 序列主鍵拿號碼也要問資料庫，但 JPA 的 <code>allocationSize</code> 預設 50（Default: 50），一次配一批，示範時已經配好，所以輸出裡沒有拿號碼的 SQL。<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/sequencegenerator" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 270" role="img" aria-label="12 筆便條、batch_size 設 5：序列主鍵分成 5 筆、5 筆、2 筆三批，送 3 次；IDENTITY 主鍵每筆各送一次，共 12 次；MySQL 沒開 rewriteBatchedStatements 時，Hibernate 雖然送 3 批，伺服器還是執行 12 句 INSERT，開了才變成 3 句">
   <text x="20" y="30" font-size="13" font-weight="700">序列主鍵＋batch_size=5</text>
@@ -620,7 +557,7 @@ System.out.println("迴圈結束，準備提交");</code></pre>
 <figcaption>同樣 12 筆、同樣 batch_size=5：序列主鍵打包成 3 批；IDENTITY 主鍵一筆一筆送；在 MySQL 上，驅動程式還要開 rewriteBatchedStatements，伺服器那端才真的變少。</figcaption>
 </figure>
 <h4>MySQL 還要看驅動程式</h4>
-<p>MySQL 的自動遞增欄位對應的就是 IDENTITY，所以在 MySQL 上要批次寫入，主鍵就不能用 IDENTITY。MySQL 沒有序列，示範專案在 MySQL 8.4 上跑時，Hibernate 為序列主鍵建了一張只有一欄的表來模擬（<code>create table seq_note_seq (next_val bigint) engine=InnoDB</code>）。另外，Hibernate 打包了，驅動程式不一定照包送。MySQL Connector/J 的 <code>rewriteBatchedStatements</code> 預設是 false，它的作用是在 <code>executeBatch()</code> 時「把 INSERT 與 REPLACE 的預備敘述（PreparedStatement）改寫成多組值的子句」（rewriting of prepared statements for INSERT and REPLACE queries into multi-values clause statements when 'executeBatch()' is called）。<a class="fixsrc" href="https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-performance-extensions.html" target="_blank" rel="noopener">出處</a> 在 MySQL 8.4 上用伺服器的 <code>Com_insert</code> 計數器量同一段 SeqNote 程式：</p>
+<p>MySQL 的自動遞增欄位就是 IDENTITY，所以在 MySQL 上要批次寫入，主鍵不能用 IDENTITY；MySQL 沒有序列，Hibernate 會建一張表模擬（實跑：<code>create table seq_note_seq (next_val bigint) engine=InnoDB</code>）。另外，Hibernate 打包了，驅動程式不一定照包送：Connector/J 的 <code>rewrite<wbr>BatchedStatements</code> 預設 false，打開才會在 <code>executeBatch()</code> 時「把 INSERT 的預備敘述（PreparedStatement）改寫成多組值的子句」（rewriting of prepared statements for INSERT and REPLACE queries into multi-values clause statements when 'executeBatch()' is called）。<a class="fixsrc" href="https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-performance-extensions.html" target="_blank" rel="noopener">出處</a> 用伺服器的 <code>Com_insert</code> 計數器量同一段 SeqNote 程式：</p>
 <pre><code>（jdbc:mysql://…/demo?rewriteBatchedStatements=false）
 == batchseq
 迴圈結束，準備提交
@@ -630,17 +567,11 @@ System.out.println("迴圈結束，準備提交");</code></pre>
 共 3 次 SQL
 MySQL 伺服器實際執行的 INSERT：12 次
 
-（jdbc:mysql://…/demo?rewriteBatchedStatements=true）
-== batchseq
-迴圈結束，準備提交
-  SQL 1：（批次 5 筆）insert into seq_note (text,id) values (?,?)
-  SQL 2：（批次 5 筆）insert into seq_note (text,id) values (?,?)
-  SQL 3：（批次 2 筆）insert into seq_note (text,id) values (?,?)
-共 3 次 SQL
+（rewriteBatchedStatements=true，前面幾行相同，中略）
 MySQL 伺服器實際執行的 INSERT：3 次</code></pre>
-<p class="muted">上面的 <code>Com_insert</code> 計數用的是 <code>show global status</code>，示範時這台 MySQL 只有這支程式在用。實際專案請在測試環境自己量一次，不同資料庫與驅動程式的行為不一樣。</p>
+<p class="muted"><code>Com_insert</code> 用的是 <code>show global status</code>，示範時這台 MySQL 只有這支程式在用；實際專案請在測試環境自己量。</p>
 <h4>大量寫入要定期 flush 與 clear</h4>
-<p>一次寫幾萬筆時，每個 persist 過的物件都留在一級快取裡，記憶體會一直長。使用指南的做法是：「新增物件時，定期呼叫 flush() 與 clear()，控制一級快取的大小」（When you make new objects persistent, employ methods flush() and clear() to the session regularly, to control the size of the first-level cache.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-session-batch-insert" target="_blank" rel="noopener">出處</a> 每次 flush 的筆數跟 <code>batch_size</code> 對齊：</p>
+<p>一次寫幾萬筆時，persist 過的物件都留在一級快取裡。使用指南：「定期呼叫 flush() 與 clear()，控制一級快取的大小」（employ methods flush() and clear() to the session regularly, to control the size of the first-level cache.），<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#batch-session-batch-insert" target="_blank" rel="noopener">出處</a> 筆數跟 <code>batch_size</code> 對齊：</p>
 <pre><code>int batch = 5;                                    // 跟 hibernate.jdbc.batch_size 一樣
 for (int i = 1; i &lt;= 12; i++) {
     em.persist(new SeqNote("便條 " + i));
@@ -660,56 +591,51 @@ System.out.println("迴圈結束，準備提交");</code></pre>
 迴圈結束，準備提交
   SQL 3：（批次 2 筆）insert into seq_note (text,id) values (?,?)
 共 3 次 SQL</code></pre>
-<p><code>clear()</code> 之後之前的物件都變成分離狀態（〈Hibernate 入門與環境〉），再改它們不會同步回資料庫，所以只適合「寫進去就不再動」的大量匯入。</p>
+<p><code>clear()</code> 之後物件都變成分離狀態（〈Hibernate 入門與環境〉），再改不會同步回資料庫，只適合「寫進去就不再動」的匯入。</p>
 
 <div class="drill">
-  <p class="dq">沒設 <code>hibernate.jdbc.batch_size</code>，一筆交易裡 persist 12 個 SeqNote（序列主鍵），送幾次 SQL？</p>
+  <p class="dq">沒設 <code>hibernate.<wbr>jdbc.<wbr>batch_<wbr>size</code>，一筆交易裡 persist 12 個 SeqNote（序列主鍵），送幾次 SQL？</p>
   <ul class="dopts"><li>1 次</li><li>3 次</li><li data-ok>12 次</li><li>24 次</li></ul>
-  <p class="dexp">Hibernate 預設沒開 JDBC 批次，每一句 INSERT 一次來回。實跑 12 句，全部在提交前 flush 時送出。</p>
+  <p class="dexp">預設沒開 JDBC 批次，每句 INSERT 一次來回，共 12 句。</p>
 </div>
 <div class="drill">
   <p class="dq">設 <code>batch_size=5</code>，persist 12 個 SeqNote，Hibernate 送出幾批？每批幾筆？</p>
   <ul class="dopts"><li>2 批：6、6</li><li data-ok>3 批：5、5、2</li><li>12 批：每批 1 筆</li><li>1 批：12 筆</li></ul>
-  <p class="dexp">batch_size 是一批的上限，湊滿 5 筆就送，剩下 2 筆在最後一批。實跑「（批次 5 筆）」兩次、「（批次 2 筆）」一次。</p>
+  <p class="dexp">batch_size 是一批的上限：湊滿 5 筆就送，剩 2 筆在最後一批。</p>
 </div>
 <div class="drill">
   <p class="dq">同樣 <code>batch_size=5</code>，persist 12 個 IdNote（IDENTITY 主鍵），送幾次 SQL？</p>
   <ul class="dopts"><li data-ok>12 次</li><li>3 次</li><li>1 次</li><li>5 次</li></ul>
-  <p class="dexp">用 identity 產生器時，Hibernate 會悄悄關掉 INSERT 批次，每筆單獨送。</p>
+  <p class="dexp">用 identity 產生器時，Hibernate 會悄悄關掉 INSERT 批次。</p>
 </div>
 <div class="drill">
   <p class="dq">IDENTITY 主鍵為什麼讓 INSERT 批次失效？</p>
   <ul class="dopts"><li>因為 IDENTITY 欄位不能用預備敘述</li><li>自動遞增表不能開交易</li><li data-ok>要先 INSERT 才拿得到主鍵</li><li>因為 Hibernate 7 還沒支援這個</li></ul>
-  <p class="dexp">使用指南：IDENTITY 產生器必須在呼叫 persist() 之後馬上執行 INSERT。號碼是資料庫給的，不送就拿不到，沒有東西能排隊等打包。</p>
+  <p class="dexp">IDENTITY 必須在 persist() 之後馬上 INSERT，號碼不送就拿不到，沒有東西能排隊打包。</p>
 </div>
 <div class="drill">
   <p class="dq">IdNote 的實跑輸出裡，12 句 INSERT 出現在「迴圈結束，準備提交」之前還是之後？</p>
   <ul class="dopts"><li data-ok>之前，每次 persist 當下就送</li><li>之後，提交前才 flush 送出</li><li>前 5 句在之前，其他句在之後</li><li>完全沒有送出，交易被還原</li></ul>
-  <p class="dexp">IDENTITY 一 persist 就 INSERT。SeqNote 才是排著等提交前 flush，所以它的 INSERT 出現在那行字之後。</p>
+  <p class="dexp">IDENTITY 一 persist 就 INSERT；SeqNote 才是排著等提交前 flush。</p>
 </div>
 <div class="drill">
   <p class="dq">大量匯入時，每 N 筆呼叫一次 <code>flush()</code> 加 <code>clear()</code>，主要是為了什麼？</p>
   <ul class="dopts"><li>讓交易每 N 筆就提交一次</li><li>讓 IDENTITY 主鍵也能批次寫入</li><li>讓資料庫自動幫表建立索引</li><li data-ok>控制一級快取的大小</li></ul>
-  <p class="dexp">persist 過的物件都留在持久化環境裡。flush 把排著的 INSERT 送出，clear 把物件清掉；交易仍然只有一筆，提交還是在最後。</p>
+  <p class="dexp">flush 把排著的 INSERT 送出，clear 清掉物件；交易仍是一筆，提交在最後。</p>
 </div>
 <div class="drill">
-  <p class="dq">在 MySQL 8.4 上，Hibernate 已經送出 5、5、2 三批，但連線網址沒有 <code>rewriteBatchedStatements=true</code>。伺服器實際執行幾句 INSERT？</p>
+  <p class="dq">MySQL 8.4 上 Hibernate 送出 5、5、2 三批，網址沒開 <code>rewrite<wbr>BatchedStatements</code>。伺服器實際執行幾句 INSERT？</p>
   <ul class="dopts"><li>3 句</li><li data-ok>12 句</li><li>1 句</li><li>0 句，資料沒寫進去</li></ul>
-  <p class="dexp">實測 Com_insert 增加 12：驅動程式沒有把它們改寫成多列 INSERT。開了 rewriteBatchedStatements 才變成 3。</p>
-</div>
-<div class="drill">
-  <p class="dq">在 Spring Boot 專案裡要設定 Hibernate 的 <code>hibernate.jdbc.batch_size</code>，屬性名稱怎麼寫？</p>
-  <ul class="dopts"><li><code>spring.jpa.batch-size</code></li><li data-ok><code>spring.jpa.properties.hibernate.jdbc.batch_size</code></li><li><code>spring.datasource.hikari.batch-size</code></li><li><code>spring.jpa.hibernate.jdbc-batch-size</code></li></ul>
-  <p class="dexp">spring.jpa.properties.* 會原樣交給 JPA 實作，後面接 Hibernate 自己的屬性名稱。另外三個名字都不是這個用途的屬性。</p>
+  <p class="dexp">實測 Com_insert 增加 12；開了 rewriteBatchedStatements 才變成 3。</p>
 </div>
 </section>
 
 <section>
 <p class="era">只要兩個欄位，就只查兩個欄位</p>
 <h3 class="head">投影成 DTO：只查畫面要的欄位</h3>
-<p>前面的解法都還是查出完整的實體。如果畫面只要「員工姓名」或「員工姓名＋部門名稱」，可以直接<strong>投影</strong>（〈Hibernate 查詢與關聯〉講過 HQL 的 <code>select new</code>）。Spring Data JPA 有兩種寫法。</p>
-<p><strong>介面投影</strong>：宣告一個只有 getter 的介面當回傳型別。參考文件：getter「對應到聚合根的屬性」時叫<strong>封閉投影</strong>（closed projection），而「用封閉投影時，Spring Data 可以把查詢最佳化，因為知道撐起投影代理需要哪些屬性」（If you use a closed projection, Spring Data can optimize the query execution, because we know about all the attributes that are needed to back the projection proxy.）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/repositories/projections.html#projections.interfaces.closed" target="_blank" rel="noopener">出處</a> 聚合根（aggregate root）在這裡就是 Repository 管的那個實體，例如 <code>Employee</code>。</p>
-<p><strong>類別投影（DTO）</strong>：用 record 當回傳型別。參考文件：「Java record 很適合定義 DTO 型別」（Java Records are ideal to define DTO types），而且 DTO 的用法跟投影介面一樣，「只是沒有代理，也不能巢狀投影」（except that no proxying happens and no nested projections can be applied）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/repositories/projections.html#projections.dtos" target="_blank" rel="noopener">出處</a> 用 <code>@Query</code> 寫 JPQL 時，DTO 靠建構子表示式 <code>select new</code>，參考文件提醒要寫完整類別名稱（Note the usage of a FQDN for the DTO type!）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/repositories/projections.html" target="_blank" rel="noopener">出處</a></p>
+<p>前面的解法都還是查出完整的實體。畫面只要幾個欄位時，可以直接<strong>投影</strong>（〈Hibernate 查詢與關聯〉講過 HQL 的 <code>select new</code>）。Spring Data JPA 有兩種寫法：</p>
+<p><strong>介面投影</strong>：回傳型別是只有 getter 的介面。getter 都對應到 Repository 管的那個實體的屬性時叫<strong>封閉投影</strong>，「Spring Data 可以把查詢最佳化，因為知道撐起投影代理需要哪些屬性」（Spring Data can optimize the query execution, because we know about all the attributes that are needed to back the projection proxy.）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/repositories/projections.html#projections.interfaces.closed" target="_blank" rel="noopener">出處</a></p>
+<p><strong>類別投影（DTO）</strong>：回傳型別是 record，「Java record 很適合定義 DTO 型別」（Java Records are ideal to define DTO types）；用 <code>@Query</code> 寫 JPQL 時靠建構子表示式 <code>select new</code>，類別名稱要寫完整（Note the usage of a FQDN for the DTO type!）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/repositories/projections.html#projections.dtos" target="_blank" rel="noopener">出處</a></p>
 <pre><code>interface EmployeeName { String getName(); }                       // 介面投影
 public record EmployeeRow(String employee, String department) {}    // DTO
 
@@ -731,45 +657,40 @@ System.out.println();</code></pre>
   SQL 2：select e1_0.name,d1_0.name from employee e1_0 join department d1_0 on d1_0.id=e1_0.department_id order by e1_0.id
 EmployeeRow[employee=阿明, department=研發部] EmployeeRow[employee=小美, department=研發部] EmployeeRow[employee=志豪, department=業務部] EmployeeRow[employee=怡君, department=業務部] EmployeeRow[employee=建宏, department=業務部] EmployeeRow[employee=雅婷, department=客服部] 
 共 2 次 SQL</code></pre>
-<p>兩句 SQL 都只選了需要的欄位：介面投影只拿 <code>name</code>，DTO 一句 join 拿齊員工與部門名稱，沒有任何補查。DTO 不是實體，不會放進一級快取，也不會被髒資料檢查追蹤：拿來顯示很合適，要修改資料時還是要查實體。</p>
+<p>兩句都只選需要的欄位，沒有補查。DTO 不是實體，不進一級快取、不被髒資料檢查追蹤：拿來顯示很合適，要修改還是查實體。</p>
 <h4>整理：哪個情境用哪一招</h4>
-<div class="tablewrap"><table><thead><tr><th>情境</th><th>先考慮</th><th>原因</th></tr></thead><tbody>
-<tr><th>唯讀列表、報表，只要幾個欄位</th><td>DTO 或介面投影</td><td>一句查詢、只拿要的欄位、不進一級快取</td></tr>
-<tr><th>要修改實體，而且要用到某一個集合</th><td>JOIN FETCH 或 <code>@EntityGraph</code></td><td>一句拿齊，拿回來的是被管理的實體</td></tr>
-<tr><th>要用到兩個以上的集合，或分頁時沒辦法用子查詢切頁</th><td>批次抓取（<code>@BatchSize</code>、<code>default_batch_fetch_size</code>）</td><td>JOIN FETCH 同時抓多個集合會產生笛卡兒積；Hibernate 6 或不支援子查詢 LIMIT 的資料庫，分頁會改在記憶體裡做</td></tr>
-<tr><th>大量新增</th><td><code>hibernate.jdbc.batch_size</code>＋序列主鍵＋定期 flush、clear</td><td>IDENTITY 主鍵會讓批次失效；MySQL 還要開 rewriteBatchedStatements</td></tr>
+<div class="tablewrap"><table><thead><tr><th>情境</th><th>先考慮</th></tr></thead><tbody>
+<tr><th>唯讀列表、報表，只要幾個欄位</th><td>DTO 或介面投影</td></tr>
+<tr><th>要修改實體，而且要用到一個集合</th><td>JOIN FETCH 或 <code>@EntityGraph</code></td></tr>
+<tr><th>要用到兩個以上的集合，或沒辦法用子查詢分頁</th><td>批次抓取</td></tr>
+<tr><th>大量新增</th><td><code>batch_size</code>＋序列主鍵＋定期 flush、clear</td></tr>
 </tbody></table></div>
 
 <div class="drill">
   <p class="dq"><code>List&lt;EmployeeName&gt; findByDepartmentName(String)</code>，<code>EmployeeName</code> 只有 <code>getName()</code>。實跑的 SQL 選了哪些欄位？</p>
   <ul class="dopts"><li>employee 的所有欄位</li><li>employee 與 department 的所有欄位</li><li data-ok>只有 employee 的 name</li><li>只有 department 的 name</li></ul>
-  <p class="dexp">封閉投影讓 Spring Data 知道只需要 name，SQL 是 select e1_0.name …。部門只用在 where 條件裡。</p>
+  <p class="dexp">封閉投影讓 Spring Data 只查 name；部門只用在 where 條件裡。</p>
 </div>
 <div class="drill">
   <p class="dq">什麼樣的投影介面叫「封閉投影」？</p>
   <ul class="dopts"><li>介面宣告成 sealed</li><li>只能在交易裡使用的投影</li><li>用 @Value 算出新值的投影</li><li data-ok>getter 全對應實體屬性</li></ul>
-  <p class="dexp">參考文件的定義是存取方法全部對應到聚合根的屬性。用 @Value 運算式算新值的是開放投影，Spring Data 就沒辦法只查特定欄位。</p>
+  <p class="dexp">getter 全部對應到實體的屬性才是封閉投影；用 @Value 算新值的是開放投影。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>findRows()</code> 用 <code>select new demo.EmployeeRow(e.name, d.name)</code> 查出 6 名員工與部門名稱，送幾次 SQL？</p>
   <ul class="dopts"><li data-ok>1 次</li><li>7 次</li><li>4 次</li><li>2 次</li></ul>
-  <p class="dexp">一句 join 直接把兩個名稱放進 record，沒有實體、沒有延遲載入，也就沒有補查。</p>
-</div>
-<div class="drill">
-  <p class="dq">在 <code>@Query</code> 的 JPQL 裡寫 <code>select new EmployeeRow(...)</code>，沒寫套件名稱，參考文件提醒什麼？</p>
-  <ul class="dopts"><li>不用寫，Spring Data 會自動去找</li><li>DTO 一定要宣告成介面</li><li data-ok>要寫完整類別名稱</li><li>select new 只能用在原生 SQL</li></ul>
-  <p class="dexp">參考文件在建構子表示式的例子旁特別註明 Note the usage of a FQDN for the DTO type!，也就是要寫含套件的完整名稱。</p>
+  <p class="dexp">一句 join 直接把兩個名稱放進 record，沒有實體，也就沒有補查。</p>
 </div>
 <div class="drill">
   <p class="dq">用 <code>findRows()</code> 查出 <code>EmployeeRow</code> 清單，在交易裡把清單裡某一筆換成姓名不同的新 record。交易提交時會怎樣？</p>
   <ul class="dopts"><li>送出 UPDATE 更新員工</li><li>丟出 LazyInitializationException</li><li>送出 INSERT 新增一筆員工</li><li data-ok>什麼都不會發生</li></ul>
-  <p class="dexp">DTO 不是實體，不在一級快取裡，也不被髒資料檢查追蹤，換掉清單裡的 record 只是改了記憶體裡的 List。要改資料得查實體。</p>
+  <p class="dexp">DTO 不是實體，不被追蹤；換掉 record 只是改了記憶體裡的 List。</p>
 </div>
 <div class="drill">
   <p class="dq">畫面是「每頁 20 個部門，每個部門列出員工與專案兩個清單」，而且要修改部門資料。最適合先考慮哪一招？</p>
   <ul class="dopts"><li>一句同時 join fetch 員工與專案</li><li>把兩個集合都改成 EAGER</li><li data-ok>分頁查部門，兩個集合用批次抓取</li><li>打開 open-in-view 讓畫面自己查</li></ul>
-  <p class="dexp">有兩個集合，一句 JOIN FETCH 會產生笛卡兒積；改 EAGER 會影響所有查詢；open-in-view 只是把查詢搬到畫面層。分頁查部門再用批次抓取，每個集合大約 N ÷ 批次大小次補查。</p>
+  <p class="dexp">兩個集合一起 JOIN FETCH 會產生笛卡兒積；改 EAGER、開 open-in-view 都不對。分頁查部門再用批次抓取。</p>
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>N+1：1 次查清單，再為 N 筆的延遲載入關聯各補查 1 次。用 DataSource 代理數 SQL，測試裡斷言句數。</li><li><code>@ManyToOne</code>、<code>@OneToOne</code> 照 JPA 預設是 EAGER，JPQL 查詢沒 JOIN FETCH 時會另外補查，一樣造成 N+1；Hibernate 建議全部標 LAZY，需要時在查詢上指定一起抓。</li><li>JOIN FETCH 與 <code>@EntityGraph</code> 一句拿齊；從 Hibernate 6 起自動去掉重複的父實體，不必寫 distinct。搭配分頁時，Hibernate 7 會把分頁放進子查詢，資料庫不支援才退回記憶體（Hibernate 6 印 HHH90003004、一律在記憶體裡切）；不要同時抓兩個集合、不要在被抓的一邊加條件。</li><li>批次抓取（<code>@BatchSize</code>、<code>hibernate.default_batch_fetch_size</code>）用 IN 一次補好幾筆，N 筆約補 N ÷ 批次大小次；適合分頁與多個集合，但多數時候 JOIN FETCH 或 DTO 更好。</li><li><code>spring.jpa.open-in-view</code> 預設 true：EntityManager 活整個請求，延遲載入跑到交易外、Controller 與 JSON 序列化階段。設 false 之後的 LazyInitializationException 代表服務層沒把資料準備齊。</li><li>一級快取：同一個 EntityManager 裡依主鍵查過的不再查，JPQL 查回來的也是同一個物件。AUTO flush 在提交前、查重疊的表前、原生 SQL 前；flush 不等於 commit。</li><li>批次寫入預設沒開，設 <code>spring.jpa.properties.hibernate.jdbc.batch_size</code>；IDENTITY 主鍵 persist 當下就 INSERT，批次失效；MySQL 還要 <code>rewriteBatchedStatements=true</code>；大量匯入定期 flush、clear。</li><li>唯讀畫面優先投影成 DTO 或介面投影：只查需要的欄位、不進一級快取、不被追蹤。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>N+1：1 次查清單，再為 N 筆的延遲載入關聯各補查 1 次；用 DataSource 代理在測試裡檢查句數。多對一、一對一預設 EAGER 也會造成 N+1，明寫 LAZY。</li><li>JOIN FETCH 與 <code>@EntityGraph</code> 一句拿齊，Hibernate 6 起不必寫 distinct；Hibernate 7 把分頁放進子查詢（6 是在記憶體裡切）；不要同時抓兩個集合、不要在被抓的一邊加條件。</li><li>批次抓取（<code>@BatchSize</code>、<code>default_<wbr>batch_<wbr>fetch_<wbr>size</code>）用 IN 一次補好幾筆，約 N ÷ 批次大小次；適合多個集合。</li><li><code>open-in-view</code> 預設 true，延遲載入跑到交易外的 Controller 與 JSON 序列化；直接回傳實體還可能因雙向關聯無限遞迴。</li><li>一級快取：同一個 EntityManager 裡一個主鍵只有一個物件；AUTO flush 在提交前、查重疊的表前、原生 SQL 前；flush 不等於 commit。</li><li>批次寫入預設沒開；IDENTITY 主鍵讓 INSERT 批次失效；MySQL 還要 <code>rewrite<wbr>BatchedStatements=true</code>；大量匯入定期 flush、clear。</li><li>唯讀畫面優先投影成 DTO 或介面投影：只查需要的欄位、不進一級快取。</li></ul></div>
