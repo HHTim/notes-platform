@@ -17,8 +17,8 @@
 </svg>
 <figcaption>堆疊只開一個口：最後放進去的 3 最先被拿出來（後進先出）。</figcaption>
 </figure>
-<p>因為三個動作都只碰頂端、不用往下翻，不管堆疊裡有 10 個還是 100 萬個元素，每個動作都是固定幾步完成，也就是 O(1)（複雜度的講法見〈複雜度：程式跑多快、吃多少記憶體〉）。反過來，堆疊<strong>不提供</strong>「直接拿第 k 個」：想拿最底下那個，得先把上面的全部彈出來。</p>
-<p class="formula">堆疊＝只開一個口：push、pop、peek 都只碰頂端，所以都是 O(1)</p>
+<p>因為三個動作都只碰頂端、不用往下翻，不管堆疊裡有 10 個還是 100 萬個元素，每個動作都是固定幾步完成，也就是 O(1)（複雜度的講法見〈複雜度：程式跑多快、吃多少記憶體〉）。精確一點說：<code>peek</code> 每次都是 O(1)；用陣列做堆疊時，<code>push</code> 偶爾會碰到陣列滿了、要換一個大陣列，那一次比較貴，平均下來是<strong>攤銷 O(1)</strong>（細節見下面〈<code>ArrayDeque</code> 裡面長什麼樣〉那一段）。反過來，堆疊<strong>不提供</strong>「直接拿第 k 個」：想拿最底下那個，得先把上面的全部彈出來。</p>
+<p class="formula">堆疊＝只開一個口：push、pop、peek 都只碰頂端，peek 是 O(1)，用 ArrayDeque 進出是攤銷 O(1)</p>
 
 <div class="drill">
   <p class="dq">依序把 A、B、C 三個盤子疊上去，然後拿走一個。拿走的是哪一個？</p>
@@ -91,13 +91,13 @@ System.out.println(stack);</code></pre>
 </svg>
 <figcaption>佇列兩頭各開一個口：從尾端進、從前端出，所以最早進來的 A 最先出去（先進先出）。</figcaption>
 </figure>
-<p>佇列的三個動作一樣只碰兩頭，不用動到中間，所以也都是 O(1)。堆疊與佇列的差別只有一句話：<strong>拿的時候拿「最新的」還是「最舊的」</strong>。</p>
+<p>佇列的三個動作一樣只碰兩頭，不用動到中間：<code>peek</code> 是 O(1)，用 <code>ArrayDeque</code> 進出是攤銷 O(1)，理由跟堆疊一樣。堆疊與佇列的差別只有一句話：<strong>拿的時候拿「最新的」還是「最舊的」</strong>。</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>堆疊（stack）</th><th>佇列（queue）</th></tr></thead><tbody>
 <tr><th>規則</th><td>後進先出：拿最新放進去的</td><td>先進先出：拿最早放進去的</td></tr>
 <tr><th>生活比喻</th><td>疊盤子、瀏覽器上一頁、文書軟體的復原</td><td>排隊、客服依來電順序接聽、印表機依送出順序列印</td></tr>
 <tr><th>放進去</th><td><code>push</code>：放到頂端</td><td><code>offer</code>：排到尾端</td></tr>
 <tr><th>拿出來</th><td><code>pop</code>：拿頂端</td><td><code>poll</code>：拿前端</td></tr>
-<tr><th>每個動作</th><td colspan="2">都只碰端點，O(1)</td></tr>
+<tr><th>每個動作</th><td colspan="2">都只碰端點：peek 是 O(1)，用 ArrayDeque 放進與拿出是攤銷 O(1)</td></tr>
 </tbody></table></div>
 
 <div class="drill">
@@ -222,7 +222,7 @@ System.out.println(d.poll());   // 3：poll 跟 pop 都從前端拿</code></pre>
 
 <h4>為什麼不要用 <code>Stack</code> 和 <code>LinkedList</code></h4>
 <ul class="plainlist">
-<li><strong><code>Stack</code></strong>：文件寫它「繼承 <code>Vector</code> 類別，加上五個操作，讓 vector 可以當堆疊用」（It extends class Vector with five operations that allow a vector to be treated as a stack.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a> 繼承的結果是 <code>Vector</code> 的方法它全都有，例如用 <code>add(0, x)</code> 插到最底下，堆疊「只碰頂端」的規矩就守不住了。而 <code>Vector</code> 文件說它「是同步的」（Vector is synchronized），不需要執行緒安全時建議改用 <code>ArrayList</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Vector.html" target="_blank" rel="noopener">出處</a> 解題時只有一條執行緒，用不到這層保護。</li>
+<li><strong><code>Stack</code></strong>：文件寫它「繼承 <code>Vector</code> 類別，加上五個操作，讓 vector 可以當堆疊用」（It extends class Vector with five operations that allow a vector to be treated as a stack.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a> 繼承的結果是 <code>Vector</code> 的方法它全都有，例如用 <code>add(0, x)</code> 插到最底下，堆疊「只碰頂端」的規矩就守不住了。而 <code>Vector</code> 文件說它「是同步的」（Vector is synchronized）：多條執行緒同時用時會上鎖排隊，只有一條執行緒時用不到這層保護、還要多花時間上鎖；文件並說不需要執行緒安全時建議改用 <code>ArrayList</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Vector.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong><code>LinkedList</code></strong>：它也實作了 <code>Deque</code>，可以當堆疊和佇列，但 <code>ArrayDeque</code> 文件說自己當佇列用時可能比它快（上面那句原文）。它還允許放 <code>null</code>（permits all elements (including null)）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a>，正好是 <code>Queue</code> 文件叫你不要做的事。鏈結串列本身的結構見〈鏈結串列〉。</li>
 </ul>
 <p>還有一個實際會踩到的差別：印出來的順序。<code>Stack</code> 的頂端是「<code>Vector</code> 物件的最後一個元素」（the last item of the Vector object）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a>，印出時從底部印到頂端；<code>ArrayDeque</code> 從頂端（開頭）印起：</p>
@@ -301,7 +301,7 @@ System.out.println(d);</code></pre>
 </div>
 <div class="drill">
   <p class="dq"><code>Deque</code> 文件強烈建議不要把 <code>null</code> 放進 deque，理由是？</p>
-  <ul class="dopts"><li>null 會讓 deque 的容量變成 0</li><li data-ok>poll、peek 這些方法用 null 表示「空了」，放了 null 就分不出是真的拿到 null 還是空了</li><li>null 會被自動轉成 0</li><li>放 null 會讓 deque 從堆疊變成佇列</li></ul>
+  <ul class="dopts"><li>放進 null 會讓 deque 的容量直接變成 0，之後再也放不進東西</li><li data-ok>poll、peek 用 null 表示「空了」，放了 null 就分不清是拿到 null 還是空了</li><li>null 放進去會被自動轉成 0，取出來時值就變了</li><li>放 null 會讓 deque 從堆疊的用法變成佇列的用法</li></ul>
   <p class="dexp">文件的理由是 null 被許多方法當成特殊回傳值，表示 deque 是空的。ArrayDeque 乾脆禁止，放 null 直接丟 NullPointerException。</p>
 </div>
 <div class="drill">
@@ -326,7 +326,7 @@ System.out.println(s.peek());</code></pre>
 </div>
 <div class="drill">
   <p class="dq"><code>ArrayDeque</code> 的 <code>offer</code> 為什麼說是「攤銷 O(1)」，而不是每次都 O(1)？</p>
-  <ul class="dopts"><li>因為 offer 每次都要從頭找空位</li><li>因為環狀陣列每放一個就要整理一次</li><li data-ok>陣列滿了要換更大的陣列、把元素全部搬過去，那一次是 O(n)，平均分攤到每次還是常數</li><li>因為 offer 有時候會失敗回傳 false</li></ul>
+  <ul class="dopts"><li>offer 每次都要從陣列開頭一格一格往後找空位</li><li>環狀陣列每放進一個元素，就要把全部元素重新整理一次</li><li data-ok>陣列滿了要換大陣列、全部搬過去，那次是 O(n)，平均到每次仍是常數</li><li>offer 有時候會失敗回傳 false，失敗的那次不算時間</li></ul>
   <p class="dexp">平常 offer 只是把元素放進 tail 那一格、tail 往後挪；偶爾陣列滿了才搬家。搬家很貴但很少發生，平均下來每次是常數，這就是攤銷。</p>
 </div>
 <div class="drill">
@@ -452,7 +452,7 @@ xw
 true</code></pre>
 <p>最後組字串時用 <code>pollLast()</code> 從底部拿，因為堆疊底部是最早打的字；如果用 <code>pop()</code> 從頂端拿，字會整串反過來。這裡用到 deque 兩頭都能拿的特性。</p>
 <h4>逆波蘭式計算</h4>
-<p>平常寫的 <code>(3 + 4) * 2</code> 叫<strong>中序式</strong>（infix，運算子夾在兩個數中間），要靠括號和先乘除後加減決定順序。<strong>逆波蘭式</strong>（reverse Polish notation，也叫<strong>後序式</strong> postfix）把運算子寫在兩個數後面：<code>3 4 + 2 *</code>，不需要括號。算法：讀到數字就 push；讀到運算子就 pop 兩個數、算完把結果 push 回去；最後堆疊裡剩的那個就是答案。普林斯頓的《Computer Science》課本網站在堆疊那一節就出了「寫一個程式讀入後序式、計算並印出值」的練習（Write a program EvaluatePostfix.java that takes a postfix expression from standard input, evaluates it, and prints the value.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/43stack/" target="_blank" rel="noopener">出處</a></p>
+<p>平常寫的 <code>(3 + 4) * 2</code> 叫<strong>中序式</strong>（infix，運算子夾在兩個數中間），要靠括號和先乘除後加減決定順序。<strong>逆波蘭式</strong>（reverse Polish notation，也叫<strong>後序式</strong> postfix）把運算子寫在兩個數後面：<code>3 4 + 2 *</code>，不需要括號。做法：讀到數字就 push；讀到運算子就 pop 兩個數、算完把結果 push 回去；最後堆疊裡剩的那個就是答案。普林斯頓的《Computer Science》課本網站在堆疊那一節就出了「寫一個程式讀入後序式、計算並印出值」的練習（Write a program EvaluatePostfix.java that takes a postfix expression from standard input, evaluates it, and prints the value.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/43stack/" target="_blank" rel="noopener">出處</a></p>
 <pre><code>import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -488,7 +488,7 @@ public class Rpn {
 14
 6</code></pre>
 <p>最容易錯的是減法和除法的順序：<strong>先 pop 出來的是右邊那個數</strong>。<code>8 2 -</code> 先彈出 2、再彈出 8，要算 8 − 2，寫成 <code>b - a</code> 就會得到 −6。（程式用的是 Java 14 正式加入的 <code>switch</code> 箭頭寫法：符合的那個 <code>case</code> 只執行箭頭右邊、不會往下掉，一個 <code>case</code> 也可以列好幾個值，用逗號隔開。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a>）</p>
-<p class="muted">同一節也介紹了 Dijkstra 的「雙堆疊」演算法，用一個堆疊放數字、一個放運算子，直接計算加滿括號的中序式。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 面試題比較常直接給逆波蘭式。</p>
+<p class="muted">同一節也介紹了 Dijkstra 的「雙堆疊」演算法，用一個堆疊放數字、一個放運算子，直接計算加滿括號的中序式。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 刷題時常見的是直接給逆波蘭式。</p>
 
 <div class="drill">
   <p class="dq">用上面的退格規則，<code>abc##d</code> 打完之後螢幕上是什麼？</p>
@@ -611,12 +611,12 @@ public class NextGreater {
 </div>
 <div class="drill">
   <p class="dq">每日溫度那題，堆疊裡放的是索引而不是溫度值。主要原因是？</p>
-  <ul class="dopts"><li>索引比較小，比較省記憶體</li><li data-ok>答案要算「隔幾天」，需要位置；有索引就能查回溫度，有溫度卻查不回位置</li><li>ArrayDeque 只能放 int 索引</li><li>放溫度值會讓時間複雜度變成 O(n²)</li></ul>
+  <ul class="dopts"><li>索引的數字比溫度小，放進堆疊比較省記憶體</li><li data-ok>要算隔幾天就需要位置；有索引能查回溫度，反過來查不回位置</li><li>ArrayDeque 只能放 int 索引，不能放溫度這種值</li><li>放溫度值會讓 while 迴圈多跑，時間複雜度變成 O(n²)</li></ul>
   <p class="dexp">ans[j] = i − j 要用到兩個位置。溫度可能重複，光有值不知道是哪一天；有索引則隨時能用 t[j] 查回溫度。</p>
 </div>
 <div class="drill">
   <p class="dq">把題目改成「右邊第一個比它<strong>小</strong>的數」，程式最主要要改哪裡？</p>
-  <ul class="dopts"><li>改成從右往左走，其他不變</li><li>改用佇列</li><li data-ok>while 條件裡的 <code>&lt;</code> 改成 <code>&gt;</code>：頂端比新來的大才彈出，堆疊裡的值變成由底到頂一路變大</li><li>不用改，同一個程式就能算</li></ul>
+  <ul class="dopts"><li>改成從陣列最右邊往左走，while 的條件不變</li><li>把堆疊換成佇列，讓最早放進去的先被比較</li><li data-ok>while 條件的 <code>&lt;</code> 改成 <code>&gt;</code>，堆疊的值變成由底到頂一路變大</li><li>不用改，同一個程式算出來的就是下一個更小的</li></ul>
   <p class="dexp">新來的比頂端小，頂端就等到「下一個更小的」。比較方向一反，堆疊裡留下來的值也跟著反過來，由底到頂一路變大。</p>
 </div>
 </section>
@@ -725,7 +725,7 @@ public class MinStack {
 </div>
 <div class="drill">
   <p class="dq">如果把 <code>poll()</code> 改成「不管 <code>out</code> 空不空，每次都先把 <code>in</code> 倒進 <code>out</code>」，會出什麼事？</p>
-  <ul class="dopts"><li>沒差，結果一樣</li><li>每次 poll 都變成 O(n²)</li><li data-ok>後來的元素會壓在 out 裡還沒出去的舊元素上面，先被拿走，順序就亂了</li><li>out 永遠是空的</li></ul>
+  <ul class="dopts"><li>沒差，兩種寫法 poll 出來的順序都一樣</li><li>順序不變，但每次 poll 都變成 O(n²)</li><li data-ok>新元素會壓在 out 裡的舊元素上面先被拿走，順序就亂了</li><li>out 永遠是空的，每次 poll 都會丟出例外</li></ul>
   <p class="dexp">例如 out 還有 2、3 時進來 4，若立刻倒，4 會到 out 頂端，下一次 poll 拿到 4 而不是 2。只有 out 空了才倒，才能保證舊的全出去了。</p>
 </div>
 <div class="drill">
@@ -746,7 +746,7 @@ public class MinStack {
 <ul class="plainlist">
 <li><strong>佇列是廣度優先搜尋（BFS）的骨架。</strong>BFS（breadth-first search）是一層一層往外找：先看離起點一步的、再看兩步的。先發現的先處理，正好是先進先出。細節在〈圖：BFS、DFS 與拓樸排序〉。</li>
 <li><strong>雙端佇列解滑動視窗最大值。</strong>一個固定長度的視窗在陣列上往右滑，要隨時知道視窗裡的最大值。做法是用 deque 兩頭都能進出的特性：新元素從尾端進來前，把尾端比它小的都拿掉（跟單調堆疊同一個想法），滑出視窗的從前端拿掉。細節在〈雙指標、滑動視窗與前綴和〉。</li>
-<li><strong>方法呼叫本身就是堆疊。</strong>普林斯頓的課本寫：「實作方法呼叫最自然的方式是用堆疊。呼叫一個方法時，把狀態推進堆疊；方法回傳時，從堆疊彈出狀態，恢復呼叫前所有變數的值」（The natural way to implement the function-call abstraction is to use a stack. To call a function, push the state on a stack. To return from a function call, pop the state from the stack to restore all variables to their values before the function call…）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/43stack/" target="_blank" rel="noopener">出處</a> 這就是下一課〈遞迴與回溯〉的呼叫堆疊；JVM 怎麼替每條執行緒配這塊記憶體，見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。注意這裡的「堆疊」跟 JVM 裡放物件的「堆」（heap）是兩回事。</li>
+<li><strong>方法呼叫本身就是堆疊。</strong>普林斯頓的課本寫：「實作方法呼叫最自然的方式是用堆疊。呼叫一個方法時，把狀態推進堆疊；方法回傳時，從堆疊彈出狀態，恢復呼叫前所有變數的值」（The natural way to implement the function-call abstraction is to use a stack. To call a function, push the state on a stack. To return from a function call, pop the state from the stack to restore all variables to their values before the function call…）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/43stack/" target="_blank" rel="noopener">出處</a> 這就是〈遞迴與回溯〉的呼叫堆疊；JVM 怎麼替每條執行緒配這塊記憶體，見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。注意這裡的「堆疊」跟 JVM 裡放物件的「堆」（heap）是兩回事。</li>
 </ul>
 
 <div class="drill">
@@ -781,4 +781,4 @@ public class MinStack {
 <tr><td><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank" rel="noopener">239. Sliding Window Maximum</a></td><td>雙端佇列兩頭進出（搭配〈雙指標、滑動視窗與前綴和〉）</td><td>Hard</td></tr>
 </tbody></table></div>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>堆疊後進先出、佇列先進先出；兩者的 push／pop／offer／poll／peek 都只碰端點，O(1)。</li><li>Java 用 <code>ArrayDeque</code>：當堆疊用 <code>push</code>／<code>pop</code>／<code>peek</code>，當佇列用 <code>offer</code>／<code>poll</code>／<code>peek</code>，一個 deque 只選一種用法。<code>Deque</code> 與 <code>Stack</code> 的文件都建議用 <code>Deque</code> 取代 <code>Stack</code>。</li><li>空的時候 <code>poll</code>／<code>peek</code> 回傳 <code>null</code>、<code>pop</code>／<code>remove</code> 丟例外；所以 <code>ArrayDeque</code> 不收 <code>null</code>。</li><li><code>ArrayDeque</code> 是環狀陣列：兩頭進出攤銷 O(1)，<code>contains</code> 與刪中間的指定元素是 O(n)。</li><li>括號配對：右括號配頂端，三種不合法（配錯、堆疊空、最後有剩）。逆波蘭式：先彈出的是右邊的數。</li><li>單調堆疊：還沒找到答案的進堆疊等，每個元素進出各一次，O(n)；堆疊放索引。</li><li>兩個堆疊做佇列：out 空了才倒，單次最壞 O(n)、攤銷 O(1)。佇列是 BFS 的骨架，方法呼叫本身就是堆疊。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>堆疊後進先出、佇列先進先出；所有動作都只碰端點：peek 是 O(1)，用 <code>ArrayDeque</code> 進出是攤銷 O(1)。</li><li>Java 用 <code>ArrayDeque</code>：當堆疊用 <code>push</code>／<code>pop</code>／<code>peek</code>，當佇列用 <code>offer</code>／<code>poll</code>／<code>peek</code>，一個 deque 只選一種用法。<code>Deque</code> 與 <code>Stack</code> 的文件都建議用 <code>Deque</code> 取代 <code>Stack</code>。</li><li>空的時候 <code>poll</code>／<code>peek</code> 回傳 <code>null</code>、<code>pop</code>／<code>remove</code> 丟例外；所以 <code>ArrayDeque</code> 不收 <code>null</code>。</li><li><code>ArrayDeque</code> 是環狀陣列：兩頭進出攤銷 O(1)，<code>contains</code> 與刪中間的指定元素是 O(n)。</li><li>括號配對：右括號配頂端，三種不合法（配錯、堆疊空、最後有剩）。逆波蘭式：先彈出的是右邊的數。</li><li>單調堆疊：還沒找到答案的進堆疊等，每個元素進出各一次，O(n)；堆疊放索引。</li><li>兩個堆疊做佇列：out 空了才倒，單次最壞 O(n)、攤銷 O(1)。佇列是 BFS 的骨架，方法呼叫本身就是堆疊。</li></ul></div>
