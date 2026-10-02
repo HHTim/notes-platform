@@ -32,7 +32,7 @@
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | ✅ `ee2f5c2`（48 題、4 圖；Boot 4.1.1） | 審查中（`review-java-a`） | | | |
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | 撰寫中（`write-java-a`） | | | |
 | `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | ✅ `1ed20d6`（47 題、4 圖、20 網址；Boot 4.1.1、Jaeger OTLP） | 審查中（`review-algo-b`） | | | |
-| `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | 撰寫中（`write-algo-b`） | | | |
+| `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | ✅ `a435e4f`（49 題、3 圖、25 網址；Boot 4.1.1、Framework 7 內建版本） | 審查中（`review-algo-d`） | | | |
 | `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | ✅ `d57361b`（47 題、3 圖、17 網址；mins 50） | ✅ 10-03 審完：無錯誤級；Thymeleaf／Angular 編碼補出處、「比網銀低」改成有理由的說法、選項長度；清單 `.superpowers/audit/web/findings-13.md`；修正 `579af10`（7 條全改、標頭重跑 10-03）；範圍複審中 | | | |
 | `web/14-realtime-websocket-sse` | 即時通訊：WebSocket、SSE 與輪詢 | ✅ `7d76544`（45 題、6 圖、17 網址；mins 55；Nginx 待補 Docker 實跑） | 審查中（`review-algo-c`） | | | |
 | `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | 撰寫中（`write-algo-d`；先修 Spring 第 9 課手機版撐寬並掃全站） | | | |
