@@ -54,4 +54,4 @@ Tim 10-02 交代：「不試用，你繼續幹活」。
 
 ## 收尾待辦
 
-- 全部上線後，派一個代理把 18 課所有課中練習與測驗，跟 ETS 考生手冊的範例題逐題比對（第 20 課審查抓到一列選項跟範例題相同），確認沒有照抄。
+- ✅ 10-02 ETS 範例題比對（`check-en-ets`）：比對考生手冊與官方範例試題的 61 題選項與約 11,800 字，對本站 1,230 題與 6,272 段英文。沒有照抄或幾乎照抄。interest／interests／interested／interesting 這組跟第六部分範例第 131 題選項相同，雖然題幹不同，照「選項組相同就換」的標準把 5 處換成 satisfy、excite、disappoint、amaze、frustrate；〈連接詞與連接副詞〉「…since he joined the company」跟第五部分第 102 題句型相近，改成 since it opened。比對程式與 ETS 文字在 scratchpad `ets-check/`（不進 git）。
