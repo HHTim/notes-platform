@@ -1,0 +1,947 @@
+<!-- 來源：依 https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ 新寫（MIT 6.006 2020 春季第 1、2 講講義與第 1、2 次習題課講義；另參考普林斯頓 algs4 第 1.4 節 https://algs4.cs.princeton.edu/14analysis/ 與第 2.3 節、Java SE 25 API 文件 ArrayList、HashMap、Arrays、OpenJDK jdk-25-ga 標籤的 ArrayList.java、Java 虛擬機規格 SE 25 第 2.5.2 節；程式與練習題全部自編，程式以 Java 21 實際編譯執行） · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出大 O 在量什麼：資料量 n 變大時，步數跟著怎麼長；以及為什麼可以去掉常數、只留最高次項</li><li>認得 O(1)、O(log n)、O(n)、O(n log n)、O(n²)、O(2ⁿ) 六個等級，各舉得出一個 Java 寫法與職場例子</li><li>看一段迴圈或巢狀迴圈，自己算出時間複雜度與空間複雜度</li><li>分清最壞、平均、攤銷三種說法，面試時照「先時間、再空間、講清楚假設」的順序回答</li></ul></div>
+
+<section>
+<p class="era">先問為什麼，資料變多時會慢多少</p>
+<h3 class="head">複雜度在量什麼</h3>
+<p>同一個需求可以有很多種寫法。對帳程式在測試環境跑一百筆時，每種寫法都是一眨眼；上線後一天一百萬筆，有的寫法一樣一眨眼，有的要跑一整晚。<strong>複雜度</strong>（complexity）就是用來事先回答「資料量變大時，這個寫法會慢多少、吃多少記憶體」的工具，不用真的等到上線才知道。</p>
+<p>直接量秒數不準，因為同一支程式在快的電腦上跑得快、慢的電腦上跑得慢。MIT 6.006 講義的做法是「數這個演算法總共做了幾次固定時間的基本動作」（Count number of fixed-time operations algorithm takes to return），並預期它「跟輸入的大小有關：輸入越大通常越久」（Expect to depend on size of input: larger input suggests longer time）。輸入的大小通常記作 <code>n</code>，例如交易筆數、帳戶數、字串長度。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>數出來的步數常常長成 <code>3n² + 5n + 100</code> 這種樣子。<strong>大 O 符號</strong>（big O notation，也叫漸近符號：只看 n 很大很大時的趨勢）把它簡化成 <code>O(n²)</code>，規則只有兩條，講義原文是「忽略常數倍數與低次項」（Asymptotic Notation: ignore constant factors and low order terms）：<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>去常數</strong>：<code>3n²</code> 的 3、<code>n/2</code> 的 ½ 都拿掉。換一台快兩倍的電腦，只會改變這個常數，不會改變「n 變兩倍時要多花幾倍時間」。</li>
+<li><strong>取最高次項</strong>：<code>3n² + 5n + 100</code> 裡，n 等於一百萬時 <code>n²</code> 是一兆，<code>5n</code> 才五百萬，後面那些小項可以忽略，只留 <code>n²</code>。</li>
+</ul>
+<p>嚴格的定義在 MIT 習題課講義：「非負函式 g(n) 屬於 O(f(n))，若且唯若存在正實數 c 與正整數 n₀，使得所有 n ≥ n₀ 都有 g(n) ≤ c·f(n)」（Non-negative function g(n) is in O(f(n)) if and only if there exists a positive real number c and positive integer n0 such that g(n) ≤ c · f(n) for all n ≥ n0.）。白話：n 夠大以後，g(n) 不會超過 f(n) 的某個固定倍數，所以 O 是一個<strong>上限</strong>。講義另外有 Ω（下限）與 Θ（上下限都對上、最貼的那個）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 照定義，O(n) 的程式也算 O(n²)（上限放寬一點也成立），但這樣講沒有資訊量。本課和這個模組寫 O 時，一律寫最貼近的那個等級。</p>
+<p class="formula">大 O 只看 n 變大時的成長趨勢：去掉常數、只留最高次項</p>
+
+<div class="drill">
+  <p class="dq">一段程式總共做 3n² + 5n + 100 步。照大 O 的寫法（去常數、只留最高次項），應該寫成什麼？</p>
+  <ul class="dopts"><li>O(3n²)</li><li data-ok>O(n²)</li><li>O(n³)</li><li>O(3n² + 5n + 100)</li></ul>
+  <p class="dexp">最高次項是 3n²，再去掉常數 3，寫成 O(n²)。O(3n²) 留著常數、O(3n² + 5n + 100) 留著低次項，都不是大 O 的慣用寫法；O(n³) 是更高的等級，算錯了。</p>
+</div>
+<div class="drill">
+  <p class="dq">一段程式做 2n + 10 步，照大 O 的寫法應該寫成？</p>
+  <ul class="dopts"><li>O(2n)</li><li>O(1)</li><li data-ok>O(n)</li><li>O(n²)</li></ul>
+  <p class="dexp">最高次項 2n，去掉常數 2 就是 O(n)。後面的 +10 是低次項（n 的零次方），直接拿掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">一段程式不管輸入多大，都固定做 500 步。它的時間複雜度是？</p>
+  <ul class="dopts"><li data-ok>O(1)</li><li>O(500)</li><li>O(n)</li><li>O(log n)</li></ul>
+  <p class="dexp">步數跟 n 無關就是常數時間，常數一律寫成 O(1)，不寫 O(500)。</p>
+</div>
+<div class="drill">
+  <p class="dq">一段程式做 n/2 步（只看一半的資料）。它的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n/2)</li><li>O(log n)</li><li>O(1)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">n/2 就是 ½ × n，去掉常數 ½ 還是 O(n)。只看一半資料會快一倍，但 n 變兩倍時它一樣變兩倍，成長趨勢跟 O(n) 相同。</p>
+</div>
+<div class="drill">
+  <p class="dq">一段程式做 n + log n 步。它的時間複雜度是？</p>
+  <ul class="dopts"><li>O(log n)</li><li data-ok>O(n)</li><li>O(n log n)</li><li>O(n + log n)</li></ul>
+  <p class="dexp">n 長得比 log n 快，log n 是低次項，拿掉後是 O(n)。O(n log n) 是「相乘」，這裡是相加，不一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">一段程式做 n² + n³/1000 步。n 很大時它屬於哪個等級？</p>
+  <ul class="dopts"><li>O(n²)，因為 n³ 前面有 1/1000</li><li>O(n² + n³)</li><li>O(n⁵)</li><li data-ok>O(n³)</li></ul>
+  <p class="dexp">常數 1/1000 再小也只是常數：n 超過 1000 以後，n³/1000 就比 n² 大，而且越拉越開。最高次項是 n³，所以是 O(n³)。n² 加 n³ 是相加不是相乘，不會變成 n⁵。</p>
+</div>
+<div class="drill">
+  <p class="dq">大 O 為什麼可以把常數倍數丟掉？</p>
+  <ul class="dopts"><li>因為實務上常數一定很小，跟 n 比起來可以直接忽略，不影響結果</li><li data-ok>因為我們要比的是 n 變大時的成長趨勢；換快的電腦只改常數，不改趨勢</li><li>因為 Java 編譯器會把常數最佳化掉</li><li>因為常數只會出現在空間複雜度裡</li></ul>
+  <p class="dexp">常數可以很大（例如每筆都要做 100 次運算），丟掉它不是因為它小，而是因為它不影響「n 變兩倍時慢幾倍」。MIT 講義說用漸近表現比較演算法，就是「為了忽略硬體效能的常數倍差異」。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一張圖看懂，各等級怎麼長</p>
+<h3 class="head">n 變大時，六個等級差多少</h3>
+<p>先認識六個最常見的等級，由快到慢排好。<code>log n</code> 在演算法裡通常指以 2 為底：「n 要一直除以 2，除幾次才會剩 1」。例如 1,024 除 10 次剩 1，所以 log 1,024 = 10。</p>
+<figure>
+<svg viewBox="0 0 760 405" role="img" aria-label="六種複雜度等級隨 n 變大的成長曲線：O(1) 是水平線，O(log n) 幾乎貼地，O(n) 是斜直線，O(n log n) 比直線陡一些，O(n²) 在 n 約 11 時衝出圖頂，O(2ⁿ) 在 n 約 7 時就衝出圖頂">
+  <defs><marker id="cx-01-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <line x1="80" y1="350" x2="632" y2="350" stroke="currentColor" marker-end="url(#cx-01-arrow)"/>
+  <line x1="80" y1="350" x2="80" y2="26" stroke="currentColor" marker-end="url(#cx-01-arrow)"/>
+  <text x="80" y="370" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <text x="218" y="370" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <text x="355" y="370" font-size="12" text-anchor="middle" class="mono" opacity=".6">10</text>
+  <text x="492" y="370" font-size="12" text-anchor="middle" class="mono" opacity=".6">15</text>
+  <text x="630" y="370" font-size="12" text-anchor="middle" class="mono" opacity=".6">20</text>
+  <text x="70" y="354" font-size="12" text-anchor="end" class="mono" opacity=".6">0</text>
+  <text x="70" y="251" font-size="12" text-anchor="end" class="mono" opacity=".6">40</text>
+  <line x1="80" y1="247" x2="630" y2="247" stroke="currentColor" opacity=".12"/>
+  <text x="70" y="147" font-size="12" text-anchor="end" class="mono" opacity=".6">80</text>
+  <line x1="80" y1="143" x2="630" y2="143" stroke="currentColor" opacity=".12"/>
+  <text x="70" y="44" font-size="12" text-anchor="end" class="mono" opacity=".6">120</text>
+  <line x1="80" y1="40" x2="630" y2="40" stroke="currentColor" opacity=".12"/>
+  <text x="630" y="390" font-size="13" text-anchor="end">資料量 n</text>
+  <text x="88" y="20" font-size="13">要做的步數</text>
+  <polyline points="107.5,347.4 114.4,347.4 121.2,347.4 128.1,347.4 135.0,347.4 141.9,347.4 148.8,347.4 155.6,347.4 162.5,347.4 169.4,347.4 176.2,347.4 183.1,347.4 190.0,347.4 196.9,347.4 203.8,347.4 210.6,347.4 217.5,347.4 224.4,347.4 231.2,347.4 238.1,347.4 245.0,347.4 251.9,347.4 258.8,347.4 265.6,347.4 272.5,347.4 279.4,347.4 286.2,347.4 293.1,347.4 300.0,347.4 306.9,347.4 313.8,347.4 320.6,347.4 327.5,347.4 334.4,347.4 341.2,347.4 348.1,347.4 355.0,347.4 361.9,347.4 368.8,347.4 375.6,347.4 382.5,347.4 389.4,347.4 396.2,347.4 403.1,347.4 410.0,347.4 416.9,347.4 423.8,347.4 430.6,347.4 437.5,347.4 444.4,347.4 451.2,347.4 458.1,347.4 465.0,347.4 471.9,347.4 478.8,347.4 485.6,347.4 492.5,347.4 499.4,347.4 506.2,347.4 513.1,347.4 520.0,347.4 526.9,347.4 533.8,347.4 540.6,347.4 547.5,347.4 554.4,347.4 561.2,347.4 568.1,347.4 575.0,347.4 581.9,347.4 588.8,347.4 595.6,347.4 602.5,347.4 609.4,347.4 616.2,347.4 623.1,347.4 630.0,347.4" fill="none" stroke="var(--mut-deep)" stroke-width="2.5"/>
+  <text x="638" y="355" font-size="13" class="mono" fill="var(--mut-deep)">O(1)</text>
+  <polyline points="107.5,350.0 114.4,349.2 121.2,348.5 128.1,347.9 135.0,347.4 141.9,347.0 148.8,346.6 155.6,346.2 162.5,345.9 169.4,345.6 176.2,345.3 183.1,345.1 190.0,344.8 196.9,344.6 203.8,344.4 210.6,344.2 217.5,344.0 224.4,343.8 231.2,343.6 238.1,343.5 245.0,343.3 251.9,343.2 258.8,343.0 265.6,342.9 272.5,342.7 279.4,342.6 286.2,342.5 293.1,342.4 300.0,342.2 306.9,342.1 313.8,342.0 320.6,341.9 327.5,341.8 334.4,341.7 341.2,341.6 348.1,341.5 355.0,341.4 361.9,341.3 368.8,341.2 375.6,341.1 382.5,341.1 389.4,341.0 396.2,340.9 403.1,340.8 410.0,340.7 416.9,340.7 423.8,340.6 430.6,340.5 437.5,340.4 444.4,340.4 451.2,340.3 458.1,340.2 465.0,340.2 471.9,340.1 478.8,340.0 485.6,340.0 492.5,339.9 499.4,339.8 506.2,339.8 513.1,339.7 520.0,339.7 526.9,339.6 533.8,339.6 540.6,339.5 547.5,339.4 554.4,339.4 561.2,339.3 568.1,339.3 575.0,339.2 581.9,339.2 588.8,339.1 595.6,339.1 602.5,339.0 609.4,339.0 616.2,338.9 623.1,338.9 630.0,338.8" fill="none" stroke="var(--slate)" stroke-width="2.5"/>
+  <text x="638" y="335" font-size="13" class="mono" fill="var(--slate)">O(log n)</text>
+  <polyline points="107.5,347.4 114.4,346.8 121.2,346.1 128.1,345.5 135.0,344.8 141.9,344.2 148.8,343.5 155.6,342.9 162.5,342.2 169.4,341.6 176.2,341.0 183.1,340.3 190.0,339.7 196.9,339.0 203.8,338.4 210.6,337.7 217.5,337.1 224.4,336.4 231.2,335.8 238.1,335.1 245.0,334.5 251.9,333.9 258.8,333.2 265.6,332.6 272.5,331.9 279.4,331.3 286.2,330.6 293.1,330.0 300.0,329.3 306.9,328.7 313.8,328.0 320.6,327.4 327.5,326.8 334.4,326.1 341.2,325.5 348.1,324.8 355.0,324.2 361.9,323.5 368.8,322.9 375.6,322.2 382.5,321.6 389.4,320.9 396.2,320.3 403.1,319.6 410.0,319.0 416.9,318.4 423.8,317.7 430.6,317.1 437.5,316.4 444.4,315.8 451.2,315.1 458.1,314.5 465.0,313.8 471.9,313.2 478.8,312.5 485.6,311.9 492.5,311.2 499.4,310.6 506.2,310.0 513.1,309.3 520.0,308.7 526.9,308.0 533.8,307.4 540.6,306.7 547.5,306.1 554.4,305.4 561.2,304.8 568.1,304.1 575.0,303.5 581.9,302.9 588.8,302.2 595.6,301.6 602.5,300.9 609.4,300.3 616.2,299.6 623.1,299.0 630.0,298.3" fill="none" stroke="currentColor" stroke-width="2.5"/>
+  <text x="638" y="303" font-size="13" class="mono" fill="currentColor">O(n)</text>
+  <polyline points="107.5,350.0 114.4,349.0 121.2,347.7 128.1,346.4 135.0,344.8 141.9,343.2 148.8,341.5 155.6,339.6 162.5,337.7 169.4,335.7 176.2,333.7 183.1,331.5 190.0,329.3 196.9,327.1 203.8,324.8 210.6,322.4 217.5,320.0 224.4,317.6 231.2,315.1 238.1,312.5 245.0,309.9 251.9,307.3 258.8,304.7 265.6,302.0 272.5,299.2 279.4,296.5 286.2,293.7 293.1,290.9 300.0,288.0 306.9,285.1 313.8,282.2 320.6,279.3 327.5,276.3 334.4,273.3 341.2,270.3 348.1,267.2 355.0,264.2 361.9,261.1 368.8,258.0 375.6,254.8 382.5,251.7 389.4,248.5 396.2,245.3 403.1,242.1 410.0,238.9 416.9,235.6 423.8,232.3 430.6,229.0 437.5,225.7 444.4,222.4 451.2,219.0 458.1,215.7 465.0,212.3 471.9,208.9 478.8,205.5 485.6,202.1 492.5,198.6 499.4,195.1 506.2,191.7 513.1,188.2 520.0,184.7 526.9,181.1 533.8,177.6 540.6,174.1 547.5,170.5 554.4,166.9 561.2,163.3 568.1,159.7 575.0,156.1 581.9,152.5 588.8,148.8 595.6,145.2 602.5,141.5 609.4,137.8 616.2,134.1 623.1,130.4 630.0,126.7" fill="none" stroke="var(--slate-deep)" stroke-width="2.5" stroke-dasharray="7 4"/>
+  <text x="638" y="132" font-size="13" class="mono" fill="var(--slate-deep)">O(n log n)</text>
+  <polyline points="107.5,347.4 114.4,346.0 121.2,344.2 128.1,342.1 135.0,339.7 141.9,336.9 148.8,333.9 155.6,330.5 162.5,326.8 169.4,322.7 176.2,318.4 183.1,313.7 190.0,308.7 196.9,303.3 203.8,297.7 210.6,291.7 217.5,285.4 224.4,278.8 231.2,271.9 238.1,264.6 245.0,257.0 251.9,249.1 258.8,240.9 265.6,232.3 272.5,223.4 279.4,214.2 286.2,204.7 293.1,194.8 300.0,184.7 306.9,174.2 313.8,163.4 320.6,152.2 327.5,140.8 334.4,129.0 341.2,116.9 348.1,104.4 355.0,91.7 361.9,78.6 368.8,65.2 375.6,51.5 381.2,40.0" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
+  <text x="387" y="44" font-size="13" class="mono" fill="var(--gold)">O(n²)</text>
+  <polyline points="107.5,344.8 114.4,343.9 121.2,342.7 128.1,341.3 135.0,339.7 141.9,337.7 148.8,335.4 155.6,332.6 162.5,329.3 169.4,325.4 176.2,320.8 183.1,315.2 190.0,308.7 196.9,300.8 203.8,291.5 210.6,280.5 217.5,267.3 224.4,251.7 231.2,233.1 238.1,211.0 245.0,184.7 251.9,153.4 258.8,116.2 265.6,71.9 269.9,40.0" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-dasharray="3 3"/>
+  <text x="276" y="44" font-size="13" class="mono" fill="var(--danger)">O(2ⁿ)</text>
+</svg>
+<figcaption>n 只到 20，O(2ⁿ) 在 n 約 7 時就衝出圖頂，O(n²) 在 n 約 11 時衝出去；O(log n) 跟 O(1) 幾乎貼著地板。曲線的高低順序就是由快到慢的順序。</figcaption>
+</figure>
+<p>圖只畫到 n = 20，差距已經很明顯。把 n 放大，步數變成這樣（log n 取整數，n log n 照取整後的 log n 相乘）：</p>
+<div class="tablewrap"><table><thead><tr><th>n</th><th>O(1)</th><th>O(log n)</th><th>O(n)</th><th>O(n log n)</th><th>O(n²)</th><th>O(2ⁿ)</th></tr></thead><tbody>
+<tr><td class="num">10</td><td class="num">1</td><td class="num">3</td><td class="num">10</td><td class="num">30</td><td class="num">100</td><td class="num">1,024</td></tr>
+<tr><td class="num">1,000</td><td class="num">1</td><td class="num">10</td><td class="num">1,000</td><td class="num">10,000</td><td class="num">1,000,000</td><td class="num">302 位數</td></tr>
+<tr><td class="num">1,000,000</td><td class="num">1</td><td class="num">20</td><td class="num">1,000,000</td><td class="num">20,000,000</td><td class="num">10¹²（一兆）</td><td class="num">301,030 位數</td></tr>
+</tbody></table></div>
+<p>換成時間比較有感覺。MIT 講義用「一秒做十億個基本動作」（one operation per cycle on a 1 GHz single-core machine）估算，n = 1,000 時：O(1) 約 1 奈秒、O(log n) 約 10 奈秒、O(n) 約 1 微秒、O(n log n) 約 10 微秒、O(n²) 約 1 毫秒，而指數等級 2¹⁰⁰⁰ 約是 10³⁰¹ 步，講義寫要「10²⁸¹ 個千年」（10281 millenia）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a> 同一個估法套到 n = 一百萬：O(n²) 是一兆步，約 1,000 秒、十七分鐘左右；O(n log n) 是兩千萬步，0.02 秒。這就是為什麼一百萬筆的對帳不能用兩兩比對。</p>
+<p class="muted">大 O 只管 n 很大時的趨勢。n 很小的時候，常數大的 O(n) 寫法可能比常數小的 O(n²) 寫法還慢，所以測試資料只有幾十筆時看不出差別，資料量上去才會出事。</p>
+
+<div class="drill">
+  <p class="dq">一個 O(n²) 的程式，n 從 1,000 變成 2,000，步數大約變成幾倍？</p>
+  <ul class="dopts"><li>2 倍</li><li>8 倍</li><li data-ok>4 倍</li><li>差不多一樣</li></ul>
+  <p class="dexp">n² 裡的 n 變 2 倍，平方後是 2² = 4 倍。O(n) 才是 2 倍，O(n³) 是 8 倍。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 O(log n) 的程式，n = 1,000 時大約 10 步。n 變成 1,000,000（一千倍）時大約幾步？</p>
+  <ul class="dopts"><li data-ok>約 20 步</li><li>約 10,000 步</li><li>約 1,000 步</li><li>約 100 步</li></ul>
+  <p class="dexp">log 1,000 ≈ 10、log 1,000,000 ≈ 20。資料多一千倍，O(log n) 只多 10 步，這就是二分搜尋在大資料上好用的原因。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個是「由快到慢」的正確順序？</p>
+  <ul class="dopts"><li>O(1)、O(n)、O(log n)、O(n log n)、O(n²)、O(2ⁿ)</li><li>O(1)、O(log n)、O(n)、O(n²)、O(n log n)、O(2ⁿ)</li><li>O(log n)、O(1)、O(n)、O(n log n)、O(2ⁿ)、O(n²)</li><li data-ok>O(1)、O(log n)、O(n)、O(n log n)、O(n²)、O(2ⁿ)</li></ul>
+  <p class="dexp">常數最快；log n 比 n 慢很多地長；n log n 比 n 多一個 log 倍；n² 比 n log n 大；2ⁿ 是指數，比任何 n 的次方都長得快。</p>
+</div>
+<div class="drill">
+  <p class="dq">照「一秒做十億步」估算，n = 1,000,000 時 O(n²) 的程式大約要跑多久？</p>
+  <ul class="dopts"><li>約 1 毫秒</li><li>約 1 秒</li><li data-ok>約 17 分鐘</li><li>約 1 年</li></ul>
+  <p class="dexp">n² = 10¹² 步，除以每秒 10⁹ 步是 1,000 秒，約 16.7 分鐘。同樣的 n，O(n log n) 只要約 0.02 秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">寫法甲做 n² 步，寫法乙做 100n 步。n = 5 時，哪個做的步數比較少？</p>
+  <ul class="dopts"><li>寫法乙，因為它是 O(n)</li><li data-ok>寫法甲，25 步對 500 步</li><li>一樣多</li><li>無法比較，等級不同</li></ul>
+  <p class="dexp">5² = 25，100 × 5 = 500，n 很小時 O(n²) 的寫法反而比較少。大 O 只保證 n 夠大以後的趨勢：這兩個寫法在 n 超過 100 之後，寫法乙才會比較快。</p>
+</div>
+</section>
+
+<section>
+<p class="era">六個等級，各配一段 Java 與職場例子</p>
+<h3 class="head">常見等級：從一步到位到組合爆炸</h3>
+<div class="tablewrap"><table><thead><tr><th>等級</th><th>白話</th><th>典型寫法</th><th>職場例子</th></tr></thead><tbody>
+<tr><th>O(1)</th><td>常數時間：不管資料多少都是固定幾步</td><td>用索引拿陣列第 i 格</td><td>帳戶編號就是陣列索引，直接拿那格的餘額</td></tr>
+<tr><th>O(log n)</th><td>對數時間：每一步把範圍砍掉一半</td><td>在排好序的資料裡二分搜尋</td><td>在照時間排好的交易紀錄裡找某一秒的那筆</td></tr>
+<tr><th>O(n)</th><td>線性時間：每筆看一次</td><td>一層迴圈走過整個陣列</td><td>加總今天每一筆交易金額</td></tr>
+<tr><th>O(n log n)</th><td>每筆都要參與 log n 輪的處理，常見於排序</td><td><code>Arrays.sort</code></td><td>把十萬筆交易照金額排序</td></tr>
+<tr><th>O(n²)</th><td>平方時間：每一筆都跟每一筆配對一次</td><td>兩層迴圈都走過整份資料</td><td>核心系統的每一筆，都到清算檔從頭找一遍有沒有對應</td></tr>
+<tr><th>O(2ⁿ)</th><td>指數時間：每多一筆資料，工作量就翻倍</td><td>把每個元素「選或不選」的組合全部試一遍</td><td>帳差了 7 元，找哪幾筆交易加起來剛好 7 元</td></tr>
+</tbody></table></div>
+<p><strong>O(log n) 為什麼這麼快：</strong>猜數字遊戲的做法（正式名稱是二分搜尋 binary search）：資料先排好序，每次看正中間那格，太小就丟掉它和左半、太大就丟掉它和右半。MIT 習題課講義說，「在已排序的陣列中找一個值，可以用二分搜尋在對數時間內解決」（finding a value in a sorted array ... can be solved in logarithmic time via binary search）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 細節在〈排序與二分搜尋〉。</p>
+<figure>
+<svg viewBox="0 0 760 400" role="img" aria-label="在 8 個排好序的數字裡用二分搜尋找 68：每看一次中間那格就丟掉一半，要找的範圍從 8 格變 4 格、2 格、1 格，總共看 4 次">
+  <text x="20" y="65" font-size="14">第 1 次：剩 8 格</text>
+  <rect x="150" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="178" y="65" font-size="14" text-anchor="middle" class="mono">3</text>
+  <text x="178" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="206" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="234" y="65" font-size="14" text-anchor="middle" class="mono">8</text>
+  <text x="234" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="262" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="290" y="65" font-size="14" text-anchor="middle" class="mono">15</text>
+  <text x="290" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="318" y="40" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="346" y="65" font-size="14" text-anchor="middle" class="mono">21</text>
+  <text x="346" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="374" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="402" y="65" font-size="14" text-anchor="middle" class="mono">34</text>
+  <text x="402" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="430" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="458" y="65" font-size="14" text-anchor="middle" class="mono">47</text>
+  <text x="458" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <rect x="486" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="514" y="65" font-size="14" text-anchor="middle" class="mono">52</text>
+  <text x="514" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text>
+  <rect x="542" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="570" y="65" font-size="14" text-anchor="middle" class="mono">68</text>
+  <text x="570" y="94" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text>
+  <path d="M340 26 L352 26 L346 36 z" fill="var(--gold-deep)"/>
+  <text x="356" y="34" font-size="12" class="mono" fill="var(--gold-deep)">mid</text>
+  <text x="612" y="65" font-size="13" fill="var(--gold-deep)">21 太小，往右找</text>
+  <text x="20" y="155" font-size="14">第 2 次：剩 4 格</text>
+  <rect x="150" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="178" y="155" font-size="14" text-anchor="middle" class="mono" opacity=".3">3</text>
+  <text x="178" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="206" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="234" y="155" font-size="14" text-anchor="middle" class="mono" opacity=".3">8</text>
+  <text x="234" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="262" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="290" y="155" font-size="14" text-anchor="middle" class="mono" opacity=".3">15</text>
+  <text x="290" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="318" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="346" y="155" font-size="14" text-anchor="middle" class="mono" opacity=".3">21</text>
+  <text x="346" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="374" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="402" y="155" font-size="14" text-anchor="middle" class="mono">34</text>
+  <text x="402" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="430" y="130" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="458" y="155" font-size="14" text-anchor="middle" class="mono">47</text>
+  <text x="458" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <rect x="486" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="514" y="155" font-size="14" text-anchor="middle" class="mono">52</text>
+  <text x="514" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text>
+  <rect x="542" y="130" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="570" y="155" font-size="14" text-anchor="middle" class="mono">68</text>
+  <text x="570" y="184" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text>
+  <path d="M452 116 L464 116 L458 126 z" fill="var(--gold-deep)"/>
+  <text x="468" y="124" font-size="12" class="mono" fill="var(--gold-deep)">mid</text>
+  <text x="612" y="155" font-size="13" fill="var(--gold-deep)">47 太小，往右找</text>
+  <text x="20" y="245" font-size="14">第 3 次：剩 2 格</text>
+  <rect x="150" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="178" y="245" font-size="14" text-anchor="middle" class="mono" opacity=".3">3</text>
+  <text x="178" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="206" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="234" y="245" font-size="14" text-anchor="middle" class="mono" opacity=".3">8</text>
+  <text x="234" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="262" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="290" y="245" font-size="14" text-anchor="middle" class="mono" opacity=".3">15</text>
+  <text x="290" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="318" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="346" y="245" font-size="14" text-anchor="middle" class="mono" opacity=".3">21</text>
+  <text x="346" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="374" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="402" y="245" font-size="14" text-anchor="middle" class="mono" opacity=".3">34</text>
+  <text x="402" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="430" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="458" y="245" font-size="14" text-anchor="middle" class="mono" opacity=".3">47</text>
+  <text x="458" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <rect x="486" y="220" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="514" y="245" font-size="14" text-anchor="middle" class="mono">52</text>
+  <text x="514" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text>
+  <rect x="542" y="220" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
+  <text x="570" y="245" font-size="14" text-anchor="middle" class="mono">68</text>
+  <text x="570" y="274" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text>
+  <path d="M508 206 L520 206 L514 216 z" fill="var(--gold-deep)"/>
+  <text x="524" y="214" font-size="12" class="mono" fill="var(--gold-deep)">mid</text>
+  <text x="612" y="245" font-size="13" fill="var(--gold-deep)">52 太小，往右找</text>
+  <text x="20" y="335" font-size="14">第 4 次：剩 1 格</text>
+  <rect x="150" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="178" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">3</text>
+  <text x="178" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text>
+  <rect x="206" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="234" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">8</text>
+  <text x="234" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <rect x="262" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="290" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">15</text>
+  <text x="290" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text>
+  <rect x="318" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="346" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">21</text>
+  <text x="346" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text>
+  <rect x="374" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="402" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">34</text>
+  <text x="402" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text>
+  <rect x="430" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="458" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">47</text>
+  <text x="458" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text>
+  <rect x="486" y="310" width="56" height="40" fill="var(--surface)" stroke="currentColor" opacity=".3"/>
+  <text x="514" y="335" font-size="14" text-anchor="middle" class="mono" opacity=".3">52</text>
+  <text x="514" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text>
+  <rect x="542" y="310" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="570" y="335" font-size="14" text-anchor="middle" class="mono">68</text>
+  <text x="570" y="364" font-size="12" text-anchor="middle" class="mono" opacity=".6">7</text>
+  <path d="M564 296 L576 296 L570 306 z" fill="var(--gold-deep)"/>
+  <text x="580" y="304" font-size="12" class="mono" fill="var(--gold-deep)">mid</text>
+  <text x="612" y="335" font-size="13" fill="var(--gold-deep)">等於 68，找到了</text>
+</svg>
+<figcaption>8 格找 68：每次看中間那格（古銅），比要找的小就連它和左邊一起丟掉，剩下要找的範圍是 8 → 4 → 2 → 1 格，看 4 次就找到。資料變 16 格也只多看 1 次。</figcaption>
+</figure>
+<p><strong>O(n log n) 從哪來：</strong>好的排序法大致是「分 log n 層，每層把 n 筆都處理一次」。Java 對基本型別陣列用的雙軸快速排序，API 文件寫它「在所有資料上都提供 O(n log(n)) 的效能」（This algorithm offers O(n log(n)) performance on all data sets）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>O(2ⁿ) 為什麼可怕：</strong>n 筆交易，每筆都可以「選」或「不選」，組合數是 2 × 2 × … × 2 = 2ⁿ。10 筆有 1,024 種，20 筆就超過一百萬種，40 筆超過一兆種。這種寫法只能用在 n 很小的時候。</p>
+<p>把六個等級寫進同一支程式，用一個計數器 <code>steps</code> 數「基本動作做了幾次」，再把 n 加倍，看步數怎麼變：</p>
+<pre><code>import java.util.Arrays;
+
+public class StepCount {
+    static long steps;   // 每做一次「基本動作」就加 1
+
+    // O(1)：用索引直接拿第 i 個帳戶的餘額，不管有幾個帳戶都是一步
+    static long balanceAt(long[] balances, int i) {
+        steps++;
+        return balances[i];
+    }
+
+    // O(log n)：在排好序的交易時間裡找某個時間，每看一次就砍掉一半
+    static int findTime(long[] sortedTimes, long target) {
+        int lo = 0, hi = sortedTimes.length - 1;
+        while (lo &lt;= hi) {
+            steps++;
+            int mid = lo + (hi - lo) / 2;
+            if (sortedTimes[mid] == target) return mid;
+            if (sortedTimes[mid] &lt; target) lo = mid + 1; else hi = mid - 1;
+        }
+        return -1;
+    }
+
+    // O(n)：加總當天每一筆交易金額，每筆看一次
+    static long total(long[] amounts) {
+        long sum = 0;
+        for (long a : amounts) { steps++; sum += a; }
+        return sum;
+    }
+
+    // O(n²)：兩份清單逐筆比對：核心系統的每一筆，都到清算檔從頭找一遍
+    static int unmatched(long[] core, long[] clearing) {
+        int missing = 0;
+        for (long id : core) {
+            boolean found = false;
+            for (long other : clearing) {
+                steps++;
+                if (id == other) { found = true; break; }
+            }
+            if (!found) missing++;
+        }
+        return missing;
+    }
+
+    // O(2ⁿ)：找「哪幾筆加起來剛好等於差額」，把每筆選或不選的組合全部試一遍
+    static int countSubsets(long[] amounts, int i, long remain) {
+        steps++;
+        if (i == amounts.length) return remain == 0 ? 1 : 0;
+        return countSubsets(amounts, i + 1, remain - amounts[i])   // 選第 i 筆
+             + countSubsets(amounts, i + 1, remain);               // 不選第 i 筆
+    }
+
+    static long[] data(int n) {
+        long[] a = new long[n];
+        for (int i = 0; i &lt; n; i++) a[i] = i;   // 0, 1, 2, …（已排序、彼此不同）
+        return a;
+    }
+
+    public static void main(String[] args) {
+        for (int n : new int[]{1_000, 2_000}) {
+            long[] a = data(n);
+            long[] other = data(n);
+            other[n - 1] = -1;   // 清算檔少了最後一筆
+
+            steps = 0; balanceAt(a, n / 2);        long s1 = steps;
+            steps = 0; findTime(a, -5);            long s2 = steps;   // 找不到：最壞情況
+            steps = 0; total(a);                   long s3 = steps;
+            steps = 0; unmatched(a, other);        long s4 = steps;
+            System.out.printf("n=%,d  O(1)=%d  O(log n)=%d  O(n)=%,d  O(n²)=%,d%n", n, s1, s2, s3, s4);
+        }
+        for (int n : new int[]{10, 20}) {
+            steps = 0;
+            countSubsets(data(n), 0, 7);
+            System.out.printf("n=%d  O(2ⁿ)=%,d%n", n, steps);
+        }
+    }
+}</code></pre>
+<p>執行結果（Java 21）：</p>
+<pre><code>n=1,000  O(1)=1  O(log n)=9  O(n)=1,000  O(n²)=500,500
+n=2,000  O(1)=1  O(log n)=10  O(n)=2,000  O(n²)=2,001,000
+n=10  O(2ⁿ)=2,047
+n=20  O(2ⁿ)=2,097,151</code></pre>
+<p>n 從 1,000 變 2,000（兩倍）：O(1) 不變、O(log n) 只多 1 步、O(n) 變 2 倍、O(n²) 從 500,500 變 2,001,000，約 4 倍。O(2ⁿ) 那行是 n 從 10 變 20，步數變成約 1,024 倍。O(n²) 那行是 500,500 而不是 1,000,000，因為每一筆找到對應就 <code>break</code>，平均只找一半；這個 ½ 就是大 O 去掉的常數。</p>
+<p>O(n log n) 用 <code>Arrays.sort</code> 示範，在比較器裡數它比了幾次：</p>
+<pre><code>import java.util.Arrays;
+import java.util.Random;
+
+public class SortCount {
+    public static void main(String[] args) {
+        for (int n : new int[]{1_000, 2_000}) {
+            Long[] amounts = new Long[n];
+            Random random = new Random(42);           // 固定種子：每次跑結果一樣
+            for (int i = 0; i &lt; n; i++) amounts[i] = (long) random.nextInt(1_000_000);
+            long[] compares = {0};
+            Arrays.sort(amounts, (x, y) -&gt; { compares[0]++; return Long.compare(x, y); });
+            System.out.printf("n=%,d  比較了 %,d 次%n", n, compares[0]);
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>n=1,000  比較了 8,683 次
+n=2,000  比較了 19,358 次</code></pre>
+<p>n log n 在 n = 1,000 時約 10,000，實際比了 8,683 次，同一個量級。n 變兩倍，比較次數變 2.2 倍左右：比 2 倍多一點，比 4 倍少很多，這就是 O(n log n) 的樣子。</p>
+
+<div class="drill">
+  <p class="dq">用客戶帳號到 <code>HashMap</code> 裡查客戶資料，一般說它的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)</li><li data-ok>平均 O(1)</li><li>O(log n)</li><li>O(n log n)</li></ul>
+  <p class="dexp">HashMap 的 get 在雜湊分散得好的前提下是常數時間，所以說「平均 O(1)」。為什麼它做得到、什麼時候會變慢，在〈雜湊表：HashMap 怎麼做到幾乎一步找到〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">在已排序的 1,000,000 筆資料裡做二分搜尋，最多大約要看幾次？</p>
+  <ul class="dopts"><li>約 1,000 次</li><li>約 500,000 次</li><li>1,000,000 次</li><li data-ok>約 20 次</li></ul>
+  <p class="dexp">每看一次剩一半：一百萬除以 2 約 20 次就剩 1 筆（2²⁰ = 1,048,576）。500,000 是逐筆找的平均次數。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度是？（<code>amounts</code> 有 n 筆）</p>
+  <pre><code>long max = Long.MIN_VALUE;
+for (long x : amounts) {
+    if (x &gt; max) max = x;
+}</code></pre>
+  <ul class="dopts"><li data-ok>O(n)</li><li>O(1)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">一層迴圈，每筆看一次、每次做固定幾步，所以是 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">想找出陣列裡最大的那筆，有人寫「先 <code>Arrays.sort</code>，再拿最後一個」。這個寫法的時間複雜度是？</p>
+  <ul class="dopts"><li>O(1)，因為拿最後一個只要一步</li><li>O(n)</li><li data-ok>O(n log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">排序本身就是 O(n log n)，拿最後一個的 O(1) 是低次項。直接掃一遍找最大值只要 O(n)，比較快。</p>
+</div>
+<div class="drill">
+  <p class="dq">n 筆交易，每筆可以選或不選，總共有幾種組合？n = 10 時是多少？</p>
+  <ul class="dopts"><li>2ⁿ，n = 10 時是 20</li><li>n²，n = 10 時是 100</li><li data-ok>2ⁿ，n = 10 時是 1,024</li><li>n!，n = 10 時是 3,628,800</li></ul>
+  <p class="dexp">每筆兩種選擇、n 筆相乘，2¹⁰ = 1,024。n! 是「排順序」的數量，不是「選或不選」。</p>
+</div>
+<div class="drill">
+  <p class="dq">照上面 <code>StepCount</code> 的結果，O(n²) 那行在 n = 2,000 時是 2,001,000。n = 4,000 時大約是多少？</p>
+  <ul class="dopts"><li>約 400 萬</li><li data-ok>約 800 萬</li><li>約 1,600 萬</li><li>約 200 萬多一點</li></ul>
+  <p class="dexp">n 再變兩倍，O(n²) 再變約 4 倍：2,001,000 × 4 ≈ 800 萬。（照公式 n(n+1)/2 算是 8,002,000。）</p>
+</div>
+<div class="drill">
+  <p class="dq">O(2ⁿ) 的程式，n 從 20 變成 21，步數大約怎麼變？</p>
+  <ul class="dopts"><li>多 1 步</li><li>多 21 步</li><li>變 4 倍</li><li data-ok>變 2 倍</li></ul>
+  <p class="dexp">2²¹ = 2 × 2²⁰，n 只多 1，工作量就翻倍。這也是「每多一筆資料，工作量翻倍」的意思。</p>
+</div>
+<div class="drill">
+  <p class="dq">把十萬筆交易照金額由小到大排好，用 <code>Arrays.sort</code> 的時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)</li><li>O(n²)</li><li>O(log n)</li><li data-ok>O(n log n)</li></ul>
+  <p class="dexp">API 文件寫 <code>Arrays.sort</code> 對基本型別陣列提供 O(n log(n)) 的效能。比較型的排序一般就是這個等級。</p>
+</div>
+<div class="drill">
+  <p class="dq">核心系統有 n 筆、清算檔也有 n 筆，「核心系統的每一筆，都到清算檔從頭找一遍」的時間複雜度是？</p>
+  <ul class="dopts"><li data-ok>O(n²)</li><li>O(n)</li><li>O(2n)</li><li>O(n log n)</li></ul>
+  <p class="dexp">外層 n 筆、每筆在內層最多找 n 次，n × n = n²。一萬筆就是一億次比對。先把清算檔放進 HashSet 再查，可以降到平均 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>SortCount</code> 裡 n 從 1,000 變 2,000，比較次數從 8,683 變 19,358。這最符合哪個等級？</p>
+  <ul class="dopts"><li>O(n)，因為 n 變 2 倍時比較次數也大約變 2 倍，多出來的只是誤差</li><li>O(n²)，因為變超過 2 倍</li><li data-ok>O(n log n)，略多於 2 倍、遠少於 4 倍</li><li>O(log n)</li></ul>
+  <p class="dexp">19,358 ÷ 8,683 ≈ 2.23。O(n) 會剛好 2 倍左右，O(n²) 會接近 4 倍；比 2 倍多一點正是 n log n 多出來的那個 log。</p>
+</div>
+</section>
+
+<section>
+<p class="era">看程式碼自己算，迴圈怎麼數</p>
+<h3 class="head">從程式碼算複雜度的五個規則</h3>
+<p>算複雜度不用把每一行都數清楚，抓住「哪一段會跟著 n 變多」就好：</p>
+<div class="tablewrap"><table><thead><tr><th>看到什麼</th><th>怎麼算</th><th>結果</th></tr></thead><tbody>
+<tr><th>單層迴圈跑 n 次</th><td>迴圈次數 × 每次的成本（固定幾步）</td><td>O(n)</td></tr>
+<tr><th>兩層巢狀迴圈</th><td>外層次數 × 內層次數</td><td>都跑 n 次是 O(n²)；外 n 內 m 是 O(n·m)</td></tr>
+<tr><th>迴圈變數每次除以 2 或乘以 2</th><td>要幾次才從 n 變到 1</td><td>O(log n)</td></tr>
+<tr><th>兩段程式先後執行</th><td>相加，再留大的那項</td><td>O(n) 接 O(n²) 是 O(n²)；O(n) 接 O(m) 是 O(n + m)</td></tr>
+<tr><th>遞迴</th><td>總共呼叫幾次 × 每次做多少</td><td>例如每次 n 減 1、每次固定幾步：O(n)</td></tr>
+</tbody></table></div>
+<p>兩個常見的陷阱：</p>
+<ul class="plainlist">
+<li><strong>內層從 <code>i + 1</code> 開始，還是 O(n²)。</strong>內層跑 n−1、n−2、…、1 次，加起來是 n(n−1)/2，去掉 ½ 和低次項還是 n²。MIT 講義分析找同生日的兩層迴圈（內層只跑到 k）時，結論同樣是 O(n²)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><strong>迴圈裡呼叫的方法本身也要算。</strong>一層迴圈裡面寫 <code>list.contains(x)</code>，看起來只有一層，但 <code>ArrayList</code> 的 API 文件說除了少數幾個方法，「其他操作都是線性時間」（All of the other operations run in linear time (roughly speaking).），<code>contains</code> 要從頭比到尾，整段就是 O(n²)。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 字串在迴圈裡用 <code>+</code> 相加也是同一種隱藏成本，在〈陣列與字串〉講。</li>
+</ul>
+<p>遞迴怎麼算（畫出呼叫樹、數有幾個節點）在〈遞迴與回溯〉細講，這課只需要知道「數總共呼叫幾次」。</p>
+<p class="formula">巢狀相乘、先後相加、每次減半是 log n、迴圈裡呼叫的方法也要算進去</p>
+
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    count++;
+}</code></pre>
+  <ul class="dopts"><li>O(1)</li><li data-ok>O(n)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">迴圈跑 n 次，每次一步，O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i += 2) {
+    count++;
+}</code></pre>
+  <ul class="dopts"><li>O(log n)</li><li>O(n/2)</li><li data-ok>O(n)</li><li>O(1)</li></ul>
+  <p class="dexp">i 每次加 2，跑 n/2 次。去掉常數 ½ 還是 O(n)。要每次「乘以 2」才會變 O(log n)，「加 2」只是常數倍快。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    for (int j = 0; j &lt; n; j++) {
+        count++;
+    }
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li>O(2n)</li><li>O(n log n)</li><li data-ok>O(n²)</li></ul>
+  <p class="dexp">外層 n 次，每次內層都跑 n 次，相乘是 n²。</p>
+</div>
+<div class="drill">
+  <p class="dq">內層改成從 <code>i + 1</code> 開始，時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    for (int j = i + 1; j &lt; n; j++) {
+        count++;
+    }
+}</code></pre>
+  <ul class="dopts"><li data-ok>O(n²)</li><li>O(n)</li><li>O(n log n)</li><li>O(n²/2)</li></ul>
+  <p class="dexp">總次數是 (n−1) + (n−2) + … + 1 = n(n−1)/2，約 n²/2。去掉常數 ½ 還是 O(n²)；O(n²/2) 留著常數，不是大 O 的寫法。</p>
+</div>
+<div class="drill">
+  <p class="dq">外層走 n 個帳戶、內層走 m 筆交易，時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    for (int j = 0; j &lt; m; j++) {
+        count++;
+    }
+}</code></pre>
+  <ul class="dopts"><li>O(n²)</li><li>O(n + m)</li><li data-ok>O(n·m)</li><li>O(m)</li></ul>
+  <p class="dexp">兩個輸入大小不同，要分開寫：外 n 次、內 m 次，相乘是 O(n·m)。寫成 O(n²) 等於假設 m 跟 n 一樣大。</p>
+</div>
+<div class="drill">
+  <p class="dq">兩個迴圈先後執行（不是巢狀），時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) count++;
+for (int j = 0; j &lt; m; j++) count++;</code></pre>
+  <ul class="dopts"><li>O(n·m)</li><li data-ok>O(n + m)</li><li>O(n)</li><li>O(n²)</li></ul>
+  <p class="dexp">先跑 n 次、再跑 m 次，相加是 n + m。不知道 n、m 誰大，兩個都要留著。</p>
+</div>
+<div class="drill">
+  <p class="dq">前面一段 O(n)、後面一段巢狀 O(n²)，整段的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) count++;
+for (int i = 0; i &lt; n; i++)
+    for (int j = 0; j &lt; n; j++) count++;</code></pre>
+  <ul class="dopts"><li>O(n + n²)</li><li>O(n³)</li><li>O(n)</li><li data-ok>O(n²)</li></ul>
+  <p class="dexp">n + n² 相加後只留最高次項 n²。先後執行是相加，不是相乘，所以不會變 n³。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = n; i &gt; 1; i /= 2) {
+    count++;
+}</code></pre>
+  <ul class="dopts"><li data-ok>O(log n)</li><li>O(n)</li><li>O(n/2)</li><li>O(1)</li></ul>
+  <p class="dexp">i 每次除以 2，從 n 除到 1 要 log n 次。n = 1,024 時跑 10 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 1; i &lt; n; i *= 2) {
+    count++;
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li>O(2ⁿ)</li><li data-ok>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">i 是 1、2、4、8……每次乘以 2，乘 log n 次就超過 n。跟每次除以 2 一樣是 O(log n)。2ⁿ 是「步數」翻倍，這裡翻倍的是 i，步數反而很少。</p>
+</div>
+<div class="drill">
+  <p class="dq">外層跑 n 次，內層每次乘以 2，時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    for (int j = 1; j &lt; n; j *= 2) {
+        count++;
+    }
+}</code></pre>
+  <ul class="dopts"><li>O(n²)</li><li data-ok>O(n log n)</li><li>O(log n)</li><li>O(n)</li></ul>
+  <p class="dexp">內層是 O(log n)，外層 n 次，相乘是 O(n log n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">內層固定跑 100 次（例如一天有 100 種手續費代碼要逐一檢查），時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    for (int j = 0; j &lt; 100; j++) {
+        count++;
+    }
+}</code></pre>
+  <ul class="dopts"><li>O(n²)</li><li>O(100)</li><li>O(n + 100)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">100 跟 n 無關，是常數。總共 100n 步，去掉常數是 O(n)。兩層迴圈不一定是 O(n²)，要看內層會不會跟著 n 變多。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>list</code> 是有 n 個元素的 <code>ArrayList</code>，<code>a</code> 是長度 n 的陣列。這段程式的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int x : a) {
+    if (list.contains(x)) count++;
+}</code></pre>
+  <ul class="dopts"><li data-ok>O(n²)</li><li>O(n)</li><li>O(n log n)</li><li>O(1)</li></ul>
+  <p class="dexp">看起來只有一層迴圈，但 <code>ArrayList.contains</code> 每次要從頭比，本身就是 O(n)。n 次 × O(n) = O(n²)。把 list 換成 HashSet，contains 平均 O(1)，整段就是平均 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">先排序一次，再跑一個 n 次的迴圈。整段的時間複雜度是？</p>
+  <pre><code>Arrays.sort(a);
+int count = 0;
+for (int i = 1; i &lt; a.length; i++) {
+    if (a[i] == a[i - 1]) count++;
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li>O(n² log n)</li><li data-ok>O(n log n)</li><li>O(log n)</li></ul>
+  <p class="dexp">排序 O(n log n)、迴圈 O(n)，先後執行相加，留大的 O(n log n)。排序只做一次，不在迴圈裡，所以不會相乘。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式在數一個正整數 n 有幾位數。時間複雜度是？</p>
+  <pre><code>int digits = 0;
+while (n &gt; 0) {
+    n /= 10;
+    digits++;
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li>O(n/10)</li><li>O(1)</li><li data-ok>O(log n)</li></ul>
+  <p class="dexp">每次除以 10，跟每次除以 2 一樣是對數等級（以 10 為底的 log n 跟以 2 為底的只差常數倍）。n = 1,000,000 只跑 7 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">三層巢狀迴圈，每層都跑 n 次，時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++)
+    for (int j = 0; j &lt; n; j++)
+        for (int k = 0; k &lt; n; k++)
+            count++;</code></pre>
+  <ul class="dopts"><li>O(3n)</li><li>O(n²)</li><li data-ok>O(n³)</li><li>O(2ⁿ)</li></ul>
+  <p class="dexp">n × n × n = n³。每多一層跑 n 次的巢狀迴圈，次方就加 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">內層迴圈只在 <code>i == 0</code> 那一次執行。整段的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    if (i == 0) {
+        for (int j = 0; j &lt; n; j++) count++;
+    }
+    count++;
+}</code></pre>
+  <ul class="dopts"><li>O(n²)</li><li data-ok>O(n)</li><li>O(n log n)</li><li>O(1)</li></ul>
+  <p class="dexp">內層只跑一次（n 步），外層 n 次各做一步，總共約 2n 步，是 O(n)。巢狀不一定相乘，要看內層實際跑了幾次。</p>
+</div>
+<div class="drill">
+  <p class="dq">外層 i 是 1、2、4、8……，內層跑 i 次。整段的時間複雜度是？</p>
+  <pre><code>int count = 0;
+for (int i = 1; i &lt; n; i *= 2) {
+    for (int j = 0; j &lt; i; j++) {
+        count++;
+    }
+}</code></pre>
+  <ul class="dopts"><li>O(n log n)</li><li>O(log n)</li><li>O(n²)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">內層次數是 1 + 2 + 4 + … 加到小於 n 的最大 2 的次方，總和不到 2n，所以是 O(n)。外層 log n 次，但每次的內層不一樣長，不能直接拿「log n × n」相乘。</p>
+</div>
+<div class="drill">
+  <p class="dq">這個遞迴方法每次把 n 減 1、每層只做固定幾步。呼叫 <code>f(n)</code> 的時間複雜度是？</p>
+  <pre><code>static int f(int n) {
+    if (n == 0) return 0;
+    return f(n - 1) + 1;
+}</code></pre>
+  <ul class="dopts"><li data-ok>O(n)</li><li>O(1)</li><li>O(log n)</li><li>O(2ⁿ)</li></ul>
+  <p class="dexp">f(n) 呼叫 f(n−1)、再呼叫 f(n−2)……一路到 f(0)，總共 n + 1 次呼叫，每次固定幾步，O(n)。每次只呼叫自己一次，不會分叉成 2ⁿ。</p>
+</div>
+</section>
+
+<section>
+<p class="era">同一個程式，三種講法</p>
+<h3 class="head">最壞、平均、攤銷</h3>
+<p>同一段程式，遇到不同的資料，步數可能不一樣。在沒排序的 n 筆交易裡逐筆找某一筆：第一筆就是它，1 步；最後一筆才是它或根本沒有，n 步。所以講複雜度時要說清楚是哪一種：</p>
+<div class="tablewrap"><table><thead><tr><th>說法</th><th>意思</th><th>例子</th></tr></thead><tbody>
+<tr><th>最壞情況</th><td>不管輸入長怎樣，都不會超過這個上限</td><td>逐筆搜尋最壞 O(n)；快速排序最壞 O(n²)</td></tr>
+<tr><th>平均情況</th><td>對各種可能的輸入取平均（要先假設輸入怎麼分布）</td><td>快速排序平均 O(n log n)；HashMap 的 get 平均 O(1)</td></tr>
+<tr><th>攤銷</th><td>一連串操作的總成本，平均分攤到每一次</td><td><code>ArrayList.add</code> 攤銷 O(1)</td></tr>
+</tbody></table></div>
+<p><strong>最壞情況</strong>的意思，algs4 寫的是「不管輸入是什麼，程式的執行時間都小於某個上限」（Running time of a program is less than a certain bound (as a function of the input size), no matter what the input.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> 快速排序是平均與最壞差很多的例子：algs4 寫它「平均約用 2N ln N 次比較」（~2 N ln N compares ... on the average），「最壞約 N²/2 次，但先隨機洗牌可以避開這種情況」（~N²/2 compares in the worst case, but random shuffling protects against this case）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>平均情況</strong>背後一定有假設。<code>HashMap</code> 的 API 文件寫 get 與 put 是常數時間，但前面有條件：「假設雜湊函式把元素適當地分散到各個桶」（This implementation provides constant-time performance for the basic operations (get and put), assuming the hash function disperses the elements properly among the buckets.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a> 所以面試講「HashMap 查詢 O(1)」時，要講成「平均 O(1)」。</p>
+<p><strong>攤銷</strong>（amortized：把偶爾一次很貴的成本，平均分攤到每一次操作）跟平均不一樣，它不靠輸入的機率，講的是「一整串操作加起來」的保證。algs4 的說法：「攤銷分析對一連串操作提供最壞情況的效能保證」（Amortized analysis provides a worst-case performance guarantee on a sequence of operations.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> MIT 講義的定義：「k 次操作總成本不超過 k·T(n)，就說每次操作攤銷成本是 T(n)」（Operation has amortized cost T(n) if k operations cost at most ≤ kT(n)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>最常被問的例子是 <code>ArrayList.add</code>。<code>ArrayList</code> 底下是一個陣列，格子滿了就開一個更大的新陣列、把舊的全部搬過去。搬家那一次是 O(n)，但不是每次都搬。API 文件原句：「add 與 addLast 操作是攤銷常數時間，也就是說，加入 n 個元素需要 O(n) 時間」（The add, and addLast operations runs in amortized constant time, that is, adding n elements requires O(n) time.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 這裡的 add 是加在尾端的 <code>add(e)</code>；插到中間的 <code>add(index, e)</code> 要把後面整段往右搬，屬於文件說的「其他操作都是線性時間」。</p>
+<p>新陣列開多大？API 文件只說「成長策略的細節沒有規定，只保證加入一個元素的攤銷成本是常數」（The details of the growth policy are not specified beyond the fact that adding an element has constant amortized time cost.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 實際做法要看原始碼：OpenJDK 25 的 <code>ArrayList.grow</code> 把「偏好的成長量」設成 <code>oldCapacity &gt;&gt; 1</code>（舊容量的一半），也就是新容量約為舊的 1.5 倍；用預設建構子建立的清單，第一次放東西時開 <code>DEFAULT_CAPACITY</code>，也就是 10 格。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayList.java" target="_blank" rel="noopener">出處</a> 照這個公式模擬，數一數總共搬了多少個元素：</p>
+<pre><code>public class GrowthCost {
+    public static void main(String[] args) {
+        for (int n : new int[]{1_000, 1_000_000}) {
+            int capacity = 10;      // 第一次放東西時開 10 格
+            long copies = 0;        // 擴容時總共搬了幾個元素
+            int grows = 0;          // 擴容了幾次
+            for (int size = 0; size &lt; n; size++) {   // 放第 size+1 個元素
+                if (size == capacity) {              // 格子滿了
+                    copies += size;                  // 開新陣列，舊的全部搬過去
+                    capacity += capacity &gt;&gt; 1;       // 新容量是舊的 1.5 倍
+                    grows++;
+                }
+            }
+            System.out.printf("放 %,d 個：擴容 %d 次，搬了 %,d 個，平均每次 add 多搬 %.2f 個%n",
+                    n, grows, copies, (double) copies / n);
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>放 1,000 個：擴容 12 次，搬了 2,456 個，平均每次 add 多搬 2.46 個
+放 1,000,000 個：擴容 29 次，搬了 2,430,972 個，平均每次 add 多搬 2.43 個</code></pre>
+<figure>
+<svg viewBox="0 0 760 360" role="img" aria-label="ArrayList 連續 add 40 次，每次的成本長條圖：大部分是 1，第 11、16、23、34 次因為擴容要搬 10、15、22、33 個元素，長條特別高；虛線是平均成本，約 3">
+  <line x1="64" y1="300" x2="680" y2="300" stroke="currentColor"/>
+  <rect x="72" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="87" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="102" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="117" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="132" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="147" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="162" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="177" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="192" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="207" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="222" y="228.8" width="11" height="71.2" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="227.5" y="220.8" font-size="12" text-anchor="middle" fill="var(--gold-deep)">第 11 次</text>
+  <text x="227.5" y="204.8" font-size="12" text-anchor="middle" fill="var(--gold-deep)">搬 10 個</text>
+  <rect x="237" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="252" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="267" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="282" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="297" y="196.5" width="11" height="103.5" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="302.5" y="188.5" font-size="12" text-anchor="middle" fill="var(--gold-deep)">第 16 次</text>
+  <text x="302.5" y="172.5" font-size="12" text-anchor="middle" fill="var(--gold-deep)">搬 15 個</text>
+  <rect x="312" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="327" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="342" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="357" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="372" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="387" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="402" y="151.2" width="11" height="148.8" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="407.5" y="143.2" font-size="12" text-anchor="middle" fill="var(--gold-deep)">第 23 次</text>
+  <text x="407.5" y="127.2" font-size="12" text-anchor="middle" fill="var(--gold-deep)">搬 22 個</text>
+  <rect x="417" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="432" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="447" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="462" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="477" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="492" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="507" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="522" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="537" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="552" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="567" y="80.0" width="11" height="220.0" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="572.5" y="72.0" font-size="12" text-anchor="middle" fill="var(--gold-deep)">第 34 次</text>
+  <text x="572.5" y="56.0" font-size="12" text-anchor="middle" fill="var(--gold-deep)">搬 33 個</text>
+  <rect x="582" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="597" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="612" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="627" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="642" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <rect x="657" y="293.5" width="11" height="6.5" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="77.5" y="318" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text>
+  <text x="212.5" y="318" font-size="12" text-anchor="middle" class="mono" opacity=".6">10</text>
+  <text x="362.5" y="318" font-size="12" text-anchor="middle" class="mono" opacity=".6">20</text>
+  <text x="512.5" y="318" font-size="12" text-anchor="middle" class="mono" opacity=".6">30</text>
+  <text x="662.5" y="318" font-size="12" text-anchor="middle" class="mono" opacity=".6">40</text>
+  <line x1="70" y1="280.6" x2="670" y2="280.6" stroke="var(--slate-deep)" stroke-dasharray="6 4"/>
+  <text x="684" y="284.6" font-size="13" fill="var(--slate-deep)">平均約 3.0</text>
+  <text x="684" y="318" font-size="13">第幾次 add</text>
+  <text x="64" y="40" font-size="13">這次 add 的成本（放 1 個＋搬幾個）</text>
+</svg>
+<figcaption>前 40 次 add 的成本：平常每次只放 1 個（灰藍），第 11、16、23、34 次剛好遇到格子滿，要把舊的 10、15、22、33 個全部搬走（古銅）。貴的那幾次越來越貴，但間隔也越來越長，平均下來每次只有固定幾步。</figcaption>
+</figure>
+<p>放一百萬個只擴容 29 次，平均每次 add 多搬約 2.4 個，跟 n 無關，所以是攤銷 O(1)。關鍵是「每次按比例放大」：MIT 習題課講義說，多配置的空間只要跟目前大小成固定比例，就能達到攤銷常數時間（allocating any constant fraction of additional space will achieve the amortized bound）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c08a3b63dfe5f6f6b32257d35f86ae63_MIT6_006S20_r02.pdf" target="_blank" rel="noopener">出處</a> 如果每次只多加固定 10 格，每 10 次就要搬一次家，搬的總數是 10 + 20 + 30 + … + n，約 n²/20，總成本變成 O(n²)。</p>
+<p class="muted">已經知道要放多少筆時，可以用 <code>new ArrayList&lt;&gt;(容量)</code> 或 <code>ensureCapacity</code> 一次開夠，API 文件說這「可能減少逐步重新配置的次數」（This may reduce the amount of incremental reallocation.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">在沒排序的 n 筆交易裡逐筆找某個交易編號，最壞情況的時間複雜度是？</p>
+  <ul class="dopts"><li>O(1)</li><li>O(log n)</li><li data-ok>O(n)</li><li>O(n²)</li></ul>
+  <p class="dexp">要找的在最後一筆或根本不存在時，n 筆都要看過，O(n)。沒排序不能用二分搜尋。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個逐筆搜尋，最好的情況是什麼、多少步？</p>
+  <ul class="dopts"><li data-ok>第一筆就是要找的，O(1)</li><li>要找的在正中間，O(n/2)</li><li>每筆都要看，O(n)</li><li>最好和最壞一樣，都是 O(n)</li></ul>
+  <p class="dexp">第一筆就命中時只看 1 次，O(1)。最好情況通常沒什麼參考價值，面試問的多半是最壞或平均。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>ArrayList</code> 的 <code>add(e)</code> 單獨一次，最壞要多久？</p>
+  <ul class="dopts"><li>O(1)，因為 API 文件說它是常數時間，任何一次都不會超過</li><li data-ok>O(n)，剛好遇到擴容要把舊元素全部搬過去</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">文件說的是「攤銷」常數時間。剛好碰上格子滿的那一次，要把 n 個舊元素搬到新陣列，那一次是 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">從空的 <code>ArrayList</code> 開始，連續 <code>add(e)</code> n 次，總共要多少時間？</p>
+  <ul class="dopts"><li>O(n²)，因為每次 add 最壞 O(n)</li><li>O(n log n)</li><li>O(1)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">API 文件原句：「adding n elements requires O(n) time」。貴的那幾次間隔越來越長，總和還是 O(n)。拿「每次最壞 O(n)」乘以 n 會高估。</p>
+</div>
+<div class="drill">
+  <p class="dq">在有 n 個元素的 <code>ArrayList</code> 最前面插入：<code>list.add(0, x)</code>。時間複雜度是？</p>
+  <ul class="dopts"><li>攤銷 O(1)，跟加在尾端的 add(e) 一樣，偶爾擴容才比較慢</li><li>O(log n)</li><li data-ok>O(n)，後面 n 個元素都要往右移一格</li><li>O(1)，只是改第 0 格</li></ul>
+  <p class="dexp">插到中間或最前面，後面每一個都要往右搬一格，是 O(n)。攤銷 O(1) 只講尾端的 add(e)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>HashMap</code> 的 API 文件說 get、put 是常數時間，前提是什麼？</p>
+  <ul class="dopts"><li>鍵必須是字串</li><li data-ok>雜湊函式把元素適當地分散到各個桶</li><li>容量必須是 2 的次方</li><li>只能在單一執行緒使用</li></ul>
+  <p class="dexp">文件原句是 assuming the hash function disperses the elements properly among the buckets。所以要說「平均 O(1)」，分散得不好（很多鍵撞在一起）就會變慢。</p>
+</div>
+<div class="drill">
+  <p class="dq">有人說「快速排序是 O(n log n)」。照 algs4 的說法，這句話要補上什麼才完整？</p>
+  <ul class="dopts"><li>不用補，快速排序每次都把資料切成兩半，任何輸入都是 O(n log n)</li><li>要補「最好情況是 O(n)」</li><li>要補「空間是 O(n²)」</li><li data-ok>那是平均情況；最壞約 N²/2 次比較，也就是 O(n²)</li></ul>
+  <p class="dexp">algs4 寫快速排序平均約 2N ln N 次比較、最壞約 N²/2 次，先隨機洗牌可以避開最壞情況。平均與最壞要分開講。</p>
+</div>
+<div class="drill">
+  <p class="dq">「攤銷 O(1)」跟「平均 O(1)」差在哪？</p>
+  <ul class="dopts"><li>沒有差別，只是兩種叫法</li><li>攤銷是最好情況，平均是最壞情況</li><li data-ok>攤銷是一整串操作的總成本保證，不靠輸入的機率；平均要先假設輸入怎麼分布</li><li>攤銷只用在空間複雜度，平均只用在時間複雜度，兩者量的東西根本不同</li></ul>
+  <p class="dexp">algs4：攤銷分析對一連串操作提供最壞情況的保證。ArrayList 連續 add n 次一定是 O(n)，不需要假設資料長怎樣；HashMap 的平均 O(1) 則要假設雜湊分散得好。</p>
+</div>
+</section>
+
+<section>
+<p class="era">時間之外，還要算記憶體</p>
+<h3 class="head">空間複雜度</h3>
+<p><strong>空間複雜度</strong>算的是程式<strong>額外</strong>用了多少記憶體，跟 n 怎麼一起長。輸入本身占的空間通常不算，算的是你另外開的陣列、集合、還有遞迴疊起來的呼叫。</p>
+<ul class="plainlist">
+<li>只用幾個變數（<code>sum</code>、<code>i</code>、<code>max</code>）：O(1)。</li>
+<li>複製一份陣列、開一個跟輸入一樣大的 <code>HashSet</code>：O(n)。</li>
+<li>開一個 n × n 的二維表格：O(n²)。</li>
+<li>遞迴深度 n 層：O(n)。這一項最容易漏掉。</li>
+</ul>
+<p>遞迴為什麼吃空間？Java 虛擬機規格寫，每條執行緒有自己的堆疊，「每呼叫一次方法就建立一個新的框架」（A new frame is created each time a method is invoked.），方法結束才拆掉；堆疊需要的深度超過允許的上限，就丟出 <code>StackOverflowError</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 框架（frame）就是一次呼叫用到的小抽屜，放參數、區域變數、算到一半的結果。<code>sumRecursive(n)</code> 要一路疊到 <code>sumRecursive(0)</code> 才開始往回算，同時有 n 個抽屜開著：</p>
+<pre><code>public class SpaceDemo {
+    // 空間 O(1)：不管 n 多大，只用 sum 和 i 兩個變數
+    static long sumLoop(int n) {
+        long sum = 0;
+        for (int i = 1; i &lt;= n; i++) sum += i;
+        return sum;
+    }
+
+    // 空間 O(n)：每呼叫一層就在呼叫堆疊上多一格，要疊 n 層才開始往回算
+    static long sumRecursive(int n) {
+        if (n == 0) return 0;
+        return n + sumRecursive(n - 1);
+    }
+
+    public static void main(String[] args) {
+        System.out.println(sumLoop(10) + " " + sumRecursive(10));
+        System.out.println(sumLoop(10_000_000));
+        try {
+            System.out.println(sumRecursive(10_000_000));
+        } catch (StackOverflowError e) {
+            System.out.println("遞迴版：StackOverflowError");
+        }
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>55 55
+50000005000000
+遞迴版：StackOverflowError</code></pre>
+<p>兩個版本時間都是 O(n)，但迴圈版空間 O(1)，一千萬也算得出來；遞迴版空間 O(n)，一千萬層就把堆疊疊爆了。實際能疊幾層要看堆疊大小的設定，但「深度跟 n 成正比」不會變。</p>
+<p><strong>用空間換時間</strong>是最常見的取捨。檢查一批交易編號有沒有重複，有三種寫法：</p>
+<pre><code>import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+public class Duplicate {
+    // 做法一：兩兩比對。時間 O(n²)，額外空間 O(1)
+    static boolean byPairs(long[] ids) {
+        for (int i = 0; i &lt; ids.length; i++)
+            for (int j = i + 1; j &lt; ids.length; j++)
+                if (ids[i] == ids[j]) return true;
+        return false;
+    }
+
+    // 做法二：先排序，重複的會排在隔壁。時間 O(n log n)，額外空間看排序法；這裡複製一份，O(n)
+    static boolean bySorting(long[] ids) {
+        long[] copy = ids.clone();          // 不改呼叫端的陣列
+        Arrays.sort(copy);
+        for (int i = 1; i &lt; copy.length; i++)
+            if (copy[i] == copy[i - 1]) return true;
+        return false;
+    }
+
+    // 做法三：放進 HashSet，看過的記下來。時間平均 O(n)，額外空間 O(n)
+    static boolean bySet(long[] ids) {
+        Set&lt;Long&gt; seen = new HashSet&lt;&gt;();
+        for (long id : ids)
+            if (!seen.add(id)) return true;   // add 回傳 false 表示本來就有
+        return false;
+    }
+
+    public static void main(String[] args) {
+        long[] ids = {9001, 9002, 9003, 9002};
+        System.out.println(byPairs(ids) + " " + bySorting(ids) + " " + bySet(ids));
+        System.out.println(Arrays.toString(ids));   // 做法二沒有動到原陣列
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>true true true
+[9001, 9002, 9003, 9002]</code></pre>
+<div class="tablewrap"><table><thead><tr><th>寫法</th><th>時間</th><th>額外空間</th><th>什麼時候選</th></tr></thead><tbody>
+<tr><th>兩兩比對</th><td>O(n²)</td><td>O(1)</td><td>資料很少，或記憶體非常吃緊</td></tr>
+<tr><th>先排序</th><td>O(n log n)</td><td>本例複製一份，O(n)；可以改原陣列就不用複製</td><td>本來就需要排序後的結果</td></tr>
+<tr><th>HashSet</th><td>平均 O(n)</td><td>O(n)</td><td>大部分情況的預設選擇</td></tr>
+</tbody></table></div>
+
+<div class="drill">
+  <p class="dq">這段程式的額外空間複雜度是？</p>
+  <pre><code>long sum = 0;
+for (int i = 0; i &lt; a.length; i++) {
+    sum += a[i];
+}</code></pre>
+  <ul class="dopts"><li>O(n)，因為 a 有 n 個元素</li><li data-ok>O(1)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">只多用了 sum 和 i 兩個變數，跟 n 無關，O(1)。輸入陣列 a 本身不算額外空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式的額外空間複雜度是？</p>
+  <pre><code>int[] copy = a.clone();
+Arrays.sort(copy);</code></pre>
+  <ul class="dopts"><li>O(1)</li><li>O(log n)</li><li>O(n²)</li><li data-ok>O(n)</li></ul>
+  <p class="dexp">clone 複製出一個跟 a 一樣長的新陣列，至少 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">為 n 個帳戶開一張「誰轉帳給過誰」的表：<code>boolean[][] sent = new boolean[n][n];</code>。額外空間是？</p>
+  <ul class="dopts"><li data-ok>O(n²)</li><li>O(n)</li><li>O(2n)</li><li>O(1)</li></ul>
+  <p class="dexp">n 列、每列 n 格，共 n² 格。一萬個帳戶就是一億格，所以這種表只適合 n 不大的時候。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>sumRecursive(n)</code>，額外空間複雜度是？</p>
+  <ul class="dopts"><li>O(1)，因為它沒有開任何陣列或集合，只用了參數 n</li><li>O(log n)</li><li data-ok>O(n)，同時有 n 層呼叫的框架疊在堆疊上</li><li>O(n²)</li></ul>
+  <p class="dexp">沒開陣列不代表沒用空間。遞迴到最深時有 n 個框架同時存在，空間 O(n)，太深就 StackOverflowError。</p>
+</div>
+<div class="drill">
+  <p class="dq">這段程式把陣列原地反轉（只在原陣列裡交換）。額外空間是？</p>
+  <pre><code>for (int i = 0, j = a.length - 1; i &lt; j; i++, j--) {
+    int t = a[i];
+    a[i] = a[j];
+    a[j] = t;
+}</code></pre>
+  <ul class="dopts"><li>O(n)</li><li>O(n/2)</li><li data-ok>O(1)</li><li>O(log n)</li></ul>
+  <p class="dexp">只用了 i、j、t 三個變數，沒有另外開陣列，額外空間 O(1)。時間是 O(n)（交換 n/2 次）。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面 <code>Duplicate</code> 的 <code>bySet</code> 寫法，時間與額外空間各是多少？</p>
+  <ul class="dopts"><li>時間 O(n²)、空間 O(1)</li><li>時間 O(n log n)、空間 O(1)</li><li>時間 O(1)、空間 O(n)</li><li data-ok>時間平均 O(n)、空間 O(n)</li></ul>
+  <p class="dexp">每筆做一次平均 O(1) 的 add，共 O(n)；HashSet 最多放 n 個，空間 O(n)。用記憶體換到了時間。</p>
+</div>
+</section>
+
+<section>
+<p class="era">面試時，怎麼把複雜度講清楚</p>
+<h3 class="head">回答複雜度的順序</h3>
+<p>下面是建議的講法，不是哪份官方文件規定的；重點是讓面試官聽得出你知道自己在算什麼：</p>
+<ul class="plainlist">
+<li><strong>先講 n 是什麼。</strong>「n 是交易筆數」。有兩個輸入就用兩個字母：「n 個帳戶、m 筆交易」。</li>
+<li><strong>先講時間，再講空間。</strong>「時間 O(n)，每筆看一次；額外空間 O(1)，只用了幾個變數」。</li>
+<li><strong>說清楚是哪一種。</strong>HashMap 講「平均 O(1)」，ArrayList 尾端加入講「攤銷 O(1)」，快速排序講「平均 O(n log n)、最壞 O(n²)」。</li>
+<li><strong>說出假設。</strong>「假設雜湊分散得好」「假設內建排序是 O(n log n)」。用到的函式庫方法也要算進去，例如迴圈裡的 <code>contains</code>。</li>
+<li><strong>主動提取捨。</strong>先講暴力解的複雜度，再講怎麼用空間換時間降下來，例如兩兩比對 O(n²) 改成 HashSet 平均 O(n)、多用 O(n) 空間。</li>
+</ul>
+<p>一段完整的回答聽起來像這樣：「n 是交易筆數。暴力解兩兩比對是 O(n²) 時間、O(1) 空間。改成邊走邊放進 HashSet，每筆平均 O(1)，總共平均 O(n) 時間，代價是 O(n) 的額外空間。如果記憶體不夠，可以先排序再比相鄰的，O(n log n) 時間。」</p>
+
+<div class="drill">
+  <p class="dq">面試官問「你這個解法的複雜度是多少」，建議先講什麼？</p>
+  <ul class="dopts"><li>直接報一個 O(…) 就好，越短越好</li><li data-ok>先講 n 代表什麼，再講時間複雜度，然後講空間複雜度</li><li>先講空間複雜度，因為伺服器的記憶體比 CPU 時間貴，面試官最在意</li><li>先講最好情況，因為最好看</li></ul>
+  <p class="dexp">沒講 n 是什麼，O(n) 就沒有意義；時間通常是面試官最先關心的，接著補空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">你的解法外層走 n 個帳戶、內層走每個帳戶的 m 筆交易。最好怎麼講？</p>
+  <ul class="dopts"><li>O(n²)</li><li>O(n + m)，帳戶和交易各走一遍就好</li><li data-ok>O(n·m)，n 是帳戶數、m 是每個帳戶的交易筆數</li><li>O(m)</li></ul>
+  <p class="dexp">兩個輸入要分開命名，巢狀相乘是 O(n·m)。說成 O(n²) 等於偷偷假設 m 跟 n 一樣大。</p>
+</div>
+<div class="drill">
+  <p class="dq">你用 HashMap 做查詢，下面哪一句講法最精確？</p>
+  <ul class="dopts"><li>HashMap 查詢一律 O(1)</li><li>HashMap 查詢是 O(log n)</li><li>HashMap 查詢是 O(n)</li><li data-ok>查詢平均 O(1)，前提是雜湊分散得好</li></ul>
+  <p class="dexp">API 文件的常數時間有前提（雜湊函式分散得好），所以講「平均」。少了這兩個字，面試官很可能追問最壞情況。</p>
+</div>
+<div class="drill">
+  <p class="dq">你先寫出兩兩比對的 O(n²) 解，面試官問「能不能更快」。下面哪個方向是用空間換時間？</p>
+  <ul class="dopts"><li>把兩層迴圈的順序對調，讓比較少的那份資料放在外層先跑</li><li>改用 <code>while</code> 迴圈</li><li data-ok>邊走邊把看過的放進 HashSet，時間降到平均 O(n)，多用 O(n) 空間</li><li>內層從 <code>i + 1</code> 開始</li></ul>
+  <p class="dexp">對調迴圈、改用 while 都不改變次數；內層從 i + 1 開始只少一半，還是 O(n²)。放進 HashSet 才是真的降一個等級，代價是記憶體。</p>
+</div>
+<div class="drill">
+  <p class="dq">你的解法是「先排序，再掃一遍」。總時間複雜度怎麼講？</p>
+  <ul class="dopts"><li data-ok>O(n log n)：排序 O(n log n) 加掃描 O(n)，取大的</li><li>O(n)：掃描只要一遍</li><li>O(n² log n)：排序和掃描兩段的複雜度要相乘</li><li>O(log n)</li></ul>
+  <p class="dexp">先後執行相加、留最高的項，O(n log n)。只有「每一次掃描都要重新排序」才會相乘。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，由易到難</p>
+<h3 class="head">動手練</h3>
+<p>到 LeetCode 寫完之後，先自己講出時間與空間複雜度，再看別人的解法對照。</p>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/running-sum-of-1d-array/" target="_blank" rel="noopener">1480. Running Sum of 1d Array</a></td><td>每格都從頭加是 O(n²)，接著上一格的結果往下加是 O(n)</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/contains-duplicate/" target="_blank" rel="noopener">217. Contains Duplicate</a></td><td>同一題三種寫法：兩兩比對、先排序、HashSet，各說出時間與空間</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/binary-search/" target="_blank" rel="noopener">704. Binary Search</a></td><td>每次砍一半的 O(log n)</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/missing-number/" target="_blank" rel="noopener">268. Missing Number</a></td><td>用 O(n) 時間、O(1) 額外空間做到，不另開集合</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/single-number/" target="_blank" rel="noopener">136. Single Number</a></td><td>題目要求 O(1) 額外空間，練習把空間也算進去</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/two-sum/" target="_blank" rel="noopener">1. Two Sum</a></td><td>先講 O(n²) 暴力解，再用空間換時間降到平均 O(n)</td><td>簡單</td></tr>
+<tr><td><a href="https://leetcode.com/problems/sqrtx/" target="_blank" rel="noopener">69. Sqrt(x)</a></td><td>不能逐一試到 x，用 O(log x) 的二分逼近；注意相乘會溢位</td><td>簡單</td></tr>
+</tbody></table></div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>複雜度量的是 n 變大時步數（或記憶體）怎麼長；大 O 去掉常數、只留最高次項。</li><li>由快到慢：O(1)、O(log n)、O(n)、O(n log n)、O(n²)、O(2ⁿ)。n 變兩倍時，O(n) 變 2 倍、O(n²) 變 4 倍、O(log n) 只多 1 步、O(2ⁿ) 是 n 多 1 就翻倍。</li><li>看程式碼：巢狀相乘、先後相加、每次乘或除以 2 是 log n、內層固定次數只算常數；迴圈裡呼叫的方法（例如 ArrayList.contains）也要算進去。兩個輸入分開寫成 n、m。</li><li>最壞是不管輸入都不超過的上限；平均要先假設輸入分布（HashMap 平均 O(1)）；攤銷是一串操作的總成本平均分攤（ArrayList.add 攤銷 O(1)，單次最壞 O(n)）。</li><li>空間複雜度算額外用的記憶體；遞迴深度 n 層就是 O(n) 空間，太深會 StackOverflowError。</li><li>面試：先講 n 是什麼，再講時間、空間，說清楚最壞／平均／攤銷與假設，最後提取捨。</li></ul></div>
