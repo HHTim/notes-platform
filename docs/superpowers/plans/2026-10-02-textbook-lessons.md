@@ -14,10 +14,10 @@
 |---|---|---|---|---|---|---|---|
 | `database/06-index-internals` | 索引是怎麼運作的 | （新）效能 | 〈資料庫面試題：索引、交易隔離與鎖〉 | 撰寫中（`write-algo-b`） | | | |
 | `database/07-transaction-isolation-locks` | 交易隔離層級與鎖 | （新）效能 | 同上 | 撰寫中（`write-algo-b`） | | | |
-| `java/16-jvm-memory-gc` | JVM 記憶體與垃圾回收 | （新）JVM 與效能 | 〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉 | | | | |
-| `java/17-thread-pool-concurrency` | 執行緒池與並行工具 | 並行與設計 | 〈Java 並行快答：執行緒池、鎖與並行集合〉 | | | | |
-| `spring/13-transactional-propagation` | @Transactional 的傳播、隔離與失效情境 | （新）進階 | 〈Spring 面試快答：IoC、Bean、AOP 與交易〉 | | | | |
-| `spring/14-boot-autoconfig-actuator` | Spring Boot 自動組態與 Actuator | （新）進階 | 同上、〈微服務與架構面試題〉 | | | | |
+| `java/16-jvm-memory-gc` | JVM 記憶體與垃圾回收 | （新）JVM 與效能 | 〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉 | 撰寫中（`write-java-a`） | | | |
+| `java/17-thread-pool-concurrency` | 執行緒池與並行工具 | 並行與設計 | 〈Java 並行快答：執行緒池、鎖與並行集合〉 | 撰寫中（`write-java-a`） | | | |
+| `spring/13-transactional-propagation` | @Transactional 的傳播、隔離與失效情境 | （新）進階 | 〈Spring 面試快答：IoC、Bean、AOP 與交易〉 | 撰寫中（`write-algo-a`） | | | |
+| `spring/14-boot-autoconfig-actuator` | Spring Boot 自動組態與 Actuator | （新）進階 | 同上、〈微服務與架構面試題〉 | 撰寫中（`write-algo-a`） | | | |
 | `web/11-tcp-udp-tls` | TCP、UDP 與 TLS 握手 | 網路與伺服器 | 〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉 | | | | |
 | `web/12-http-advanced` | HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進 | 網路與伺服器 | 同上 | | | | |
 | `spring/15-security-jwt-oauth` | JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接 | （新）進階 | 〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉 | | | | |
