@@ -12,17 +12,17 @@
 |---|---|---|---|---|
 | `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | ✅ 10-02 審完：無錯誤級，131 題正解都唯一；最要緊是「最壞／平均」與「O 上限」沒分清楚；SortCount 其實是物件排序、字面值共用不是巧合、StringBuilder 擴容要附原始碼出處；砍重複題；清單 `.superpowers/audit/algo/findings-01-02.md`；修正交給新代理 `fix-algo-0102`（原寫課代理在寫 09、10） | ✅ 修正 `fe807dc`（14＋14 條全改；〈複雜度〉55 題、〈陣列與字串〉50 題）；範圍複審 ✅ 可上線 | ✅ 10-02 上線（模組建立，第 1、2 課） |
 | `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | 同上 | ✅ 10-02 上線 |
-| `03-hash-table` | ✅ `e858aa1`＋`ef879b1`（52 題、4 張圖、42 出處；mins 60） | ✅ 10-02 審完：無錯誤級，123 題正解都唯一；必修：原始碼行號連錯、樹化沒白話、「第 3 個走 3 步」、Floyd 歸屬、「文件建議」；跨課三處已上線課主控先修（`086c6c4`）；清單 `.superpowers/audit/algo/findings-03-04.md`；修正交給 `fix-algo-0304` | | |
+| `03-hash-table` | ✅ `e858aa1`＋`ef879b1`（52 題、4 張圖、42 出處；mins 60） | ✅ 10-02 審完：無錯誤級，123 題正解都唯一；必修：原始碼行號連錯、樹化沒白話、「第 3 個走 3 步」、Floyd 歸屬、「文件建議」；跨課三處已上線課主控先修（`086c6c4`）；清單 `.superpowers/audit/algo/findings-03-04.md`；修正交給 `fix-algo-0304` | 修正已交（03／04：`0db0f04`；05／06：`5f927d2`）；範圍複審中 | |
 | `04-linked-list` | ✅ `b584646`（51 題、9 張圖、9 出處；mins 50） | 同上 | | |
-| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | | |
+| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | 修正已交（03／04：`0db0f04`；05／06：`5f927d2`）；範圍複審中 | |
 | `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | | |
-| `07-sorting-binary-search` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
-| `08-two-pointers-window` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
+| `07-sorting-binary-search` | ✅ `628dd36`（61 題、8 張圖、36 出處；mins 75） | 審查中（`review-algo-a`，07＋08） | | |
+| `08-two-pointers-window` | ✅ `d5a4101`（51 題、6 張圖、7 出處；mins 50） | 同上 | | |
 | `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
-| `11-graph` | 撰寫中（`write-algo-b` 第二輪） | | | |
-| `12-dynamic-programming` | 撰寫中（`write-algo-b` 第二輪） | | | |
-| `13-interview-strategy` | 待寫（`write-algo-c` 修完 05、06 後接著寫） | | | |
+| `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | 審查中（`review-algo-d`，11＋12） | | |
+| `12-dynamic-programming` | ✅ `1a1db96`（56 題、5 張圖、15 出處；mins 60） | 同上 | | |
+| `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | 審查中（`review-algo-c`，接在 05／06 複審後） | | |
 
 流程照多益文法：寫課 → 獨立審查 → 交回原寫課代理修正 → 原審查者範圍複審 → 主控修小尾巴、註冊、推。兩課審好就先上線。同時跑的代理約四到五個。
 
@@ -68,3 +68,8 @@ SVG 一律 `role="img"` 加中文 `aria-label`；`id` 用課的前綴（`cx-`、
 - intro：從複雜度打底，陣列、雜湊表、樹、圖到動態規劃，每課 Java 範例實跑、附刷題清單。
 - overview_intro：開場一句（面試寫程式題要的底子；先講長相、設計理由、每個操作多快，再進題型；Java 範例實跑、主張附出處）＋列點（基礎一課、線性結構四課、演算法手法三課、樹與圖三課、最後兩課）＋結尾（課中練習、隨堂測驗、動手練列 LeetCode 題號）。
 - footer_note：LeetCode 題目只列題號與題名並連到原題，題目敘述版權屬 LeetCode。複雜度與 API 行為以 Java SE 25 文件為準（範例以 Java 21 實跑），查證日期 2026-10-02。
+
+## 主控決定（10-02）
+
+- 動手練難度欄全模組用 Easy／Medium／Hard；表頭用「題號＋題名」。主控在全部上線前統一一次。
+- 多個代理同時 commit：一律不用 amend／reset／rebase（`write-algo-c` 曾誤 amend 到別人的 commit，已還原）。
