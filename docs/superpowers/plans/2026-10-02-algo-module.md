@@ -10,12 +10,12 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `01-complexity` | | | | |
-| `02-array-string` | | | | |
-| `03-hash-table` | | | | |
-| `04-linked-list` | | | | |
-| `05-stack-queue` | | | | |
-| `06-recursion-backtracking` | | | | |
+| `01-complexity` | 撰寫中（10-02，Opus `write-algo-a`） | | | |
+| `02-array-string` | 撰寫中（10-02，Opus `write-algo-a`） | | | |
+| `03-hash-table` | 撰寫中（10-02，Opus `write-algo-b`） | | | |
+| `04-linked-list` | 撰寫中（10-02，Opus `write-algo-b`） | | | |
+| `05-stack-queue` | 撰寫中（10-02，Opus `write-algo-c`） | | | |
+| `06-recursion-backtracking` | 撰寫中（10-02，Opus `write-algo-c`） | | | |
 | `07-sorting-binary-search` | | | | |
 | `08-two-pointers-window` | | | | |
 | `09-tree-bst` | | | | |
