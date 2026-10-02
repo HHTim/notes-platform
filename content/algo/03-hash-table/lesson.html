@@ -4,14 +4,14 @@
 <section>
 <p class="era">置物櫃，鍵直接換成格子編號</p>
 <h3 class="head">雜湊表的想法：用算的找位置</h3>
-<p>想像車站的投幣置物櫃。如果你手上的收據寫著「17 號」，你會直接走到 17 號櫃子打開，不會從 1 號一路開過去。陣列也是這樣：知道索引，一步就拿到那一格（〈陣列與字串〉講過）。</p>
+<p>想像車站的投幣置物櫃。如果你手上的收據寫著「17 號」，你會直接走到 17 號櫃子打開，不會從 1 號一路開過去。陣列也是這樣：知道索引，一步就拿到那一格（〈陣列與字串〉講過）。〈陣列與字串〉的置物櫃要你自己記得號碼；雜湊表多了一台「用名字算號碼」的機器（雜湊函式），你只要報名字。</p>
 <p>麻煩在於，我們要找的東西通常不是用「17 號」這種小整數標示，而是帳號、身分證字號、商品編號這種字串。<strong>雜湊表</strong>（hash table）的想法是：準備一排格子（陣列），再準備一個<strong>雜湊函式</strong>（hash function，把任何一個鍵算成一個格子編號的公式）。要存就算出編號放進去，要找就用同一個公式算出編號直接去看。普林斯頓《Algorithms》把它拆成兩步：先用雜湊函式「把要找的鍵轉成陣列索引」（compute a hash function that transforms the search key into an array index），第二步是處理「兩個以上不同的鍵算到同一個索引」的情況，叫碰撞處理（collision-resolution process）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
 <p>在 Java 裡，第一步分成兩半：每個物件都有 <code>hashCode()</code>，回傳一個 32 位元的整數，叫<strong>雜湊碼</strong>；<code>HashMap</code> 再拿這個整數算出要放進哪一格。<code>HashMap</code> 的每一格叫<strong>桶</strong>（bucket，因為一格裡可能裝不只一筆）。算法寫在 OpenJDK 原始碼裡：</p>
 <ul class="plainlist">
-<li><code>hash()</code> 方法回傳 <code>(h = key.hashCode()) ^ (h &gt;&gt;&gt; 16)</code>，也就是把雜湊碼的高 16 位元用 XOR（逐位元比較，兩邊不同得 1、相同得 0）混進低 16 位元；鍵是 <code>null</code> 時直接當 0。</li>
-<li>放進第幾個桶用 <code>(n - 1) &amp; hash</code> 算，<code>n</code> 是桶的數量。原始碼對預設容量的註解寫「一定要是 2 的次方」（MUST be a power of two）。</li>
+<li><code>hash()</code> 方法回傳 <code>(h = key.hashCode()) ^ (h &gt;&gt;&gt; 16)</code>，也就是把雜湊碼的高 16 位元用 XOR（逐位元比較，兩邊不同得 1、相同得 0）混進低 16 位元；鍵是 <code>null</code> 時直接當 0。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L320-L339" target="_blank" rel="noopener">出處</a></li>
+<li>放進第幾個桶用 <code>(n - 1) &amp; hash</code> 算（查找用的 <code>getNode</code> 裡就是 <code>tab[(n - 1) &amp; hash]</code>），<code>n</code> 是桶的數量。原始碼對預設容量的註解寫「一定要是 2 的次方」（MUST be a power of two）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L235-L238" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L574-L577" target="_blank" rel="noopener">getNode</a></li>
 </ul>
-<p><a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L320-L339" target="_blank" rel="noopener">出處</a> 為什麼要 2 的次方？因為 <code>n - 1</code> 寫成二進位剛好全是 1：8 個桶時 <code>n - 1</code> 是 7，也就是 <code>111</code>，跟雜湊值做 AND（逐位元比較，兩邊都是 1 才得 1）就是留下最後 3 個位元，等於「除以 8 的餘數」，一個位元運算就算完。至於為什麼要先把高位元混下來，原始碼註解說：桶數是 2 的次方時只看得到低位元，「只差在高位元的雜湊碼一定會撞在一起」（sets of hashes that vary only in bits above the current mask will always collide），所以用最便宜的 XOR 把高位元的影響帶下來。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L320-L339" target="_blank" rel="noopener">出處</a></p>
+<p>為什麼要 2 的次方？因為 <code>n - 1</code> 寫成二進位剛好全是 1：8 個桶時 <code>n - 1</code> 是 7，也就是 <code>111</code>，跟雜湊值做 AND（逐位元比較，兩邊都是 1 才得 1）就是留下最後 3 個位元，等於「除以 8 的餘數」，一個位元運算就算完。至於為什麼要先把高位元混下來，原始碼註解說：桶數是 2 的次方時只看得到低位元，「只差在高位元的雜湊碼一定會撞在一起」（sets of hashes that vary only in bits above the current mask will always collide），所以用最便宜的 XOR 把高位元的影響帶下來。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L320-L339" target="_blank" rel="noopener">出處</a></p>
 <p>下面這段程式用同樣的算法，算出幾個字串在 8 個桶裡會落在哪一格：</p>
 <pre><code>public class BucketIndex {
     // 跟 HashMap 內部的 hash() 同一招：把高 16 位元混進低 16 位元
@@ -52,7 +52,7 @@ BB     hashCode=2112        桶=0</code></pre>
   <line x1="370" y1="100" x2="190" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#ht-a1)"/>
   <line x1="630" y1="100" x2="246" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#ht-a1)"/>
   <text x="146" y="165" font-size="12" text-anchor="end" opacity=".75">8 個桶</text>
-  <rect x="156" y="140" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <rect x="156" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
   <rect x="212" y="140" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/>
   <rect x="268" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
   <rect x="324" y="140" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
@@ -195,7 +195,7 @@ public class Collision {
 <div class="drill">
   <p class="dq">用鏈結法的 HashMap，依序放入 P、Q、R 三個鍵，它們都算到 2 號桶。2 號桶的串列長怎樣？</p>
   <ul class="dopts"><li data-ok>P → Q → R → null</li><li>R → Q → P → null</li><li>只剩 R，前兩個被覆蓋</li><li>P 在 2 號，Q、R 被擠到 3、4 號</li></ul>
-  <p class="dexp">鍵不同就各占一個節點；Java 8 起的 HashMap 把新節點接在串列尾端，所以照放入順序排。被擠到別格是開放定址的做法。</p>
+  <p class="dexp">鍵不同就各占一個節點；HashMap 把新節點接在串列尾端，所以照放入順序排。被擠到別格是開放定址的做法。</p>
 </div>
 <div class="drill">
   <p class="dq">Java 的 <code>HashMap</code> 怎麼處理碰撞？</p>
@@ -275,11 +275,11 @@ HashMap.newHashMap(100) 放第 1 筆後：256 個桶</code></pre>
 <p>三件事從輸出看得出來：</p>
 <ul class="plainlist">
 <li><strong>桶陣列是放第一筆時才建立的</strong>，之後每次超過門檻（容量 × 0.75）就翻倍：12、24、48、96 這幾個門檻一過，第 13、25、49、97 筆就擴容。</li>
-<li><strong><code>new HashMap&lt;&gt;(100)</code> 的 100 是「桶數」不是「筆數」。</strong>它會被調成 2 的次方 128（原始碼 <code>tableSizeFor</code> 的註解：「回傳給定目標容量所需的 2 的次方大小」），門檻 128 × 0.75 ＝ 96，所以放到第 97 筆還是擴容了一次。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L374-L380" target="_blank" rel="noopener">出處</a></li>
-<li><strong>想「裝得下 N 筆、中途不擴容」</strong>，文件的規則是：初始容量大於「最多筆數除以負載因子」就不會重新雜湊（If the initial capacity is greater than the maximum number of entries divided by the load factor, no rehash operations will ever occur）。Java 19 起直接用 <code>HashMap.newHashMap(N)</code>，文件說它的初始容量「通常大到放得下預期筆數而不必擴容」，建構子的說明也改成建議用它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html#newHashMap(int)" target="_blank" rel="noopener">出處</a></li>
+<li><strong><code>new HashMap&lt;&gt;(100)</code> 的 100 是「桶數」不是「筆數」。</strong>它會被調成 2 的次方 128（原始碼 <code>tableSizeFor</code> 的註解：「回傳給定目標容量所需的 2 的次方大小」（Returns a power of two size for the given target capacity）），門檻 128 × 0.75 ＝ 96，所以放到第 97 筆還是擴容了一次。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L374-L380" target="_blank" rel="noopener">出處</a></li>
+<li><strong>想「裝得下 N 筆、中途不擴容」</strong>，文件的規則是：初始容量大於「最多筆數除以負載因子」就不會重新雜湊（If the initial capacity is greater than the maximum number of entries divided by the load factor, no rehash operations will ever occur）。Java 19 起直接用 <code>HashMap.newHashMap(N)</code>，文件說它的初始容量「通常大到放得下預期筆數而不必擴容」（generally large enough so that the expected number of mappings can be added without resizing the map），建構子的說明也改成建議用它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html#newHashMap(int)" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <h4>擴容後每個鍵去哪</h4>
-<p>擴容要把每一筆重新放到新陣列裡，這一次是 O(n)。但因為每次都翻倍，貴的那一次很久才遇到一次；把它的成本平均分攤到前面每一次 <code>put</code>，每次只多付一點點，這叫<strong>攤銷</strong>（amortized：把偶爾一次很貴的成本平均分攤到每次操作）O(1)，跟 <code>ArrayList</code> 長大的道理一樣（〈陣列與字串〉）。MIT 講義的結論是：雜湊表在桶數跟著筆數調整時，能做到「期望的攤銷 O(1)」（expected amortized O(1) time）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>擴容要把每一筆重新放到新陣列裡，這一次是 O(n)。但因為每次都翻倍，貴的那一次很久才遇到一次；把它的成本平均分攤到前面每一次 <code>put</code>，每次只多付一點點，這叫<strong>攤銷</strong>（amortized：把偶爾一次很貴的成本平均分攤到每次操作）O(1)，跟 <code>ArrayList</code> 長大的道理一樣：<code>ArrayList</code> 為什麼會長大見〈陣列與字串〉，攤銷怎麼算見〈複雜度：程式跑多快、吃多少記憶體〉。MIT 講義的結論是：雜湊表在桶數跟著筆數調整時，能做到「期望的攤銷 O(1)」（expected amortized O(1) time）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
 <p>桶數是 2 的次方還有一個好處：擴容時不必重算雜湊碼。原始碼 <code>resize()</code> 的註解說，因為用 2 的次方擴大，「每個桶的元素要嘛留在同一個索引，要嘛移動 2 的次方的距離」（the elements from each bin must either stay at same index, or move with a power of two offset in the new table）。判斷方法是看 <code>hash &amp; oldCap</code>：是 0 就留在原位，不是 0 就搬到「原位＋舊容量」。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L675-L760" target="_blank" rel="noopener">出處</a></p>
 <pre><code>public class Resize {
     static int spread(int h) {
@@ -341,7 +341,6 @@ grape  16 桶時在 11，32 桶時在 11（留在原位）</code></pre>
 </svg>
 <figcaption>擴容把每個桶拆成兩半：灰藍的留在原位，古銅的搬到「原位＋舊容量」。這是用 <code>HashMap</code> 預設容量放進這五個鍵、再塞到第 13 筆觸發擴容後，讀內部陣列實測的結果。</figcaption>
 </figure>
-<p class="muted">還有一個跟桶數有關的成本：走訪 <code>HashMap</code>（例如 <code>for (var e : map.entrySet())</code>）要花的時間，文件說是跟「容量（桶數）加上筆數」成正比，所以如果很在意走訪速度，「不要把初始容量設得太高」（it's very important not to set the initial capacity too high）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">用 <code>new HashMap&lt;&gt;()</code> 建立後一筆一筆 <code>put</code> 不同的鍵，放第幾筆時第一次擴容（桶數從 16 變 32）？</p>
@@ -378,28 +377,23 @@ grape  16 桶時在 11，32 桶時在 11（留在原位）</code></pre>
   <ul class="dopts"><li>會，放到第 8 筆就擴容</li><li>會，放到第 10 筆就擴容</li><li data-ok>不會，桶數會調成 16、門檻 12</li><li>不會，因為建構子寫了 10 就只能放 10 筆</li></ul>
   <p class="dexp">10 會被調成 2 的次方 16，門檻 16 × 0.75 = 12，10 筆放得下。HashMap 沒有筆數上限，超過門檻就擴容。</p>
 </div>
-<div class="drill">
-  <p class="dq">走訪一個 HashMap 的所有項目，花的時間跟什麼成正比？</p>
-  <ul class="dopts"><li>只跟筆數成正比</li><li>只跟桶數成正比</li><li>跟筆數的對數成正比</li><li data-ok>跟桶數加筆數成正比</li></ul>
-  <p class="dexp">走訪要把每個桶都看一遍，空的也要看，再走過每一筆。文件寫 proportional to the "capacity" ... plus its size；LinkedHashMap 才只跟筆數有關。</p>
-</div>
 </section>
 
 <section>
 <p class="era">平均很快，最壞很慢</p>
 <h3 class="head">為什麼平均 O(1)、最壞會變差</h3>
 <p>「<code>HashMap.get</code> 是 O(1)」這句話有前提。文件原句是：<code>get</code> 與 <code>put</code> 有常數時間的效能，「前提是雜湊函式把元素適當分散到各個桶」（assuming the hash function disperses the elements properly among the buckets）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a> MIT 講義說得更白：鍵大致平均分散時，串列長度是 n/m，也就是常數，所有操作都 O(1)；如果很多鍵落在同一格，例如雜湊函式回傳常數，串列長度就是 Θ(n)（e.g. h(k) = constant, chain size is Θ(n)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>雜湊碼夠分散時，桶到底有多擠？<code>HashMap</code> 原始碼註解給了一張估算表：負載因子 0.75、雜湊碼隨機時，一個桶有 0 筆的機率約 0.61、1 筆約 0.30、2 筆約 0.08、3 筆約 0.01，到 8 筆只剩約 0.00000006。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L176-L200" target="_blank" rel="noopener">出處</a> 大部分的桶是空的或只有一筆，找一次只要比一兩下，這就是「平均 O(1)」的意思。</p>
+<p>雜湊碼夠分散時，桶到底有多擠？<code>HashMap</code> 原始碼註解給了一張估算表：負載因子 0.75、雜湊碼隨機時，每個桶平均約 0.5 筆（a parameter of about 0.5 on average），一個桶有 0 筆的機率約 0.61、1 筆約 0.30、2 筆約 0.08、3 筆約 0.01，到 8 筆只剩約 0.00000006。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L176-L200" target="_blank" rel="noopener">出處</a> 大部分的桶是空的或只有一筆，找一次只要比一兩下，這就是「平均 O(1)」的意思。</p>
 <h4>最壞情況與 Java 8 的補救</h4>
 <p>反過來，如果所有鍵的雜湊碼都一樣，全部擠進同一個桶，那個桶就是一條長串列，找一次要從頭比到尾，O(n)。這可能是意外（<code>hashCode()</code> 寫得太偷懶），也可能是惡意（攻擊者故意送一大堆雜湊碼相同的字串）。普林斯頓的習題就問過 <code>hashCode()</code> 永遠回傳 17 合不合法，答案是：合法，但所有鍵都會落在同一個位置，效能很差。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
-<p>Java 8 的 JEP 180 加了補救：桶裡的項目超過門檻時，把串列換成平衡樹，「在高碰撞的情況下，最壞效能從 O(n) 改善到 O(log n)」（this will improve worst-case performance from O(n) to O(log n)）。<a class="fixsrc" href="https://openjdk.org/jeps/180" target="_blank" rel="noopener">出處</a> 這棵樹是紅黑樹（一種會自己保持平衡的二元搜尋樹，〈樹與二元搜尋樹〉會講平衡為什麼重要）。原始碼裡的三個門檻，跟〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉講的一致：</p>
+<p>Java 8 的 JEP 180 加了補救：桶裡的項目超過門檻時，把串列換成平衡樹，「在高碰撞的情況下，最壞效能從 O(n) 改善到 O(log n)」（this will improve worst-case performance from O(n) to O(log n)）。<a class="fixsrc" href="https://openjdk.org/jeps/180" target="_blank" rel="noopener">出處</a> 這棵樹是紅黑樹（一種會自己保持平衡的二元搜尋樹，〈樹與二元搜尋樹〉會講平衡為什麼重要）。這個動作叫<strong>樹化</strong>（把桶裡的串列換成紅黑樹，原始碼叫 treeify）。原始碼裡的三個門檻，跟〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉講的一致：</p>
 <div class="tablewrap"><table><thead><tr><th>常數</th><th>值</th><th>原始碼註解怎麼說</th></tr></thead><tbody>
 <tr><th><code>TREEIFY_THRESHOLD</code></th><td>8</td><td>「往一個已經至少有這麼多節點的桶再加一筆時，桶就轉成樹」（Bins are converted to trees when adding an element to a bin with at least this many nodes）</td></tr>
 <tr><th><code>MIN_TREEIFY_CAPACITY</code></th><td>64</td><td>桶陣列至少要這麼大才會樹化，「否則桶太擠時改成擴容」（Otherwise the table is resized if too many nodes in a bin）</td></tr>
 <tr><th><code>UNTREEIFY_THRESHOLD</code></th><td>6</td><td>擴容把樹拆成兩半時，剩這麼少就退回普通串列</td></tr>
 </tbody></table></div>
-<p><a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L252-L275" target="_blank" rel="noopener">出處</a> 為什麼不一開始就用樹？註解說樹節點「大約是普通節點的兩倍大」（about twice the size of regular nodes），雜湊碼分散時桶裡本來就只有零到一筆，用不到樹，所以「只在桶裡的節點多到值得時才用」。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L176-L200" target="_blank" rel="noopener">出處</a></p>
-<p>還有一個容易漏掉的前提：樹要能排序。原始碼註解說，樹化值得是因為它在「鍵的雜湊碼各不相同或鍵可以比大小時」提供最壞 O(log n)（worst-case O(log n) operations when keys either have distinct hashes or are orderable）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L159-L176" target="_blank" rel="noopener">出處</a> 雜湊碼全部一樣、又沒實作 <code>Comparable</code> 的鍵，樹也幫不上忙。下面的程式數三種鍵各要比較幾次，才確定一個不存在的鍵不在 5,000 筆的表裡：</p>
+<p><a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L252-L275" target="_blank" rel="noopener">出處</a> 為什麼不一開始就用樹？註解說樹節點「大約是普通節點的兩倍大」（about twice the size of regular nodes），雜湊碼分散時桶裡本來就只有零到一筆，用不到樹，所以「只在桶裡的節點多到值得時才用」（use them only when bins contain enough nodes to warrant use）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L176-L200" target="_blank" rel="noopener">出處</a></p>
+<p>還有一個容易漏掉的前提：樹要能排序。原始碼註解說，樹化值得是因為它在「鍵的雜湊碼各不相同或鍵可以比大小時」提供最壞 O(log n)（worst-case O(log n) operations when keys either have distinct hashes or are orderable）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L159-L176" target="_blank" rel="noopener">出處</a> 雜湊碼全部一樣、又沒實作 <code>Comparable</code> 的鍵，樹也幫不上忙。下面的程式數兩種鍵各要比較幾次，才確定一個不存在的鍵不在 5,000 筆的表裡：</p>
 <pre><code>import java.util.HashMap;
 import java.util.Map;
 
@@ -428,23 +422,13 @@ public class WorstCase {
         }
     }
 
-    // 雜湊碼用 record 自動產生的，各不相同
-    record Spread(int id) {
-        @Override public boolean equals(Object o) {
-            compares++;
-            return o instanceof Spread k &amp;&amp; k.id == id;
-        }
-    }
-
     public static void main(String[] args) {
         int n = 5_000;
         Map&lt;SameHashSortable, Integer&gt; a = new HashMap&lt;&gt;();
         Map&lt;SameHash, Integer&gt; b = new HashMap&lt;&gt;();
-        Map&lt;Spread, Integer&gt; c = new HashMap&lt;&gt;();
         for (int i = 0; i &lt; n; i++) {
             a.put(new SameHashSortable(i), i);
             b.put(new SameHash(i), i);
-            c.put(new Spread(i), i);
         }
         compares = 0;
         a.get(new SameHashSortable(-1));
@@ -452,15 +436,11 @@ public class WorstCase {
         compares = 0;
         b.get(new SameHash(-1));
         System.out.println("同一桶、不能比大小：比較 " + compares + " 次");
-        compares = 0;
-        c.get(new Spread(-1));
-        System.out.println("雜湊碼分散：比較 " + compares + " 次");
     }
 }</code></pre>
 <pre><code>同一桶、可比大小：比較 22 次
-同一桶、不能比大小：比較 5001 次
-雜湊碼分散：比較 0 次</code></pre>
-<p>22 次是沿著樹往下走十來層、每層大多呼叫一次 <code>equals</code> 和一次 <code>compareTo</code>（log₂ 5000 約 12.3）；5,001 次是整棵樹每個節點都要看過；雜湊碼分散時，桶裡沒有雜湊值相同的鍵，連 <code>equals</code> 都不必呼叫。面試被問「<code>HashMap.get</code> 多快」，完整的答法是：</p>
+同一桶、不能比大小：比較 5001 次</code></pre>
+<p>22 次是沿著樹往下走十來層、每層大多呼叫一次 <code>equals</code> 和一次 <code>compareTo</code>（log₂ 5000 約 12.3）；5,001 次是整棵樹每個節點都要看過。面試被問「<code>HashMap.get</code> 多快」，完整的答法是：</p>
 <p class="formula">平均 O(1)（雜湊碼夠分散）；全部撞在同一桶時最壞 O(n)；Java 8 起樹化，鍵可比大小時最壞降到 O(log n)</p>
 <p class="muted">多執行緒共用時不能用 <code>HashMap</code>，<code>HashMap</code>、<code>Hashtable</code>、<code>ConcurrentHashMap</code> 怎麼選見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉；<code>ConcurrentHashMap</code> 怎麼做到讀不加鎖見〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
 
@@ -482,7 +462,7 @@ public class WorstCase {
 <div class="drill">
   <p class="dq">某個桶已經樹化。後來擴容把它拆成兩半，其中一半只剩 5 個節點，那一半會怎樣？</p>
   <ul class="dopts"><li data-ok>退回普通的串列</li><li>繼續維持紅黑樹</li><li>跟隔壁的桶合併</li><li>觸發下一次擴容</li></ul>
-  <p class="dexp">拆完剩的節點數小於等於 UNTREEIFY_THRESHOLD（6）就退回串列；8 與 6 之間留一段空隙，避免在門檻附近反覆轉換。</p>
+  <p class="dexp">拆完剩的節點數小於等於 UNTREEIFY_THRESHOLD（6）就退回串列。原始碼註解只要求這個值比 TREEIFY_THRESHOLD 小（Should be less than TREEIFY_THRESHOLD）。</p>
 </div>
 <div class="drill">
   <p class="dq">HashMap 為什麼不一開始就把每個桶都做成樹？</p>
@@ -654,7 +634,7 @@ System.out.println(m.get(new int[]{1, 2}));</code></pre>
 </section>
 
 <section>
-<p class="era">四張常用的對照表</p>
+<p class="era">四個類別，一張對照表</p>
 <h3 class="head">HashMap、HashSet、LinkedHashMap、TreeMap 怎麼選</h3>
 <div class="tablewrap"><table><thead><tr><th>類別</th><th>裡面是什麼</th><th>走訪順序</th><th>查、放、刪</th><th>適合</th></tr></thead><tbody>
 <tr><th><code>HashMap</code></th><td>雜湊表（鏈結法，桶太擠時樹化）</td><td>不保證</td><td>平均 O(1)</td><td>只要用鍵快速查值</td></tr>
@@ -688,9 +668,9 @@ public class Orders {
 <pre><code>HashMap       [apple, pear, kiwi, mango]
 LinkedHashMap [pear, apple, mango, kiwi]
 TreeMap       [apple, kiwi, mango, pear]</code></pre>
-<p><code>HashMap</code> 那行是桶的順序，這次實跑長這樣，但文件明講「不保證順序，也不保證順序長期不變」，程式不能依賴它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>HashMap</code> 那行是桶的順序，這次實跑長這樣，但文件明講「不保證順序，也不保證順序長期不變」（makes no guarantees as to the order of the map; in particular, it does not guarantee that the order will remain constant over time），程式不能依賴它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a></p>
 <h4>LinkedHashMap 做 LRU 快取</h4>
-<p>LRU（least recently used，「最久沒用的先丟」）是快取最常見的淘汰規則。<code>LinkedHashMap</code> 有一個特別的建構子，把順序改成「最近存取順序」，文件說這種 Map「很適合拿來做 LRU 快取」（well-suited to building LRU caches）；再覆寫 <code>removeEldestEntry</code>，就能在放入新項目時自動移除最舊的。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html" target="_blank" rel="noopener">出處</a></p>
+<p>LRU（least recently used，「最久沒用的先丟」）是快取常見的淘汰規則。<code>LinkedHashMap</code> 有一個特別的建構子，把順序改成「最近存取順序」，文件說這種 Map「很適合拿來做 LRU 快取」（well-suited to building LRU caches）；再覆寫 <code>removeEldestEntry</code>，就能在放入新項目時自動移除最舊的。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -787,7 +767,7 @@ System.out.println(m);</code></pre>
 <h3 class="head">面試常用手法：計數、查補數、分組、去重</h3>
 <p>很多題目的暴力解長這樣：對每一個元素，再把其他元素全部掃一遍，兩層迴圈 O(n²)。雜湊表的招式是：<strong>走過一次，把看過的東西記在雜湊表裡</strong>，之後每次「以前有沒有看過某個值」都是平均 O(1)，整題就變成 O(n)。代價是多用 O(n) 的記憶體，這是典型的「用空間換時間」。以下的「平均 O(1)」都帶著上一段的前提（鍵的雜湊碼夠分散）。</p>
 <h4>計數：getOrDefault 與 merge</h4>
-<p>數每個東西出現幾次。<code>getOrDefault</code> 是「有這個鍵就回傳它的值，沒有就回傳給定的預設值」（Returns the value to which the specified key is mapped, or defaultValue if this map contains no mapping for the key）；<code>merge</code> 是「鍵還沒有值就放入給定的值，否則用給定的函式把舊值和新值合併」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#getOrDefault(java.lang.Object,V)" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#merge(K,V,java.util.function.BiFunction)" target="_blank" rel="noopener">merge</a></p>
+<p>數每個東西出現幾次。<code>getOrDefault</code> 是「有這個鍵就回傳它的值，沒有就回傳給定的預設值」（Returns the value to which the specified key is mapped, or defaultValue if this map contains no mapping for the key）；<code>merge</code> 是「鍵還沒有值（或值是 null）就放入給定的值，否則用給定的函式算出新值取代舊值」（If the specified key is not already associated with a value or is associated with null, associates it with the given non-null value. Otherwise, replaces the associated value with the results of the given remapping function）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#getOrDefault(java.lang.Object,V)" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#merge(K,V,java.util.function.BiFunction)" target="_blank" rel="noopener">merge</a></p>
 <pre><code>import java.util.Map;
 import java.util.TreeMap;
 
@@ -993,7 +973,7 @@ System.out.println(s.add(5) + " " + s.add(5) + " " + s.size());</code></pre>
 <tr><td><a href="https://leetcode.com/problems/group-anagrams/" target="_blank" rel="noopener">49. Group Anagrams</a></td><td>分組：排序後的字串當鍵，<code>computeIfAbsent</code></td><td>Medium</td></tr>
 <tr><td><a href="https://leetcode.com/problems/top-k-frequent-elements/" target="_blank" rel="noopener">347. Top K Frequent Elements</a></td><td>計數之後再挑出前 k 名（〈堆積與優先佇列〉會再用到）</td><td>Medium</td></tr>
 <tr><td><a href="https://leetcode.com/problems/longest-consecutive-sequence/" target="_blank" rel="noopener">128. Longest Consecutive Sequence</a></td><td><code>HashSet</code>＋只從序列起點開始數</td><td>Medium</td></tr>
-<tr><td><a href="https://leetcode.com/problems/lru-cache/" target="_blank" rel="noopener">146. LRU Cache</a></td><td>雜湊表＋雙向鏈結串列，<code>LinkedHashMap</code> 的內部做法</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/lru-cache/" target="_blank" rel="noopener">146. LRU Cache</a></td><td>雜湊表＋雙向鏈結串列，<code>LinkedHashMap</code> 的內部做法（學完〈鏈結串列〉再做）</td><td>Medium</td></tr>
 </tbody></table></div>
 </section>
 
