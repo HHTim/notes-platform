@@ -1,5 +1,5 @@
 <!-- 來源：依 RFC 9110（HTTP 語意）、RFC 9111（HTTP 快取）、RFC 9112（HTTP/1.1）、RFC 9113（HTTP/2）、RFC 9114（HTTP/3）、RFC 9000（QUIC）、RFC 7541（HPACK）、RFC 9204（QPACK）、RFC 6585、RFC 5789，以及 MDN〈Connection management in HTTP/1.x〉〈HTTP caching〉〈Head-of-line blocking〉新寫；curl 8.7.1 對本站 hhtim.github.io 的輸出為 2026-10-02 實測 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看第一位數就知道狀態碼的類別，遇到情境（沒登入、沒權限、驗證失敗、限流、上游掛掉、上游太慢）選得出該回哪個碼</li><li>分清安全方法與冪等方法，知道這兩個性質決定「能不能自動重試」</li><li>說出 HTTP/1.1 持久連線的預設行為、隊頭阻塞從哪來，以及 HTTP/2 的串流與 HPACK、HTTP/3 的 QUIC 各解決了哪一層</li><li>讀懂 <code>Cache-Control</code>、<code>ETag</code>、<code>Age</code>、<code>Vary</code> 這些回應標頭，判斷瀏覽器下一次會直接用快取、送條件式請求，還是重新下載</li><li>說明內容協商怎麼用 <code>Accept</code> 系列標頭與 q 值挑出回應</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看第一位數就知道狀態碼的類別，遇到情境（沒登入、沒權限、驗證失敗、限流、上游掛掉、上游太慢）選得出該回哪個碼</li><li>分清安全方法與冪等方法，知道這兩個性質決定「能不能自動重試」</li><li>說出 HTTP/1.1 持久連線的預設行為、隊頭阻塞從哪來，以及 HTTP/2 的串流與 HPACK、HTTP/3 的 QUIC 各解決了哪一層</li><li>讀懂 <code>Cache-Control</code>、<code>ETag</code>、<code>Age</code>、<code>Vary</code> 這些回應標頭，判斷瀏覽器下一次會直接用快取、送條件式請求，還是重新下載，並說明內容協商怎麼用 <code>Accept</code> 系列標頭與 q 值挑出回應</li></ul></div>
 
 <section>
 <p class="era">先看第一位數</p>
@@ -64,9 +64,9 @@ Location: https://hhtim.github.io/notes-platform/</code></pre>
   <p class="dexp">409 是請求跟資源目前的狀態衝突，而且使用者可能解決衝突後重送。請求本身沒壞，人也有權限。</p>
 </div>
 <div class="drill">
-  <p class="dq">某個客戶端一秒打了 300 次查詢 API，超過每秒 50 次的上限。該回哪個？</p>
+  <p class="dq">某個用戶端一秒打了 300 次查詢 API，超過每秒 50 次的上限。該回哪個？</p>
   <ul class="dopts"><li>503 Service Unavailable，伺服器整個暫停服務</li><li>403 Forbidden</li><li data-ok>429 Too Many Requests</li><li>400 Bad Request</li></ul>
-  <p class="dexp">429 就是限流（rate limiting），RFC 6585 說可以附 Retry-After 告訴對方等多久。503 是伺服器本身暫時撐不住，跟某個客戶端送太多是不同情境。</p>
+  <p class="dexp">429 就是限流（rate limiting），RFC 6585 說可以附 Retry-After 告訴對方等多久。503 是伺服器本身暫時撐不住，跟某個用戶端送太多是不同情境。</p>
 </div>
 <div class="drill">
   <p class="dq">Nginx 當反向代理，後面的 Spring Boot 程式當掉了，Nginx 連過去被直接拒絕連線。使用者最可能看到？</p>
@@ -139,11 +139,6 @@ Location: https://hhtim.github.io/notes-platform/</code></pre>
   <p class="dexp">安全方法的語意是唯讀，周邊工具會放心地預先抓取或重送。拿它做會改狀態的事，等於讓那些工具都有機會觸發。</p>
 </div>
 <div class="drill">
-  <p class="dq">哪一組全部是 RFC 9110 定義的安全方法？</p>
-  <ul class="dopts"><li data-ok>GET、HEAD、OPTIONS</li><li>GET、POST、HEAD</li><li>GET、PUT、DELETE</li><li>HEAD、PATCH、OPTIONS</li></ul>
-  <p class="dexp">RFC 9110 點名 GET、HEAD、OPTIONS、TRACE 是安全方法。PUT、DELETE 冪等但不安全；POST、PATCH 兩個都不是。</p>
-</div>
-<div class="drill">
   <p class="dq">PATCH 的請求內容是 <code>{"status": "closed"}</code>（直接設成某個值）。這個請求送兩次會怎樣？</p>
   <ul class="dopts"><li>一定會出錯，PATCH 不能重複送</li><li>狀態會變成 closed 兩次，變成不同的值</li><li>伺服器回 409</li><li data-ok>效果跟只送一次一樣</li></ul>
   <p class="dexp">RFC 5789 說 PATCH 不保證冪等，但「設成某個值」這種寫法送幾次都一樣；「加多少」這種寫法就不冪等。冪等是看實際語意。</p>
@@ -191,11 +186,6 @@ Location: https://hhtim.github.io/notes-platform/</code></pre>
   <ul class="dopts"><li>因為 TCP 規定一條連線只能傳一個檔案</li><li data-ok>一條連線同時只能等一個回應</li><li>為了讓伺服器記得是同一個使用者</li><li>為了繞過 TLS 憑證檢查</li></ul>
   <p class="dexp">RFC 9113 第 1 節也這樣寫：HTTP/1.0 與 1.1 的用戶端靠對同一台伺服器開多條連線來同時發請求。代價是每條都要交握、都吃伺服器資源。</p>
 </div>
-<div class="drill">
-  <p class="dq">工程師說「我們的 HTTP/1.1 服務要在回應加 <code>Connection: keep-alive</code> 才能讓連線重用」。這句話對嗎？</p>
-  <ul class="dopts"><li data-ok>不精確，HTTP/1.1 預設就保持連線</li><li>對，不加的話每個回應後都會關閉</li><li>對，那是 HTTP/1.1 規定的必要標頭</li><li>不對，HTTP/1.1 不支援連線重用</li></ul>
-  <p class="dexp">HTTP/1.1 不寫也持久，只有對 HTTP/1.0 的對象，keep-alive 選項才有意義。加了也無害，像 GitHub Pages 就有附。</p>
-</div>
 </section>
 
 <section>
@@ -221,7 +211,7 @@ Location: https://hhtim.github.io/notes-platform/</code></pre>
 <div class="drill">
   <p class="dq">瀏覽器用 HTTP/2 同時抓 30 張圖片。通常會開幾條 TCP 連線到同一台主機？</p>
   <ul class="dopts"><li>30 條，一張一條</li><li>6 條，跟 HTTP/1.1 一樣</li><li data-ok>1 條，30 個串流在上面交錯傳</li><li>0 條，HTTP/2 不用 TCP</li></ul>
-  <p class="dexp">HTTP/2 的重點就是一條連線多個串流。RFC 9113 也說這樣能用比 HTTP/1.x 少的 TCP 連線。HTTP/2 仍跑在 TCP 上，不用 TCP 的是 HTTP/3。</p>
+  <p class="dexp">RFC 9113 第 9.1 節：Clients SHOULD NOT open more than one HTTP/2 connection to a given host and port pair，同一個主機與連接埠，用戶端不應該開超過一條 HTTP/2 連線，30 張圖就是同一條連線上的 30 個串流。HTTP/2 仍跑在 TCP 上，不用 TCP 的是 HTTP/3。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-9.1" target="_blank" rel="noopener">RFC 9113 第 9.1 節</a></p>
 </div>
 <div class="drill">
   <p class="dq">HTTP/2 連線上，用戶端開了串流 1、3，接著要開第三個。它的編號會是？</p>
