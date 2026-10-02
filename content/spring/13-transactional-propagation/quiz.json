@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "外層 @Transactional 方法寫一筆轉帳後呼叫內層 REQUIRED 方法，內層丟出 RuntimeException，外層把它 catch 住後正常結束。結果是？",
+   "opts": [
+    "整筆還原，呼叫端收到 UnexpectedRollbackException",
+    "轉帳提交，因為外層 catch 住了例外",
+    "只有內層還原，外層提交",
+    "轉帳提交，呼叫端收到原本的 RuntimeException，因為 catch 只是把例外記下來，之後還是會重新丟出"
+   ],
+   "exp": "REQUIRED 共用同一筆實體交易，內層丟例外時整筆被標成只能還原；外層要求提交時改成還原，並丟 UnexpectedRollbackException 告訴呼叫端其實沒提交。"
+  },
+  {
+   "q": "轉帳失敗時，「有人嘗試轉帳」的稽核紀錄也要留下來。稽核方法用哪種傳播行為？",
+   "opts": [
+    "REQUIRES_NEW：另開一筆實體交易先提交，外層還原碰不到它",
+    "REQUIRED：跟轉帳同一筆交易",
+    "NESTED：在外層交易裡設儲存點，外層失敗時只會退回儲存點，稽核留得住",
+    "SUPPORTS：有交易就加入"
+   ],
+   "exp": "NESTED 仍是外層交易的一部分，外層還原它也一起還原；只有 REQUIRES_NEW 是獨立提交的。"
+  },
+  {
+   "q": "關於 REQUIRES_NEW，Spring 參考文件特別警告什麼？",
+   "opts": [
+    "內層要另一條連線，可能耗盡連線池甚至死結；連線池至少要比同時執行的執行緒數多 1",
+    "它只對 JDBC 有效，JPA 專案用了會在啟動時直接報錯，所以 Spring Data JPA 一律不能用",
+    "它會讓外層的隔離層級變成 SERIALIZABLE",
+    "它不能跟 @Transactional 一起用"
+   ],
+   "exp": "外層的連線還綁著，內層要再借一條新的；同時有很多外層交易在等內層連線時，連線池可能借光。"
+  },
+  {
+   "q": "JPA 專案（JpaTransactionManager 預設設定）內層用 Propagation.NESTED，結果是？",
+   "opts": [
+    "丟出 NestedTransactionNotSupportedException",
+    "跟 JDBC 一樣在同一條連線上設儲存點，EntityManager 快取的物件也會一起退回儲存點",
+    "自動改成 REQUIRES_NEW",
+    "自動改成 SUPPORTS"
+   ],
+   "exp": "JpaTransactionManager 的 nestedTransactionAllowed 預設 false：儲存點只作用在 JDBC 連線，管不到 EntityManager 快取的物件。"
+  },
+  {
+   "q": "@Transactional 方法丟出 IOException（受檢例外），沒有設任何還原規則，結果是？",
+   "opts": [
+    "交易提交，呼叫端收到 IOException",
+    "交易還原，呼叫端收到 IOException",
+    "交易還原，呼叫端收到 UnexpectedRollbackException",
+    "交易提交，例外被吞掉"
+   ],
+   "exp": "預設只有 RuntimeException 與 Error 會還原，受檢例外照樣提交；要還原得設 rollbackFor，或 6.2 起用 rollbackOn 全域調整。"
+  },
+  {
+   "q": "外層交易是 READ_COMMITTED，內層方法標 @Transactional(isolation = SERIALIZABLE)，傳播是預設的 REQUIRED。內層實際的隔離層級是？",
+   "opts": [
+    "READ_COMMITTED：加入既有交易時沿用外層特性，內層的隔離層級被忽略",
+    "SERIALIZABLE：比較嚴格的優先，Spring 會把整筆交易升級成內層要求的層級",
+    "資料庫預設的層級",
+    "丟出 IllegalTransactionStateException"
+   ],
+   "exp": "參考文件：participating transaction joins the characteristics of the outer scope, silently ignoring the local isolation level；要報錯可以開 validateExistingTransaction。"
+  },
+  {
+   "q": "同一個類別裡，沒有註解的 a() 用 this.b() 呼叫有 @Transactional 的 b()，b() 寫一筆後丟 RuntimeException。外面的 Bean 呼叫 a()，結果是？",
+   "opts": [
+    "那一筆留在資料庫裡：自我呼叫不經過代理，b() 沒有交易",
+    "那一筆被還原：b() 有 @Transactional",
+    "丟出 UnexpectedRollbackException",
+    "編譯錯誤"
+   ],
+   "exp": "代理模式下只有從外面經過代理的呼叫會被攔截；this.b() 直接呼叫目標物件，b() 的註解沒作用，寫入自動提交。"
+  },
+  {
+   "q": "@Transactional 方法裡開一條新執行緒寫一筆，主執行緒也寫一筆，最後丟 RuntimeException。哪一筆會留下？",
+   "opts": [
+    "新執行緒寫的那一筆",
+    "主執行緒寫的那一筆",
+    "兩筆都留下",
+    "兩筆都還原"
+   ],
+   "exp": "交易綁在執行緒上；主執行緒的寫入在交易裡被還原，新執行緒拿不到這筆交易，寫入自動提交。"
+  },
+  {
+   "q": "轉帳成功才發簡訊通知，避免交易還原了簡訊卻已送出。監聽器用哪個？",
+   "opts": [
+    "@TransactionalEventListener，預設 AFTER_COMMIT",
+    "@EventListener",
+    "@TransactionalEventListener(phase = BEFORE_COMMIT)",
+    "在交易方法最後一行直接發"
+   ],
+   "exp": "AFTER_COMMIT 等提交成功才執行；@EventListener 在 publishEvent 當下就跑，還原了也已經送出。"
+  },
+  {
+   "q": "JPA、主鍵用 SEQUENCE、帳號欄位有唯一限制。交易方法裡用 save 存一個重複帳號，例外在哪裡出現？",
+   "opts": [
+    "方法結束、交易提交 flush 時，方法裡包住 save 的 try／catch 接不到",
+    "save 那一行：Spring Data JPA 的 save 回來之前一定會先檢查唯一限制，所以包住 save 的 catch 接得到",
+    "不會出現",
+    "下一個交易開始時"
+   ],
+   "exp": "AUTO flush 模式在提交前才把 insert 送出去，違反限制的錯誤到那時才出現；要在方法裡就知道，用 saveAndFlush 或 flush()。"
+  }
+ ]
+}
