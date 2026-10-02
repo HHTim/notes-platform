@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "查出 50 個部門後逐一讀延遲載入的員工集合，沒做任何調整，會送幾次 SQL？",
+   "opts": [
+    "51 次",
+    "1 次",
+    "50 次",
+    "100 次"
+   ],
+   "exp": "部門清單 1 次，每個部門的員工集合各補查 1 次，共 1 + 50 次，這就是 N+1。"
+  },
+  {
+   "q": "筆電實體的 @ManyToOne owner 沒寫 fetch，用 JPQL 查出所有筆電時會怎樣？",
+   "opts": [
+    "照預設 EAGER，每個主人補查一次",
+    "預設 LAZY，不會查主人",
+    "一句 join 自動把主人一起抓回來",
+    "查詢時直接丟出 LazyInitializationException"
+   ],
+   "exp": "多對一預設 EAGER；JPQL 沒 JOIN FETCH 時，Hibernate 用第二句 SQL 去初始化它，一樣造成 N+1。實跑 4 台筆電、3 個主人，共 4 次 SQL。"
+  },
+  {
+   "q": "在 Hibernate 6 用 left join fetch 查部門與員工，為什麼不必再加 distinct？",
+   "opts": [
+    "Hibernate 6 會自動在記憶體去重",
+    "left join 不會產生重複的列",
+    "distinct 在 Hibernate 6 會造成語法錯誤",
+    "資料庫會自動合併主鍵相同的那些列"
+   ],
+   "exp": "SQL 仍然一個員工一列，但 Hibernate 6 在把結果轉成物件後自動去重，使用指南說不該再為這個目的用 distinct。"
+  },
+  {
+   "q": "join fetch 一個集合又加上分頁（每頁 2 筆），實跑時發生什麼事？",
+   "opts": [
+    "整批撈回，在記憶體裡切頁",
+    "SQL 帶 limit 2，只撈兩筆",
+    "只撈兩名員工，部門不完整",
+    "分頁設定被忽略，回傳全部"
+   ],
+   "exp": "Hibernate 印出 HHH90003004，SQL 沒有筆數限制，全部部門與員工撈回來再在記憶體裡取前 2 個部門。"
+  },
+  {
+   "q": "default_batch_fetch_size=10、30 個部門，逐一讀員工集合，大約送幾次 SQL？",
+   "opts": [
+    "4 次",
+    "3 次",
+    "2 次",
+    "31 次"
+   ],
+   "exp": "清單 1 次，員工每 10 個部門用一句 IN 補 1 次，補 3 次，共 4 次。"
+  },
+  {
+   "q": "spring.jpa.open-in-view 保持預設（true）時，下面哪一句正確？",
+   "opts": [
+    "交易結束後，畫面層仍可延遲載入",
+    "每次查詢都自動開新交易",
+    "延遲載入的集合會在服務層結束前全部載入",
+    "Controller 讀延遲載入的集合一定會丟例外"
+   ],
+   "exp": "OpenEntityManagerInViewInterceptor 在處理請求的整段期間把 EntityManager 綁在執行緒上，Controller 與 JSON 序列化時仍可補查，那些查詢已經在服務層交易之外。"
+  },
+  {
+   "q": "同一筆交易裡改了部門名字、沒呼叫 save，接著用 JPQL 查 department 表，SQL 順序是？",
+   "opts": [
+    "先 UPDATE，再 SELECT",
+    "先 SELECT，提交時才 UPDATE",
+    "只 SELECT，UPDATE 被丟掉",
+    "只送 UPDATE"
+   ],
+   "exp": "AUTO flush 模式在執行跟排隊變更重疊的 JPQL 前先 flush，所以 UPDATE 先送，查詢才看得到新名字。"
+  },
+  {
+   "q": "hibernate.jdbc.batch_size=5，用 IDENTITY 主鍵 persist 12 筆，會送幾次 INSERT？",
+   "opts": [
+    "12 次",
+    "3 次",
+    "5 次",
+    "13 次"
+   ],
+   "exp": "IDENTITY 必須在 persist 之後馬上 INSERT 才拿得到主鍵，Hibernate 會悄悄關掉 INSERT 批次。換成序列主鍵才會變 5、5、2 三批。"
+  },
+  {
+   "q": "在 MySQL 上要讓 Hibernate 的批次 INSERT 在伺服器端也真的變少，還要做什麼？",
+   "opts": [
+    "連線網址加 rewriteBatchedStatements=true",
+    "把每個實體的主鍵產生策略都改成 IDENTITY",
+    "把 spring.jpa.open-in-view 設成 false 關掉",
+    "把 hibernate.jdbc.batch_size 調小成 1"
+   ],
+   "exp": "Connector/J 預設不改寫；實測沒開時 Hibernate 送 3 批、伺服器仍執行 12 句，開了才變成 3 句多列 INSERT。IDENTITY 反而會讓批次失效。"
+  },
+  {
+   "q": "唯讀列表只要「員工姓名、部門名稱」兩個欄位，最適合哪一種做法？",
+   "opts": [
+    "投影成 DTO",
+    "查出完整實體再轉",
+    "把關聯改成 EAGER",
+    "打開 open-in-view"
+   ],
+   "exp": "DTO 或介面投影一句查詢只拿需要的欄位，不進一級快取、不被追蹤；實跑 select new 一句就拿齊 6 名員工與部門名稱。"
+  }
+ ]
+}
