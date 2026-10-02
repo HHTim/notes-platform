@@ -11,7 +11,7 @@
    "exp": "文件：失敗率「大於或等於」門檻就從 CLOSED 變成 OPEN。已經記滿最少呼叫數 10 次，50% 等於門檻，跳開。HALF_OPEN 只會從 OPEN 等滿時間後進入；失敗不必連續。"
   },
   {
-   "q": "wait<wbr>Duration<wbr>In<wbr>Open<wbr>State 是 30 秒，automatic<wbr>Transition<wbr>From<wbr>Open<wbr>To<wbr>Half<wbr>Open<wbr>Enabled 是預設值。跳開後一分鐘內都沒有呼叫，第 61 秒第一個呼叫進來，會怎樣？",
+   "q": "wait​Duration​In​Open​State 是 30 秒，automatic​Transition​From​Open​To​Half​Open​Enabled 是預設值。跳開後一分鐘內都沒有呼叫，第 61 秒第一個呼叫進來，會怎樣？",
    "opts": [
     "這時才轉 HALF_OPEN，這次呼叫被放行去試探",
     "第 30 秒已經轉 HALF_OPEN，這次直接放行",
@@ -21,7 +21,7 @@
    "exp": "這個開關預設 false：過了等待時間也要有呼叫進來才轉 HALF_OPEN，轉換就發生在這次呼叫的那一刻，接著它成為半開放行的其中一次。設成 true 才會有執行緒在第 30 秒自動轉過去。"
   },
   {
-   "q": "半開放行 4 次（permitted<wbr>Number<wbr>Of<wbr>Calls<wbr>In<wbr>Half<wbr>Open<wbr>State<wbr>: 4），結果依序是失敗、成功、成功、成功，門檻 50%。之後的狀態？",
+   "q": "半開放行 4 次（permitted​Number​Of​Calls​In​Half​Open​State​: 4），結果依序是失敗、成功、成功、成功，門檻 50%。之後的狀態？",
    "opts": [
     "CLOSED，失敗率 25% 低於門檻",
     "OPEN，第一次試探就失敗了",
@@ -31,14 +31,14 @@
    "exp": "Resilience4j 等放行的呼叫都完成才算比例：1/4 = 25%，低於 50%，回 CLOSED。「任一失敗就退回」是 Azure 架構中心的通用描述，不是 Resilience4j 的算法。"
   },
   {
-   "q": "slow<wbr>Call<wbr>Duration<wbr>Threshold 2 秒、slowCallRateThreshold 50。視窗內 10 次呼叫全部成功，其中 6 次花了 3 秒。斷路器會怎樣？",
+   "q": "slow​Call​Duration​Threshold 2 秒、slowCallRateThreshold 50。視窗內 10 次呼叫全部成功，其中 6 次花了 3 秒。斷路器會怎樣？",
    "opts": [
     "跳開，慢呼叫比例 60% 達門檻",
     "不跳開，因為每次呼叫都成功了",
     "不跳開，只有失敗率能讓它跳開",
     "跳開，但要等那 6 次逾時才算數"
    ],
-   "exp": "成功但超過 slow<wbr>Call<wbr>Duration<wbr>Threshold 的呼叫也記成慢呼叫；慢呼叫比例大於或等於 slowCallRateThreshold 一樣跳開。文件說用意是在下游完全沒回應前先減輕它的負擔。"
+   "exp": "成功但超過 slow​Call​Duration​Threshold 的呼叫也記成慢呼叫；慢呼叫比例大於或等於 slowCallRateThreshold 一樣跳開。文件說用意是在下游完全沒回應前先減輕它的負擔。"
   },
   {
    "q": "被保護的方法是 Balance find(String id, int days)。下面哪一個能當它的回呼方法？",
@@ -68,7 +68,7 @@
     "斷路器會為 Retry 特別放行一次試探",
     "Retry 會等到斷路器轉成 HALF_OPEN 再送"
    ],
-   "exp": "預設 Retry 包在最外層，而且每個例外都重試，Call<wbr>Not<wbr>Permitted<wbr>Exception 也不例外。實驗裡每次查詢都被擋 3 次、白等重試間隔。要在 Retry 的 ignoreExceptions 加 Call<wbr>Not<wbr>Permitted<wbr>Exception。"
+   "exp": "預設 Retry 包在最外層，而且每個例外都重試，Call​Not​Permitted​Exception 也不例外。實驗裡每次查詢都被擋 3 次、白等重試間隔。要在 Retry 的 ignoreExceptions 加 Call​Not​Permitted​Exception。"
   },
   {
    "q": "外部徵信 API 規定每分鐘最多 600 次；另外它偶爾會卡 30 秒，把呼叫端的執行緒占滿。這兩個問題各用哪一個保護？",
@@ -81,7 +81,7 @@
    "exp": "限流器管「每個週期幾次」，對得上每分鐘 600 次的配額；隔艙管「同時在跑幾個」，卡住的呼叫最多只占自己的名額。斷路器與重試都不管次數上限。"
   },
   {
-   "q": "@TimeLimiter 包著 Completable<wbr>Future<wbr>.supply<wbr>Async<wbr>(<wbr>.<wbr>.<wbr>.) 發出的 HTTP 呼叫，cancelRunningFuture 為 true，下游這次要 5 秒、逾時設 1 秒。1 秒時會發生什麼事？",
+   "q": "@TimeLimiter 包著 Completable​Future​.supply​Async​(​.​.​.) 發出的 HTTP 呼叫，cancelRunningFuture 為 true，下游這次要 5 秒、逾時設 1 秒。1 秒時會發生什麼事？",
    "opts": [
     "呼叫端先拿到逾時例外，請求照樣跑完",
     "HTTP 請求被中斷，連線在 1 秒時立刻關閉",
@@ -91,14 +91,14 @@
    "exp": "CompletableFuture 的 cancel 不中斷執行中的運算，實驗裡呼叫端準時拿到 TimeoutException，下游照樣做完。要讓連線真的停，得設 HTTP 用戶端自己的連線與讀取逾時。"
   },
   {
-   "q": "resilience4j-<wbr>spring-<wbr>boot4 2.4.0，開了斷路器的健康檢查、沒設 allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail。斷路器 OPEN 時，/actuator/health 回什麼？",
+   "q": "resilience4j-​spring-​boot4 2.4.0，開了斷路器的健康檢查、沒設 allow​Health​Indicator​To​Fail。斷路器 OPEN 時，/actuator/health 回什麼？",
    "opts": [
     "UP，斷路器那一項顯示 CIRCUIT_OPEN",
     "DOWN，HTTP 狀態碼是 503",
     "UNKNOWN，整體狀態無法判斷",
     "OUT_OF_SERVICE，整個實例暫停接收流量"
    ],
-   "exp": "實跑：最上層是 UP、HTTP 200，core 顯示 CIRCUIT_OPEN。原始碼只有 allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail 為 true 才給 DOWN（那時是 503）。不要把它接進存活探針。"
+   "exp": "實跑：最上層是 UP、HTTP 200，core 顯示 CIRCUIT_OPEN。原始碼只有 allow​Health​Indicator​To​Fail 為 true 才給 DOWN（那時是 503）。不要把它接進存活探針。"
   }
  ]
 }
