@@ -138,6 +138,7 @@
 // [0.039s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 38M-&gt;1M(64M) 0.490ms</code></pre>
 <p><code>38M->1M(64M)</code> 是「回收前用了 38 MB、回收後剩 1 MB、堆目前 64 MB」。括號裡的堆大小跟機器記憶體有關：初始堆是實體記憶體的 1/64，在 2 GB 的容器裡跑同一個程式，日誌就變成 <code>19M->1M(34M)</code> 這樣。不管哪一種，每次年輕代回收，幾乎全部都是死物件，零點幾毫秒就清掉了，這就是弱分代假說的效果。</p>
 <p><strong>堆多大：</strong>調校指南列的預設值是「初始堆大小為實體記憶體的 1/64」「最大堆大小為實體記憶體的 1/4」，最小與最大堆分別用 <code>-Xms</code>、<code>-Xmx</code> 設。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a> 它還說 HotSpot 啟動時「在位址空間裡保留整個 Java 堆，但除非需要，不會替它配置實體記憶體」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a>，這正是〈作業系統怎麼跑程式〉的需求分頁：<code>-Xmx4g</code> 不代表一啟動就吃掉 4 GB 實體記憶體。在只給 2 GB 記憶體的容器裡實跑 <code>java -XX:+PrintCommandLineFlags -version</code>，看到 <code>-XX:InitialHeapSize=33554432</code>（32 MB，2 GB 的 1/64）與 <code>-XX:MaxHeapSize=536870912</code>（512 MB，2 GB 的 1/4）：JVM 認的「實體記憶體」是容器給的上限。</p>
+<p class="muted">小容器有例外：<code>java</code> 指令手冊說，堆很小（約 125 MB 以下）時改用 <code>-XX:MinRAMPercentage</code>，預設是 50%（A small heap is a heap of approximately 125 MB. The default value is 50 percent.）。Java 21 實跑：容器給 128 MB 時最大堆是 64 MiB、256 MB 時是 126 MiB，都比 1/4 大；512 MB 起才是 1/4。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">新物件進 Eden；年輕代回收快，因為大多數都死了；活得夠久才晉升老年代</p>
 
 <div class="drill">
