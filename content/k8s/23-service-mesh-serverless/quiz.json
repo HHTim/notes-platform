@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "命名空間已經有服務在跑，之後才貼上 istio-injection: enabled。要讓現有的 Pod 進入 sidecar 模式的網格，還要做什麼？",
+   "opts": [
+    "重啟那些 Pod",
+    "什麼都不用，標籤一貼就會注入",
+    "重新安裝 Istio 的控制平面",
+    "替每個 Deployment 手寫 istio-proxy 容器"
+   ],
+   "exp": "注入發生在 Pod 建立時。官方比較表：sidecar 模式要 restart all pods；不必重啟的是 ambient 模式。"
+  },
+  {
+   "q": "bank 命名空間套用 PeerAuthentication STRICT 之後，沒有 sidecar 的 legacy client 去打 bank 裡的服務，實跑結果是？",
+   "opts": [
+    "HTTP 000、curl 結束碼 56，連線被對面代理斷掉",
+    "HTTP 403，被授權規則擋下",
+    "HTTP 200，STRICT 只影響有 sidecar 的呼叫端",
+    "HTTP 503，服務暫時無法使用"
+   ],
+   "exp": "沒有任何 HTTP 回應；curl 56 是 Failure in receiving network data。STRICT 的用處就是讓繞過網格的連線不可能成功。"
+  },
+  {
+   "q": "Istio 憑證裡的 spiffe://cluster.local/ns/bank/sa/default，身分是依什麼決定的？",
+   "opts": [
+    "命名空間與 Kubernetes 服務帳號",
+    "Pod 的名稱與它跑在哪個節點上",
+    "Deployment 名稱與 version 標籤",
+    "容器映像檔的名稱與標籤"
+   ],
+   "exp": "Istio 在 Kubernetes 上用 service account 當身分。全部共用 default 的話，授權規則分不出誰呼叫誰。"
+  },
+  {
+   "q": "v1、v2 各只有 1 份 Pod，VirtualService 寫 weight 90 與 10。打 100 次，v2 大約拿到？",
+   "opts": [
+    "一成上下，每輪不一定剛好 10 次",
+    "一半，因為兩邊 Pod 數一樣",
+    "每輪剛好 10 次",
+    "0 次，要先把 v1 擴成 9 份"
+   ],
+   "exp": "權重決定比例，跟 Pod 數無關；但它是長期比例不是排班，實跑三輪是 4、8、11 次。"
+  },
+  {
+   "q": "DestinationRule 與 VirtualService 在流量切分裡各負責什麼？",
+   "opts": [
+    "DestinationRule 依標籤分出 subset，VirtualService 寫權重",
+    "DestinationRule 寫權重，VirtualService 依標籤分出 subset",
+    "兩者都可以寫權重，叢集以最後套用的那一份為準",
+    "DestinationRule 管 mTLS 模式，VirtualService 管 Pod 份數"
+   ],
+   "exp": "subset 在 DestinationRule 裡依 version 這類標籤定義；VirtualService 的 route 寫要送到哪個 subset、各給多少權重。"
+  },
+  {
+   "q": "程式對下游設 2 秒逾時；VirtualService 設 3 秒逾時、重試 1 次。下游一直很慢時？",
+   "opts": [
+    "程式 2 秒放棄，Envoy 的逾時與重試都沒作用",
+    "Envoy 優先，程式自己設的 2 秒逾時被忽略",
+    "先等 3 秒、Envoy 重試再等 3 秒，共 6 秒",
+    "兩邊的逾時相加，總共等 5 秒才放棄"
+   ],
+   "exp": "這是 Istio 官方舉的例子：the application’s timeout kicks in first, so your Envoy timeout and retry attempt has no effect。"
+  },
+  {
+   "q": "在同一份 VirtualService 裡同時設故障注入的延遲 3 秒與 timeout: 1s，結果等滿 3 秒拿到 200。原因是？",
+   "opts": [
+    "用戶端啟用故障注入時，逾時與重試不會啟用",
+    "規則寫錯，timeout 要放在 DestinationRule",
+    "Istio 預設逾時是 15 秒，會蓋過 1s",
+    "延遲注入只對 TCP 有效"
+   ],
+   "exp": "VirtualService 參考文件：timeouts or retries will not be enabled when faults are enabled on the client side。"
+  },
+  {
+   "q": "ambient 模式下，負責第四層加密與身分的元件，以及要做 HTTP 權重切分時要加的元件，分別是？",
+   "opts": [
+    "ztunnel；waypoint",
+    "istiod；ztunnel",
+    "waypoint；ztunnel",
+    "Envoy sidecar；istiod"
+   ],
+   "exp": "每節點一個 ztunnel 管第四層；權重、逾時、重試屬於第七層，ambient 要加 waypoint。istiod 是控制平面，不轉送流量。"
+  },
+  {
+   "q": "開了 SnapStart 的 Java 函式，在 static 初始化時用 UUID.randomUUID() 產生環境編號。結果是？",
+   "opts": [
+    "從同一份快照恢復的環境拿到同一個 UUID",
+    "每個環境恢復時自動產生不同的 UUID",
+    "發佈版本時會失敗",
+    "UUID 只在第一次 Invoke 時產生"
+   ],
+   "exp": "初始化結果被拍進快照。官方範例把 UUID 改在 handler 裡第一次用到時才產生，或用快照前後的掛勾重新產生。"
+  },
+  {
+   "q": "同時有 40 個請求。Lambda 函式與並行上限 80 的 Cloud Run 服務，最少各需要幾個環境或執行個體？",
+   "opts": [
+    "Lambda 40 個，Cloud Run 1 個",
+    "兩邊都是 40 個",
+    "兩邊都是 1 個",
+    "Lambda 1 個，Cloud Run 40 個"
+   ],
+   "exp": "Lambda 每個同時進行的請求一個環境；Cloud Run 一個執行個體同時處理到並行上限那麼多個，所以它的全域變數要執行緒安全。"
+  }
+ ]
+}
