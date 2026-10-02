@@ -10,8 +10,8 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | ✅ 10-02 審完：無錯誤級，131 題正解都唯一；最要緊是「最壞／平均」與「O 上限」沒分清楚；SortCount 其實是物件排序、字面值共用不是巧合、StringBuilder 擴容要附原始碼出處；砍重複題；清單 `.superpowers/audit/algo/findings-01-02.md`；修正交給新代理 `fix-algo-0102`（原寫課代理在寫 09、10） | | |
-| `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | | |
+| `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | ✅ 10-02 審完：無錯誤級，131 題正解都唯一；最要緊是「最壞／平均」與「O 上限」沒分清楚；SortCount 其實是物件排序、字面值共用不是巧合、StringBuilder 擴容要附原始碼出處；砍重複題；清單 `.superpowers/audit/algo/findings-01-02.md`；修正交給新代理 `fix-algo-0102`（原寫課代理在寫 09、10） | ✅ 修正 `fe807dc`（14＋14 條全改；〈複雜度〉55 題、〈陣列與字串〉50 題）；範圍複審 ✅ 可上線 | ✅ 10-02 上線（模組建立，第 1、2 課） |
+| `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | 同上 | ✅ 10-02 上線 |
 | `03-hash-table` | ✅ `e858aa1`＋`ef879b1`（52 題、4 張圖、42 出處；mins 60） | ✅ 10-02 審完：無錯誤級，123 題正解都唯一；必修：原始碼行號連錯、樹化沒白話、「第 3 個走 3 步」、Floyd 歸屬、「文件建議」；跨課三處已上線課主控先修（`086c6c4`）；清單 `.superpowers/audit/algo/findings-03-04.md`；修正交給 `fix-algo-0304` | | |
 | `04-linked-list` | ✅ `b584646`（51 題、9 張圖、9 出處；mins 50） | 同上 | | |
 | `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | ✅ 10-02 審完：無錯誤級，122 題正解都唯一；必修 3 條（攤銷講法前後不一、費氏 2ⁿ 是上限、「至少 O」）＋體例；清單 `.superpowers/audit/algo/findings-05-06.md`；修正交回 `write-algo-c` | | |
@@ -53,7 +53,7 @@ SVG 一律 `role="img"` 加中文 `aria-label`；`id` 用課的前綴（`cx-`、
 
 1. 第一波：派 3 個寫課代理，各寫 2 課（01＋02、03＋04、05＋06）。
 2. 寫好一組就派審查，審查與下一波寫課交錯（07＋08、09＋10、11＋12、13）。
-3. 第一組通過時建立 `content/algo/module.json` 並加進 `content/modules.json`（id `algo`、圖示 🧮、放在 interview 後面）。
+3. ✅ 10-02 已建立 `content/algo/module.json` 並加進 `content/modules.json`（id `algo`、🧮、放在 interview 後面）。之後每兩課通過就加進 lessons 陣列（照資料夾編號排序）。
 
 ## 站務修正（演算法這輪順帶）
 
