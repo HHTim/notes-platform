@@ -42,7 +42,7 @@
 | `database/09-sql-advanced` | SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式 | ✅ `88d46c5`（47 題、4 圖、18 網址；MySQL 8.4 與 PostgreSQL 18 對照） | 審查中（`write-algo-b` 轉當審查者） | | | |
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
-| `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | 撰寫中（`write-algo-c`） | | | |
+| `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | ✅ `d631eeb`（42 題、4 圖、12 網址；Batch 6.0.5、MySQL 8.4 四次執行實跑） | 審查中（`review-algo-b`） | | | |
 | `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | 撰寫中（`fix-algo-1112`） | | | |
 | `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | 撰寫中（`write-algo-d`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
