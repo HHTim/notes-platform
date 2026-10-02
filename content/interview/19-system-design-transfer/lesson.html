@@ -1,0 +1,478 @@
+<!-- 來源：依官方文件與公開架構指南新寫。MySQL 8.4 參考手冊（InnoDB 鎖定讀取、死結處理）https://dev.mysql.com/doc/refman/8.4/en/ · Stripe API 冪等請求 https://docs.stripe.com/api/idempotent_requests · IETF draft-ietf-httpapi-idempotency-key-header-07 · microservices.io Saga 與交易式 Outbox · AWS 規範性指引 Saga 編排模式 · Azure 架構中心補償交易模式 · Martin Fowler〈Account〉〈Accounting Entry〉 · Wikipedia〈Double-entry bookkeeping〉 · Azure Blob 不可變儲存體、Amazon S3 Object Lock · Amazon DynamoDB 寫入分片 · Google《Site Reliability Engineering》第 6 章；示範程式以 Java 21＋MySQL 8.4.11（Docker mysql:8.4）實際執行 · 收錄日期：2026-10-03 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>在系統設計面試裡，先問對需求再畫圖：同行與跨行、即時與批次、一致性要求、流量規模</li><li>用雙重記帳設計帳務資料表，說清楚為什麼「每筆轉帳一借一貸、總和為零」，並用一筆資料庫交易完成同行轉帳</li><li>講出冪等鍵、跨行 Saga 與 Outbox、失敗補償與人工處理各自擋住哪一種錯</li><li>回答限額與風控放哪、稽核紀錄怎麼做到不可改、熱帳戶怎麼辦、對帳與監控看什麼</li></ul></div>
+<p class="muted">本課是面試答法加一段實跑示範。交易隔離與鎖的細節見〈交易隔離層級與鎖〉，冪等鍵的 HTTP 寫法見〈API 設計進階：版本、分頁、冪等與錯誤格式〉，佇列與 Outbox 的實作見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉，最終一致的基本答法見面試集〈系統設計：訊息佇列與最終一致性〉。</p>
+
+<section>
+<p class="era">先別畫圖</p>
+<h3 class="head">從需求問起</h3>
+<p class="q">面試官：請設計一個銀行轉帳系統。</p>
+<p><strong>先問，不要先畫。</strong>轉帳系統的設計幾乎全由下面幾個答案決定，建議開場就問：</p>
+<div class="tablewrap"><table><thead><tr><th>要問的</th><th>為什麼會改變設計</th></tr></thead><tbody>
+<tr><th>只做同行，還是也做跨行？</th><td>同行兩個帳戶在同一個資料庫，一筆交易就能保證一致；跨行要經過外部清算機構，沒有共同的交易，只能用 Saga 加對帳</td></tr>
+<tr><th>即時入帳，還是可以批次？</th><td>即時要同步回應「成功或失敗」；批次可以先收件、晚點統一處理</td></tr>
+<tr><th>每秒幾筆、尖峰在什麼時候？</th><td>決定要不要拆分資料庫、熱帳戶要不要特別處理（發薪日、月底、大型活動）</td></tr>
+<tr><th>有哪些限額與風控規則？</th><td>決定檢查放在扣款之前的哪一步、要不要跟扣款同一筆交易</td></tr>
+<tr><th>稽核與保存要求？</th><td>決定分錄能不能改、要保存多久、存在哪</td></tr>
+</tbody></table></div>
+<p>需求問完，先講不能妥協的那一條：<strong>錢不能多、不能少，帳一定對得上</strong>；其他（回應時間、對方多久看到）都可以談。面試集〈系統設計：訊息佇列與最終一致性〉的說法是「『對方何時看到錢』可以最終一致，『錢的總額』不行」。</p>
+
+<div class="drill">
+  <p class="dq">面試官說「設計一個轉帳系統」，你第一件該做的事是？</p>
+  <ul class="dopts"><li data-ok>先問同行跨行、即時批次、流量</li><li>先畫出完整的微服務架構圖</li><li>先決定要用 Kafka 還是 RabbitMQ</li><li>先把所有資料表的 DDL 寫出來</li></ul>
+  <p class="dexp">同行與跨行的一致性做法完全不同，流量決定要不要拆分。不先問清楚，畫出來的架構可能整個方向錯。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼「只做同行」與「也做跨行」會讓設計差很多？</p>
+  <ul class="dopts"><li>跨行轉帳的金額通常比較大</li><li>同行轉帳完全不需要冪等</li><li>跨行一定要改用 NoSQL 資料庫</li><li data-ok>跨行沒有共同的資料庫交易</li></ul>
+  <p class="dexp">兩個帳戶都在自己的資料庫裡，ACID 交易就能保證一起成功或一起失敗；對方銀行的帳不在你的資料庫裡，只能分步做、失敗補償、事後對帳。冪等兩邊都要。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉帳系統裡，下面哪一個要求<strong>不能</strong>用「最終一致」來妥協？</p>
+  <ul class="dopts"><li>收款人多久之後在 App 上看到入帳</li><li data-ok>全部帳戶的錢總額對不對</li><li>交易通知簡訊多久送達客戶手機</li><li>內部報表多久更新一次</li></ul>
+  <p class="dexp">看到的時間可以晚，錢的總額不能錯。其他三項都是「什麼時候看到」的問題。</p>
+</div>
+</section>
+
+<section>
+<p class="era">錢不會憑空出現或消失</p>
+<h3 class="head">帳怎麼記：雙重記帳</h3>
+<p class="q">面試官：帳戶表只放一個 balance 欄位，轉帳時一邊減、一邊加，不行嗎？</p>
+<p><strong>一句話定義：</strong>可以跑，但出錯時查不出錢去哪了。複式簿記（double-entry bookkeeping）是「每一筆交易都以相等且相反的分錄（借與貸）記錄」（every financial transaction is recorded with equal and opposite entries (debits and credits)），目的是「維持財務紀錄的正確，並能發現錯誤或舞弊」（allow detection of errors or fraud）。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Double-entry_bookkeeping" target="_blank" rel="noopener">出處</a> 放到資料表上：每筆轉帳寫兩筆分錄，轉出方 −1000、轉入方 +1000，<strong>同一筆轉帳的分錄加總一定是 0</strong>。</p>
+<p><strong>為什麼要分錄，不只要餘額：</strong>Fowler 說帳戶也可以看成「某個值的稽核紀錄」：不只想知道現在的值，「還想知道它在過去任何時間點的值，以及每一次個別的變動」（you also want to be able to know it's value at any point in the past, and you want to know each discrete change that happened to that value）。<a class="fixsrc" href="https://martinfowler.com/eaaDev/Account.html" target="_blank" rel="noopener">出處</a> 他也建議把產生分錄的事件連到分錄上，這「有助於稽核與後續處理」（helps auditing and later processing）。<a class="fixsrc" href="https://martinfowler.com/eaaDev/AccountingEntry.html" target="_blank" rel="noopener">出處</a> 所以餘額可以留著當快取（查詢快），但真正的帳是分錄：餘額應該永遠等於該帳戶所有分錄的加總，這也是對帳要檢查的第一件事。</p>
+<pre><code>CREATE TABLE account (
+  id      VARCHAR(16) PRIMARY KEY,
+  balance BIGINT NOT NULL CHECK (balance &gt;= 0)            -- 單位：元；不允許透支
+);
+CREATE TABLE transfer (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  idempotency_key VARCHAR(64) NOT NULL UNIQUE,            -- 同一個鍵只能成功建立一次
+  from_id         VARCHAR(16) NOT NULL,
+  to_id           VARCHAR(16) NOT NULL,
+  amount          BIGINT NOT NULL CHECK (amount &gt; 0),
+  status          VARCHAR(16) NOT NULL
+);
+CREATE TABLE journal_entry (                               -- 分錄：只新增，不修改、不刪除
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  transfer_id BIGINT NOT NULL,
+  account_id  VARCHAR(16) NOT NULL,
+  amount      BIGINT NOT NULL,                             -- 轉出記負、轉入記正
+  created_at  TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);</code></pre>
+<p>三個設計重點：金額用整數（元或分）或 <code>DECIMAL</code>，不用浮點數，MySQL 文件說 DECIMAL 存的是精確值，「在需要保持精確時使用，例如金額」（These types are used when it is important to preserve exact precision, for example with monetary data.）；<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html" target="_blank" rel="noopener">出處</a> 分錄只新增、不修改，記錯了就再記一筆反向分錄沖回去；轉帳表的冪等鍵是唯一索引（下一段）。<code>CHECK (balance &gt;= 0)</code> 當最後一道防線：MySQL 文件寫，沒寫執行子句或寫 ENFORCED 時，「約束會被建立並執行」（If omitted or specified as ENFORCED, the constraint is created and enforced.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">A 轉 1000 元給 B，照本課的雙重記帳會寫幾筆分錄？加總是多少？</p>
+  <ul class="dopts"><li>1 筆，1000</li><li>2 筆，2000</li><li data-ok>2 筆，0</li><li>1 筆，-1000</li></ul>
+  <p class="dexp">A 一筆 −1000、B 一筆 +1000，相等且相反，加總為 0。加總不為 0 就表示錢憑空多了或少了。</p>
+</div>
+<div class="drill">
+  <p class="dq">分錄記錯了金額，正確的修正方式是？</p>
+  <ul class="dopts"><li data-ok>再記反向分錄沖銷</li><li>直接 UPDATE 那筆分錄的金額</li><li>DELETE 那筆分錄再重寫一筆</li><li>只改 balance</li></ul>
+  <p class="dexp">分錄只新增不修改，錯誤與更正都留下紀錄，稽核才看得到發生過什麼。直接改或刪，等於把證據抹掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">有了分錄表，帳戶表的 balance 欄位扮演什麼角色？</p>
+  <ul class="dopts"><li>唯一的真實資料，分錄只是日誌</li><li>沒有用處，應該整個刪掉</li><li>只給月底的報表使用</li><li data-ok>快取，應等於分錄加總</li></ul>
+  <p class="dexp">真正的帳是分錄；balance 方便查詢與檢查餘額。兩者不一致就是對帳要抓出來的差異。</p>
+</div>
+<div class="drill">
+  <p class="dq">金額欄位該用哪一種型別？</p>
+  <ul class="dopts"><li>DOUBLE 浮點數</li><li data-ok>整數或 DECIMAL</li><li>FLOAT 浮點數</li><li>VARCHAR 字串</li></ul>
+  <p class="dexp">浮點數有捨入誤差，金額累加之後會對不上。MySQL 文件建議金額這種要精確的值用 DECIMAL；本課示範用 BIGINT 存元。</p>
+</div>
+</section>
+
+<section>
+<p class="era">同一個資料庫，一筆交易搞定</p>
+<h3 class="head">同行轉帳：鎖定、檢查、寫分錄</h3>
+<p class="q">面試官：同行轉帳怎麼保證不會扣了錢沒入帳？兩筆反方向的轉帳同時進來怎麼辦？</p>
+<p><strong>一句話定義：</strong>冪等檢查、鎖兩個帳戶、檢查餘額、改餘額、寫兩筆分錄，全部放在一筆資料庫交易裡；鎖帳戶照固定順序。</p>
+<p>鎖用 <code>SELECT … FOR UPDATE</code>：MySQL 文件說它會鎖住讀到的列，「就像對那些列下了 UPDATE」，其他交易無法更新這些列（locks the rows and any associated index entries, the same as if you issued an UPDATE statement for those rows）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a> 兩個帳戶要照固定順序鎖：A 轉 B 先鎖 A、B 轉 A 先鎖 B 的話，兩筆交易會各握一把、互等對方，形成死結。MySQL 文件的建議正是「每次都用一致的順序處理」（do those operations in a consistent order each time），這樣「交易會排成明確的佇列，不會死結」（Then transactions form well-defined queues and do not deadlock.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 以下是示範程式的轉帳方法（Java 21＋JDBC，資料庫是 Docker 的 MySQL 8.4.11）：</p>
+<pre><code>static String transfer(Connection c, String key, String from, String to, long amount, boolean orderedLocks) throws SQLException {
+    c.setAutoCommit(false);
+    try {
+        long transferId;
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO transfer (idempotency_key, from_id, to_id, amount, status) VALUES (?, ?, ?, ?, 'DONE')",
+                Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, key); ps.setString(2, from); ps.setString(3, to); ps.setLong(4, amount);
+            ps.executeUpdate();
+            ResultSet rs = ps.getGeneratedKeys(); rs.next(); transferId = rs.getLong(1);
+        } catch (SQLIntegrityConstraintViolationException dup) {   // 同一個冪等鍵已經處理過
+            c.rollback();
+            return "重送：冪等鍵 " + key + " 已處理過，不再扣款";
+        }
+        // 兩個帳戶照固定順序上鎖（帳號小的先），避免兩筆反方向的轉帳互相等待
+        List&lt;String&gt; order = new ArrayList&lt;&gt;(List.of(from, to));
+        if (orderedLocks) Collections.sort(order);
+        Map&lt;String, Long&gt; bal = new HashMap&lt;&gt;();
+        for (String id : order) {
+            try (PreparedStatement ps = c.prepareStatement("SELECT balance FROM account WHERE id = ? FOR UPDATE")) {
+                ps.setString(1, id);
+                ResultSet rs = ps.executeQuery(); rs.next(); bal.put(id, rs.getLong(1));
+            }
+        }
+        if (bal.get(from) &lt; amount) { c.rollback(); return "餘額不足：整筆還原"; }
+        exec(c, "UPDATE account SET balance = balance - ? WHERE id = ?", amount, from);
+        exec(c, "UPDATE account SET balance = balance + ? WHERE id = ?", amount, to);
+        exec(c, "INSERT INTO journal_entry (transfer_id, account_id, amount) VALUES (?, ?, ?)", transferId, from, -amount);
+        exec(c, "INSERT INTO journal_entry (transfer_id, account_id, amount) VALUES (?, ?, ?)", transferId, to, amount);
+        c.commit();
+        return "成功：轉帳 #" + transferId;
+    } catch (SQLException e) {
+        c.rollback();
+        throw e;
+    }
+}</code></pre>
+<p>主程式先做三件事（正常轉帳、同一個冪等鍵重送、超過餘額），再用 8 條執行緒各做 200 次 A～D 四個帳戶間的隨機轉帳，比較「照帳號排序上鎖」與「照轉出、轉入順序上鎖」；最後用只有 INSERT、SELECT 權限的應用程式帳號試著改分錄：</p>
+<pre><code>1. 成功：轉帳 #1
+2. 重送：冪等鍵 k-001 已處理過，不再扣款
+3. 餘額不足：整筆還原
+   分錄 #1 A -1000
+   分錄 #1 B 1000
+   A=4000，B=6000，分錄加總 0
+固定順序上鎖：成功 1206 筆、餘額不足 5 筆、死結 0 次
+  總餘額 20000，所有分錄加總 0，分錄筆數 2412，加總不為 0 的轉帳 0 筆
+不固定順序上鎖：成功 1036 筆、餘額不足 0 筆、死結 175 次
+  總餘額 20000，所有分錄加總 0，分錄筆數 2072，加總不為 0 的轉帳 0 筆
+應用程式帳號改分錄：UPDATE command denied to user 'app'@'172.17.0.1' for table 'journal_entry'</code></pre>
+<p>兩種上鎖順序最後的帳都對得上（總餘額 20000、分錄加總 0、每筆轉帳的分錄加總都是 0），因為死結時 InnoDB「自動偵測交易死結，還原一筆或多筆交易來解開死結」（InnoDB automatically detects transaction deadlocks and rolls back a transaction or transactions to break the deadlock.），<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 被還原的那筆不留痕跡。差別在死結次數：固定順序 0 次；不固定順序這一次實跑 175 次（另外三次 161～179 次，固定順序四次都是 0），每一次都是一筆得重試的失敗轉帳。MySQL 也提醒「隨時準備好在死結時重新執行交易」（Always be prepared to re-issue a transaction if it fails due to deadlock.）、「讓交易小而短」（Keep transactions small and short in duration）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 所以交易裡不要呼叫外部服務（簡訊、風控 API），那會讓鎖握得很久。隔離層級與鎖的細節見〈交易隔離層級與鎖〉。</p>
+
+<div class="drill">
+  <p class="dq">同行轉帳「扣款、入帳、寫兩筆分錄」為什麼要放在同一筆資料庫交易裡？</p>
+  <ul class="dopts"><li>這樣執行起來比較快</li><li>因為 MySQL 規定一定要這樣寫</li><li data-ok>失敗時全部還原</li><li>為了少寫程式</li></ul>
+  <p class="dexp">交易的原子性保證一起成功或一起失敗。示範裡餘額不足時 rollback，連轉帳紀錄與分錄都不會留下。</p>
+</div>
+<div class="drill">
+  <p class="dq">A 轉 B 與 B 轉 A 同時進來，各自先鎖自己的轉出帳戶，會發生什麼？</p>
+  <ul class="dopts"><li data-ok>可能死結，還原其中一筆</li><li>兩筆都會成功，互不影響</li><li>兩筆都會失敗，一起還原</li><li>其中一個帳戶餘額會變成負數</li></ul>
+  <p class="dexp">各握一把鎖、等對方那把，就是死結；InnoDB 偵測到後會還原其中一筆。示範的「不固定順序」那組就是這樣產生上百次死結。</p>
+</div>
+<div class="drill">
+  <p class="dq">示範程式怎麼避免死結？</p>
+  <ul class="dopts"><li>改用 READ UNCOMMITTED 隔離層級</li><li data-ok>照帳號排序再依序上鎖</li><li>不上鎖，直接 UPDATE</li><li>每次轉帳都重新開資料庫連線</li></ul>
+  <p class="dexp">固定順序讓所有交易排成同一條隊伍。MySQL 文件建議 do those operations in a consistent order each time；實跑四次都是 0 次死結。</p>
+</div>
+<div class="drill">
+  <p class="dq">「不固定順序上鎖」那組死結了 175 次，帳卻還是對得上，原因是？</p>
+  <ul class="dopts"><li>MySQL 會把死結的交易改成成功</li><li>程式事後會自動補寫分錄</li><li data-ok>死結那筆整筆還原</li><li>剛好運氣好</li></ul>
+  <p class="dexp">被選中的交易整筆還原，餘額與分錄都不變，所以總帳對得上；代價是那筆轉帳失敗，要由呼叫端重試。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉帳交易裡呼叫外部簡訊服務通知客戶，主要的問題是？</p>
+  <ul class="dopts"><li>簡訊內容會被資料庫記錄下來</li><li>簡訊會送失敗</li><li>MySQL 不允許交易裡有網路呼叫</li><li data-ok>鎖握太久，別人都要等</li></ul>
+  <p class="dexp">MySQL 建議 Keep transactions small and short in duration。通知可以在交易提交後再送，或透過 Outbox 非同步送出。</p>
+</div>
+</section>
+
+<section>
+<p class="era">按兩下也只扣一次</p>
+<h3 class="head">冪等鍵：防重送</h3>
+<p class="q">面試官：使用者按了兩次送出，或手機網路斷了自動重送，怎麼保證只扣一次？</p>
+<p><strong>一句話定義：</strong>用戶端每筆轉帳產生一個冪等鍵，伺服器把它存成唯一索引；同一個鍵第二次進來，回傳第一次的結果，不再執行。</p>
+<p>Stripe 的文件是業界常被引用的寫法：冪等鍵讓用戶端在連線錯誤時「可以安全地重送請求，不會建立第二個物件或做兩次更新」（you can safely repeat the request without risk of creating a second object or performing the update twice），伺服器「保存第一次請求的狀態碼與回應內容……之後同一個鍵的請求都回傳同樣的結果」（Subsequent requests with the same key return the same result, including 500 errors.），而且會比對參數，「跟原本的請求不同就回錯誤」（errors if they're not the same to prevent accidental misuse）。<a class="fixsrc" href="https://docs.stripe.com/api/idempotent_requests" target="_blank" rel="noopener">出處</a> IETF 也在把 <code>Idempotency-Key</code> 這個 HTTP 標頭標準化（草案 draft-ietf-httpapi-idempotency-key-header）。<a class="fixsrc" href="https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/" target="_blank" rel="noopener">出處</a> HTTP 介面怎麼寫見〈API 設計進階：版本、分頁、冪等與錯誤格式〉。</p>
+<p>示範裡的做法是讓資料庫保證：<code>idempotency_key</code> 是唯一索引，<code>INSERT</code> 撞到就表示做過了。把「記下這個鍵」和「扣款」放在同一筆交易裡很重要：如果鍵先寫進去、扣款失敗卻沒還原，重送會被誤判成已處理。反過來，示範中餘額不足時整筆還原，鍵也不會留下，客戶補足餘額後可以用同一個鍵重試；要不要這樣設計，是要先跟業務講好的規則。</p>
+
+<div class="drill">
+  <p class="dq">冪等鍵應該由誰產生？</p>
+  <ul class="dopts"><li data-ok>用戶端，重送時沿用</li><li>伺服器，每次收到請求就產生新的</li><li>AUTO_INCREMENT</li><li>不需要產生，用轉帳金額當鍵</li></ul>
+  <p class="dexp">重點是「同一筆轉帳的每次重送帶同一個鍵」。伺服器每次新產生，就認不出是重送了；用金額當鍵，兩筆同金額的轉帳會被誤擋。</p>
+</div>
+<div class="drill">
+  <p class="dq">示範程式第 2 行用同一個冪等鍵 <code>k-001</code> 再送一次，結果是？</p>
+  <ul class="dopts"><li>再扣一次 1000 元</li><li>丟出例外，程式整個中止</li><li>扣款成功但沒有寫分錄</li><li data-ok>回報已處理，不再扣款</li></ul>
+  <p class="dexp">INSERT 撞到唯一索引，程式還原並回報已處理過。最後 A=4000、B=6000，只扣了一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">照 Stripe 的做法，同一個冪等鍵第二次送來、但金額不一樣，伺服器該怎麼做？</p>
+  <ul class="dopts"><li>用新的金額再轉一次</li><li data-ok>回錯誤，參數不一致</li><li>默默回傳第一次的結果</li><li>把兩次的金額加總後轉帳</li></ul>
+  <p class="dexp">Stripe 會比對參數，不同就 errors ... to prevent accidental misuse。同一個鍵代表同一個請求，參數變了多半是用戶端的錯。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼「記下冪等鍵」要跟「扣款」放在同一筆交易？</p>
+  <ul class="dopts"><li>可以省下一次資料庫連線</li><li>因為唯一索引只能在交易裡用</li><li data-ok>避免鍵記了、扣款卻失敗</li><li>沒有差別，分開做也一樣</li></ul>
+  <p class="dexp">兩件事要一起成功或一起失敗。分開做的話，中間任何一步失敗都會讓鍵與實際狀態不一致。</p>
+</div>
+</section>
+
+<section>
+<p class="era">沒有共同的交易</p>
+<h3 class="head">跨行轉帳：Saga、Outbox 與中間帳戶</h3>
+<p class="q">面試官：跨行轉帳要經過外部清算機構，怎麼保證一致？</p>
+<p><strong>一句話定義：</strong>拆成幾個本地交易依序執行（Saga），每一步失敗都有對應的補償；要發給外部的指令先跟本地交易一起寫進 Outbox 表，再由另一個程序送出。</p>
+<p>microservices.io 的定義：saga 是「一連串的本地交易」，每個本地交易更新資料庫並發出訊息觸發下一步；某一步違反業務規則失敗時，「saga 會執行一連串補償交易，撤銷前面本地交易做過的變更」（the saga executes a series of compensating transactions that undo the changes that were made by the preceding local transactions）。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a> 轉帳適合用編排式（orchestration）：一個協調者記住目前走到哪一步。AWS 的指引提醒「Saga 的參與者必須冪等，才能在暫時性失敗時重複執行」（Saga participants need to be idempotent to allow repeated execution in case of transient failures）。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 290" role="img" aria-label="跨行轉帳的 Saga 狀態：已受理，扣款並轉入中間帳戶後變成已扣款，送出跨行指令後變成已送出；對方成功回覆變成完成；對方拒絕則補償，把中間帳戶的錢退回客戶，變成已退回；逾時或結果不明則先查詢，查不出來就進人工處理">
+  <defs><marker id="bt-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="40" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="75" y="65" font-size="13" text-anchor="middle">已受理</text>
+  <rect x="200" y="40" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="255" y="65" font-size="13" text-anchor="middle">已扣款</text>
+  <rect x="380" y="40" width="110" height="40" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="435" y="65" font-size="13" text-anchor="middle">已送出</text>
+  <rect x="600" y="40" width="130" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="665" y="65" font-size="13" text-anchor="middle">完成</text>
+  <rect x="600" y="140" width="130" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="665" y="165" font-size="13" text-anchor="middle">已退回</text>
+  <rect x="380" y="220" width="110" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="435" y="245" font-size="13" text-anchor="middle">人工處理</text>
+  <line x1="132" y1="60" x2="196" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <text x="164" y="32" font-size="11" text-anchor="middle">扣款＋轉入</text><text x="164" y="100" font-size="11" text-anchor="middle">中間帳戶</text>
+  <line x1="312" y1="60" x2="376" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <text x="344" y="32" font-size="11" text-anchor="middle">寫 Outbox</text><text x="344" y="100" font-size="11" text-anchor="middle">送出指令</text>
+  <line x1="492" y1="60" x2="596" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <text x="544" y="50" font-size="11" text-anchor="middle">對方成功</text>
+  <line x1="492" y1="72" x2="598" y2="150" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a1)"/>
+  <text x="604" y="114" font-size="11" text-anchor="start">對方拒絕：補償</text>
+  <line x1="435" y1="82" x2="435" y2="216" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a1)"/>
+  <text x="445" y="140" font-size="11" text-anchor="start" fill="var(--gold-deep)">逾時、結果不明</text>
+  <text x="445" y="158" font-size="11" text-anchor="start" fill="var(--gold-deep)">先查詢，查不出來</text>
+  <text x="20" y="200" font-size="12" text-anchor="start">每一步：一筆本地交易</text>
+  <text x="20" y="220" font-size="12" text-anchor="start">＋同一個轉帳序號（冪等）</text>
+  <text x="20" y="240" font-size="12" text-anchor="start">＋狀態只往前走</text>
+</svg>
+<figcaption>跨行轉帳的狀態。古銅是最危險的「已送出、還沒有回覆」；逾時不代表失敗，先查詢對方，查不出來才進人工處理，不能自動退款，否則可能對方已入帳、我方又退了一次。</figcaption>
+</figure>
+<p>幾個面試常被追問的細節：</p>
+<ul class="plainlist">
+<li><strong>中間帳戶</strong>：扣款時不是直接把錢「送出去」，而是客戶帳戶 −1000、銀行的轉出中間帳戶 +1000，兩筆分錄加總仍是 0。對方成功後再從中間帳戶結清；對方拒絕就反向記兩筆退回客戶。錢在任何時刻都看得到在哪個帳戶。</li>
+<li><strong>Outbox</strong>：扣款與「要送給清算機構的指令」寫在同一筆本地交易裡（Outbox 表），再由另一個程序讀出來送。microservices.io 說服務必須「原子地更新資料庫並送出訊息」，而資料庫加訊息代理的分散式交易（2PC）常常不可行（it is not viable to use a traditional distributed transaction (2PC) that spans the database and the message broker）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 實作見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</li>
+<li><strong>逾時不是失敗</strong>：送出之後沒有回覆，可能對方已經入帳、只是回覆丟了。這時先用同一個轉帳序號向對方查詢；不能直接補償退款，否則錢會變成兩份。</li>
+<li><strong>Saga 沒有隔離</strong>：microservices.io 也列出它的缺點是「缺乏隔離」（Lack of isolation），並行的 saga 可能讀到中間狀態，要另外設計對策。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a> 轉帳的對策就是先把錢移到中間帳戶：客戶在「已扣款」之後就看不到那筆錢，不會被重複花掉。</li>
+</ul>
+
+<div class="drill">
+  <p class="dq">跨行轉帳為什麼不能像同行一樣用一筆資料庫交易完成？</p>
+  <ul class="dopts"><li data-ok>對方的帳不在你的資料庫</li><li>因為跨行轉帳的金額太大</li><li>因為 MySQL 不支援跨行</li><li>因為法規禁止跨行使用交易</li></ul>
+  <p class="dexp">交易只能涵蓋同一個資料庫裡的資料。跨系統只能分步做本地交易，失敗補償，事後對帳。</p>
+</div>
+<div class="drill">
+  <p class="dq">跨行轉帳扣款時，把錢先轉進「轉出中間帳戶」而不是直接減掉，主要好處是？</p>
+  <ul class="dopts"><li>可以少記一筆分錄</li><li>讓轉帳跑得比較快一點</li><li>客戶扣款後還能繼續花那筆錢</li><li data-ok>加總仍為 0，知道錢在哪</li></ul>
+  <p class="dexp">錢從客戶帳戶移到中間帳戶，沒有消失；對方成功才結清、拒絕就退回。客戶在扣款後就不能再花，這也擋住了 saga 缺乏隔離的問題。</p>
+</div>
+<div class="drill">
+  <p class="dq">送出跨行指令後逾時沒有回覆，最安全的處理是？</p>
+  <ul class="dopts"><li>立刻補償，把錢退回客戶帳戶</li><li data-ok>用同一序號查詢，再決定</li><li>當作成功</li><li>換一個新的序號重新送一次</li></ul>
+  <p class="dexp">逾時不代表失敗，對方可能已經入帳。立刻退款可能讓錢變兩份；換新序號重送可能被對方當成兩筆。</p>
+</div>
+<div class="drill">
+  <p class="dq">Outbox 解決的是哪一個問題？</p>
+  <ul class="dopts"><li>訊息太大，送不出去</li><li>資料庫的查詢太慢</li><li data-ok>扣款與送指令只成功一半</li><li>對方銀行的回覆太慢</li></ul>
+  <p class="dexp">指令跟扣款寫在同一筆本地交易的 Outbox 表裡，兩者一起成功；再由另一個程序負責送出，送失敗就重送。</p>
+</div>
+<div class="drill">
+  <p class="dq">AWS 的 Saga 編排指引特別要求參與者具備什麼性質？</p>
+  <ul class="dopts"><li>必須同步回應呼叫端</li><li>必須共用同一種資料庫</li><li>必須部署在同一台機器上</li><li data-ok>必須冪等</li></ul>
+  <p class="dexp">原文：Saga participants need to be idempotent to allow repeated execution in case of transient failures。協調者重試時，同一步做兩次也不能多扣錢。</p>
+</div>
+</section>
+
+<section>
+<p class="era">自動化做不到的，交給人</p>
+<h3 class="head">失敗補償與人工處理</h3>
+<p class="q">面試官：補償也失敗了怎麼辦？</p>
+<p><strong>一句話定義：</strong>補償本身也要冪等、可重試；重試到上限還不行，就停在明確的狀態、發出告警、進人工處理清單。</p>
+<p>Azure 架構中心的補償交易模式：步驟「可能被重試多次，所以要把每一步設計成冪等的命令」（design each step as an idempotent command），而且「有時候人工介入是從失敗步驟中恢復的唯一方法」，這時「系統應該發出告警，並附上失敗原因的詳細資訊」（the system should raise an alert that includes detailed information about the reason for the failure）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/compensating-transaction" target="_blank" rel="noopener">出處</a> 建議的做法：每筆卡住的轉帳都有狀態、最後一次錯誤、重試次數；人工處理只能透過「再記一筆分錄」的方式改帳，不能直接改資料庫，處理過程也要留紀錄。</p>
+
+<div class="drill">
+  <p class="dq">補償交易重試了 5 次還是失敗，比較好的下一步是？</p>
+  <ul class="dopts"><li data-ok>停住、告警、轉人工</li><li>無限重試直到成功為止</li><li>直接刪掉紀錄</li><li>先改成成功，之後再說</li></ul>
+  <p class="dexp">Azure 的說法是有時人工介入是唯一的恢復方法，系統要發出附帶失敗原因的告警。無限重試可能永遠卡住，刪紀錄與假裝成功都會讓帳對不上。</p>
+</div>
+<div class="drill">
+  <p class="dq">客服人員在人工處理時要把一筆錯誤入帳退回，正確做法是？</p>
+  <ul class="dopts"><li>用資料庫工具直接改餘額</li><li>把原本的兩筆分錄刪掉</li><li data-ok>記反向分錄並留紀錄</li><li>請客戶轉回來</li></ul>
+  <p class="dexp">人工處理也要走雙重記帳與稽核紀錄。直接改資料庫會讓餘額與分錄對不上，也查不出是誰改的。</p>
+</div>
+<div class="drill">
+  <p class="dq">補償交易為什麼也要冪等？</p>
+  <ul class="dopts"><li>因為補償的金額通常比較大</li><li data-ok>重試可能退款兩次</li><li>補償只執行一次</li><li>因為補償不需要寫分錄</li></ul>
+  <p class="dexp">Azure：A step might run multiple times when retried, so design each step as an idempotent command。同一個轉帳序號的退款只能生效一次。</p>
+</div>
+</section>
+
+<section>
+<p class="era">檢查放在扣款之前的哪一步</p>
+<h3 class="head">限額與風控放哪</h3>
+<p class="q">面試官：每日轉帳限額、可疑交易攔截，放在流程的哪裡？</p>
+<p><strong>建議的答法</strong>（沒有單一標準，要看規則）：</p>
+<ul class="plainlist">
+<li><strong>限額跟扣款放在同一筆交易</strong>：「今天已轉出多少」要跟扣款一起鎖、一起更新，否則兩筆同時通過檢查，加起來就超過限額。做法跟鎖帳戶一樣，把每日累計放在一列上，<code>FOR UPDATE</code> 之後再判斷。</li>
+<li><strong>風控評分放在受理之前，但不放進資料庫交易</strong>：呼叫風控服務要時間，放進交易會讓鎖握很久（上一段 MySQL 的建議）。先評分、通過才開始轉帳交易；風控服務掛掉時是「一律拒絕」還是「小額放行」，是要先跟業務講好的規則。</li>
+<li><strong>事後監控</strong>：通過的交易仍送去非同步分析，發現異常再凍結與人工處理。</li>
+</ul>
+<p>限流與熔斷的做法見面試集〈系統設計：秒殺與限流〉與〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
+
+<div class="drill">
+  <p class="dq">每日限額 5 萬，已轉 4 萬，兩筆 8000 元的轉帳同時進來。限額檢查放在交易外、先查後扣，可能發生什麼？</p>
+  <ul class="dopts"><li>兩筆都會被拒絕</li><li>只有其中一筆會成功</li><li>資料庫會自動擋下第二筆</li><li data-ok>兩筆都過，超過限額</li></ul>
+  <p class="dexp">兩筆都讀到「已轉 4 萬」，各自判斷還剩 1 萬額度而通過。累計額度要跟扣款在同一筆交易裡鎖住再判斷。</p>
+</div>
+<div class="drill">
+  <p class="dq">呼叫外部風控服務評分，為什麼建議放在轉帳交易<strong>之前</strong>而不是交易<strong>之中</strong>？</p>
+  <ul class="dopts"><li data-ok>放進交易會讓鎖握很久</li><li>因為風控的結果不重要</li><li>因為交易裡面不能讀資料</li><li>因為風控服務只能非同步呼叫</li></ul>
+  <p class="dexp">交易要小而短。先評分、通過再開交易，鎖只在真正改帳的那幾毫秒裡。</p>
+</div>
+<div class="drill">
+  <p class="dq">風控服務暫時掛掉，轉帳該怎麼辦？</p>
+  <ul class="dopts"><li>一律放行，事後再說</li><li>一律拒絕，不用討論</li><li data-ok>照事先跟業務約定的規則</li><li>讓系統自己隨機決定</li></ul>
+  <p class="dexp">這是風險與體驗的取捨，沒有技術上的標準答案。面試時講出「要先跟業務約定」比選一邊更好。</p>
+</div>
+</section>
+
+<section>
+<p class="era">寫了就不能改</p>
+<h3 class="head">稽核紀錄不可改</h3>
+<p class="q">面試官：怎麼保證分錄與稽核紀錄不會被改？</p>
+<p><strong>一句話定義：</strong>從權限、資料表設計、儲存三層一起做：應用程式帳號只有新增與查詢權限，表的設計只新增不修改，歸檔放在 WORM（寫一次、讀多次）儲存。</p>
+<ul class="plainlist">
+<li><strong>權限</strong>：示範最後一行，應用程式帳號只有 <code>SELECT, INSERT</code>，想改分錄就被拒絕：<code>UPDATE command denied</code>。就算程式有漏洞，也改不了帳。</li>
+<li><strong>WORM 儲存</strong>：Azure Blob 的不可變儲存體讓資料處在 WORM 狀態，「在使用者指定的期間內不能被修改或刪除」（data can't be modified or deleted for a user-specified interval）；<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-storage-overview" target="_blank" rel="noopener">出處</a> Amazon S3 Object Lock 也是「寫一次、讀多次（WORM）模型」（Object Lock uses a write-once-read-many (WORM) model to store objects.）。<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html" target="_blank" rel="noopener">出處</a> 每日的分錄與稽核紀錄可以定期匯出到這類儲存。</li>
+<li><strong>誰做了什麼</strong>：稽核紀錄記下操作者、時間、來源、前後狀態；人工處理也要留紀錄（上一段）。</li>
+</ul>
+
+<div class="drill">
+  <p class="dq">示範裡應用程式帳號只被授予哪些權限，所以改不了分錄？</p>
+  <ul class="dopts"><li>SELECT、INSERT、UPDATE</li><li data-ok>SELECT、INSERT</li><li>ALL PRIVILEGES</li><li>只有 UPDATE</li></ul>
+  <p class="dexp">GRANT SELECT, INSERT ON bank.journal_entry；實跑 UPDATE 被拒：UPDATE command denied。</p>
+</div>
+<div class="drill">
+  <p class="dq">WORM 是什麼意思？</p>
+  <ul class="dopts"><li>每次寫入都會複製到多台機器</li><li>只有管理員帳號可以讀取</li><li>資料寫入時會自動加密</li><li data-ok>寫一次讀多次，期間內不能改</li></ul>
+  <p class="dexp">Write Once, Read Many。Azure 不可變儲存體與 S3 Object Lock 都是這個模型。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼「只靠程式不去 UPDATE 分錄」不夠，還要從資料庫權限擋？</p>
+  <ul class="dopts"><li data-ok>權限是最後一道防線</li><li>因為權限檢查跑得比較快</li><li>因為 MySQL 預設會自動改分錄</li><li>沒有差別</li></ul>
+  <p class="dexp">多層防護：程式不寫、帳號沒權限、歸檔不可改。任何一層失守，其他層還擋得住。</p>
+</div>
+</section>
+
+<section>
+<p class="era">公司帳戶被大量轉入</p>
+<h3 class="head">高峰流量與熱帳戶</h3>
+<p class="q">面試官：發薪日、繳費截止日，一個公司帳戶每秒被轉入幾百次，會怎樣？怎麼辦？</p>
+<p><strong>一句話定義：</strong>每筆轉入都要鎖那一列，所有交易排在同一把鎖後面，吞吐量被一列卡住；做法是把這個帳戶拆成多個子帳戶分散寫入，或入帳時只寫分錄、餘額延後彙總。</p>
+<p>這是「熱點」問題：寫入集中在同一筆資料上。示範裡固定順序上鎖讓轉帳排成一條隊伍，對一般帳戶剛好，對熱帳戶就是瓶頸。建議的做法：</p>
+<ul class="plainlist">
+<li><strong>拆子帳戶</strong>：公司帳戶在內部分成 N 個子帳戶，轉入時隨機或依序挑一個，查詢餘額時加總。Amazon DynamoDB 文件稱類似的手法為寫入分片：「在分區鍵後面加一個隨機數字」，把寫入「隨機分散到更大的空間」（add a random number to the end of the partition key values. Then you randomize the writes across the larger space.）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html" target="_blank" rel="noopener">出處</a> 同一個道理也適用在關聯式資料庫的列鎖。</li>
+<li><strong>入帳只寫分錄</strong>：轉入對收款方不會讓餘額變成負數，可以只新增分錄、不鎖餘額那一列，餘額由批次或定時彙總。代價是收款方看到的餘額會晚一點，這要跟業務講清楚。</li>
+<li><strong>佇列削峰</strong>：先受理、排隊、依處理能力入帳（面試集〈系統設計：秒殺與限流〉的以佇列平衡負載），代價同樣是入帳時間變晚。</li>
+</ul>
+<p class="muted">轉出不能用「只寫分錄、延後彙總」：轉出要先確定餘額夠，必須讀到最新的餘額並鎖住。</p>
+
+<div class="drill">
+  <p class="dq">公司帳戶被大量轉入時，瓶頸主要在哪？</p>
+  <ul class="dopts"><li>網路頻寬不夠</li><li>分錄表的資料太多</li><li data-ok>都在等同一列的鎖</li><li>冪等鍵的數量太多</li></ul>
+  <p class="dexp">列鎖讓同一個帳戶的更新一次只能進行一筆，加再多機器也一樣排隊。這就是熱點。</p>
+</div>
+<div class="drill">
+  <p class="dq">把熱帳戶拆成 8 個子帳戶，查詢這個公司帳戶的餘額時要怎麼做？</p>
+  <ul class="dopts"><li>只看第一個子帳戶</li><li data-ok>8 個子帳戶加總</li><li>取 8 個子帳戶裡最大的</li><li>這種帳戶不能查詢餘額</li></ul>
+  <p class="dexp">寫入分散到 8 列，讀取時加總回來；寫入變快，讀取多一點工。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼「只寫分錄、餘額延後彙總」可以用在轉入，卻不能用在轉出？</p>
+  <ul class="dopts"><li>因為轉出不需要寫分錄</li><li>因為轉入的金額比較小</li><li>因為轉出不需要冪等</li><li data-ok>轉出要先確認餘額夠</li></ul>
+  <p class="dexp">轉入不會讓收款方透支，晚一點彙總無妨；轉出若讀到舊餘額，就可能扣到負數。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每天收工前把帳對一次</p>
+<h3 class="head">對帳批次</h3>
+<p class="q">面試官：系統都設計好了，為什麼還要對帳？</p>
+<p><strong>一句話定義：</strong>因為重試、逾時、人工處理、外部系統都可能出錯，對帳是最後確認「帳對得上」的機制，差異進人工處理。</p>
+<p>建議至少兩層：</p>
+<ul class="plainlist">
+<li><strong>內部對帳</strong>：所有分錄加總是否為 0；每筆轉帳的分錄加總是否為 0；每個帳戶的 balance 是否等於它的分錄加總。示範最後的檢查（加總不為 0 的轉帳 0 筆）就是這一層。複式簿記的試算表也是同樣的想法：列出借貸兩欄，「確認借方總額等於貸方總額」（to confirm that total debits equal total credits）。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Double-entry_bookkeeping" target="_blank" rel="noopener">出處</a></li>
+<li><strong>外部對帳</strong>：拿清算機構的明細檔逐筆比對我方的跨行轉帳：我方「已送出」對方沒有、對方有我方沒有、金額不同，都列成差異。轉出中間帳戶日終應該結清為 0，不為 0 就是還有沒結案的轉帳。</li>
+</ul>
+<p>對帳通常是讀大量資料、逐筆比對、寫差異表的批次工作，Spring Batch 的寫法見〈Spring Batch：銀行批次怎麼寫〉。</p>
+
+<div class="drill">
+  <p class="dq">內部對帳發現「某帳戶的 balance 不等於它所有分錄的加總」，最可能代表什麼？</p>
+  <ul class="dopts"><li data-ok>有人繞過分錄改了餘額</li><li>分錄太多，查詢變慢</li><li>這是正常現象，不用處理</li><li>冪等鍵在系統裡重複了</li></ul>
+  <p class="dexp">餘額應該永遠等於分錄加總。不相等表示有人直接改了 balance、或某個流程沒有在同一筆交易裡完成。</p>
+</div>
+<div class="drill">
+  <p class="dq">日終「轉出中間帳戶」的餘額不是 0，表示什麼？</p>
+  <ul class="dopts"><li>銀行今天賺了錢</li><li>系統一切正常</li><li data-ok>還有沒結案的跨行轉帳</li><li>某些客戶的帳戶被凍結了</li></ul>
+  <p class="dexp">每筆跨行轉帳最後都應該從中間帳戶結清（成功）或退回（失敗）。剩下的金額對應到還卡在途中的轉帳，要逐筆追。</p>
+</div>
+<div class="drill">
+  <p class="dq">外部對帳最主要比對的是什麼？</p>
+  <ul class="dopts"><li>我方伺服器的 CPU 使用率</li><li data-ok>我方紀錄對清算明細</li><li>兩個資料庫的版本號碼</li><li>系統裡冪等鍵的數量</li></ul>
+  <p class="dexp">逐筆比對雙方是否都有、金額是否相同。差異包括我方有對方沒有、對方有我方沒有、金額不同。</p>
+</div>
+</section>
+
+<section>
+<p class="era">出事之前就知道</p>
+<h3 class="head">可觀測性</h3>
+<p class="q">面試官：上線之後要監控什麼？</p>
+<p><strong>一句話定義：</strong>技術指標加業務指標。Google SRE 書提出四個黃金訊號：「延遲、流量、錯誤與飽和度」（The four golden signals of monitoring are latency, traffic, errors, and saturation.），並提醒要把成功與失敗請求的延遲分開看。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a> 轉帳系統建議再加上：</p>
+<ul class="plainlist">
+<li>依失敗原因分類的轉帳失敗數（餘額不足、限額、風控、死結重試、外部逾時）</li>
+<li>卡在「已送出」超過 N 分鐘的跨行轉帳數，超過門檻就告警</li>
+<li>死結次數與資料庫鎖等待時間（熱帳戶的早期訊號）</li>
+<li>對帳差異筆數、中間帳戶日終餘額</li>
+<li>每筆轉帳的追蹤（trace）串起受理、扣款、Outbox、跨行回覆，用轉帳序號查得到全程</li>
+</ul>
+<p>Micrometer、Prometheus 與 OpenTelemetry 的接法見〈可觀測性：Micrometer、Prometheus 與 OpenTelemetry〉。</p>
+
+<div class="drill">
+  <p class="dq">Google SRE 書的四個黃金訊號是哪四個？</p>
+  <ul class="dopts"><li>CPU、記憶體、磁碟、網路</li><li>成功率、失敗率、重試率、逾時率</li><li>日誌、指標、追蹤、告警</li><li data-ok>延遲、流量、錯誤、飽和度</li></ul>
+  <p class="dexp">原文 latency, traffic, errors, and saturation。轉帳系統另外要加上業務指標。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個是轉帳系統特有、最值得告警的業務指標？</p>
+  <ul class="dopts"><li data-ok>卡在「已送出」的轉帳數</li><li>JVM 的垃圾回收次數</li><li>首頁的載入時間</li><li>伺服器的開機時間</li></ul>
+  <p class="dexp">卡在途中的轉帳代表錢在中間帳戶、客戶在等結果，越晚發現越難處理。其他三個是一般技術指標。</p>
+</div>
+</section>
+
+<section>
+<p class="era">把整題串起來</p>
+<h3 class="head">答題順序與整體架構</h3>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="轉帳系統整體架構：用戶端帶冪等鍵呼叫 API，先過限流與風控評分，再進轉帳服務；轉帳服務在一筆交易裡寫帳戶、分錄、轉帳與 Outbox 表；Outbox 轉送程式把跨行指令送到清算機構；對帳批次讀分錄與清算明細；監控收集指標與追蹤；分錄定期歸檔到 WORM 儲存">
+  <defs><marker id="bt-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <rect x="10" y="40" width="100" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="60" y="60" font-size="12" text-anchor="middle">用戶端</text><text x="60" y="76" font-size="10" text-anchor="middle">帶冪等鍵</text>
+  <rect x="150" y="40" width="120" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="210" y="60" font-size="12" text-anchor="middle">API 閘道</text><text x="210" y="76" font-size="10" text-anchor="middle">限流</text>
+  <rect x="310" y="40" width="120" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="370" y="66" font-size="12" text-anchor="middle">風控評分</text>
+  <rect x="470" y="30" width="150" height="64" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="545" y="56" font-size="13" text-anchor="middle" font-weight="700">轉帳服務</text><text x="545" y="76" font-size="10" text-anchor="middle">一筆交易：鎖、限額、分錄</text>
+  <line x1="112" y1="62" x2="146" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <line x1="272" y1="62" x2="306" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <line x1="432" y1="62" x2="466" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <rect x="415" y="140" width="260" height="64" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="545" y="164" font-size="12" text-anchor="middle">帳務資料庫</text><text x="545" y="184" font-size="10" text-anchor="middle" class="mono">account・journal_entry・transfer・outbox</text>
+  <line x1="545" y1="96" x2="545" y2="136" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <rect x="250" y="150" width="140" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="320" y="176" font-size="12" text-anchor="middle">Outbox 轉送</text>
+  <line x1="413" y1="172" x2="394" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <rect x="40" y="150" width="150" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="115" y="176" font-size="12" text-anchor="middle">清算機構（跨行）</text>
+  <line x1="248" y1="172" x2="194" y2="172" stroke="currentColor" stroke-width="1.5" marker-end="url(#bt-a2)"/>
+  <rect x="40" y="240" width="150" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="115" y="266" font-size="12" text-anchor="middle">對帳批次</text>
+  <line x1="115" y1="196" x2="115" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a2)"/>
+  <line x1="413" y1="200" x2="194" y2="256" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a2)"/>
+  <rect x="440" y="240" width="100" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="490" y="266" font-size="12" text-anchor="middle">監控與追蹤</text>
+  <rect x="560" y="240" width="160" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="640" y="260" font-size="12" text-anchor="middle">WORM 歸檔</text><text x="640" y="276" font-size="10" text-anchor="middle">分錄與稽核紀錄</text>
+  <line x1="600" y1="206" x2="630" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#bt-a2)"/>
+  <text x="680" y="20" font-size="11" text-anchor="end" fill="var(--slate-deep)">實線＝請求流程；虛線＝批次或非同步</text>
+</svg>
+<figcaption>整體架構。同行轉帳在轉帳服務的一筆交易裡完成；跨行轉帳多了 Outbox 轉送與清算機構，最後由對帳批次確認帳對得上。</figcaption>
+</figure>
+<p>建議的答題順序（約 30〜40 分鐘的面試）：</p>
+<div class="tablewrap"><table><thead><tr><th>順序</th><th>講什麼</th><th>一句重點</th></tr></thead><tbody>
+<tr><th>1</th><td>問需求</td><td>同行或跨行、即時或批次、流量、限額、稽核</td></tr>
+<tr><th>2</th><td>資料模型</td><td>雙重記帳，分錄只新增，每筆加總為 0</td></tr>
+<tr><th>3</th><td>同行轉帳</td><td>一筆交易，固定順序上鎖</td></tr>
+<tr><th>4</th><td>冪等</td><td>用戶端產生鍵，唯一索引，跟扣款同一筆交易</td></tr>
+<tr><th>5</th><td>跨行轉帳</td><td>Saga＋Outbox＋中間帳戶，逾時先查詢</td></tr>
+<tr><th>6</th><td>擴充題</td><td>限額與風控、稽核不可改、熱帳戶、對帳、監控</td></tr>
+</tbody></table></div>
+<p>時間不夠時，前五項是主幹；面試官追問哪一項就展開哪一項。</p>
+
+<div class="drill">
+  <p class="dq">只剩 10 分鐘，下面哪一項最不該省略？</p>
+  <ul class="dopts"><li>WORM 歸檔要用哪一家雲</li><li>監控儀表板長什麼樣子</li><li data-ok>雙重記帳與交易邊界</li><li>對帳批次用什麼排程工具</li></ul>
+  <p class="dexp">資料模型與交易邊界決定錢會不會錯，是整題的主幹；其他是擴充題，被追問再展開。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>先問需求：同行或跨行、即時或批次、流量、限額、稽核。不能妥協的只有「錢的總額對得上」。</li><li>雙重記帳：每筆轉帳兩筆分錄、加總為 0；分錄只新增，錯了用反向分錄沖回；balance 是快取，應等於分錄加總；金額用整數或 DECIMAL。</li><li>同行轉帳：冪等檢查、鎖帳戶、檢查餘額與限額、改餘額、寫分錄，全在一筆交易；兩個帳戶照固定順序 FOR UPDATE，避免死結；交易裡不呼叫外部服務。</li><li>冪等鍵由用戶端產生，伺服器以唯一索引保證只執行一次，跟扣款同一筆交易；參數不同要回錯誤。</li><li>跨行轉帳：Saga 加 Outbox，扣款時先轉入中間帳戶；每一步冪等；逾時不是失敗，先查詢，查不出來進人工處理。補償也失敗就告警、人工處理，人工也只能記分錄。</li><li>稽核不可改：帳號只給 SELECT、INSERT，歸檔放 WORM。熱帳戶：拆子帳戶分散寫入、轉入只寫分錄延後彙總。</li><li>對帳：內部看加總為 0 與餘額等於分錄，外部逐筆比對清算明細，中間帳戶日終應為 0。監控：黃金訊號加卡住的轉帳、失敗原因、死結、對帳差異。</li></ul></div>
