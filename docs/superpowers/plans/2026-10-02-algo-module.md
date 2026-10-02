@@ -10,16 +10,16 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `01-complexity` | 撰寫中（10-02，Opus `write-algo-a`） | | | |
-| `02-array-string` | 撰寫中（10-02，Opus `write-algo-a`） | | | |
+| `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | 審查中（`review-algo-a`，01＋02 一起） | | |
+| `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | | |
 | `03-hash-table` | 撰寫中（10-02，Opus `write-algo-b`） | | | |
 | `04-linked-list` | 撰寫中（10-02，Opus `write-algo-b`） | | | |
-| `05-stack-queue` | 撰寫中（10-02，Opus `write-algo-c`） | | | |
-| `06-recursion-backtracking` | 撰寫中（10-02，Opus `write-algo-c`） | | | |
-| `07-sorting-binary-search` | | | | |
-| `08-two-pointers-window` | | | | |
-| `09-tree-bst` | | | | |
-| `10-heap` | | | | |
+| `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | 審查中（`review-algo-c`，05＋06 一起） | | |
+| `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | | |
+| `07-sorting-binary-search` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
+| `08-two-pointers-window` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
+| `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
+| `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `11-graph` | | | | |
 | `12-dynamic-programming` | | | | |
 | `13-interview-strategy` | | | | |
@@ -54,3 +54,15 @@ SVG 一律 `role="img"` 加中文 `aria-label`；`id` 用課的前綴（`cx-`、
 1. 第一波：派 3 個寫課代理，各寫 2 課（01＋02、03＋04、05＋06）。
 2. 寫好一組就派審查，審查與下一波寫課交錯（07＋08、09＋10、11＋12、13）。
 3. 第一組通過時建立 `content/algo/module.json` 並加進 `content/modules.json`（id `algo`、圖示 🧮、放在 interview 後面）。
+
+## 站務修正（演算法這輪順帶）
+
+- `0463374` 課中練習題幹的程式碼區塊與選項之間留間距。
+- `eb11322` 程式碼字型關掉連字（== 連成長等號、!= 變 ≠）。
+
+## 模組欄位（`write-algo-a` 建議，建立 module.json 時用）
+
+- title：資料結構與演算法；kick：ALGORITHMS · 資料結構與演算法
+- intro：從複雜度打底，陣列、雜湊表、樹、圖到動態規劃，每課 Java 範例實跑、附刷題清單。
+- overview_intro：開場一句（面試寫程式題要的底子；先講長相、設計理由、每個操作多快，再進題型；Java 範例實跑、主張附出處）＋列點（基礎一課、線性結構四課、演算法手法三課、樹與圖三課、最後兩課）＋結尾（課中練習、隨堂測驗、動手練列 LeetCode 題號）。
+- footer_note：LeetCode 題目只列題號與題名並連到原題，題目敘述版權屬 LeetCode。複雜度與 API 行為以 Java SE 25 文件為準（範例以 Java 21 實跑），查證日期 2026-10-02。
