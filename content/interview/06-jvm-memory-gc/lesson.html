@@ -35,7 +35,7 @@
     <p class="q">面試官：什麼是 GC Root？可達性分析怎麼判斷物件死了？</p>
     <p><strong>一句話定義：</strong>HotSpot 判斷死活的準則是可達性（reachability）：調校指南寫「當一個物件再也無法從執行中程式的任何活物件的任何參考到達，就被視為垃圾，記憶體可以被 VM 重用」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/gctuning/garbage-collector-implementation.html" target="_blank" rel="noopener">出處</a> 從哪裡開始算「到達」？起點就叫 GC Root（根），HotSpot 詞彙表的定義：「從堆外指進 Java 物件堆的指標，例如來自類別的靜態欄位、執行中方法框裡的區域參考等」。<a class="fixsrc" href="https://openjdk.org/groups/hotspot/docs/HotSpotGlossary.html" target="_blank" rel="noopener">出處</a> 從根出發沿著參考走得到的都算活，走不到的就是垃圾。這種「從根追蹤」的做法叫追蹤式回收（tracing garbage collection）。</p>
     <p><strong>差別與取捨：</strong>面試官常追問「為什麼不用參考計數？」參考計數（reference counting，每個物件記著有幾個參考指著它，歸零就回收）最單純的版本「無法處理參考循環——一個物件直接或間接指回自己」；兩個互相指著對方、但外面沒人指的物件，計數永遠不會歸零。追蹤式回收從根出發，這兩個物件走不到，自然回收。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Reference_counting" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>實務註記：</strong>「走得到」有強弱之分——<code>java.lang.ref</code> 套件把可達性分成強、軟、弱、虛四級，後面〈強、軟、弱、虛參考差在哪〉那題會講。</p>
+    <p><strong>實務註記：</strong>「走得到」有強弱之分——<code>java.lang.ref</code> 套件把可達性分成強、軟、弱、虛四級，後面「強、軟、弱、虛參考差在哪」那題會講。</p>
     <p class="q">面試官：常見垃圾回收器 Serial、Parallel、G1、ZGC 各適合什麼？現在預設是哪個？</p>
     <p><strong>一句話定義：</strong>Oracle 的調校指南列了四個回收器，取捨軸只有兩條：吞吐量（throughput，單位時間內能做多少應用程式的工作）對停頓時間（pause time，應用程式被暫停等回收的時間），再加上機器大小。</p>
     <div class="tablewrap"><table>

@@ -12,7 +12,7 @@
 <tr><th>I</th><td>介面隔離原則（Interface Segregation Principle）</td><td>不要逼使用端依賴它用不到的方法</td></tr>
 <tr><th>D</th><td>依賴反轉原則（Dependency Inversion Principle）</td><td>高層規則依賴抽象，不依賴具體細節</td></tr>
 </tbody></table></div>
-<p>這五條大多由 Robert C. Martin 整理推廣。他在 2000 年的文章〈Design Principles and Design Patterns〉開頭先講軟體為什麼會爛掉：需求一直變，模組之間的相依關係越纏越緊，改一處壞一片；要擋住這種退化，就得管理模組之間的相依，而物件導向設計裡「有很多原則與技巧，用來建立這種防火牆、管理模組相依」（Object Oriented Design is replete with principles and techniques for building such firewalls, and for managing module dependencies.）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf" target="_blank" rel="noopener">出處</a> 所以 SOLID 的目的只有一個：<strong>讓程式在需求改變時好改</strong>。</p>
+<p>這五條大多由 Robert C. Martin 整理推廣。他在 2000 年的文章「Design Principles and Design Patterns」開頭先講軟體為什麼會爛掉：需求一直變，模組之間的相依關係越纏越緊，改一處壞一片；要擋住這種退化，就得管理模組之間的相依，而物件導向設計裡「有很多原則與技巧，用來建立這種防火牆、管理模組相依」（Object Oriented Design is replete with principles and techniques for building such firewalls, and for managing module dependencies.）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf" target="_blank" rel="noopener">出處</a> 所以 SOLID 的目的只有一個：<strong>讓程式在需求改變時好改</strong>。</p>
 <p>它們是<strong>原則</strong>，不是編譯器會檢查的規定。違反了程式照樣能跑，只是之後改起來比較痛；硬套也有代價（多出來的介面與類別）。這課每一條都先寫一個違反的銀行程式、看它痛在哪，再重構，最後講它的界線。〈介面與抽象類別〉講過的「耦合要低、凝聚要高」是這五條背後共同的方向。</p>
 <p class="muted">SOLID 這五個字母不是同一份文件同時提出的：2000 年那篇文章講的是開放封閉、里氏替換、依賴反轉、介面隔離四條（外加幾條套件層級的原則），單一職責原則出自 Martin 另一篇文章與他後來的書。</p>
 
@@ -27,7 +27,7 @@
   <p class="dexp">SOLID 是設計原則，不是語言規則。違反它不會有任何錯誤訊息，代價出現在之後改需求的時候。</p>
 </div>
 <div class="drill">
-  <p class="dq">Martin 2000 年的〈Design Principles and Design Patterns〉沒有講到下面哪一條？</p>
+  <p class="dq">Martin 2000 年的「Design Principles and Design Patterns」沒有講到下面哪一條？</p>
   <ul class="dopts"><li>開放封閉原則</li><li>依賴反轉原則</li><li data-ok>單一職責原則</li><li>里氏替換原則</li></ul>
   <p class="dexp">那篇文章講類別層級的開放封閉、里氏替換、依賴反轉、介面隔離四條；單一職責原則出自他另一篇文章與後來的書。</p>
 </div>
@@ -36,7 +36,7 @@
 <section>
 <p class="era">誰會要求你改這段程式</p>
 <h3 class="head">單一職責原則：一個類別只為一群人負責</h3>
-<p>Martin 在〈SRP: The Single Responsibility Principle〉那篇文章裡的寫法是「一個類別不該有超過一個被修改的理由」（THERE SHOULD NEVER BE MORE THAN ONE REASON FOR A CLASS TO CHANGE.），並解釋「每一種職責都是一條會變動的軸」（each responsibility is an axis of change）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/srp.pdf" target="_blank" rel="noopener">出處</a> 常見的英文轉述是「A class should have only one reason to change」，沒有出處；Martin 2014 年自己的寫法見下一段。</p>
+<p>Martin 在「SRP: The Single Responsibility Principle」那篇文章裡的寫法是「一個類別不該有超過一個被修改的理由」（THERE SHOULD NEVER BE MORE THAN ONE REASON FOR A CLASS TO CHANGE.），並解釋「每一種職責都是一條會變動的軸」（each responsibility is an axis of change）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/srp.pdf" target="_blank" rel="noopener">出處</a> 常見的英文轉述是「A class should have only one reason to change」，沒有出處；Martin 2014 年自己的寫法見下一段。</p>
 <p>「理由」很容易被誤解成「功能」或「做一件事」。Martin 2014 年在部落格上補充：單一職責原則說的是「每個軟體模組應該有一個、而且只有一個被修改的理由」（each software module should have one and only one reason to change），而「這個原則講的是人」（This principle is about people.）：修改的要求應該只來自「一群緊密相關、代表單一業務功能的人」（a single tightly coupled group of people representing a single narrowly defined business function）。<a class="fixsrc" href="https://blog.cleancoder.com/uncle-bob/2014/05/08/SingleReponsibilityPrinciple.html" target="_blank" rel="noopener">出處</a> 他的例子是一個員工類別同時有算薪水、存資料庫、出工時報表三個方法，分別由財務長、技術長、營運長的部門提出修改。</p>
 <p>換成銀行：一個 <code>Account</code> 同時負責算利息（財務部決定）、印對帳單（營運部決定）、存檔（資訊部決定），三個方法共用一個「四捨五入到元」的小工具：</p>
 <pre><code>class Account {
@@ -286,7 +286,7 @@ VIP 戶 跨行轉帳 5000 元，手續費 0 元</code></pre>
 <section>
 <p class="era">子型別要守父型別的約定</p>
 <h3 class="head">里氏替換原則：放進父型別的位置，要照常運作</h3>
-<p>Barbara Liskov 1987 年在 OOPSLA 的講稿〈Data Abstraction and Hierarchy〉寫下原始定義：「如果對每個型別 S 的物件 o1，都有一個型別 T 的物件 o2，使得所有以 T 定義的程式 P 在把 o2 換成 o1 時行為不變，那麼 S 就是 T 的子型別」（If for each object o1 of type S there is an object o2 of type T such that for all programs P defined in terms of T, the behavior of P is unchanged when o1 is substituted for o2 then S is a subtype of T.）。她還特別區分：子型別、父型別講的是「語意上的區別」，子類別、父類別「只是程式語言的語法概念」。<a class="fixsrc" href="https://doi.org/10.1145/62139.62141" target="_blank" rel="noopener">出處</a> 也就是說，<code>extends</code> 寫得出來，不代表語意上真的是子型別。</p>
+<p>Barbara Liskov 1987 年在 OOPSLA 的講稿「Data Abstraction and Hierarchy」寫下原始定義：「如果對每個型別 S 的物件 o1，都有一個型別 T 的物件 o2，使得所有以 T 定義的程式 P 在把 o2 換成 o1 時行為不變，那麼 S 就是 T 的子型別」（If for each object o1 of type S there is an object o2 of type T such that for all programs P defined in terms of T, the behavior of P is unchanged when o1 is substituted for o2 then S is a subtype of T.）。她還特別區分：子型別、父型別講的是「語意上的區別」，子類別、父類別「只是程式語言的語法概念」。<a class="fixsrc" href="https://doi.org/10.1145/62139.62141" target="_blank" rel="noopener">出處</a> 也就是說，<code>extends</code> 寫得出來，不代表語意上真的是子型別。</p>
 <p>Martin 把它濃縮成「子類別應該能替換它們的父類別」（Subclasses should be substitutable for their base classes.），並用約定來講：子類別的方法「前置條件不比父類別強、後置條件不比父類別弱」，換句話說「要求不能更多，提供不能更少」（derived methods should expect no more and provide no less）。<a class="fixsrc" href="https://web.archive.org/web/20150906155800/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf" target="_blank" rel="noopener">出處</a> 前置條件是呼叫前必須成立的條件，後置條件是方法保證做完之後成立的結果。</p>
 <p>定存「是一種」帳戶，直覺上就讓它繼承 <code>Account</code>。但 <code>Account.withdraw</code> 的約定是「金額不超過餘額就一定扣得成」，定存卻多加了「沒到期一律不能提」，前置條件變強了：</p>
 <pre><code>import java.util.List;
@@ -895,7 +895,7 @@ class Exchanger {
 （呼叫外部匯率 API）
 static 版換匯：3185.00
 注入固定匯率：3200.0</code></pre>
-<p>static 方法不是壞東西。<code>Money.toDollar</code> 沒有狀態、同樣輸入永遠同樣輸出，<code>Math.abs</code> 也是這樣，寫成 static 很合適；上面資料導向那段的 <code>Withdrawals.withdraw</code> 也是。問題出在 <code>RateUtil</code> 這種<strong>裡面藏著外部相依</strong>的 static：呼叫端從簽章看不出它會打外部 API，測試時也沒辦法指定匯率。Google 的 Miško Hevery 2008 年的文章〈Static Methods are Death to Testability〉解釋：單元測試靠的是能替換相依的「接縫」，接縫靠多型運作，「static 方法沒有東西可以覆寫」（With static methods there is nothing to override.）；但他也承認呼叫樹最底層、不再呼叫別人的 static 方法（leaf method）測起來沒有問題。<a class="fixsrc" href="https://testing.googleblog.com/2008/12/static-methods-are-death-to-testability.html" target="_blank" rel="noopener">出處</a> 判斷方式：純計算的放心寫成 static；碰到資料庫、網路、時間、亂數、全域狀態的，改成物件、從外面注入（就是上面的依賴反轉）。〈設計模式〉講單例「把相依藏起來」，是同一個問題。</p>
+<p>static 方法不是壞東西。<code>Money.toDollar</code> 沒有狀態、同樣輸入永遠同樣輸出，<code>Math.abs</code> 也是這樣，寫成 static 很合適；上面資料導向那段的 <code>Withdrawals.withdraw</code> 也是。問題出在 <code>RateUtil</code> 這種<strong>裡面藏著外部相依</strong>的 static：呼叫端從簽章看不出它會打外部 API，測試時也沒辦法指定匯率。Google 的 Miško Hevery 2008 年的文章「Static Methods are Death to Testability」解釋：單元測試靠的是能替換相依的「接縫」，接縫靠多型運作，「static 方法沒有東西可以覆寫」（With static methods there is nothing to override.）；但他也承認呼叫樹最底層、不再呼叫別人的 static 方法（leaf method）測起來沒有問題。<a class="fixsrc" href="https://testing.googleblog.com/2008/12/static-methods-are-death-to-testability.html" target="_blank" rel="noopener">出處</a> 判斷方式：純計算的放心寫成 static；碰到資料庫、網路、時間、亂數、全域狀態的，改成物件、從外面注入（就是上面的依賴反轉）。〈設計模式〉講單例「把相依藏起來」，是同一個問題。</p>
 <h4>吞掉例外</h4>
 <pre><code>public class Swallow {
     public static void main(String[] args) {
