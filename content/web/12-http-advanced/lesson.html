@@ -1,0 +1,477 @@
+<!-- 來源：依 RFC 9110（HTTP 語意）、RFC 9111（HTTP 快取）、RFC 9112（HTTP/1.1）、RFC 9113（HTTP/2）、RFC 9114（HTTP/3）、RFC 9000（QUIC）、RFC 7541（HPACK）、RFC 9204（QPACK）、RFC 6585、RFC 5789，以及 MDN〈Connection management in HTTP/1.x〉〈HTTP caching〉〈Head-of-line blocking〉新寫；curl 8.7.1 對本站 hhtim.github.io 的輸出為 2026-10-02 實測 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看第一位數就知道狀態碼的類別，遇到情境（沒登入、沒權限、驗證失敗、限流、上游掛掉、上游太慢）選得出該回哪個碼</li><li>分清安全方法與冪等方法，知道這兩個性質決定「能不能自動重試」</li><li>說出 HTTP/1.1 持久連線的預設行為、隊頭阻塞從哪來，以及 HTTP/2 的串流與 HPACK、HTTP/3 的 QUIC 各解決了哪一層</li><li>讀懂 <code>Cache-Control</code>、<code>ETag</code>、<code>Age</code>、<code>Vary</code> 這些回應標頭，判斷瀏覽器下一次會直接用快取、送條件式請求，還是重新下載</li><li>說明內容協商怎麼用 <code>Accept</code> 系列標頭與 q 值挑出回應</li></ul></div>
+
+<section>
+<p class="era">先看第一位數</p>
+<h3 class="head">狀態碼的五大類與常見的 17 個</h3>
+<p>〈HTTP 與 HTTPS〉介紹過五大類。RFC 9110 的規則：「狀態碼的第一位數定義回應的類別，後兩位數沒有分類的作用」（The first digit of the status code defines the class of response. The last two digits do not have any categorization role.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15" target="_blank" rel="noopener">RFC 9110 第 15 節</a> 而且用戶端不必認得每一個碼，但「必須（MUST）認得任何狀態碼的類別，把看不懂的碼當成該類的 x00」（a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.）——收到沒見過的 471，就當 400 處理。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15" target="_blank" rel="noopener">RFC 9110 第 15 節</a></p>
+<figure>
+<svg viewBox="0 0 760 362" role="img" aria-label="狀態碼五大類：1xx 資訊，收到了還在處理，例如 100；2xx 成功，例如 200、201、204；3xx 重新導向，例如 301、302、304、307、308；4xx 用戶端錯誤，例如 400、401、403、404、409、422、429；5xx 伺服器錯誤，例如 500、502、503、504。第一位數決定類別，看不懂的碼照同類的 x00 處理">
+<rect x="15" y="20" width="140" height="300" rx="8" fill="var(--surface)" stroke="currentColor"/><rect x="15" y="20" width="140" height="62" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="85" y="46" font-size="18" text-anchor="middle" class="mono">1xx</text><text x="85" y="70" font-size="13" text-anchor="middle">資訊</text><text x="85" y="104" font-size="11.5" text-anchor="middle" opacity=".8">收到了，還在處理</text><text x="85" y="136" font-size="12.5" text-anchor="middle">100 繼續送</text><rect x="165" y="20" width="140" height="300" rx="8" fill="var(--surface)" stroke="var(--ok)"/><rect x="165" y="20" width="140" height="62" rx="8" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="235" y="46" font-size="18" text-anchor="middle" class="mono">2xx</text><text x="235" y="70" font-size="13" text-anchor="middle">成功</text><text x="235" y="104" font-size="11.5" text-anchor="middle" opacity=".8">收到、看懂、接受了</text><text x="235" y="136" font-size="12.5" text-anchor="middle">200 成功</text><text x="235" y="160" font-size="12.5" text-anchor="middle">201 建了新資源</text><text x="235" y="184" font-size="12.5" text-anchor="middle">204 成功但沒內容</text><rect x="315" y="20" width="140" height="300" rx="8" fill="var(--surface)" stroke="var(--slate)"/><rect x="315" y="20" width="140" height="62" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="385" y="46" font-size="18" text-anchor="middle" class="mono">3xx</text><text x="385" y="70" font-size="13" text-anchor="middle">重新導向</text><text x="385" y="104" font-size="11.5" text-anchor="middle" opacity=".8">還要再做一步才完成</text><text x="385" y="136" font-size="12.5" text-anchor="middle">301 永久搬家</text><text x="385" y="160" font-size="12.5" text-anchor="middle">302 暫時在別處</text><text x="385" y="184" font-size="12.5" text-anchor="middle">304 沒變，用你的</text><text x="385" y="208" font-size="12.5" text-anchor="middle">307／308 不改方法</text><rect x="465" y="20" width="140" height="300" rx="8" fill="var(--surface)" stroke="var(--gold)"/><rect x="465" y="20" width="140" height="62" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="535" y="46" font-size="18" text-anchor="middle" class="mono">4xx</text><text x="535" y="70" font-size="13" text-anchor="middle">用戶端錯誤</text><text x="535" y="104" font-size="11.5" text-anchor="middle" opacity=".8">請求有問題或做不到</text><text x="535" y="136" font-size="12.5" text-anchor="middle">400 請求壞了</text><text x="535" y="160" font-size="12.5" text-anchor="middle">401 不知道你是誰</text><text x="535" y="184" font-size="12.5" text-anchor="middle">403 知道但不准</text><text x="535" y="208" font-size="12.5" text-anchor="middle">404 找不到</text><text x="535" y="232" font-size="12.5" text-anchor="middle">409 跟現況衝突</text><text x="535" y="256" font-size="12.5" text-anchor="middle">422 內容不合理</text><text x="535" y="280" font-size="12.5" text-anchor="middle">429 送太多了</text><rect x="615" y="20" width="140" height="300" rx="8" fill="var(--surface)" stroke="var(--danger)"/><rect x="615" y="20" width="140" height="62" rx="8" fill="var(--surface)" stroke="var(--danger)"/><text x="685" y="46" font-size="18" text-anchor="middle" class="mono">5xx</text><text x="685" y="70" font-size="13" text-anchor="middle">伺服器錯誤</text><text x="685" y="104" font-size="11" text-anchor="middle" opacity=".8">請求沒錯，伺服器沒做到</text><text x="685" y="136" font-size="12.5" text-anchor="middle">500 伺服器出錯</text><text x="685" y="160" font-size="12.5" text-anchor="middle">502 上游回了壞的</text><text x="685" y="184" font-size="12.5" text-anchor="middle">503 暫時撐不住</text><text x="685" y="208" font-size="12.5" text-anchor="middle">504 上游沒回</text><text x="380" y="346" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">第一位數決定類別，後兩位數不分類；用戶端看不懂的碼，照同類的 x00 處理（例如 471 當 400）</text>
+</svg>
+<figcaption>每一欄上方是 RFC 9110 對該類的定義（白話），下方是本課要會的碼。307、308 放在 3xx，是 301、302「不准改方法」的版本。</figcaption>
+</figure>
+<p>面試清單上最常被問的 17 個，用「什麼情境回它」來記：</p>
+<div class="tablewrap"><table><thead><tr><th>碼</th><th>什麼情境回它</th><th>容易跟誰混</th></tr></thead><tbody>
+<tr><th>200 OK</th><td>成功，內容依方法而定（GET 回資源本身）<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1" target="_blank" rel="noopener">§15.3.1</a></td><td>—</td></tr>
+<tr><th>201 Created</th><td>建立了新資源，新資源的位置放在 <code>Location</code> 標頭<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2" target="_blank" rel="noopener">§15.3.2</a></td><td>POST 新增成功回 201 比 200 精確</td></tr>
+<tr><th>204 No Content</th><td>做完了，但沒有內容要回<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5" target="_blank" rel="noopener">§15.3.5</a></td><td>DELETE、PUT 成功常用</td></tr>
+<tr><th>301 Moved Permanently</th><td>永久搬家，以後都用新網址<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2" target="_blank" rel="noopener">§15.4.2</a></td><td>不想讓 POST 被改成 GET，用 308</td></tr>
+<tr><th>302 Found</th><td>暫時在別的網址，以後還是用原網址<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3" target="_blank" rel="noopener">§15.4.3</a></td><td>不想讓 POST 被改成 GET，用 307</td></tr>
+<tr><th>304 Not Modified</th><td>條件式請求的條件不成立：你手上那份還有效，不用再傳<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5" target="_blank" rel="noopener">§15.4.5</a></td><td>它不是錯誤，是快取驗證成功</td></tr>
+<tr><th>400 Bad Request</th><td>請求本身壞了：語法錯、訊息框架錯<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.1" target="_blank" rel="noopener">§15.5.1</a></td><td>看得懂但內容不合理用 422</td></tr>
+<tr><th>401 Unauthorized</th><td>缺少有效的身分驗證憑據；必須附 <code>WWW-Authenticate</code><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2" target="_blank" rel="noopener">§15.5.2</a></td><td>名字叫 Unauthorized，意思是「不知道你是誰」</td></tr>
+<tr><th>403 Forbidden</th><td>看懂了但拒絕；帶了憑據也不夠<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.4" target="_blank" rel="noopener">§15.5.4</a></td><td>知道你是誰，但你沒權限</td></tr>
+<tr><th>404 Not Found</th><td>找不到，或不願透露它存在<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.5" target="_blank" rel="noopener">§15.5.5</a></td><td>不想洩漏資源存在時，可以用 404 代替 403</td></tr>
+<tr><th>409 Conflict</th><td>跟資源目前的狀態衝突，使用者解決後可以重送<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.10" target="_blank" rel="noopener">§15.5.10</a></td><td>版本衝突、重複建立</td></tr>
+<tr><th>422 Unprocessable Content</th><td>格式看得懂、語法也對，但裡面的指令處理不了<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.21" target="_blank" rel="noopener">§15.5.21</a></td><td>欄位驗證失敗常用</td></tr>
+<tr><th>429 Too Many Requests</th><td>一段時間內送太多請求（限流），可附 <code>Retry-After</code><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6585.html#section-4" target="_blank" rel="noopener">RFC 6585 §4</a></td><td>定義在 RFC 6585，不在 9110</td></tr>
+<tr><th>500 Internal Server Error</th><td>伺服器遇到沒料到的狀況<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.1" target="_blank" rel="noopener">§15.6.1</a></td><td>程式例外沒接住</td></tr>
+<tr><th>502 Bad Gateway</th><td>當閘道或代理時，上游回了無效的回應<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.3" target="_blank" rel="noopener">§15.6.3</a></td><td>上游「回了但壞掉」</td></tr>
+<tr><th>503 Service Unavailable</th><td>暫時過載或維護中，可附 <code>Retry-After</code><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.4" target="_blank" rel="noopener">§15.6.4</a></td><td>「等一下再來」</td></tr>
+<tr><th>504 Gateway Timeout</th><td>當閘道或代理時，上游沒有及時回<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.5" target="_blank" rel="noopener">§15.6.5</a></td><td>上游「根本沒回」</td></tr>
+</tbody></table></div>
+<p>301 與 302 有一個歷史包袱：RFC 寫「因為歷史原因，使用者代理（user agent，瀏覽器這類替使用者發請求的程式）可以（MAY）把下一個請求的方法從 POST 改成 GET；不想要這種行為，可以改用 308（永久）或 307（暫時）」（For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2" target="_blank" rel="noopener">RFC 9110 第 15.4.2 節</a> 307 的定義直接寫明使用者代理自動轉址時「不得（MUST NOT）改變請求方法」（the user agent MUST NOT change the request method if it performs an automatic redirection to that URI.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8" target="_blank" rel="noopener">RFC 9110 第 15.4.8 節</a></p>
+<p>2026-10-02 用 <code>curl -sI</code> 打本站的 http 網址，回的就是 301，把人送到 https：</p>
+<pre><code>$ curl -sI http://hhtim.github.io/notes-platform/
+HTTP/1.1 301 Moved Permanently
+Location: https://hhtim.github.io/notes-platform/</code></pre>
+<p class="formula">401 是「你是誰？」，403 是「知道你是誰，不行」；502 是上游回了壞東西，504 是上游沒在時限內回</p>
+<p class="muted">每個碼的面試答法（一句話定義加補一句）見面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉。</p>
+<div class="drill">
+  <p class="dq">使用者沒登入，直接打 <code>GET /api/accounts/me</code>，請求裡沒有任何 token。該回哪個？</p>
+  <ul class="dopts"><li>403 Forbidden</li><li data-ok>401 Unauthorized</li><li>400 Bad Request</li><li>500 Internal Server Error</li></ul>
+  <p class="dexp">缺少有效的身分驗證憑據就是 401，而且要附 WWW-Authenticate 告訴用戶端怎麼驗證。403 是「知道你是誰，但不准」。</p>
+</div>
+<div class="drill">
+  <p class="dq">一般行員登入了，token 有效，卻去打只有主管能用的 <code>POST /api/approvals</code>。該回哪個？</p>
+  <ul class="dopts"><li data-ok>403 Forbidden</li><li>401 Unauthorized</li><li>409 Conflict</li><li>405 Method Not Allowed</li></ul>
+  <p class="dexp">身分已經確認，只是權限不夠：伺服器看懂了請求但拒絕。這時回 401 會讓用戶端以為換個 token 就好。405 是這個資源不支援這個方法，不是權限問題。</p>
+</div>
+<div class="drill">
+  <p class="dq">轉帳 API 收到的 JSON 格式完全正確，但轉帳金額是 -500。比較精確的回應是？</p>
+  <ul class="dopts"><li>400 Bad Request</li><li data-ok>422 Unprocessable Content</li><li>500 Internal Server Error</li><li>409 Conflict</li></ul>
+  <p class="dexp">422：內容型別看得懂、語法正確，但裡面的指令處理不了。400 偏向請求本身壞掉（例如 JSON 少一個括號）。很多團隊兩者都回 400，這題問的是哪個比較精確。</p>
+</div>
+<div class="drill">
+  <p class="dq">送來的 body 是 <code>{"amount": 500</code>，少了右大括號。該回哪個？</p>
+  <ul class="dopts"><li>422 Unprocessable Content</li><li data-ok>400 Bad Request</li><li>415 Unsupported Media Type</li><li>500 Internal Server Error</li></ul>
+  <p class="dexp">語法本身就錯了，是 400 的範圍（malformed request syntax）。422 的前提是語法正確；415 是用戶端送了伺服器不支援的內容型別。</p>
+</div>
+<div class="drill">
+  <p class="dq">兩個人同時編輯同一份文件，後存的那個人送出的版本號已經過時。該回哪個，讓使用者知道要先合併？</p>
+  <ul class="dopts"><li>400 Bad Request</li><li>403 Forbidden</li><li>404 Not Found</li><li data-ok>409 Conflict</li></ul>
+  <p class="dexp">409 是請求跟資源目前的狀態衝突，而且使用者可能解決衝突後重送。請求本身沒壞，人也有權限。</p>
+</div>
+<div class="drill">
+  <p class="dq">某個客戶端一秒打了 300 次查詢 API，超過每秒 50 次的上限。該回哪個？</p>
+  <ul class="dopts"><li>503 Service Unavailable，伺服器整個暫停服務</li><li>403 Forbidden</li><li data-ok>429 Too Many Requests</li><li>400 Bad Request</li></ul>
+  <p class="dexp">429 就是限流（rate limiting），RFC 6585 說可以附 Retry-After 告訴對方等多久。503 是伺服器本身暫時撐不住，跟某個客戶端送太多是不同情境。</p>
+</div>
+<div class="drill">
+  <p class="dq">Nginx 當反向代理，後面的 Spring Boot 程式當掉了，Nginx 連過去被直接拒絕連線。使用者最可能看到？</p>
+  <ul class="dopts"><li>500 Internal Server Error</li><li>504 Gateway Timeout</li><li>404 Not Found</li><li data-ok>502 Bad Gateway</li></ul>
+  <p class="dexp">Nginx 當代理、從上游拿不到有效回應，就是 502。504 是上游太慢、沒在時限內回；500 是 Nginx 自己出錯。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，換成 Spring Boot 還活著，但一個查詢跑了 90 秒，Nginx 的上游逾時設 60 秒。使用者會看到？</p>
+  <ul class="dopts"><li data-ok>504 Gateway Timeout</li><li>502 Bad Gateway</li><li>500 Internal Server Error</li><li>408 Request Timeout</li></ul>
+  <p class="dexp">上游沒在時限內回應，代理回 504。408 是伺服器等「用戶端」送完請求等到逾時，方向不同。</p>
+</div>
+<div class="drill">
+  <p class="dq">系統排定今晚 23:00 到 01:00 維護，期間所有 API 該回什麼？</p>
+  <ul class="dopts"><li data-ok>503 Service Unavailable</li><li>500 Internal Server Error</li><li>404 Not Found</li><li>403 Forbidden，維護期間禁止存取</li></ul>
+  <p class="dexp">RFC 9110：503 是暫時過載或排定維護，可以附 Retry-After 建議等多久再試。用 500 或 404 會讓監控與用戶端誤判。</p>
+</div>
+<div class="drill">
+  <p class="dq">新增客戶的 <code>POST /api/customers</code> 成功了。最精確的回應是？</p>
+  <ul class="dopts"><li data-ok>201 Created 加 Location</li><li>200 OK，body 放新客戶資料</li><li>204 No Content，什麼都不回</li><li>302 Found，轉到新客戶的頁面</li></ul>
+  <p class="dexp">201 表示建立了新資源，新資源的位置由 Location 標頭指出。200 也不算錯，但 201 把「建了新的」說清楚。</p>
+</div>
+<div class="drill">
+  <p class="dq">登入表單用 POST 送到 <code>/login</code>，網站搬家要轉到新網址，而且轉過去後要<strong>還是 POST</strong>。該用哪個？</p>
+  <ul class="dopts"><li>301 Moved Permanently</li><li>302 Found</li><li data-ok>308 Permanent Redirect</li><li>304 Not Modified</li></ul>
+  <p class="dexp">301 與 302 因為歷史原因，用戶端可以把 POST 改成 GET。308（永久）與 307（暫時）不准改方法。</p>
+</div>
+<div class="drill">
+  <p class="dq">用戶端收到一個它從沒見過的狀態碼 <code>432</code>。照 RFC 9110 應該怎麼處理？</p>
+  <ul class="dopts"><li>當成 200，因為沒看過就假設成功</li><li data-ok>當成 400 處理</li><li>當成網路錯誤</li><li>直接忽略，等下一個回應</li></ul>
+  <p class="dexp">用戶端 MUST 認得類別，看不懂的碼當成同類的 x00。4 開頭就照 400 處理。</p>
+</div>
+</section>
+
+<section>
+<p class="era">能不能放心再按一次</p>
+<h3 class="head">方法的安全與冪等</h3>
+<p>〈HTTP 與 HTTPS〉的方法表已經列出結論，這裡把兩個詞講清楚，再講它們為什麼重要。</p>
+<ul class="plainlist">
+<li><strong>安全（safe）：</strong>方法的語意「本質上是唯讀的」，用戶端不要求、也不預期伺服器狀態因此改變（Request methods are considered "safe" if their defined semantics are essentially read-only）。RFC 9110 定義的方法裡，「GET、HEAD、OPTIONS、TRACE 定義為安全」（the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1" target="_blank" rel="noopener">RFC 9110 第 9.2.1 節</a></li>
+<li><strong>冪等（idempotent）：</strong>同樣的請求送很多次，「對伺服器的預期效果跟送一次一樣」（the intended effect on the server of multiple identical requests with that method is the same as the effect for a single such request.）；「PUT、DELETE 與安全方法是冪等的」（PUT, DELETE, and safe request methods are idempotent.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2" target="_blank" rel="noopener">RFC 9110 第 9.2.2 節</a> PATCH 的規格 RFC 5789 寫它「既不安全也不冪等」（PATCH is neither safe nor idempotent），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5789.html#section-2" target="_blank" rel="noopener">RFC 5789 第 2 節</a> POST 也不是。</li>
+</ul>
+<div class="tablewrap"><table><thead><tr><th>方法</th><th>安全</th><th>冪等</th><th>白話</th></tr></thead><tbody>
+<tr><th>GET、HEAD</th><td>是</td><td>是</td><td>只讀，看幾次都一樣</td></tr>
+<tr><th>PUT</th><td>否</td><td>是</td><td>「整個換成這一份」，換十次結果還是這一份</td></tr>
+<tr><th>DELETE</th><td>否</td><td>是</td><td>刪一次跟刪十次，結果都是「不在了」</td></tr>
+<tr><th>POST</th><td>否</td><td>否</td><td>「照你的規則處理這份資料」，送兩次可能建兩筆、扣兩次</td></tr>
+<tr><th>PATCH</th><td>否</td><td>不保證</td><td>看怎麼寫：「餘額設成 100」冪等，「餘額加 100」不冪等</td></tr>
+</tbody></table></div>
+<p><strong>為什麼要分：</strong>RFC 說冪等方法特別的地方是「回應還沒收到、連線就斷了時，可以自動重送請求」（the request can be repeated automatically if a communication failure occurs before the client is able to read the server's response.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2" target="_blank" rel="noopener">RFC 9110 第 9.2.2 節</a> 瀏覽器、代理、HTTP 用戶端程式庫敢自動重試 GET、PUT，不敢自動重試 POST，就是靠這個。冪等看的是「伺服器的狀態」，不是回應碼：第二次 DELETE 回 404，資源一樣不在了，仍然算冪等。RFC 也補充，冪等只管使用者要求的效果，伺服器「可以每個請求各記一筆日誌」（a server is free to log each request separately），不影響冪等。</p>
+<p class="formula">安全＝不改東西；冪等＝改了也只算一次。安全的一定冪等，冪等的不一定安全（PUT、DELETE）</p>
+<p class="muted">要讓 POST 也能安心重試，常見做法是冪等鍵（用戶端替每次操作產生一個唯一編號，伺服器看過就不重做），見面試集〈系統設計：秒殺與限流〉。</p>
+<div class="drill">
+  <p class="dq">行動 App 送出轉帳的 <code>POST /transfers</code>，網路斷了沒收到回應。程式庫該不該自動重送？</p>
+  <ul class="dopts"><li>該，HTTP 用戶端都會自動重送</li><li data-ok>不該，POST 不是冪等方法</li><li>該，有 TLS 保護</li><li>不該，因為 POST 是安全方法，送一次就夠</li></ul>
+  <p class="dexp">自動重送只適合冪等方法。POST 不冪等，伺服器可能已經做完、只是回應丟了，再送一次就是第二筆轉帳。POST 也不是安全方法。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個 <code>DELETE /cards/77</code> 送了兩次，第一次回 204，第二次回 404。DELETE 還算冪等嗎？</p>
+  <ul class="dopts"><li>不算，回應碼不同</li><li data-ok>算，冪等看的是伺服器狀態</li><li>不算，第二次應該也回 204 才對</li><li>要看伺服器有沒有替每次請求記日誌</li></ul>
+  <p class="dexp">冪等的定義是對伺服器的預期效果一樣，不是回應一樣。記日誌也不影響，RFC 明說伺服器可以每個請求各記一筆。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個請求是冪等的？</p>
+  <ul class="dopts"><li>PATCH，內容是「把點數加 10」</li><li>POST /orders，建立一張新訂單</li><li>POST /counters/visits，訪客數加一</li><li data-ok>PUT，「信箱改成 a@example.com」</li></ul>
+  <p class="dexp">PUT 是整個換成請求裡那一份，送幾次信箱都是 a@example.com。「加 10」「加一」「新建一筆」送兩次效果就不一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">某團隊用 <code>GET /accounts/9/close</code> 來關閉帳戶。這樣設計最大的問題是？</p>
+  <ul class="dopts"><li>GET 不能帶路徑參數，要改用查詢字串</li><li data-ok>周邊工具會放心地自動發 GET</li><li>GET 太慢</li><li>GET 不能用 HTTPS</li></ul>
+  <p class="dexp">安全方法的語意是唯讀，周邊工具會放心地預先抓取或重送。拿它做會改狀態的事，等於讓那些工具都有機會觸發。</p>
+</div>
+<div class="drill">
+  <p class="dq">哪一組全部是 RFC 9110 定義的安全方法？</p>
+  <ul class="dopts"><li data-ok>GET、HEAD、OPTIONS</li><li>GET、POST、HEAD</li><li>GET、PUT、DELETE</li><li>HEAD、PATCH、OPTIONS</li></ul>
+  <p class="dexp">RFC 9110 點名 GET、HEAD、OPTIONS、TRACE 是安全方法。PUT、DELETE 冪等但不安全；POST、PATCH 兩個都不是。</p>
+</div>
+<div class="drill">
+  <p class="dq">PATCH 的請求內容是 <code>{"status": "closed"}</code>（直接設成某個值）。這個請求送兩次會怎樣？</p>
+  <ul class="dopts"><li>一定會出錯，PATCH 不能重複送</li><li>狀態會變成 closed 兩次，變成不同的值</li><li>伺服器回 409</li><li data-ok>效果跟只送一次一樣</li></ul>
+  <p class="dexp">RFC 5789 說 PATCH 不保證冪等，但「設成某個值」這種寫法送幾次都一樣；「加多少」這種寫法就不冪等。冪等是看實際語意。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一條連線用到底</p>
+<h3 class="head">Keep-Alive 與隊頭阻塞</h3>
+<p>〈TCP、UDP 與 TLS 握手〉算過：每開一條新連線，要先付一趟 TCP 交握、再一趟 TLS 握手，壅塞視窗還要從慢啟動重新長。所以 HTTP/1.1 的預設是不關：「HTTP/1.1 預設使用『持久連線』，讓多個請求與回應走同一條連線」（HTTP/1.1 defaults to the use of "persistent connections", allowing multiple requests and responses to be carried over a single connection.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.3" target="_blank" rel="noopener">RFC 9112 第 9.3 節</a> 判斷規則是：收到的協定是 HTTP/1.1 以上，「這次回應之後連線繼續保持」（the connection will persist after the current response）；HTTP/1.0 才要看有沒有 keep-alive 連線選項。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.3" target="_blank" rel="noopener">RFC 9112 第 9.3 節</a></p>
+<p>換句話說，<code>Connection: keep-alive</code> 是 HTTP/1.0 留下來的寫法，HTTP/1.1 不寫也會保持連線，要關才寫 <code>Connection: close</code>。2026-10-02 用 <code>curl -v --http1.1</code> 對本站連抓兩頁（節錄）：</p>
+<pre><code>* Connected to hhtim.github.io (185.199.108.153) port 443
+&gt; GET /notes-platform/ HTTP/1.1
+&lt; HTTP/1.1 200 OK
+&lt; Connection: keep-alive
+* Connection #0 to host hhtim.github.io left intact
+* Re-using existing connection with host hhtim.github.io
+&gt; GET /notes-platform/web/ HTTP/1.1
+&lt; HTTP/1.1 200 OK</code></pre>
+<p>第二個請求前面沒有新的 <code>Connected to</code>，而是 <code>Re-using existing connection</code>：同一條連線（#0）接著用，省下交握與握手。GitHub Pages 的回應還是附了 <code>Connection: keep-alive</code>，對 HTTP/1.1 來說這行寫不寫都一樣。這跟 TCP 自己的 keep-alive（定時送探測區段，確認閒置連線還活著）是兩件事，名字撞在一起而已。</p>
+<p><strong>隊頭阻塞從哪來：</strong>同一條 HTTP/1.1 連線上，下一個請求要等上一個回應回來。HTTP/1.1 雖然允許<strong>管線化</strong>（pipelining，不等回應就連續送請求），但規定伺服器「必須（MUST）照收到請求的順序送出對應的回應」（it MUST send the corresponding responses in the same order that the requests were received.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.3.2" target="_blank" rel="noopener">RFC 9112 第 9.3.2 節</a> 第一個回應慢，後面的就算算好了也得排隊。MDN 寫現代瀏覽器預設不開管線化（HTTP pipelining is not activated by default in modern browsers），<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x" target="_blank" rel="noopener">MDN〈Connection management in HTTP/1.x〉</a> 實務上就是「多開幾條連線」：RFC 9112 說多條連線「通常是用來避開隊頭阻塞問題」（Multiple connections are typically used to avoid the "head-of-line blocking" problem），但每條都吃伺服器資源，所以不訂上限、只鼓勵用戶端保守；<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.4" target="_blank" rel="noopener">RFC 9112 第 9.4 節</a> MDN 寫的常見數字是 6 條平行連線（a more common use of 6 parallel connections）。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x" target="_blank" rel="noopener">MDN〈Connection management in HTTP/1.x〉</a></p>
+<figure>
+<svg viewBox="0 0 760 412" role="img" aria-label="HTTP/1.1、HTTP/2、HTTP/3 的連線比較。上：HTTP/1.1 開三條 TCP 連線，每條一次只處理一個請求，下一個排在後面等。中：HTTP/2 只用一條 TCP 連線，串流 1、3、5 的幀交錯傳送；中間一個封包遺失後，後面三個串流的資料全部卡住等重傳。下：HTTP/3 用 QUIC，三個串流各自傳送，串流 3 遺失一包只有它自己要等，串流 1 和 5 繼續前進">
+<text x="20" y="26" font-size="13" text-anchor="start" fill="var(--gold-deep)">HTTP/1.1：一條 TCP 連線一次一個請求，要同時抓就多開幾條</text><text x="20" y="55" font-size="11.5" text-anchor="start" class="mono" opacity=".75">TCP 1</text><line x1="80" y1="50" x2="740" y2="50" stroke="currentColor" stroke-width="1" stroke-opacity=".25"/><rect x="90" y="40" width="150" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="165" y="54" font-size="11" text-anchor="middle" class="mono">請求→回應</text><rect x="260" y="40" width="220" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="370" y="54" font-size="11" text-anchor="middle" class="mono">下一個（排在後面等）</text><text x="20" y="85" font-size="11.5" text-anchor="start" class="mono" opacity=".75">TCP 2</text><line x1="80" y1="80" x2="740" y2="80" stroke="currentColor" stroke-width="1" stroke-opacity=".25"/><rect x="102" y="70" width="150" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="177" y="84" font-size="11" text-anchor="middle" class="mono">請求→回應</text><rect x="272" y="70" width="220" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="382" y="84" font-size="11" text-anchor="middle" class="mono">下一個（排在後面等）</text><text x="20" y="115" font-size="11.5" text-anchor="start" class="mono" opacity=".75">TCP 3</text><line x1="80" y1="110" x2="740" y2="110" stroke="currentColor" stroke-width="1" stroke-opacity=".25"/><rect x="114" y="100" width="150" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="189" y="114" font-size="11" text-anchor="middle" class="mono">請求→回應</text><rect x="284" y="100" width="220" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="394" y="114" font-size="11" text-anchor="middle" class="mono">下一個（排在後面等）</text><text x="735" y="140" font-size="11.5" text-anchor="end" opacity=".75">MDN：常見的做法是對同一台主機開 6 條平行連線</text><text x="20" y="172" font-size="13" text-anchor="start" fill="var(--gold-deep)">HTTP/2：一條 TCP 連線，多個串流的幀交錯送；但 TCP 只看到一條位元組串流</text><text x="20" y="203" font-size="11.5" text-anchor="start" class="mono" opacity=".75">TCP</text><rect x="90" y="188" width="34" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="107" y="202" font-size="11" text-anchor="middle" class="mono">1</text><rect x="130" y="188" width="34" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="147" y="202" font-size="11" text-anchor="middle" class="mono">3</text><rect x="170" y="188" width="34" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="187" y="202" font-size="11" text-anchor="middle" class="mono">5</text><rect x="210" y="188" width="34" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="227" y="202" font-size="11" text-anchor="middle" class="mono">1</text><rect x="250" y="188" width="34" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="267" y="202" font-size="11" text-anchor="middle" class="mono">3</text><rect x="290" y="188" width="34" height="20" rx="3" fill="none" stroke="var(--danger)" stroke-dasharray="3 2"/><text x="307" y="203" font-size="11" text-anchor="middle" fill="var(--danger)">遺失</text><rect x="330" y="188" width="34" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="347" y="202" font-size="11" text-anchor="middle" class="mono">1</text><rect x="370" y="188" width="34" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="387" y="202" font-size="11" text-anchor="middle" class="mono">5</text><rect x="410" y="188" width="34" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="427" y="202" font-size="11" text-anchor="middle" class="mono">3</text><rect x="450" y="188" width="34" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="467" y="202" font-size="11" text-anchor="middle" class="mono">1</text><rect x="490" y="188" width="34" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="507" y="202" font-size="11" text-anchor="middle" class="mono">5</text><rect x="330" y="184" width="194" height="28" rx="4" fill="none" stroke="var(--danger)"/><text x="427" y="232" font-size="11.5" text-anchor="middle" fill="var(--danger)">後面全部卡住：串流 1、3、5 都要等那一包重傳（TCP 層的隊頭阻塞）</text><text x="560" y="203" font-size="11" text-anchor="start" opacity=".75">數字＝串流編號（用戶端開的是奇數）</text><text x="20" y="290" font-size="13" text-anchor="start" fill="var(--gold-deep)">HTTP/3：QUIC（跑在 UDP 上）每個串流各自重傳</text><text x="20" y="319" font-size="11.5" text-anchor="start" class="mono" opacity=".75">串流 1</text><line x1="80" y1="314" x2="740" y2="314" stroke="currentColor" stroke-width="1" stroke-opacity=".25"/><rect x="90" y="304" width="48" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><rect x="150" y="304" width="48" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><rect x="210" y="304" width="48" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><rect x="270" y="304" width="48" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><rect x="330" y="304" width="48" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><rect x="390" y="304" width="48" height="20" rx="3" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="20" y="347" font-size="11.5" text-anchor="start" class="mono" opacity=".75">串流 3</text><line x1="80" y1="342" x2="740" y2="342" stroke="currentColor" stroke-width="1" stroke-opacity=".25"/><rect x="102" y="332" width="48" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="162" y="332" width="48" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="222" y="332" width="48" height="20" rx="3" fill="none" stroke="var(--danger)" stroke-dasharray="3 2"/><text x="246" y="347" font-size="11" text-anchor="middle" fill="var(--danger)">遺失</text><rect x="282" y="332" width="48" height="20" rx="3" fill="none" stroke="var(--slate)" stroke-dasharray="2 2"/><text x="306" y="347" font-size="11" text-anchor="middle" fill="var(--slate-deep)">等</text><rect x="342" y="332" width="48" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="402" y="332" width="48" height="20" rx="3" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="20" y="375" font-size="11.5" text-anchor="start" class="mono" opacity=".75">串流 5</text><line x1="80" y1="370" x2="740" y2="370" stroke="currentColor" stroke-width="1" stroke-opacity=".25"/><rect x="114" y="360" width="48" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><rect x="174" y="360" width="48" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><rect x="234" y="360" width="48" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><rect x="294" y="360" width="48" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><rect x="354" y="360" width="48" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><rect x="414" y="360" width="48" height="20" rx="3" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="470" y="400" font-size="11.5" text-anchor="middle" fill="var(--danger)">只有串流 3 等重傳，串流 1、5 照常往前</text>
+</svg>
+<figcaption>隊頭阻塞（head-of-line blocking）：排在最前面的那個沒好，後面全部得等。HTTP/1.1 卡在 HTTP 這一層，HTTP/2 解了 HTTP 層、還卡在 TCP 層，HTTP/3 兩層都解了。</figcaption>
+</figure>
+<div class="drill">
+  <p class="dq">用戶端送出的請求是 HTTP/1.1，沒有任何 Connection 標頭。伺服器回完之後，連線照規格會怎樣？</p>
+  <ul class="dopts"><li>立刻關閉，要保持得寫 Connection: keep-alive</li><li>5 秒後關閉</li><li data-ok>保持開著，給下一個請求用</li><li>看伺服器是 Nginx 還是 Apache</li></ul>
+  <p class="dexp">RFC 9112：收到的是 HTTP/1.1 以上，這次回應後連線繼續保持。要關才寫 Connection: close。閒置多久後關，則是各伺服器自己設的。</p>
+</div>
+<div class="drill">
+  <p class="dq">curl -v 的輸出裡，第二個請求前面出現 <code>Re-using existing connection</code>，沒有新的 <code>Connected to</code>。這代表？</p>
+  <ul class="dopts"><li data-ok>同一條連線接著用，沒有重新交握</li><li>第二個請求失敗了，curl 改用快取的內容</li><li>伺服器拒絕新連線</li><li>第二個請求改走 UDP</li></ul>
+  <p class="dexp">持久連線的效果就是省掉第二次的 TCP 交握與 TLS 握手。curl 用連線編號 #0 標出它是同一條。</p>
+</div>
+<div class="drill">
+  <p class="dq">一條 HTTP/1.1 連線上開了管線化，依序送出 A（要算 3 秒）、B（0.1 秒）、C（0.1 秒）。B 的回應什麼時候到用戶端？</p>
+  <ul class="dopts"><li>0.1 秒後，B 算完就回</li><li>0.2 秒後，B、C 依序算完就回</li><li>B 會被丟掉</li><li data-ok>等 A 的回應送完之後</li></ul>
+  <p class="dexp">RFC 9112：伺服器 MUST 照收到請求的順序送出回應。A 慢，B、C 就算先算好也得排在後面，這就是 HTTP 層的隊頭阻塞。</p>
+</div>
+<div class="drill">
+  <p class="dq">HTTP/1.1 時代的瀏覽器為什麼會對同一台主機開好幾條連線？</p>
+  <ul class="dopts"><li>因為 TCP 規定一條連線只能傳一個檔案</li><li data-ok>一條連線同時只能等一個回應</li><li>為了讓伺服器記得是同一個使用者</li><li>為了繞過 TLS 憑證檢查</li></ul>
+  <p class="dexp">RFC 9113 第 1 節也這樣寫：HTTP/1.0 與 1.1 的用戶端靠對同一台伺服器開多條連線來同時發請求。代價是每條都要交握、都吃伺服器資源。</p>
+</div>
+<div class="drill">
+  <p class="dq">工程師說「我們的 HTTP/1.1 服務要在回應加 <code>Connection: keep-alive</code> 才能讓連線重用」。這句話對嗎？</p>
+  <ul class="dopts"><li data-ok>不精確，HTTP/1.1 預設就保持連線</li><li>對，不加的話每個回應後都會關閉</li><li>對，那是 HTTP/1.1 規定的必要標頭</li><li>不對，HTTP/1.1 不支援連線重用</li></ul>
+  <p class="dexp">HTTP/1.1 不寫也持久，只有對 HTTP/1.0 的對象，keep-alive 選項才有意義。加了也無害，像 GitHub Pages 就有附。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一條連線，很多條車道</p>
+<h3 class="head">HTTP/2：多路複用與標頭壓縮</h3>
+<p>RFC 9113 開頭講了 HTTP/2 要解的兩個問題：HTTP/1.1 的管線化「只部分解決請求的併發，仍然受應用層隊頭阻塞所苦」（only partially addressed request concurrency and still suffers from application-layer head-of-line blocking）；而且 HTTP 標頭「常常重複又冗長，造成不必要的網路流量」（HTTP fields are often repetitive and verbose, causing unnecessary network traffic）。對策是「允許在同一條連線上交錯傳送訊息，並對 HTTP 欄位使用有效率的編碼」（it allows interleaving of messages on the same connection and uses an efficient coding for HTTP fields.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-1" target="_blank" rel="noopener">RFC 9113 第 1 節</a></p>
+<ul class="plainlist">
+<li><strong>多路複用（multiplexing，也常叫多工：一條連線同時跑很多組請求回應）：</strong>每組請求回應是一個<strong>串流</strong>（stream），訊息切成一塊塊二進位的<strong>幀</strong>（frame）。RFC 的定義：串流是「一條 HTTP/2 連線裡，用戶端與伺服器之間交換的一串獨立、雙向的幀」，而且「一條連線可以同時有多個開著的串流，任一端都可以交錯送出不同串流的幀」（A single HTTP/2 connection can contain multiple concurrently open streams, with either endpoint interleaving frames from multiple streams.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-5" target="_blank" rel="noopener">RFC 9113 第 5 節</a> 用戶端開的串流「必須（MUST）用奇數編號」（Streams initiated by a client MUST use odd-numbered stream identifiers）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-5.1.1" target="_blank" rel="noopener">RFC 9113 第 5.1.1 節</a></li>
+<li><strong>標頭壓縮 HPACK：</strong>RFC 7541 說它「消除重複的標頭欄位」（eliminates redundant header fields）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7541.html#section-1" target="_blank" rel="noopener">RFC 7541 第 1 節</a> 做法是兩張對照表：<strong>靜態表</strong>預先定義常見的標頭，<strong>動態表</strong>由編碼的一方把這條連線上重複出現的標頭加進去（The static table ... is predefined and contains common header fields ... The dynamic table ... can be used by the encoder to index header fields repeated in the encoded header lists.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7541.html#section-2.3" target="_blank" rel="noopener">RFC 7541 第 2.3 節</a> 第二個請求的 <code>user-agent</code>、<code>cookie</code> 跟第一個一樣，就只送一個小小的編號。</li>
+</ul>
+<p>2026-10-02 用 <code>curl -v --http2</code> 連抓本站兩頁（節錄）：</p>
+<pre><code>* ALPN: curl offers h2,http/1.1
+* ALPN: server accepted h2
+* [HTTP/2] [1] OPENED stream for https://hhtim.github.io/notes-platform/
+* [HTTP/2] [1] [:method: GET]
+* [HTTP/2] [1] [:scheme: https]
+* [HTTP/2] [1] [:authority: hhtim.github.io]
+* [HTTP/2] [1] [:path: /notes-platform/]
+* Re-using existing connection with host hhtim.github.io
+* [HTTP/2] [3] OPENED stream for https://hhtim.github.io/notes-platform/web/</code></pre>
+<p>三件事對得上規格：用 TLS 握手裡的 ALPN（應用層協定協商）談好走 <code>h2</code>；兩個請求是同一條連線上的串流 1 和 3（奇數）；請求行變成 <code>:method</code>、<code>:scheme</code>、<code>:authority</code>、<code>:path</code> 四個偽標頭（〈從輸入網址到看到網頁〉提過）。另外，HTTP/2 不准帶 <code>Connection</code>、<code>Keep-Alive</code> 這類只跟單一連線有關的標頭：「端點不得（MUST NOT）產生含有連線專用標頭欄位的 HTTP/2 訊息」（An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2" target="_blank" rel="noopener">RFC 9113 第 8.2.2 節</a></p>
+<p><strong>沒解決的那一層：</strong>RFC 9113 自己寫「TCP 的隊頭阻塞本協定沒有處理」（TCP head-of-line blocking is not addressed by this protocol.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-1" target="_blank" rel="noopener">RFC 9113 第 1 節</a> 多個串流在 HTTP 層是分開的，到了 TCP 只是一條位元組串流，丟一包，後面所有串流的資料都卡在接收端等重傳。</p>
+<div class="drill">
+  <p class="dq">瀏覽器用 HTTP/2 同時抓 30 張圖片。通常會開幾條 TCP 連線到同一台主機？</p>
+  <ul class="dopts"><li>30 條，一張一條</li><li>6 條，跟 HTTP/1.1 一樣</li><li data-ok>1 條，30 個串流在上面交錯傳</li><li>0 條，HTTP/2 不用 TCP</li></ul>
+  <p class="dexp">HTTP/2 的重點就是一條連線多個串流。RFC 9113 也說這樣能用比 HTTP/1.x 少的 TCP 連線。HTTP/2 仍跑在 TCP 上，不用 TCP 的是 HTTP/3。</p>
+</div>
+<div class="drill">
+  <p class="dq">HTTP/2 連線上，用戶端開了串流 1、3，接著要開第三個。它的編號會是？</p>
+  <ul class="dopts"><li>2</li><li>4</li><li data-ok>5</li><li>0</li></ul>
+  <p class="dexp">用戶端開的串流 MUST 用奇數，而且照順序遞增：1、3、5。偶數留給伺服器開的串流，0 號是整條連線本身用的。</p>
+</div>
+<div class="drill">
+  <p class="dq">HTTP/2 連線上同時有 5 個串流在傳，中間一個 TCP 封包遺失。會發生什麼事？</p>
+  <ul class="dopts"><li>只有那個封包所屬的串流要等，其他 4 個照常</li><li>整條連線斷掉，要重新交握</li><li data-ok>5 個串流都要等那個封包重傳</li><li>遺失的資料直接跳過不補</li></ul>
+  <p class="dexp">這就是 HTTP/2 還留著的 TCP 層隊頭阻塞。RFC 9114 寫：一個遺失或亂序的封包會讓所有進行中的交易停擺。只卡單一串流是 HTTP/3 的 QUIC 做到的。</p>
+</div>
+<div class="drill">
+  <p class="dq">第二個 HTTP/2 請求帶的 <code>user-agent</code>、<code>cookie</code> 跟第一個完全一樣。HPACK 會怎麼送？</p>
+  <ul class="dopts"><li>照樣把整串文字再送一次</li><li>直接省略</li><li data-ok>用對照表裡的編號代替</li><li>改放進 body 裡一起壓縮</li></ul>
+  <p class="dexp">HPACK 的動態表記住這條連線上出現過的標頭，重複的就用索引代替，這就是「消除重複的標頭欄位」。</p>
+</div>
+<div class="drill">
+  <p class="dq">一個 HTTP/2 伺服器的回應裡帶了 <code>Connection: keep-alive</code>。照 RFC 9113，這樣？</p>
+  <ul class="dopts"><li>沒問題，跟 HTTP/1.1 一樣</li><li>必須帶</li><li>可以帶，但會被當成註解略過</li><li data-ok>不合 HTTP/2 的規定</li></ul>
+  <p class="dexp">RFC 9113 第 8.2.2 節：MUST NOT generate an HTTP/2 message containing connection-specific header fields，Connection、Keep-Alive 都在裡面。HTTP/2 的連線管理靠幀，不靠標頭。</p>
+</div>
+<div class="drill">
+  <p class="dq">curl 輸出 <code>ALPN: server accepted h2</code>。這一步是在什麼時候談好的？</p>
+  <ul class="dopts"><li>第一個 HTTP 請求送出之後</li><li data-ok>TLS 握手的時候</li><li>DNS 查詢的時候</li><li>TCP 三向交握的時候</li></ul>
+  <p class="dexp">ALPN 是 TLS 的擴充，用戶端在 ClientHello 列出 h2、http/1.1，伺服器挑一個。所以第一個 HTTP 請求送出時，雙方已經知道要講哪一版。</p>
+</div>
+</section>
+
+<section>
+<p class="era">把車道搬到傳輸層</p>
+<h3 class="head">HTTP/3 與 QUIC</h3>
+<p>RFC 9114 先點出 HTTP/2 的問題：「因為 HTTP/2 多路複用的平行性對 TCP 的遺失復原機制不可見，一個遺失或亂序的封包會讓所有進行中的交易停擺，不管那筆交易有沒有直接受到影響」（because the parallel nature of HTTP/2's multiplexing is not visible to TCP's loss recovery mechanisms, a lost or reordered packet causes all active transactions to experience a stall regardless of whether that transaction was directly impacted by the lost packet.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9114.html#section-1.1" target="_blank" rel="noopener">RFC 9114 第 1.1 節</a> 解法是把多路複用交給傳輸層。QUIC「內建串流多工與每個串流各自的流量控制」，「在串流層級提供可靠性、在整條連線上做壅塞控制」（By providing reliability at the stream level and congestion control across the entire connection），也「在傳輸層整合了 TLS 1.3」（QUIC also incorporates TLS 1.3 ([TLS]) at the transport layer）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9114.html#section-1.2" target="_blank" rel="noopener">RFC 9114 第 1.2 節</a></p>
+<ul class="plainlist">
+<li><strong>只卡遺失的那個串流：</strong>RFC 9000：「QUIC 的好處之一是避免跨串流的隊頭阻塞。封包遺失時，只有資料在那個封包裡的串流要等重傳，其他串流可以繼續前進」（One of the benefits of QUIC is avoidance of head-of-line blocking across multiple streams. When a packet loss occurs, only streams with data in that packet are blocked waiting for a retransmission to be received, while other streams can continue making progress.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9000.html#section-13" target="_blank" rel="noopener">RFC 9000 第 13 節</a></li>
+<li><strong>握手合併：</strong>「QUIC 的握手同時協商加密與傳輸參數」（The QUIC handshake combines negotiation of cryptographic and transport parameters.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9000.html#section-1" target="_blank" rel="noopener">RFC 9000 第 1 節</a> 不用先 TCP 交握一趟、再 TLS 握手一趟。</li>
+<li><strong>換網路不斷線：</strong>QUIC 用連線 ID 認連線，不靠 IP 加連接埠，「讓連線在端點位址改變後還能存活，例如端點換到新的網路」（The use of a connection ID allows connections to survive changes to endpoint addresses (IP address and port), such as those caused by an endpoint migrating to a new network.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9000.html#section-9" target="_blank" rel="noopener">RFC 9000 第 9 節</a> 手機從 Wi-Fi 切到行動網路，TCP 連線會斷，QUIC 連線可以接著用。</li>
+<li><strong>標頭壓縮改成 QPACK：</strong>「HPACK 壓縮的變形，目的是減少隊頭阻塞」（a variation of HPACK compression that seeks to reduce head-of-line blocking.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9204.html" target="_blank" rel="noopener">RFC 9204</a> HPACK 假設標頭照順序到，QUIC 的串流之間不保證順序，所以要改。</li>
+</ul>
+<p><strong>瀏覽器怎麼知道可以用 HTTP/3：</strong>常見的做法是伺服器在 HTTP/1.1 或 HTTP/2 的回應裡帶 <code>Alt-Svc</code> 標頭，用 <code>h3</code> 宣告有對應的 HTTP/3 端點。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1" target="_blank" rel="noopener">RFC 9114 第 3.1.1 節</a> 2026-10-02 實測，本站（GitHub Pages）的回應裡沒有 <code>Alt-Svc</code>；同一天打 www.cloudflare.com 有：</p>
+<pre><code>$ curl -sI https://www.cloudflare.com/ | grep -i alt-svc
+alt-svc: h3=":443"; ma=86400</code></pre>
+<p>意思是「同一個主機的 UDP 443 也有 HTTP/3，這個資訊可以記 86400 秒」。UDP 被擋、QUIC 連不上時，用戶端應該退回 TCP 版的 HTTP（〈TCP、UDP 與 TLS 握手〉講過）。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>HTTP/1.1</th><th>HTTP/2</th><th>HTTP/3</th></tr></thead><tbody>
+<tr><th>底下的傳輸</th><td>TCP（加 TLS）</td><td>TCP（加 TLS）</td><td>QUIC，裝在 UDP 裡，內建 TLS 1.3</td></tr>
+<tr><th>訊息格式</th><td>文字，一行一個標頭</td><td>二進位幀，HPACK 壓縮標頭</td><td>二進位幀，QPACK 壓縮標頭</td></tr>
+<tr><th>同時多個請求</th><td>多開連線</td><td>一條連線多個串流</td><td>一條連線多個串流，各自重傳</td></tr>
+<tr><th>隊頭阻塞</th><td>HTTP 層有</td><td>HTTP 層解了，TCP 層還有</td><td>兩層都解了</td></tr>
+<tr><th>建立連線</th><td>TCP 一趟＋TLS 1.3 一趟</td><td>同左</td><td>QUIC 握手一趟（含 TLS 1.3）</td></tr>
+</tbody></table></div>
+<div class="drill">
+  <p class="dq">HTTP/3 連線上有 5 個串流在傳，其中串流 9 的一個封包遺失（這個封包只裝了串流 9 的資料）。會怎樣？</p>
+  <ul class="dopts"><li>5 個串流都要等重傳</li><li data-ok>只有串流 9 要等重傳</li><li>連線重建</li><li>遺失的資料不補，串流 9 直接結束</li></ul>
+  <p class="dexp">RFC 9000 第 13 節：只有資料在那個封包裡的串流要等。如果一個封包裝了好幾個串流的資料，那幾個串流就都會卡住。</p>
+</div>
+<div class="drill">
+  <p class="dq">使用者在捷運上開著網銀，手機從車站 Wi-Fi 切到 4G，IP 位址變了。哪一種連線比較有機會不斷線、接著用？</p>
+  <ul class="dopts"><li>HTTP/1.1 over TCP</li><li data-ok>HTTP/3 over QUIC</li><li>HTTP/2 over TCP</li><li>三種都一定會斷</li></ul>
+  <p class="dexp">TCP 連線是用 IP 加連接埠認的，位址一換就不是同一條。QUIC 用連線 ID 認，RFC 9000 第 9 節說連線可以在位址改變後存活。</p>
+</div>
+<div class="drill">
+  <p class="dq">某網站回應帶 <code>alt-svc: h3=":443"; ma=86400</code>。瀏覽器接下來可能怎麼做？</p>
+  <ul class="dopts"><li>把網址改成 h3:// 開頭</li><li>把這個回應本身快取 86400 秒再重新驗證</li><li>關掉 TLS</li><li data-ok>之後改試 UDP 443 的 HTTP/3</li></ul>
+  <p class="dexp">Alt-Svc 用 h3 宣告同一主機的 443 埠有 HTTP/3；ma 是這個宣告能記多久，不是回應本身的快取時間。網址的 scheme 還是 https。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼 HTTP/3 不能直接沿用 HTTP/2 的 HPACK，要改成 QPACK？</p>
+  <ul class="dopts"><li>HPACK 的專利過期了</li><li data-ok>HPACK 要求照順序更新動態表</li><li>HTTP/3 不需要壓縮標頭</li><li>QPACK 壓得比較小</li></ul>
+  <p class="dexp">RFC 9204 說 QPACK 是 HPACK 的變形，目的是減少隊頭阻塞。HPACK 的動態表要照順序更新，在 TCP 上沒問題，在各串流獨立的 QUIC 上會卡住。</p>
+</div>
+<div class="drill">
+  <p class="dq">同樣在一個來回 100 毫秒的網路上、第一次連一台伺服器，HTTPS 走 HTTP/2（TCP＋TLS 1.3）與走 HTTP/3，建立好連線大約各要多久？</p>
+  <ul class="dopts"><li data-ok>HTTP/2 約 200、HTTP/3 約 100 毫秒</li><li>兩個都是 100 毫秒</li><li>HTTP/2 100 毫秒，HTTP/3 200 毫秒</li><li>兩個都是 300 毫秒</li></ul>
+  <p class="dexp">TCP 三向交握一趟、TLS 1.3 握手一趟；QUIC 把傳輸與加密參數合在同一個握手。0-RTT 能再省，但要有上次連線留下的金鑰，不算第一次連。</p>
+</div>
+</section>
+
+<section>
+<p class="era">存一份，下次少跑一趟</p>
+<h3 class="head">Cache-Control、ETag 與 304</h3>
+<p>快取要回答兩個問題：「存著的這份能不能不問伺服器就用」叫<strong>新鮮度</strong>，「過期了能不能只問一句『變了沒』就繼續用」叫<strong>驗證</strong>。RFC 9111 的定義：「新鮮」的回應是年齡還沒超過新鮮期限的回應，超過就是「過期」（A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2" target="_blank" rel="noopener">RFC 9111 第 4.2 節</a> 快取分兩種：<strong>私有快取</strong>「專屬單一使用者」，通常就是瀏覽器；<strong>共用快取</strong>「存回應給多個使用者重用」，通常是 CDN 或代理（A "shared cache" is a cache that stores responses for reuse by more than one user ... A "private cache", in contrast, is dedicated to a single user）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-1" target="_blank" rel="noopener">RFC 9111 第 1 節</a></p>
+<p>2026-10-02 用 <code>curl -sI</code> 看本站首頁的回應標頭（節錄）：</p>
+<pre><code>HTTP/2 200
+last-modified: Fri, 02 Oct 2026 11:14:10 GMT
+etag: "6abf9202-1edf"
+expires: Fri, 02 Oct 2026 11:25:02 GMT
+cache-control: max-age=600
+date: Fri, 02 Oct 2026 11:15:18 GMT
+via: 1.1 varnish
+age: 16
+x-cache: HIT
+vary: Accept-Encoding</code></pre>
+<p>一行一行讀：</p>
+<ul class="plainlist">
+<li><code>cache-control: max-age=600</code>：「回應的年齡超過 600 秒就視為過期」（the response is to be considered stale after its age is greater than the specified number of seconds.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.1" target="_blank" rel="noopener">RFC 9111 第 5.2.2.1 節</a> 也就是 10 分鐘內，瀏覽器可以完全不連線、直接用存著的那份。</li>
+<li><code>expires</code>：舊式的過期時間。同時有 max-age 時，「接收者必須（MUST）忽略 Expires」（If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3" target="_blank" rel="noopener">RFC 9111 第 5.3 節</a></li>
+<li><code>age: 16</code>：發送者估計這份回應「從原始伺服器產生或驗證以來過了多久」，單位秒（the sender's estimate of the time since the response was generated or successfully validated at the origin server.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1" target="_blank" rel="noopener">RFC 9111 第 5.1 節</a> 這份在中間的 CDN（<code>via: 1.1 varnish</code>、<code>x-cache: HIT</code>）已經放了 16 秒，所以瀏覽器拿到時只剩 584 秒新鮮。</li>
+<li><code>etag</code> 與 <code>last-modified</code>：兩種<strong>驗證器</strong>（用來問「變了沒」的版本標記）。ETag 是不透明的版本字串；RFC 說它在修改時間不好保存、或「HTTP 日期只到一秒的精度不夠」時比修改日期可靠（where the one-second resolution of HTTP-date values is not sufficient）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3" target="_blank" rel="noopener">RFC 9110 第 8.8.3 節</a></li>
+</ul>
+<p>過期之後，瀏覽器把 ETag 放進 <code>If-None-Match</code> 送<strong>條件式請求</strong>。兩個條件都帶時，If-None-Match 優先：「請求有 If-None-Match 時，接收者必須（MUST）忽略 If-Modified-Since」（A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3" target="_blank" rel="noopener">RFC 9110 第 13.1.3 節</a> 同一天實測：</p>
+<pre><code>$ curl -sI -H 'If-None-Match: "6abf9202-1edf"' https://hhtim.github.io/notes-platform/
+HTTP/2 304
+cache-control: max-age=600
+etag: "6abf9202-1edf"
+age: 16
+vary: Accept-Encoding</code></pre>
+<p>304 沒有內容，只帶回 <code>cache-control</code>、<code>etag</code> 這些更新快取用的標頭——RFC 規定 304 要帶回 200 時會有的 Date、ETag、Vary、Cache-Control、Expires 等欄位。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5" target="_blank" rel="noopener">RFC 9110 第 15.4.5 節</a> 快取收到 304，就拿新資訊「更新」存著的回應繼續用。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.4" target="_blank" rel="noopener">RFC 9111 第 4.3.4 節</a></p>
+<figure>
+<svg viewBox="0 0 760 368" role="img" aria-label="快取判斷流程：瀏覽器要一個網址，先看快取裡有沒有；沒有就送一般 GET，拿到 200 和內容存起來。有的話看還新鮮嗎，也就是 Age 小於 max-age；新鮮就直接用，完全不連伺服器。過期了就送條件式請求，帶 If-None-Match 與存著的 ETag；伺服器回 304 表示沒變，不帶內容，快取更新新鮮度後繼續用；回 200 表示變了，用新內容換掉舊的。no-cache 等於每次都走過期那條，no-store 等於每次都走沒有那條">
+<defs><marker id="ha-3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="30" width="130" height="50" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="85" y="52" font-size="12.5" text-anchor="middle">瀏覽器要</text><text x="85" y="70" font-size="12.5" text-anchor="middle">一個網址</text><line x1="152" y1="55" x2="188" y2="55" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><polygon points="255,20 320,55 255,90 190,55" fill="var(--surface)" stroke="currentColor"/><text x="255" y="59" font-size="12.5" text-anchor="middle">快取裡有嗎？</text><line x1="320" y1="55" x2="368" y2="55" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><text x="344" y="48" font-size="11.5" text-anchor="middle">有</text><polygon points="445,18 520,55 445,92 370,55" fill="var(--surface)" stroke="currentColor"/><text x="445" y="55" font-size="12.5" text-anchor="middle">還新鮮嗎？</text><text x="445" y="71" font-size="10.5" text-anchor="middle" class="mono" opacity=".75">Age &lt; max-age</text><line x1="520" y1="55" x2="568" y2="55" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><text x="544" y="48" font-size="11.5" text-anchor="middle">是</text><rect x="570" y="28" width="170" height="54" rx="8" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="655" y="51" font-size="12.5" text-anchor="middle">直接用存著的那份</text><text x="655" y="70" font-size="11.5" text-anchor="middle" opacity=".75">完全不連伺服器</text><line x1="255" y1="90" x2="255" y2="268" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><text x="266" y="140" font-size="11.5" text-anchor="start">沒有</text><rect x="170" y="270" width="170" height="54" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="255" y="293" font-size="12.5" text-anchor="middle" class="mono">一般 GET</text><text x="255" y="312" font-size="11.5" text-anchor="middle">→ 200＋內容，存起來</text><line x1="445" y1="92" x2="445" y2="148" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><text x="456" y="124" font-size="11.5" text-anchor="start">過期了</text><rect x="350" y="150" width="190" height="58" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="445" y="173" font-size="12.5" text-anchor="middle">條件式請求</text><text x="445" y="193" font-size="11" text-anchor="middle" class="mono">If-None-Match: "ETag"</text><line x1="542" y1="168" x2="588" y2="140" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><line x1="542" y1="192" x2="588" y2="236" stroke="currentColor" stroke-width="1.5" marker-end="url(#ha-3a)"/><rect x="590" y="108" width="150" height="62" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="665" y="130" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">沒變：304</text><text x="665" y="148" font-size="11.5" text-anchor="middle" opacity=".75">不帶內容</text><text x="665" y="163" font-size="11.5" text-anchor="middle" opacity=".75">更新新鮮度、繼續用</text><rect x="590" y="210" width="150" height="54" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="665" y="233" font-size="12.5" text-anchor="middle">變了：200</text><text x="665" y="251" font-size="11.5" text-anchor="middle" opacity=".75">新內容，換掉舊的</text><text x="380" y="352" font-size="12" text-anchor="middle" fill="var(--gold-deep)">no-cache：每次都走「過期了」那條（先問再用）；no-store：根本不進快取，每次都走「沒有」那條</text>
+</svg>
+<figcaption>新鮮就不連線；過期就問「變了沒」；沒變回 304、省下整份內容的傳輸。</figcaption>
+</figure>
+<p>其他常見的指令：</p>
+<div class="tablewrap"><table><thead><tr><th>回應的 Cache-Control</th><th>RFC 9111 怎麼說</th><th>白話</th></tr></thead><tbody>
+<tr><th><code>no-cache</code></th><td>沒有先轉送去驗證並得到成功回應，「不得（MUST NOT）用來滿足其他請求」<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4" target="_blank" rel="noopener">§5.2.2.4</a></td><td>可以存，但每次用之前都要先問</td></tr>
+<tr><th><code>no-store</code></th><td>「不得儲存請求或回應的任何部分」（MUST NOT store any part of either the immediate request or the response）<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5" target="_blank" rel="noopener">§5.2.2.5</a></td><td>根本不准存，適合不該留下任何副本的內容</td></tr>
+<tr><th><code>private</code></th><td>「共用快取不得儲存」，私有快取可以存<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7" target="_blank" rel="noopener">§5.2.2.7</a></td><td>只給這個人的瀏覽器存，CDN 不能存</td></tr>
+<tr><th><code>public</code></th><td>本來不能存的也可以存，例如帶 Authorization 的請求的回應<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.9" target="_blank" rel="noopener">§5.2.2.9</a></td><td>明白說「誰都可以存」</td></tr>
+<tr><th><code>s-maxage=N</code></th><td>對共用快取，蓋過 max-age 與 Expires<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10" target="_blank" rel="noopener">§5.2.2.10</a></td><td>CDN 存久一點、瀏覽器存短一點</td></tr>
+<tr><th><code>must-revalidate</code></th><td>過期之後，沒驗證成功前不得重用；斷線時要回錯誤而不是給舊的<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2" target="_blank" rel="noopener">§5.2.2.2</a></td><td>過期了絕對不能湊合著用</td></tr>
+</tbody></table></div>
+<p class="formula">no-cache 不是「不要快取」，是「每次用之前先問」；真的不准存是 no-store</p>
+<div class="drill">
+  <p class="dq">回應帶 <code>Cache-Control: max-age=600</code>，瀏覽器 3 分鐘後再開同一頁。這次會怎樣？</p>
+  <ul class="dopts"><li data-ok>直接用快取那份</li><li>送條件式請求，等 304</li><li>重新下載整頁</li><li>看 Expires 決定要不要重新下載</li></ul>
+  <p class="dexp">3 分鐘＝180 秒，還在 600 秒的新鮮期限內，直接重用。有 max-age 時 Expires 被忽略。（假設瀏覽器拿到時 Age 是 0；使用者按重新整理則另當別論。）</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，換成 15 分鐘後再開，回應有 ETag。瀏覽器會送什麼？</p>
+  <ul class="dopts"><li data-ok>帶 If-None-Match 的請求</li><li>不送請求，繼續用舊的</li><li>一般 GET，不帶條件，重新下載整份</li><li>DELETE 把快取清掉</li></ul>
+  <p class="dexp">900 秒已經超過 600，過期了。有 ETag 就用 If-None-Match 問「變了沒」，沒變伺服器回 304、不用重傳內容。</p>
+</div>
+<div class="drill">
+  <p class="dq">條件式請求送出去，伺服器回 <code>304 Not Modified</code>。瀏覽器拿什麼顯示畫面？</p>
+  <ul class="dopts"><li>304 的內容</li><li data-ok>快取裡原本存著的那一份</li><li>空白頁，因為 304 沒有內容</li><li>再送一次一般 GET 拿內容</li></ul>
+  <p class="dexp">304 的意思是你手上那份還有效，不用再傳。快取收到後更新存著的回應（例如新的 max-age），繼續用它。</p>
+</div>
+<div class="drill">
+  <p class="dq">網銀的「帳戶明細」頁不希望留在任何快取裡，包括使用者的瀏覽器。回應該帶？</p>
+  <ul class="dopts"><li>Cache-Control: no-cache</li><li>Cache-Control: private</li><li>Cache-Control: max-age=0</li><li data-ok>Cache-Control: no-store</li></ul>
+  <p class="dexp">只有 no-store 是不准存。no-cache 與 max-age=0 都還能存、只是每次要驗證；private 只擋共用快取，瀏覽器還是會存。</p>
+</div>
+<div class="drill">
+  <p class="dq">個人化的「我的首頁」可以讓使用者的瀏覽器快取，但絕不能讓 CDN 存了交給別人。該用哪個指令？</p>
+  <ul class="dopts"><li data-ok>private</li><li>public</li><li>s-maxage=3600</li><li>no-store</li></ul>
+  <p class="dexp">private：共用快取不得儲存，私有快取可以。public 反而允許 CDN 存；s-maxage 是給共用快取用的期限；no-store 連瀏覽器都不准存，比需求更嚴。</p>
+</div>
+<div class="drill">
+  <p class="dq">回應帶 <code>Cache-Control: no-cache</code> 和一個 ETag。瀏覽器下一次要用這份資源時會怎樣？</p>
+  <ul class="dopts"><li>完全不存，每次重新下載整份</li><li>存起來，10 分鐘內直接用</li><li>只有 CDN 能存</li><li data-ok>存起來，但每次用之前先問</li></ul>
+  <p class="dexp">no-cache 的意思是沒驗證過不准用，不是不准存。有 ETag 就能用 If-None-Match 驗證，沒變的話回 304，只省了內容的傳輸。</p>
+</div>
+<div class="drill">
+  <p class="dq">回應是 <code>Cache-Control: max-age=600</code>，從 CDN 拿到時標頭寫 <code>Age: 450</code>。瀏覽器這份還能新鮮多久？</p>
+  <ul class="dopts"><li>600 秒</li><li>450 秒</li><li>已經過期，要重新驗證</li><li data-ok>大約 150 秒</li></ul>
+  <p class="dexp">新鮮與否看「年齡有沒有超過新鮮期限」。CDN 已經放了 450 秒，600 − 450 ＝ 150 秒後就過期。</p>
+</div>
+<div class="drill">
+  <p class="dq">回應同時有 <code>Cache-Control: max-age=60</code> 與 <code>Expires</code>（寫的是一小時後）。快取該照哪個？</p>
+  <ul class="dopts"><li>Expires，因為比較長</li><li>取比較長的</li><li>兩個都不管，由快取自己估</li><li data-ok>max-age，照 60 秒</li></ul>
+  <p class="dexp">RFC 9111 第 5.3 節：回應有 max-age 時，接收者 MUST ignore the Expires header field。所以是 60 秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">條件式請求同時帶了 <code>If-None-Match</code> 與 <code>If-Modified-Since</code>，而 ETag 對不上、修改時間卻沒變。伺服器該怎麼判斷？</p>
+  <ul class="dopts"><li>看 If-Modified-Since，回 304</li><li>回 304</li><li data-ok>回 200 和新的內容</li><li>回 412 Precondition Failed</li></ul>
+  <p class="dexp">RFC 9110：請求有 If-None-Match 時 MUST ignore If-Modified-Since，因為 ETag 比日期精確（日期只到秒）。ETag 不同代表內容變了。</p>
+</div>
+<div class="drill">
+  <p class="dq">CDN 想把圖片存 1 天，但希望使用者的瀏覽器只存 5 分鐘。哪個寫法符合？</p>
+  <ul class="dopts"><li>max-age=86400</li><li>max-age=86400, private</li><li>no-cache, max-age=300, s-maxage=300</li><li data-ok>max-age=300, s-maxage=86400</li></ul>
+  <p class="dexp">s-maxage 只對共用快取有效，而且蓋過 max-age；瀏覽器（私有快取）照 max-age=300。加 private 會讓 CDN 根本不能存。</p>
+</div>
+</section>
+
+<section>
+<p class="era">同一個網址，不只一種答案</p>
+<h3 class="head">Vary：告訴快取「還要看這幾個請求標頭」</h3>
+<p>同一個網址可能依請求不同回不同內容，例如有的用戶端支援 gzip 壓縮、有的不支援。快取如果只用網址當鑰匙，可能把壓縮版交給不會解壓縮的用戶端。RFC 9110：<code>Vary</code> 描述「除了方法與目標網址之外，請求的哪些部分可能影響了伺服器怎麼挑這份回應的內容」（describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.），一句話就是「Vary 擴大了比對快取所需的鍵」（In other words, Vary expands the cache key required to match a new request to the stored cache entry.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5" target="_blank" rel="noopener">RFC 9110 第 12.5.5 節</a> 快取端的規則：存著的回應有 Vary 時，除非新請求在 Vary 列出的每個標頭都跟原本那個請求相符，否則「不得（MUST NOT）未經驗證就使用」。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1" target="_blank" rel="noopener">RFC 9111 第 4.1 節</a></p>
+<p>本站首頁回 <code>vary: Accept-Encoding</code>。2026-10-02 實測，帶 <code>Accept-Encoding: gzip</code> 與不帶，拿到的是兩份不同的回應：</p>
+<pre><code>$ curl -s -o /dev/null -D - -H 'Accept-Encoding: gzip' https://hhtim.github.io/notes-platform/
+HTTP/2 200
+content-encoding: gzip
+vary: Accept-Encoding
+content-length: 3358
+
+$ curl -s -o /dev/null -D - https://hhtim.github.io/notes-platform/
+HTTP/2 200
+vary: Accept-Encoding
+content-length: 7903</code></pre>
+<figure>
+<svg viewBox="0 0 760 318" role="img" aria-label="Vary 讓快取鍵變大：同一個網址 /notes-platform/，帶 Accept-Encoding: gzip 的請求對到快取裡的 gzip 壓縮版，3358 位元組；沒帶 Accept-Encoding 的請求對到原文版，7903 位元組。回應帶 Vary: Accept-Encoding，快取才知道要分開存">
+<defs><marker id="ha-4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="60" width="200" height="56" rx="8" fill="var(--surface)" stroke="var(--gold)"/><text x="120" y="82" font-size="11.5" text-anchor="middle" class="mono">GET /notes-platform/</text><text x="120" y="102" font-size="11" text-anchor="middle" fill="var(--gold-deep)" class="mono">Accept-Encoding: gzip</text><rect x="20" y="170" width="200" height="56" rx="8" fill="var(--surface)" stroke="var(--slate)"/><text x="120" y="192" font-size="11.5" text-anchor="middle" class="mono">GET /notes-platform/</text><text x="120" y="212" font-size="11" text-anchor="middle" fill="var(--slate-deep)" class="mono">沒有 Accept-Encoding</text><rect x="300" y="40" width="440" height="210" rx="10" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="520" y="30" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">共用快取（CDN）：回應帶 Vary: Accept-Encoding</text><rect x="320" y="70" width="400" height="64" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="520" y="96" font-size="12" text-anchor="middle">快取鍵：網址 ＋ Accept-Encoding=gzip</text><text x="520" y="118" font-size="12" text-anchor="middle">存的回應：gzip 壓縮版，3358 位元組</text><rect x="320" y="165" width="400" height="64" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="520" y="191" font-size="12" text-anchor="middle">快取鍵：網址 ＋ 沒有 Accept-Encoding</text><text x="520" y="213" font-size="12" text-anchor="middle">存的回應：原文，7903 位元組</text><line x1="222" y1="88" x2="318" y2="100" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#ha-4a)"/><line x1="222" y1="198" x2="318" y2="196" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#ha-4a)"/><text x="380" y="282" font-size="12.5" text-anchor="middle">同一個網址存兩份。沒有 Vary 的話，快取可能把 gzip 版交給不會解壓縮的用戶端</text><text x="380" y="304" font-size="11.5" text-anchor="middle" opacity=".75">（位元組數為 2026-10-02 對本站首頁實測）</text>
+</svg>
+<figcaption>快取鍵＝網址＋Vary 列出的請求標頭的值。Vary 列越多標頭，同一個網址就可能分成越多份，快取命中率會下降。</figcaption>
+</figure>
+<p>反過來，<code>Vary: *</code> 表示還有請求以外的因素（例如用戶端的網路位址）影響了結果，快取無法自己判斷，等於每次都要轉送給伺服器。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5" target="_blank" rel="noopener">RFC 9110 第 12.5.5 節</a></p>
+<div class="drill">
+  <p class="dq">一個 API 依 <code>Accept-Language</code> 回中文或英文的錯誤訊息，回應可以被 CDN 快取。回應該加什麼？</p>
+  <ul class="dopts"><li data-ok>Vary: Accept-Language</li><li>Vary: Accept-Encoding</li><li>Cache-Control: public</li><li>Content-Language: *</li></ul>
+  <p class="dexp">內容依 Accept-Language 而不同，就要讓快取把它算進鍵裡。沒有這行，CDN 可能把中文版交給要英文的人。</p>
+</div>
+<div class="drill">
+  <p class="dq">CDN 存了一份回應，標頭有 <code>Vary: Accept-Encoding</code>，當初請求帶的是 <code>Accept-Encoding: gzip</code>。新請求帶 <code>Accept-Encoding: br</code>。CDN 能直接把存著的那份交出去嗎？</p>
+  <ul class="dopts"><li data-ok>不能直接交出去</li><li>能，網址一樣就可以</li><li>能，都是壓縮</li><li>不能，而且要回 406 Not Acceptable</li></ul>
+  <p class="dexp">RFC 9111 第 4.1 節：Vary 列出的請求標頭都要跟原請求相符，否則不得未經驗證就用。值不同就是另一把鑰匙。</p>
+</div>
+<div class="drill">
+  <p class="dq">某工程師在所有回應都加上 <code>Vary: User-Agent</code>。最可能的副作用是？</p>
+  <ul class="dopts"><li>瀏覽器會拒絕這個回應</li><li>回應會變大很多</li><li data-ok>快取命中率大幅下降</li><li>TLS 握手會失敗</li></ul>
+  <p class="dexp">Vary 擴大快取鍵。User-Agent 每個瀏覽器版本都不同，鍵分得太碎，快取命中率會掉很多。</p>
+</div>
+<div class="drill">
+  <p class="dq">回應帶 <code>Vary: *</code>。共用快取下一次收到同網址的請求時？</p>
+  <ul class="dopts"><li>直接用存著的那份</li><li>改用 Accept-Encoding 當鍵</li><li data-ok>要轉送給伺服器</li><li>回 304</li></ul>
+  <p class="dexp">* 表示請求以外的因素也可能影響結果，快取無從比對，只能把請求轉給伺服器。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先說你要什麼</p>
+<h3 class="head">內容協商</h3>
+<p>Vary 的另一面是<strong>內容協商</strong>（content negotiation）：用戶端在請求裡說偏好，伺服器挑一份最合適的回。RFC 9110 把這種由伺服器挑的方式叫「主動協商」，也叫「伺服器端協商」（it is called "proactive negotiation" (a.k.a., "server-driven negotiation").）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-12.1" target="_blank" rel="noopener">RFC 9110 第 12.1 節</a> 常見的請求標頭：</p>
+<div class="tablewrap"><table><thead><tr><th>請求標頭</th><th>問的是</th><th>伺服器回應時對應的標頭</th></tr></thead><tbody>
+<tr><th><code>Accept</code></th><td>要什麼格式，例如 <code>application/json</code>、<code>text/html</code></td><td><code>Content-Type</code></td></tr>
+<tr><th><code>Accept-Encoding</code></th><td>接受哪些壓縮，例如 <code>gzip</code>、<code>br</code></td><td><code>Content-Encoding</code></td></tr>
+<tr><th><code>Accept-Language</code></th><td>偏好的語言，例如 <code>zh-TW</code>、<code>en</code></td><td><code>Content-Language</code></td></tr>
+</tbody></table></div>
+<p>偏好用 <strong>q 值</strong>（quality value）排先後：權重「正規化成 0 到 1 的實數，0.001 最不想要、1 最想要，0 代表『不接受』」（The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable".），沒寫 q 就是 1。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2" target="_blank" rel="noopener">RFC 9110 第 12.4.2 節</a> 例如 <code>Accept-Language: zh-TW, en;q=0.5</code> 是「最想要台灣中文，英文也行」。</p>
+<p>挑不出來時：伺服器找不到符合偏好的表述、又不願給預設版本，回 <code>406 Not Acceptable</code>。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7" target="_blank" rel="noopener">RFC 9110 第 15.5.7 節</a> 至於壓縮，「請求沒有 Accept-Encoding 時，任何內容編碼都算用戶端可以接受」（If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3" target="_blank" rel="noopener">RFC 9110 第 12.5.3 節</a> 規格這樣允許，但上面的實測裡，本站對沒帶 Accept-Encoding 的請求還是回了沒壓縮的原文，比較保守。</p>
+<p class="muted">另一種「回應式協商」是伺服器先回一份候選清單，由使用者代理自己挑（selection of content ... is performed by the user agent after receiving an initial response.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-12.2" target="_blank" rel="noopener">RFC 9110 第 12.2 節</a> 網頁上的「切換語言」連結就是這一類。</p>
+<div class="drill">
+  <p class="dq">請求帶 <code>Accept: application/json</code>，這個 API 只會回 XML，也不願意給預設版本。照 RFC 9110 該回？</p>
+  <ul class="dopts"><li>200，照樣回 XML</li><li>415 Unsupported Media Type</li><li>400 Bad Request</li><li data-ok>406 Not Acceptable</li></ul>
+  <p class="dexp">406：找不到符合主動協商標頭的表述、又不願給預設的。415 方向相反，是用戶端「送來」的內容型別伺服器不支援。</p>
+</div>
+<div class="drill">
+  <p class="dq">請求帶 <code>Accept-Language: ja;q=0.2, en;q=0.8, zh-TW</code>。伺服器三種語言都有，照偏好該回哪一種？</p>
+  <ul class="dopts"><li>ja，因為排第一個</li><li>en，因為寫了 q 值的裡面最高</li><li data-ok>zh-TW</li><li>三種都回</li></ul>
+  <p class="dexp">沒寫 q 的預設權重是 1，比 0.8、0.2 都高。排序看 q 值，不看寫在第幾個。</p>
+</div>
+<div class="drill">
+  <p class="dq">請求帶 <code>Accept-Encoding: gzip;q=0, br</code>。伺服器手上有 gzip 版、br 版與原文。不該回哪一種？</p>
+  <ul class="dopts"><li>br 版</li><li>原文（沒壓縮的版本）</li><li data-ok>gzip 版</li><li>三種都可以</li></ul>
+  <p class="dexp">q=0 代表「不接受」。br 沒寫 q，權重 1，是最好的選擇。原文沒有被 q=0 排除，照規格也可以。</p>
+</div>
+<div class="drill">
+  <p class="dq">伺服器依 <code>Accept</code> 回 JSON 或 HTML，回應可以被快取。除了 <code>Content-Type</code>，還應該帶什麼？</p>
+  <ul class="dopts"><li>Vary: Accept-Encoding</li><li>Cache-Control: no-store</li><li data-ok>Vary: Accept</li><li>Content-Encoding: json</li></ul>
+  <p class="dexp">有做內容協商、又能被快取，就要用 Vary 告訴快取把 Accept 算進鍵。不然要 HTML 的瀏覽器可能拿到別人快取的 JSON。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>狀態碼看第一位數分五類，看不懂的照同類 x00 處理。401 不知道你是誰、403 知道但不准；400 語法壞、422 語法對但內容不合理；502 上游回了壞的、504 上游沒回；429 限流、503 暫時撐不住；要保留方法就用 307、308。</li><li>安全＝唯讀（GET、HEAD、OPTIONS、TRACE）；冪等＝送多次效果跟一次一樣（再加 PUT、DELETE）。冪等決定能不能自動重試；POST 不冪等。</li><li>HTTP/1.1 預設持久連線，Connection: keep-alive 是 HTTP/1.0 的寫法；管線化的回應要照順序，前面慢後面全等（HTTP 層隊頭阻塞），所以瀏覽器多開連線。</li><li>HTTP/2：一條連線多個串流（用戶端開奇數），HPACK 用靜態表與動態表壓縮重複標頭，禁止連線專用標頭；TCP 層的隊頭阻塞還在。</li><li>HTTP/3：QUIC 在 UDP 上做串流、可靠性與 TLS 1.3，遺失只卡該串流、握手一趟、換網路不斷線，標頭用 QPACK；靠 Alt-Svc 的 h3 得知可以用。</li><li>快取：max-age 內直接用（Age 要扣掉）；過期帶 If-None-Match 問，沒變回 304；no-cache 是每次先問、no-store 才是不准存；private 不准 CDN 存、s-maxage 給 CDN 用。</li><li>Vary 把列出的請求標頭加進快取鍵；內容協商用 Accept 系列與 q 值（沒寫是 1、0 是不接受），挑不出來回 406。</li></ul></div>
