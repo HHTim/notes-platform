@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "在一個物件的方法裡寫 lambda，lambda 本體裡的 this 指的是什麼？",
+   "opts": [
+    "外層那個物件",
+    "lambda 自己被產生出來的那個物件",
+    "Java 替 lambda 另外產生的匿名類別物件",
+    "編譯錯誤，lambda 本體裡不能使用 this"
+   ],
+   "exp": "JLS 規定 lambda 本體裡名稱與 this、super 的意義跟周圍的程式碼相同。匿名類別才會有自己的 this。"
+  },
+  {
+   "q": "下面哪一個介面不是函式介面？",
+   "opts": [
+    "有兩個沒有實作的抽象方法 a() 與 b() 的介面",
+    "只有一個抽象方法、另外有三個 default 方法的介面",
+    "有一個抽象方法，外加一個抽象的 boolean equals(Object o)",
+    "只有一個抽象方法、沒有加 @FunctionalInterface 的介面"
+   ],
+   "exp": "函式介面恰好一個抽象方法；default 方法與跟 Object 公開方法同名的抽象方法都不算，@FunctionalInterface 也不是必要條件。兩個抽象方法就不是。"
+  },
+  {
+   "q": "lambda 為什麼只能讀 final 或 effectively final 的區域變數？",
+   "opts": [
+    "避免捕獲會變動的變數，引出並行問題",
+    "因為 lambda 一定會被編譯成匿名類別",
+    "因為區域變數放在堆上，lambda 讀不到它們",
+    "這只是編譯器的建議，不遵守照樣能編譯"
+   ],
+   "exp": "JLS 的理由是捕獲會變動的區域變數很可能引出並行問題；lambda 可能在別的執行緒、之後才執行。違反時是編譯錯誤，不是建議。"
+  },
+  {
+   "q": "Function&lt;String, String&gt; f = String::toUpperCase; 這是哪一種方法參考？",
+   "opts": [
+    "任意物件的實例方法（未綁定）",
+    "靜態方法參考，toUpperCase 是靜態的",
+    "特定物件（綁定）的實例方法參考",
+    "建構子參考，會建立一個新字串"
+   ],
+   "exp": "toUpperCase 是實例方法，呼叫它的字串不寫在方法參考裡，而是 f.apply(x) 時傳進來的 x，這叫未綁定。System.out::println 才是特定物件的那種。"
+  },
+  {
+   "q": "一段 Stream 程式只寫了 list.stream().filter(...).map(...)，沒有接任何終端操作。filter 與 map 裡的 lambda 會執行幾次？",
+   "opts": [
+    "0 次",
+    "每個元素各執行一次",
+    "只對第一個元素執行一次",
+    "執行時丟出 IllegalStateException"
+   ],
+   "exp": "中間操作一律是惰性的，只是把管線串好；要等 toList、collect、count 這類終端操作呼叫時，才開始走訪來源。"
+  },
+  {
+   "q": "同一個 Stream 物件已經呼叫過 toList()，再對它呼叫 count()，Java 21 上會怎樣？",
+   "opts": [
+    "丟出 IllegalStateException",
+    "回傳元素個數，跟第一次一樣",
+    "回傳 0，因為元素已經被取走了",
+    "自動重新從來源再跑一次"
+   ],
+   "exp": "流只能用一次；文件說偵測到重用時可能丟 IllegalStateException，Java 21 實跑的訊息是 stream has already been operated upon or closed。要再用就重新呼叫 list.stream()。"
+  },
+  {
+   "q": "用 Collectors.toMap(Tx::branch, Tx::amount) 收集，資料裡有兩筆分行都是「台北」，結果是什麼？",
+   "opts": [
+    "收集時丟出 IllegalStateException",
+    "後一筆的金額蓋掉前一筆",
+    "兩筆的金額自動相加起來",
+    "只保留第一筆，後面的直接忽略"
+   ],
+   "exp": "兩個參數的 toMap 遇到重複的鍵會丟 IllegalStateException。要相加就用三個參數的版本，傳 Long::sum 當合併函式，或改用 groupingBy。"
+  },
+  {
+   "q": "List&lt;String&gt; r = stream.toList(); 之後執行 r.add(\"x\") 會怎樣？",
+   "opts": [
+    "丟出 UnsupportedOperationException",
+    "成功加入，清單長度加一",
+    "編譯錯誤，List 沒有 add 方法可用",
+    "回傳 false，清單內容維持不變"
+   ],
+   "exp": "Stream.toList() 回傳的是不可修改的清單，任何修改方法都一定會丟這個例外。要能修改就用 collect(Collectors.toCollection(ArrayList::new))。"
+  },
+  {
+   "q": "下面哪一種 Optional 用法符合官方與 dev.java 的建議？",
+   "opts": [
+    "方法查不到資料時回傳 Optional.empty()",
+    "把類別的欄位宣告成 Optional&lt;String&gt;",
+    "方法參數宣告成 Optional&lt;Long&gt;，讓呼叫端可以不傳",
+    "回傳型別是 Optional 時，查不到就回傳 null"
+   ],
+   "exp": "Optional 主要設計來當方法的回傳型別；dev.java 的守則說不要用在欄位、方法參數、集合，Optional 本身也永遠不該是 null。"
+  },
+  {
+   "q": "Payment 是 sealed 介面，只 permits Card 與 Cash 兩個 record。對它寫 switch 運算式，只寫了 case Card c，會怎樣？",
+   "opts": [
+    "編譯錯誤：switch 運算式沒有涵蓋所有可能的值",
+    "可以編譯，Cash 執行時回傳 null",
+    "可以編譯，Cash 執行時丟出例外",
+    "一定要寫 default 才能編譯，跟 sealed 無關"
+   ],
+   "exp": "switch 運算式必須窮舉，sealed 讓編譯器知道只有 Card 與 Cash，所以漏了 Cash 是編譯錯誤；兩種都寫了就不需要 default。實跑錯誤訊息是 the switch expression does not cover all possible input values。"
+  }
+ ]
+}
