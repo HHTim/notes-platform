@@ -31,7 +31,7 @@
 | `spring/17-message-queue` | 訊息佇列：Spring 接 Kafka 與 RabbitMQ | ✅ `9cae8a9`（49 題、5 圖；Boot 4.1.1 重跑） | ✅ 10-03 審完：無錯誤級；手機撐寬、圖少畫箭頭、仲裁佇列與冪等生產者說法、跟 13 課 AFTER_COMMIT 互相指路；清單 `.superpowers/audit/spring/findings-17.md`；修正交回 `fix-algo-0910` | | | |
 | `spring/18-integration-testing` | 整合測試：@SpringBootTest、MockMvc 與 Testcontainers | ✅ `ee2f5c2`（48 題、4 圖；Boot 4.1.1） | 審查中（`review-java-a`） | | | |
 | `k8s/22-deploy-strategy-probes` | 部署策略與探針 | ✅ `a654d17`（50 題、2 圖、16 網址；kind v1.36.4 實跑） | 審查中（`review-algo-c`） | | | |
-| `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | ✅ `1ed20d6`（47 題、4 圖、20 網址；Boot 4.1.1、Jaeger OTLP） | 審查中（`review-algo-b`） | | | |
+| `spring/20-observability` | 可觀測性：Micrometer、Prometheus 與 OpenTelemetry | ✅ `1ed20d6`（47 題、4 圖、20 網址；Boot 4.1.1、Jaeger OTLP） | ✅ 10-03 審完：可上線，用詞與體例小修主控改；選項長度待補（`.superpowers/audit/spring/findings-20.md`） | — | ✅ 10-03 上線 `ccdc32c` | | | |
 | `spring/21-api-design` | API 設計進階：版本、分頁、冪等與錯誤格式 | ✅ `a435e4f`（49 題、3 圖、25 網址；Boot 4.1.1、Framework 7 內建版本） | 審查中（`review-algo-d`） | | | |
 | `web/13-owasp-security-headers` | OWASP 十大風險與安全標頭 | ✅ `d57361b`（47 題、3 圖、17 網址；mins 50） | ✅ 10-03 審完：無錯誤級；Thymeleaf／Angular 編碼補出處、「比網銀低」改成有理由的說法、選項長度；清單 `.superpowers/audit/web/findings-13.md`；修正 `579af10`（7 條全改、標頭重跑 10-03）；範圍複審 ✅ | ✅ 10-03 上線 `83c2471` | | | |
 | `web/14-realtime-websocket-sse` | 即時通訊：WebSocket、SSE 與輪詢 | ✅ `7d76544`（45 題、6 圖、17 網址；mins 55；Nginx 待補 Docker 實跑） | ✅ 10-03 審完：無錯誤級；手機撐寬、curl 輸出新舊混用、Node 要加旗標、「訊息代理」白話；frame 統一譯「訊框」（`589e0f9`）；清單 `.superpowers/audit/web/findings-14.md`；修正交回 `write-web-b` | | | |
