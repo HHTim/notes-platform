@@ -1,0 +1,730 @@
+<!-- 來源：依普林斯頓 algs4.cs.princeton.edu 第 1.4、2.5 節、MIT OpenCourseWare 6.006（2020 春）第 3 講講義、Java SE 25 API 文件（java.util.Arrays、ArrayDeque、HashMap）新寫；程式碼與練習題全部自編並以 Java 21 實際執行 · 收錄日期：2026-10-02 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用「左右往中間夾」在排好的陣列裡找兩數和、去掉重複的答案，並說出為什麼不會漏掉答案</li><li>用「快慢同向」的兩個索引原地移除、壓縮陣列，分清它跟〈鏈結串列〉的快慢指標哪裡一樣、哪裡不一樣</li><li>寫出固定長度與可變長度的滑動視窗，知道視窗怎麼擴、怎麼縮，以及兩層迴圈為什麼還是 O(n)</li><li>用雙端佇列求滑動視窗最大值，用前綴和讓區間和變 O(1)，再加雜湊表數出「和為 k 的子陣列」</li></ul></div>
+
+<section>
+<p class="era">兩個索引，一次掃完</p>
+<h3 class="head">雙指標是什麼</h3>
+<p>很多陣列題的暴力解是兩層迴圈：每一個 i 配每一個 j，O(n²)。<strong>雙指標</strong>（two pointers）的想法是：只用兩個索引（這裡的「指標」就是陣列索引，不是 C 語言的記憶體指標），讓它們照某個規則往前走，<strong>每走一步就排除一些不可能的情況</strong>，兩個索引加起來最多走 n 步，整題就變 O(n)。〈陣列與字串〉的反轉與迴文已經用過最簡單的一種。</p>
+<p>這課的手法分四種，差別在兩個索引怎麼走：</p>
+<div class="tablewrap"><table><thead><tr><th>手法</th><th>兩個索引怎麼走</th><th>典型題目</th></tr></thead><tbody>
+<tr><th>左右往中間</th><td>一個從頭、一個從尾，往中間靠</td><td>排好的陣列找兩數和、反轉、迴文</td></tr>
+<tr><th>快慢同向</th><td>都從頭往右，快的負責讀、慢的負責寫</td><td>原地移除、去重、壓縮</td></tr>
+<tr><th>滑動視窗</th><td>都往右，夾住一段連續的區間</td><td>連續 k 天總額最大、最長不重複子字串</td></tr>
+<tr><th>前綴和</th><td>不是指標，先算好「到這裡為止的總和」</td><td>多次查區間和、和為 k 的子陣列</td></tr>
+</tbody></table></div>
+<p>MIT 6.006 的講義把合併兩個排好的陣列叫「兩根手指的演算法」（two finger algorithm）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/6d1ae5278d02bbecb5c4428928b24194_MIT6_006S20_lec3.pdf" target="_blank" rel="noopener">出處</a>，那就是兩個指標各在一個陣列上同向走（見〈排序與二分搜尋〉的合併排序）。</p>
+</section>
+
+<section>
+<p class="era">太大就換小的，太小就換大的</p>
+<h3 class="head">左右往中間：排好的陣列找兩數和</h3>
+<p>問題：一個<strong>已經由小到大排好</strong>的陣列，找兩個數加起來等於 target。</p>
+<ul class="plainlist">
+<li><code>left</code> 從最左（最小）開始、<code>right</code> 從最右（最大）開始，看 <code>a[left] + a[right]</code>。</li>
+<li>和<strong>太大</strong>：要變小，只能把大的那個換小一點，<code>right--</code>。</li>
+<li>和<strong>太小</strong>：要變大，只能把小的那個換大一點，<code>left++</code>。</li>
+<li>剛好：找到。<code>left</code> 和 <code>right</code> 碰在一起還沒找到，就是沒有。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 514" role="img" aria-label="左右夾擠找兩數和：排好的陣列 1、3、4、6、8、11，目標 10。left 從最左、right 從最右開始；和太大 right 往左，和太小 left 往右；第五步 4 加 6 等於 10，找到">
+<text x="20" y="65" font-size="13">第 1 步</text><rect x="110" y="40" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="138" y="65" font-size="14" text-anchor="middle" class="mono">1</text><text x="138" y="96" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="65" font-size="14" text-anchor="middle" class="mono">3</text><text x="194" y="96" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="65" font-size="14" text-anchor="middle" class="mono">4</text><text x="250" y="96" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="65" font-size="14" text-anchor="middle" class="mono">6</text><text x="306" y="96" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="40" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="65" font-size="14" text-anchor="middle" class="mono">8</text><text x="362" y="96" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="40" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="418" y="65" font-size="14" text-anchor="middle" class="mono">11</text><text x="418" y="96" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M132 26 L144 26 L138 36z" fill="var(--gold-deep)"/><text x="138" y="20" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M412 26 L424 26 L418 36z" fill="var(--gold-deep)"/><text x="418" y="20" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="466" y="65" font-size="12.5">1 + 11 = 12 &gt; 10：right 往左</text><text x="20" y="161" font-size="13">第 2 步</text><rect x="110" y="136" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="138" y="161" font-size="14" text-anchor="middle" class="mono">1</text><rect x="166" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="161" font-size="14" text-anchor="middle" class="mono">3</text><rect x="222" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="161" font-size="14" text-anchor="middle" class="mono">4</text><rect x="278" y="136" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="161" font-size="14" text-anchor="middle" class="mono">6</text><rect x="334" y="136" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="362" y="161" font-size="14" text-anchor="middle" class="mono">8</text><rect x="390" y="136" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="418" y="161" font-size="14" text-anchor="middle" class="mono" opacity=".35">11</text><path d="M132 122 L144 122 L138 132z" fill="var(--gold-deep)"/><text x="138" y="116" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M356 122 L368 122 L362 132z" fill="var(--gold-deep)"/><text x="362" y="116" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="466" y="161" font-size="12.5">1 + 8 = 9 &lt; 10：left 往右</text><text x="20" y="257" font-size="13">第 3 步</text><rect x="110" y="232" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="138" y="257" font-size="14" text-anchor="middle" class="mono" opacity=".35">1</text><rect x="166" y="232" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="194" y="257" font-size="14" text-anchor="middle" class="mono">3</text><rect x="222" y="232" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="257" font-size="14" text-anchor="middle" class="mono">4</text><rect x="278" y="232" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="257" font-size="14" text-anchor="middle" class="mono">6</text><rect x="334" y="232" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="362" y="257" font-size="14" text-anchor="middle" class="mono">8</text><rect x="390" y="232" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="418" y="257" font-size="14" text-anchor="middle" class="mono" opacity=".35">11</text><path d="M188 218 L200 218 L194 228z" fill="var(--gold-deep)"/><text x="194" y="212" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M356 218 L368 218 L362 228z" fill="var(--gold-deep)"/><text x="362" y="212" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="466" y="257" font-size="12.5">3 + 8 = 11 &gt; 10：right 往左</text><text x="20" y="353" font-size="13">第 4 步</text><rect x="110" y="328" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="138" y="353" font-size="14" text-anchor="middle" class="mono" opacity=".35">1</text><rect x="166" y="328" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="194" y="353" font-size="14" text-anchor="middle" class="mono">3</text><rect x="222" y="328" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="353" font-size="14" text-anchor="middle" class="mono">4</text><rect x="278" y="328" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="306" y="353" font-size="14" text-anchor="middle" class="mono">6</text><rect x="334" y="328" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="362" y="353" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><rect x="390" y="328" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="418" y="353" font-size="14" text-anchor="middle" class="mono" opacity=".35">11</text><path d="M188 314 L200 314 L194 324z" fill="var(--gold-deep)"/><text x="194" y="308" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M300 314 L312 314 L306 324z" fill="var(--gold-deep)"/><text x="306" y="308" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="466" y="353" font-size="12.5">3 + 6 = 9 &lt; 10：left 往右</text><text x="20" y="449" font-size="13">第 5 步</text><rect x="110" y="424" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="138" y="449" font-size="14" text-anchor="middle" class="mono" opacity=".35">1</text><rect x="166" y="424" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="194" y="449" font-size="14" text-anchor="middle" class="mono" opacity=".35">3</text><rect x="222" y="424" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="250" y="449" font-size="14" text-anchor="middle" class="mono">4</text><rect x="278" y="424" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="306" y="449" font-size="14" text-anchor="middle" class="mono">6</text><rect x="334" y="424" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="362" y="449" font-size="14" text-anchor="middle" class="mono" opacity=".35">8</text><rect x="390" y="424" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="418" y="449" font-size="14" text-anchor="middle" class="mono" opacity=".35">11</text><path d="M244 410 L256 410 L250 420z" fill="var(--gold-deep)"/><text x="250" y="404" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M300 410 L312 410 L306 420z" fill="var(--gold-deep)"/><text x="306" y="404" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="466" y="449" font-size="12.5" fill="var(--gold-deep)">4 + 6 = 10：找到</text><text x="20" y="500" font-size="12" opacity=".6">在排好的 1、3、4、6、8、11 找和為 10。虛線格＝已經排除、不可能再配對的</text>
+</svg>
+<figcaption>和太大就把右邊換小一點，太小就把左邊換大一點；每一步排除一個數，最多 n − 1 步。</figcaption>
+</figure>
+<pre><code>import java.util.ArrayList;
+import java.util.List;
+
+public class TwoSumSorted {
+    // 排好的陣列裡找一對加起來等於 target 的索引
+    static int[] twoSum(int[] a, int target) {
+        int left = 0, right = a.length - 1;
+        while (left &lt; right) {
+            int sum = a[left] + a[right];
+            System.out.println("left=" + left + " right=" + right + " 和=" + sum);
+            if (sum == target) return new int[] {left, right};
+            if (sum &lt; target) left++;       // 太小：換一個大一點的左邊
+            else right--;                   // 太大：換一個小一點的右邊
+        }
+        return new int[] {-1, -1};
+    }
+
+    // 列出所有加起來等於 target 的「不重複」數對
+    static List&lt;String&gt; allPairs(int[] a, int target) {
+        List&lt;String&gt; out = new ArrayList&lt;&gt;();
+        int left = 0, right = a.length - 1;
+        while (left &lt; right) {
+            int sum = a[left] + a[right];
+            if (sum &lt; target) left++;
+            else if (sum &gt; target) right--;
+            else {
+                out.add("(" + a[left] + ", " + a[right] + ")");
+                left++;
+                right--;
+                while (left &lt; right &amp;&amp; a[left] == a[left - 1]) left++;     // 跳過一樣的值
+                while (left &lt; right &amp;&amp; a[right] == a[right + 1]) right--;
+            }
+        }
+        return out;
+    }
+
+    public static void main(String[] args) {
+        int[] r = twoSum(new int[] {1, 3, 4, 6, 8, 11}, 10);
+        System.out.println("答案：" + r[0] + ", " + r[1]);
+        System.out.println(allPairs(new int[] {1, 1, 2, 3, 4, 4, 5, 5}, 6));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>left=0 right=5 和=12
+left=0 right=4 和=9
+left=1 right=4 和=11
+left=1 right=3 和=9
+left=2 right=3 和=10
+答案：2, 3
+[(1, 5), (2, 4)]</code></pre>
+
+<h4>為什麼不會漏掉答案</h4>
+<p>關鍵在「排好了」。和太大時，<code>a[right]</code> 配上目前最小的 <code>a[left]</code> 都已經太大，配上 <code>left</code> 右邊更大的只會更大，所以 <code>a[right]</code> 跟誰都不可能湊出 target，可以整個丟掉。和太小時同理，<code>a[left]</code> 配上目前最大的都不夠，也可以丟掉。<strong>每一步都丟掉一個「確定沒用」的數</strong>，所以最多 n − 1 步，時間 O(n)、額外空間 O(1)。</p>
+<p>普林斯頓 algs4 的練習題也這樣要求：給一個排好的 N 個整數的串列和目標 x，「在線性時間內找出和最接近 x 的兩個」（Given a sorted list of N integers and a target integer x, determine in linear time the two whose sum is closest to x.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> 對照三種做法：</p>
+<div class="tablewrap"><table><thead><tr><th>做法</th><th>時間</th><th>額外空間</th><th>前提</th></tr></thead><tbody>
+<tr><td>每一對都試</td><td>O(n²)</td><td>O(1)</td><td>無</td></tr>
+<tr><td>每個數用二分搜尋找補數</td><td>O(n log n)</td><td>O(1)</td><td>排好</td></tr>
+<tr><td>左右往中間</td><td>O(n)</td><td>O(1)</td><td>排好</td></tr>
+<tr><td>雜湊表查補數（〈雜湊表：HashMap 怎麼做到幾乎一步找到〉）</td><td>平均 O(n)</td><td>O(n)</td><td>不用排好</td></tr>
+</tbody></table></div>
+<p>algs4 的 2-sum 就是第二種：「TwoSumFast.java 用跟 N log N 成正比的時間解 2-sum」（TwoSumFast.java solves the 2-sum problem in time proportional to N log N time.），暴力解是 N²。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> 陣列<strong>沒排好</strong>時，先排序要 O(n log n)，而且排序會打亂原本的索引，題目要回傳原索引時就改用雜湊表。</p>
+
+<h4>去掉重複的答案</h4>
+<p>題目要「所有不重複的數對」時，找到一對之後兩邊各往內一步，再<strong>跳過跟剛才一樣的值</strong>，不然同樣的 (1, 5) 會被記好幾次。上面 <code>allPairs</code> 的兩個 <code>while</code> 就在做這件事；三數和（固定一個數，剩下的做兩數和）也是同一招。</p>
+<p class="formula">左右往中間：排好的陣列，和太大 right−−、太小 left++；每步丟掉一個確定沒用的數，O(n)</p>
+
+<div class="drill">
+  <p class="dq">在排好的 <code>{2, 5, 7, 9, 12}</code> 用左右往中間找和為 16。第一步比完之後，left 和 right 是？</p>
+  <ul class="dopts"><li>left = 0，right = 3</li><li data-ok>left = 1，right = 4</li><li>left = 1，right = 3</li><li>找到了，就是 2 和 12</li></ul>
+  <p class="dexp">2 + 12 = 14，比 16 小，要把小的換大一點：left 從 0 變 1，right 不動還是 4。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，總共要比幾次才找到？找到的是哪兩個數？</p>
+  <ul class="dopts"><li>3 次，5 和 12</li><li>2 次，7 和 9</li><li data-ok>4 次，7 和 9</li><li>5 次，找不到</li></ul>
+  <p class="dexp">2 + 12 = 14 太小 left++；5 + 12 = 17 太大 right−−；5 + 9 = 14 太小 left++；7 + 9 = 16 找到。共 4 次。</p>
+</div>
+<div class="drill">
+  <p class="dq">和太大時為什麼是 <code>right--</code>，而不是 <code>left--</code> 或 <code>left++</code>？</p>
+  <ul class="dopts"><li data-ok>陣列由小到大，right−− 換成小一點的數，和才會變小；a[right] 配誰都已經太大，可以丟掉</li><li>因為 left 不能往左走，只好動 right</li><li>left++ 也可以，只是比較慢</li><li>為了避免索引超出範圍</li></ul>
+  <p class="dexp">left++ 換成更大的數，和只會更大；left−− 會走到已經丟掉的範圍。a[right] 配上目前最小的 a[left] 都太大，跟誰都湊不出 target，所以丟掉它。</p>
+</div>
+<div class="drill">
+  <p class="dq">左右往中間找兩數和，時間與額外空間是？</p>
+  <ul class="dopts"><li>O(n log n) 時間、O(1) 空間</li><li>O(n) 時間、O(n) 空間</li><li>O(n²) 時間、O(1) 空間</li><li data-ok>O(n) 時間、O(1) 空間</li></ul>
+  <p class="dexp">每一步 left 或 right 往內一格，最多 n − 1 步；只用兩個變數，額外空間 O(1)。前提是陣列已經排好。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列<strong>沒排好</strong>，要找兩個數和為 target 並回傳它們<strong>原本的索引</strong>。用哪個做法最合適？</p>
+  <ul class="dopts"><li data-ok>雜湊表邊走邊查補數，平均 O(n)</li><li>直接用左右往中間</li><li>先排序再左右往中間，回傳排序後的索引</li><li>每個數用二分搜尋找補數</li></ul>
+  <p class="dexp">沒排好時左右往中間沒有根據；先排序會打亂原本的索引（還要多記一份原索引），而且要 O(n log n)。二分搜尋也要排好。雜湊表不用排序，平均 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">上面的 <code>allPairs</code> 對 <code>{1, 1, 2, 3, 4, 4, 5, 5}</code>、target 6，印出什麼？</p>
+  <ul class="dopts"><li>[(1, 5), (1, 5), (2, 4), (2, 4)]</li><li>[(1, 5)]</li><li>[(1, 5), (2, 4), (3, 3)]</li><li data-ok>[(1, 5), (2, 4)]</li></ul>
+  <p class="dexp">找到 (1, 5) 後，兩邊各往內一步並跳過重複的 1 和 5；接著找到 (2, 4)。3 只有一個，left 和 right 不能是同一格，所以沒有 (3, 3)。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>allPairs</code> 裡兩個「跳過一樣的值」的 <code>while</code> 拿掉，同樣的輸入會印出什麼？</p>
+  <ul class="dopts"><li>[(1, 5), (2, 4)]，結果不變</li><li data-ok>[(1, 5), (1, 5), (2, 4)]</li><li>[(1, 5), (1, 5), (2, 4), (2, 4)]</li><li>無窮迴圈</li></ul>
+  <p class="dexp">找到 (1, 5) 後兩邊各往內一步，剛好又是 1 和 5，再記一次；接著 2 + 4 = 6 記 (2, 4)；然後 3 + 4 = 7 太大，right 左移碰到 left，結束。(2, 4) 只記一次，是因為記完之後 left 指到 3，3 + 4 已經不等於 6。</p>
+</div>
+<div class="drill">
+  <p class="dq">已排好的陣列找兩數和，「每一對都試」「每個數用二分搜尋找補數」「左右往中間」三種做法的時間分別是？</p>
+  <ul class="dopts"><li>O(n²)、O(n)、O(log n)</li><li data-ok>O(n²)、O(n log n)、O(n)</li><li>O(n log n)、O(n log n)、O(n)</li><li>三個都是 O(n²)</li></ul>
+  <p class="dexp">兩層迴圈 O(n²)；n 個數各做一次 O(log n) 的二分搜尋是 O(n log n)；左右往中間每步排除一個數，O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">用左右往中間判斷 <code>"level"</code> 是不是迴文，left 和 right 什麼時候停？</p>
+  <ul class="dopts"><li>left 走到最後一格</li><li>比了 n 次之後</li><li>遇到第一個母音時</li><li data-ok>left &gt;= right，也就是兩個在中間碰到或交錯</li></ul>
+  <p class="dexp">每次比 s[left] 和 s[right]，一樣就各往內一步。level 長度 5，比完 (l, l)、(e, e) 後兩個都到索引 2，中間那格不用跟自己比，停。</p>
+</div>
+</section>
+
+<section>
+<p class="era">一個讀、一個寫，原地整理</p>
+<h3 class="head">快慢同向：原地移除與壓縮</h3>
+<p>第二種是兩個索引<strong>都從頭往右走</strong>，但速度不同：<code>fast</code> 每次走一格，負責把每個元素讀一遍；<code>slow</code> 只在「這個要留下」的時候寫一格、往右一格。<code>slow</code> 左邊永遠是已經整理好的部分。〈陣列與字串〉的 write 索引就是這裡的 <code>slow</code>。</p>
+<figure>
+<svg viewBox="0 0 760 412" role="img" aria-label="快慢指標原地移除：陣列 3、2、2、3、4、3，要移除 3。fast 每次往右讀一格，讀到不是 3 的就寫到 slow 的位置、slow 往右一格。結束時 slow 等於 3，前三格 2、2、4 就是答案">
+<text x="20" y="69" font-size="13">開始</text><rect x="110" y="44" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="138" y="69" font-size="14" text-anchor="middle" class="mono">3</text><text x="138" y="100" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="44" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="69" font-size="14" text-anchor="middle" class="mono">2</text><text x="194" y="100" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="44" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="69" font-size="14" text-anchor="middle" class="mono">2</text><text x="250" y="100" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="44" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="69" font-size="14" text-anchor="middle" class="mono">3</text><text x="306" y="100" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="44" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="69" font-size="14" text-anchor="middle" class="mono">4</text><text x="362" y="100" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="44" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="69" font-size="14" text-anchor="middle" class="mono">3</text><text x="418" y="100" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M132 30 L144 30 L138 40z" fill="var(--gold-deep)"/><text x="138" y="24" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">slow fast</text><text x="110" y="122" font-size="12.5">slow、fast 都從 0 開始</text><text x="20" y="189" font-size="13" class="mono">fast = 3</text><rect x="110" y="164" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="138" y="189" font-size="14" text-anchor="middle" class="mono">2</text><text x="138" y="220" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="164" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="194" y="189" font-size="14" text-anchor="middle" class="mono">2</text><text x="194" y="220" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="164" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="189" font-size="14" text-anchor="middle" class="mono">2</text><text x="250" y="220" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="164" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="306" y="189" font-size="14" text-anchor="middle" class="mono">3</text><text x="306" y="220" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="164" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="189" font-size="14" text-anchor="middle" class="mono">4</text><text x="362" y="220" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="164" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="189" font-size="14" text-anchor="middle" class="mono">3</text><text x="418" y="220" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M244 150 L256 150 L250 160z" fill="var(--gold-deep)"/><text x="250" y="144" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">slow</text><path d="M300 150 L312 150 L306 160z" fill="var(--gold-deep)"/><text x="306" y="144" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">fast</text><text x="110" y="242" font-size="12.5">已留下 2、2；a[3] = 3 要丟，只有 fast 前進</text><text x="20" y="309" font-size="13">結束</text><rect x="110" y="284" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="138" y="309" font-size="14" text-anchor="middle" class="mono">2</text><text x="138" y="340" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="284" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="194" y="309" font-size="14" text-anchor="middle" class="mono">2</text><text x="194" y="340" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="284" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="309" font-size="14" text-anchor="middle" class="mono">4</text><text x="250" y="340" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="284" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="309" font-size="14" text-anchor="middle" class="mono">3</text><text x="306" y="340" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="284" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="309" font-size="14" text-anchor="middle" class="mono">4</text><text x="362" y="340" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="284" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="309" font-size="14" text-anchor="middle" class="mono">3</text><text x="418" y="340" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><path d="M300 270 L312 270 L306 280z" fill="var(--gold-deep)"/><text x="306" y="264" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">slow</text><path d="M468 270 L480 270 L474 280z" fill="var(--gold-deep)"/><text x="474" y="264" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">fast</text><text x="110" y="362" font-size="12.5">slow = 3：前 3 格就是答案</text><text x="20" y="398" font-size="12" opacity=".6">移除所有的 3。灰藍＝已經確定留下的（slow 左邊）；fast 一格一格往右讀，遇到要留的才寫到 slow</text>
+</svg>
+<figcaption>fast 負責讀、slow 負責寫：slow 左邊永遠是「已經整理好」的部分，後面剩下的不用管。</figcaption>
+</figure>
+<pre><code>import java.util.Arrays;
+
+public class FastSlow {
+    // 原地移除所有等於 val 的元素，回傳剩下幾個
+    static int removeElement(int[] a, int val) {
+        int slow = 0;                         // 下一個要寫的位置
+        for (int fast = 0; fast &lt; a.length; fast++) {
+            if (a[fast] != val) {             // 要留的才寫
+                a[slow] = a[fast];
+                slow++;
+            }
+        }
+        return slow;
+    }
+
+    // 已排好的陣列，每個值最多留兩個
+    static int keepAtMostTwo(int[] a) {
+        int slow = 0;
+        for (int fast = 0; fast &lt; a.length; fast++) {
+            // 前兩個一定留；之後只要跟「已留下的倒數第二個」不同就留
+            if (slow &lt; 2 || a[fast] != a[slow - 2]) {
+                a[slow] = a[fast];
+                slow++;
+            }
+        }
+        return slow;
+    }
+
+    public static void main(String[] args) {
+        int[] a = {3, 2, 2, 3, 4, 3};
+        int n = removeElement(a, 3);
+        System.out.println(n + " " + Arrays.toString(Arrays.copyOf(a, n)));
+
+        int[] b = {1, 1, 1, 2, 2, 3, 3, 3, 3};
+        int m = keepAtMostTwo(b);
+        System.out.println(m + " " + Arrays.toString(Arrays.copyOf(b, m)));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>3 [2, 2, 4]
+6 [1, 1, 2, 2, 3, 3]</code></pre>
+<ul class="plainlist">
+<li><strong>為什麼可以原地寫</strong>：<code>slow</code> 永遠不會超過 <code>fast</code>，寫進去的位置都是 <code>fast</code> 已經讀過的，不會蓋掉還沒讀的資料。</li>
+<li><strong><code>slow</code> 之後的格子不用管</strong>：題目通常只看前 <code>slow</code> 格，後面留著舊值也沒關係（上圖結束時後三格還是 3、4、3）。</li>
+<li><strong>最多留兩個</strong>（<code>keepAtMostTwo</code>）要比的是「已留下的倒數第二個」<code>a[slow - 2]</code>，不是 <code>a[fast - 2]</code>：前面的格子可能已經被改寫，<code>a[fast - 2]</code> 不一定是原本的值，也不一定是留下來的值。</li>
+</ul>
+<p>時間 O(n)（fast 走一遍），額外空間 O(1)。</p>
+
+<h4>跟鏈結串列的快慢指標比一比</h4>
+<p>〈鏈結串列〉的快慢指標是 <code>slow</code> 一次走一步、<code>fast</code> 一次走兩步，靠「速度差」找中點或判斷有沒有環。這裡的兩個索引一樣叫快慢，但 <code>fast</code> 每次固定走一步、<code>slow</code> 是「有要留的才走」，靠的是「讀和寫分開」。共同點是兩個都只往前走、各走一遍，所以都是 O(n)、O(1) 額外空間。</p>
+<p class="formula">快慢同向：fast 讀、slow 寫；slow 左邊是整理好的，slow 之後不用管</p>
+
+<div class="drill">
+  <p class="dq"><code>removeElement(<wbr>new int[] {0, 1, 2, 2, 3, 0, 4, 2}, 2)</code> 回傳多少？前面那幾格是什麼？</p>
+  <ul class="dopts"><li>回傳 3，前 3 格是 [0, 1, 3]</li><li data-ok>回傳 5，前 5 格是 [0, 1, 3, 0, 4]</li><li>回傳 5，前 5 格是 [0, 0, 1, 3, 4]</li><li>回傳 8，陣列不變</li></ul>
+  <p class="dexp">不是 2 的有 0、1、3、0、4 五個，依原本的順序寫到前面，回傳 slow = 5。快慢同向不會改變留下來的元素的先後。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>removeElement</code> 裡，迴圈跑到一半時 <code>slow</code> 的值代表什麼？</p>
+  <ul class="dopts"><li>目前讀到的位置</li><li>已經丟掉幾個元素</li><li data-ok>已經留下幾個元素，也是下一個要寫的位置</li><li>陣列剩下還沒讀的長度</li></ul>
+  <p class="dexp">每留一個就寫到 a[slow] 再 slow++，所以 slow 同時是「留了幾個」和「下一格要寫哪裡」。讀到哪裡是 fast；丟掉幾個是 fast − slow。</p>
+</div>
+<div class="drill">
+  <p class="dq">對 <code>{3, 2, 2, 3, 4, 3}</code> 執行 <code>removeElement(a, 3)</code> 之後，<strong>整個</strong>陣列長什麼樣？</p>
+  <ul class="dopts"><li data-ok>[2, 2, 4, 3, 4, 3]</li><li>[2, 2, 4]</li><li>[2, 2, 4, 0, 0, 0]</li><li>[2, 2, 4, 3, 3, 3]</li></ul>
+  <p class="dexp">只有前 slow = 3 格被改寫成 2、2、4；後三格沒人寫，還是原本的 3、4、3。陣列長度不會變，題目只看前 3 格。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>keepAtMostTwo(<wbr>new int[] {1, 1, 1, 1, 2})</code> 回傳多少？</p>
+  <ul class="dopts"><li data-ok>3，前 3 格是 [1, 1, 2]</li><li>2，前 2 格是 [1, 2]</li><li>5，陣列不變</li><li>4，前 4 格是 [1, 1, 1, 2]</li></ul>
+  <p class="dexp">前兩個 1 直接留；第三、四個 1 跟 a[slow − 2]（也是 1）一樣，丟掉；2 跟 a[slow − 2] = 1 不同，留下。共 3 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>keepAtMostTwo</code> 的條件改成比 <code>a[fast - 2]</code>（前兩個用 <code>fast &lt; 2</code> 判斷），對 <code>{1, 1, 1, 2, 2, 2}</code> 會得到什麼？</p>
+  <ul class="dopts"><li>4 個：[1, 1, 2, 2]，跟原本一樣</li><li>6 個，什麼都沒丟</li><li>2 個：[1, 2]</li><li data-ok>3 個：[1, 1, 2]，少了一個 2</li></ul>
+  <p class="dexp">留下 2 時 a[2] 被改寫成 2；fast = 4 時比 a[2]，它已經不是原本的 1，而是剛寫進去的 2，於是第二個 2 被當成重複丟掉。要比的是「已留下的」a[slow − 2]。</p>
+</div>
+<div class="drill">
+  <p class="dq">快慢同向原地移除，寫 <code>a[slow] = a[fast]</code> 為什麼不會蓋掉還沒讀到的資料？</p>
+  <ul class="dopts"><li>因為 Java 會自動先複製一份陣列</li><li data-ok>slow 永遠 ≤ fast，寫的位置都是 fast 已經讀過的</li><li>因為只有在 slow == fast 時才寫</li><li>會蓋掉，所以要另外開一個陣列</li></ul>
+  <p class="dexp">slow 只在留下元素時才走，fast 每次都走，slow 不可能超過 fast。寫進 a[slow] 時，那一格早就被 fast 讀過了。</p>
+</div>
+<div class="drill">
+  <p class="dq">〈鏈結串列〉的快慢指標（slow 一步、fast 兩步）和這裡的快慢同向，下面哪一句正確？</p>
+  <ul class="dopts"><li>兩者完全一樣，都是 fast 一次走兩步</li><li>這裡的 slow 每次都會前進</li><li>鏈結串列那種需要 O(n) 額外空間</li><li data-ok>鏈結串列那種靠速度差；這裡 fast 每次走一步負責讀，slow 只在要留時才走、負責寫</li></ul>
+  <p class="dexp">名字一樣、用法不同：找中點、判環靠「fast 走兩步」造成的距離差；原地移除靠「讀和寫分開」。兩者都只用兩個變數，O(1) 額外空間。</p>
+</div>
+</section>
+
+<section>
+<p class="era">框住連續 k 格，一格一格往右推</p>
+<h3 class="head">滑動視窗：固定長度</h3>
+<p><strong>滑動視窗</strong>（sliding window）處理的是<strong>連續</strong>的一段：用兩個索引夾住一段區間（視窗），兩個索引都只往右走，視窗就像在陣列上滑動。</p>
+<p>固定長度的例子：一份「每天交易總額」的陣列，找連續 k 天加起來最大的那一段。暴力解是每個起點都重新加 k 個數，O(n × k)。滑動視窗的做法：先算好第一個視窗的和，之後每往右滑一格，<strong>加上新進來的那天、減掉離開的那天</strong>，每次 O(1)。</p>
+<figure>
+<svg viewBox="0 0 760 326" role="img" aria-label="固定長度的滑動視窗：每天交易總額 5、1、3、8、2、6、4，視窗長度 3。第一個視窗和是 9；往右滑一格，減掉離開的 5、加上進來的 8，得到 12；最大的視窗是索引 3 到 5，和為 16">
+<rect x="110" y="30" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="138" y="55" font-size="14" text-anchor="middle" class="mono">5</text><text x="138" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="30" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="194" y="55" font-size="14" text-anchor="middle" class="mono">1</text><text x="194" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="30" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="55" font-size="14" text-anchor="middle" class="mono">3</text><text x="250" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="55" font-size="14" text-anchor="middle" class="mono">8</text><text x="306" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="55" font-size="14" text-anchor="middle" class="mono">2</text><text x="362" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="55" font-size="14" text-anchor="middle" class="mono">6</text><text x="418" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="55" font-size="14" text-anchor="middle" class="mono">4</text><text x="474" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="106" y="26" width="176" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><text x="526" y="55" font-size="12.5">第一個視窗：5 + 1 + 3 = 9</text><rect x="110" y="126" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="138" y="151" font-size="14" text-anchor="middle" class="mono" opacity=".35">5</text><text x="138" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="126" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="194" y="151" font-size="14" text-anchor="middle" class="mono">1</text><text x="194" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="126" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="151" font-size="14" text-anchor="middle" class="mono">3</text><text x="250" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="126" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="306" y="151" font-size="14" text-anchor="middle" class="mono">8</text><text x="306" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="126" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="151" font-size="14" text-anchor="middle" class="mono">2</text><text x="362" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="126" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="151" font-size="14" text-anchor="middle" class="mono">6</text><text x="418" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="126" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="151" font-size="14" text-anchor="middle" class="mono">4</text><text x="474" y="182" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="162" y="122" width="176" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><text x="526" y="151" font-size="12.5">滑一格：9 − 5 + 8 = 12</text><rect x="110" y="222" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="138" y="247" font-size="14" text-anchor="middle" class="mono">5</text><text x="138" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="222" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="247" font-size="14" text-anchor="middle" class="mono">1</text><text x="194" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="222" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="247" font-size="14" text-anchor="middle" class="mono">3</text><text x="250" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="222" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="306" y="247" font-size="14" text-anchor="middle" class="mono">8</text><text x="306" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="222" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="362" y="247" font-size="14" text-anchor="middle" class="mono">2</text><text x="362" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="222" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="247" font-size="14" text-anchor="middle" class="mono">6</text><text x="418" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="222" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="247" font-size="14" text-anchor="middle" class="mono">4</text><text x="474" y="278" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="274" y="218" width="176" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><text x="526" y="247" font-size="12.5" fill="var(--gold-deep)">最大的視窗：8 + 2 + 6 = 16</text><text x="20" y="312" font-size="12" opacity=".6">每天的交易總額，k = 3。框起來的是視窗；滑一格時只做兩件事：減掉離開的那天（虛線）、加上進來的那天（古銅）</text>
+</svg>
+<figcaption>視窗往右滑一格，只要「減掉出去的、加上進來的」，不用每次重新加 k 個數。</figcaption>
+</figure>
+<pre><code>public class FixedWindow {
+    // 每天的交易總額，找連續 k 天加起來最大的那一段
+    static void maxKDays(int[] amounts, int k) {
+        int sum = 0;
+        for (int i = 0; i &lt; k; i++) sum += amounts[i];      // 第一個視窗
+        int best = sum, bestStart = 0;
+        for (int right = k; right &lt; amounts.length; right++) {
+            sum += amounts[right];                          // 右邊進來一天
+            sum -= amounts[right - k];                      // 左邊出去一天
+            if (sum &gt; best) {
+                best = sum;
+                bestStart = right - k + 1;
+            }
+        }
+        System.out.println("最大 " + best + "，從索引 " + bestStart + " 開始");
+    }
+
+    public static void main(String[] args) {
+        maxKDays(new int[] {5, 1, 3, 8, 2, 6, 4}, 3);
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>最大 16，從索引 3 開始</code></pre>
+<p>長度 n、視窗 k，總共有 n − k + 1 個視窗；第一個花 O(k)，之後每個 O(1)，合起來 O(n)。視窗裡要記的如果不是總和而是「每種字元各幾個」（例如找某個字的重組字），一樣是進來一個加一、出去一個減一，用 <code>int[26]</code> 或 <code>HashMap</code> 計數（計數的寫法見〈陣列與字串〉）。</p>
+<p class="formula">固定長度視窗：sum += 進來的 − 出去的；n − k + 1 個視窗，O(n)</p>
+
+<div class="drill">
+  <p class="dq">每天交易總額 <code>{5, 1, 3, 8, 2, 6, 4}</code>、k = 3。第二個視窗（索引 1〜3）的和是多少？用滑動的方式怎麼算？</p>
+  <ul class="dopts"><li>12，從頭加 1 + 3 + 8</li><li>17，9 + 8</li><li>4，9 − 5</li><li data-ok>12，第一個視窗的 9 減掉離開的 5、加上進來的 8</li></ul>
+  <p class="dexp">第一個視窗 5 + 1 + 3 = 9。往右滑一格，5 離開、8 進來：9 − 5 + 8 = 12。結果跟從頭加一樣，但只做了兩次運算。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>{2, 7, 1, 8, 2, 8}</code>、k = 2，連續 2 天的最大總和是多少？</p>
+  <ul class="dopts"><li>9</li><li data-ok>10</li><li>16</li><li>8</li></ul>
+  <p class="dexp">五個視窗的和依序是 9、8、9、10、10，最大是 10（8 + 2 或 2 + 8）。</p>
+</div>
+<div class="drill">
+  <p class="dq">長度 n 的陣列、視窗長度 k，「每個起點都重新加 k 個數」和「滑動視窗」的時間分別是？</p>
+  <ul class="dopts"><li data-ok>O(n × k) 和 O(n)</li><li>O(n) 和 O(n)</li><li>O(n²) 和 O(n log n)</li><li>O(k) 和 O(1)</li></ul>
+  <p class="dexp">暴力解有約 n 個起點、每個加 k 次。滑動視窗第一個視窗 O(k)，之後每滑一格 O(1)，合起來 O(n)。k 很大（例如 1,000）時差很多。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>FixedWindow</code> 的迴圈裡，<code>right</code> 是新進來的那一天。離開視窗的是哪一天的索引？</p>
+  <ul class="dopts"><li>right − 1</li><li>right + k</li><li data-ok>right − k</li><li>right − k + 1</li></ul>
+  <p class="dexp">新視窗是 right − k + 1 到 right，舊視窗是 right − k 到 right − 1，被擠出去的就是 right − k。right − k + 1 是新視窗的起點。</p>
+</div>
+<div class="drill">
+  <p class="dq">長度 7 的陣列、k = 3，總共有幾個視窗？</p>
+  <ul class="dopts"><li>3 個</li><li>7 個</li><li>4 個</li><li data-ok>5 個</li></ul>
+  <p class="dexp">起點可以是索引 0〜4，共 7 − 3 + 1 = 5 個。上面程式的迴圈也就比較了 5 個視窗的和。</p>
+</div>
+<div class="drill">
+  <p class="dq">在字串 <code>"abab"</code> 裡，長度 2 的視窗有幾個是 <code>"ab"</code> 的重組字（字母相同、順序可以不同）？</p>
+  <ul class="dopts"><li data-ok>3 個</li><li>2 個</li><li>1 個</li><li>4 個</li></ul>
+  <p class="dexp">三個視窗 ab、ba、ab，每個都是一個 a、一個 b，跟 ab 的計數相同，3 個都算。滑動時只要讓出去的字母計數減一、進來的加一，再比計數。</p>
+</div>
+</section>
+
+<section>
+<p class="era">右邊擴，條件壞了就縮左邊</p>
+<h3 class="head">滑動視窗：可變長度</h3>
+<p>更常見的是視窗長度不固定，要找「符合條件的最長」或「最短」那一段。套路是：<strong>right 每次往右擴一格；擴完如果條件被破壞（或已經滿足），就把 left 往右縮</strong>，縮到條件恢復為止。</p>
+
+<h4>最長不重複子字串</h4>
+<p>找一段最長的連續子字串，裡面沒有重複的字元。視窗裡用 <code>int[128]</code> 記每個字元出現幾次（只有 ASCII 字元時；有中文就改用 <code>HashMap&lt;Character, Integer&gt;</code>，理由見〈陣列與字串〉）。</p>
+<figure>
+<svg viewBox="0 0 760 428" role="img" aria-label="可變長度的滑動視窗：字串 abcbdab。right 擴到索引 2 時視窗是 abc；right 到 3 讀進第二個 b，left 從 0 縮到 2，視窗變 cb；再擴到索引 5，視窗 cbda 長度 4 是最長">
+<rect x="110" y="46" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="138" y="71" font-size="14" text-anchor="middle" class="mono">a</text><text x="138" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="46" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="194" y="71" font-size="14" text-anchor="middle" class="mono">b</text><text x="194" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="46" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="71" font-size="14" text-anchor="middle" class="mono">c</text><text x="250" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="306" y="71" font-size="14" text-anchor="middle" class="mono">b</text><text x="306" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="71" font-size="14" text-anchor="middle" class="mono">d</text><text x="362" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="71" font-size="14" text-anchor="middle" class="mono">a</text><text x="418" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="46" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="71" font-size="14" text-anchor="middle" class="mono">b</text><text x="474" y="102" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="106" y="42" width="176" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><path d="M132 32 L144 32 L138 42z" fill="var(--gold-deep)"/><text x="138" y="26" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M244 32 L256 32 L250 42z" fill="var(--gold-deep)"/><text x="250" y="26" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="110" y="128" font-size="12.5">擴：right 走到 2，視窗 abc 沒有重複</text><rect x="110" y="174" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="138" y="199" font-size="14" text-anchor="middle" class="mono" opacity=".35">a</text><text x="138" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="174" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="194" y="199" font-size="14" text-anchor="middle" class="mono" opacity=".35">b</text><text x="194" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="174" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="199" font-size="14" text-anchor="middle" class="mono">c</text><text x="250" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="174" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="306" y="199" font-size="14" text-anchor="middle" class="mono">b</text><text x="306" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="174" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="362" y="199" font-size="14" text-anchor="middle" class="mono">d</text><text x="362" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="174" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="199" font-size="14" text-anchor="middle" class="mono">a</text><text x="418" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="174" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="199" font-size="14" text-anchor="middle" class="mono">b</text><text x="474" y="230" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="218" y="170" width="120" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><path d="M244 160 L256 160 L250 170z" fill="var(--gold-deep)"/><text x="250" y="154" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M300 160 L312 160 L306 170z" fill="var(--gold-deep)"/><text x="306" y="154" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="110" y="256" font-size="12.5">right 走到 3 讀進 b，重複了：left 一路縮到 b 只剩一個，視窗剩 cb</text><rect x="110" y="302" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="138" y="327" font-size="14" text-anchor="middle" class="mono" opacity=".35">a</text><text x="138" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="302" width="56" height="40" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="4 3"/><text x="194" y="327" font-size="14" text-anchor="middle" class="mono" opacity=".35">b</text><text x="194" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="302" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="327" font-size="14" text-anchor="middle" class="mono">c</text><text x="250" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="302" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="306" y="327" font-size="14" text-anchor="middle" class="mono">b</text><text x="306" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="302" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="362" y="327" font-size="14" text-anchor="middle" class="mono">d</text><text x="362" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="302" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="327" font-size="14" text-anchor="middle" class="mono">a</text><text x="418" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="302" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="327" font-size="14" text-anchor="middle" class="mono">b</text><text x="474" y="358" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="218" y="298" width="232" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><path d="M244 288 L256 288 L250 298z" fill="var(--gold-deep)"/><text x="250" y="282" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">left</text><path d="M412 288 L424 288 L418 298z" fill="var(--gold-deep)"/><text x="418" y="282" font-size="13" text-anchor="middle" class="mono" fill="var(--gold-deep)">right</text><text x="110" y="384" font-size="12.5" fill="var(--gold-deep)">繼續擴到 right = 5：視窗 cbda，長度 4 是最長</text><text x="20" y="414" font-size="12" opacity=".6">找最長不含重複字元的子字串。right 每次往右擴一格；視窗裡出現重複，就移 left 縮到沒有重複為止</text>
+</svg>
+<figcaption>右邊一直擴，條件被破壞時才縮左邊；left 和 right 都只往右走，所以每個字元最多進出視窗各一次。</figcaption>
+</figure>
+<pre><code>public class LongestUnique {
+    static int longest(String s) {
+        int[] count = new int[128];                // 視窗裡每個字元出現幾次（ASCII）
+        int left = 0, best = 0;
+        for (int right = 0; right &lt; s.length(); right++) {
+            char c = s.charAt(right);
+            count[c]++;                            // 擴：右邊的字元進來
+            while (count[c] &gt; 1) {                 // 有重複了，縮到沒重複為止
+                count[s.charAt(left)]--;
+                left++;
+            }
+            best = Math.max(best, right - left + 1);
+            System.out.println("right=" + right + " 視窗=" + s.substring(left, right + 1));
+        }
+        return best;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("最長 " + longest("abcbdab"));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>right=0 視窗=a
+right=1 視窗=ab
+right=2 視窗=abc
+right=3 視窗=cb
+right=4 視窗=cbd
+right=5 視窗=cbda
+right=6 視窗=dab
+最長 4</code></pre>
+<p>right = 3 讀進第二個 b 時，<code>count['b']</code> 變成 2，<code>while</code> 把 a、b 依序移出視窗，left 走到 2，視窗剩 cb。之後最長的是 cbda，長度 4。</p>
+
+<h4>總和 ≥ target 的最短子陣列</h4>
+<p>陣列<strong>全是正數</strong>，找總和至少 target 的最短連續子陣列。這次是「已經滿足就縮」：每擴一格，只要總和還 ≥ target，就記下目前長度，再把 left 往右縮，看能不能更短。</p>
+<pre><code>public class MinSubarray {
+    // 全是正數的陣列，找總和 &gt;= target 的最短連續子陣列長度；沒有就回傳 0
+    static int minLen(int[] a, int target) {
+        int left = 0, sum = 0, best = Integer.MAX_VALUE;
+        for (int right = 0; right &lt; a.length; right++) {
+            sum += a[right];                         // 擴
+            while (sum &gt;= target) {                  // 已經夠了，試著從左邊縮
+                best = Math.min(best, right - left + 1);
+                sum -= a[left];
+                left++;
+            }
+        }
+        return best == Integer.MAX_VALUE ? 0 : best;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(minLen(new int[] {2, 1, 5, 2, 3, 2}, 7));
+        System.out.println(minLen(new int[] {1, 1, 1}, 5));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>2
+0</code></pre>
+<p><code>{2, 1, 5, 2, 3, 2}</code> 裡最短的是 5 + 2 = 7，長度 2；<code>{1, 1, 1}</code> 全加起來也到不了 5，回傳 0。</p>
+<p><strong>為什麼要「全是正數」</strong>：縮左邊會讓總和變小、擴右邊會讓總和變大，這個方向性才讓「夠了就縮」不會錯過答案。有負數時就不成立，例如 <code>{1, -1, 5}</code>、target 5：答案是 [5]，長度 1；但視窗擴到 5 時總和剛好是 5，記下長度 3，縮掉 1 之後總和剩 4 就停了，left 停在 −1 那一格，永遠走不到「只有 5」的那段，回傳 3。有負數的區間和問題要改用後面的前綴和。</p>
+
+<h4>兩層迴圈，為什麼還是 O(n)</h4>
+<p>外層 for 跑 n 次，裡面還有一個 while，看起來像 O(n²)。但 <strong>left 只會往右走、而且最多走到 n</strong>：整個程式裡 while 的內容加起來最多跑 n 次，不是每輪 n 次。每個元素最多進視窗一次（right 走過）、出視窗一次（left 走過），總共 O(2n) = O(n)。這是分析「攤銷」的典型例子（攤銷的講法見〈複雜度：程式跑多快、吃多少記憶體〉）。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>找最長</th><th>找最短</th></tr></thead><tbody>
+<tr><th>什麼時候縮</th><td>條件<strong>被破壞</strong>時（例如出現重複）</td><td>條件<strong>已經滿足</strong>時（例如總和 ≥ target）</td></tr>
+<tr><th>什麼時候記答案</th><td>縮完之後，視窗合法時記長度</td><td>縮之前，每次合法都記一次長度</td></tr>
+<tr><th>視窗裡要記什麼</th><td colspan="2">總和、計數陣列 <code>int[26]</code>／<code>int[128]</code>、或 <code>HashMap</code>；進來加、出去減</td></tr>
+</tbody></table></div>
+<p class="formula">可變視窗：right 每次擴一格；找最長就「壞了才縮」，找最短就「夠了就縮」；left、right 各走一遍，O(n)</p>
+
+<div class="drill">
+  <p class="dq">上面的 <code>LongestUnique</code> 處理 <code>"abcbdab"</code>，right = 3 那一輪結束時視窗是？</p>
+  <ul class="dopts"><li>abcb</li><li data-ok>cb</li><li>bcb</li><li>b</li></ul>
+  <p class="dexp">讀進第二個 b 後 b 有兩個，while 先移掉 a（b 還是兩個）、再移掉 b，left 到 2，視窗是 c、b。</p>
+</div>
+<div class="drill">
+  <p class="dq">用同樣的程式處理 <code>"aabccba"</code>，回傳的最長長度是多少？</p>
+  <ul class="dopts"><li>2</li><li>4</li><li data-ok>3</li><li>7</li></ul>
+  <p class="dexp">視窗依序是 a、a、ab、abc、c、cb、cba，最長的 abc 和 cba 都是 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">可變長度的滑動視窗，外層 for 裡面還有一個 while，時間複雜度是？</p>
+  <ul class="dopts"><li data-ok>O(n)，left 只往右走、整個程式最多走 n 步</li><li>O(n²)，因為兩層迴圈</li><li>O(n log n)</li><li>O(n × k)，k 是視窗長度</li></ul>
+  <p class="dexp">while 每跑一次 left 就右移一格，left 從頭到尾最多走 n 格，所以 while 的總次數最多 n，不是每輪 n 次。加上 right 的 n 步，O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>minLen(<wbr>new int[] {2, 1, 5, 2, 3, 2}, 7)</code> 回傳多少？</p>
+  <ul class="dopts"><li data-ok>2</li><li>3</li><li>4</li><li>0</li></ul>
+  <p class="dexp">總和至少 7 的連續段裡，5 + 2 = 7 只有兩個數，是最短的。2 + 1 + 5 = 8 是三個；5 + 2 + 3 也是三個。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>minLen(<wbr>new int[] {1, -1, 5}, 5)</code> 實際回傳 3，但正確答案是 1（只取 5）。錯在哪裡？</p>
+  <ul class="dopts"><li>while 的條件應該是 sum &gt; target</li><li>best 的初始值應該是 0</li><li data-ok>有負數時，縮掉左邊不一定讓總和變小，「夠了就縮」的方向性不成立</li><li>陣列要先排序</li></ul>
+  <p class="dexp">縮掉 1 之後總和剩 4，迴圈以為「不夠了」就停，left 停在 −1 那一格，再也走不到只剩 5 的那段。滑動視窗靠「擴大總和變大、縮小總和變小」，負數破壞了它。改用前綴和。排序會打亂「連續」，不能用。</p>
+</div>
+<div class="drill">
+  <p class="dq">要找「最長不重複子字串」，但字串裡有中文。視窗裡的字元計數該用什麼記？</p>
+  <ul class="dopts"><li>int[26]</li><li>int[128]</li><li>只記 left 和 right 就好，不用計數</li><li data-ok>HashMap&lt;Character, Integer&gt;</li></ul>
+  <p class="dexp">中文字的 char 值遠大於 127，放進 int[128] 會超出索引範圍。字元種類不固定時用 HashMap，進來 merge 加一、出去減一。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>minLen</code> 裡，答案 <code>best</code> 是在哪裡更新的？為什麼？</p>
+  <ul class="dopts"><li>在 while 外面，縮完之後才記</li><li data-ok>在 while 裡面、縮之前：只要總和 ≥ target，目前的視窗就是一個合法答案</li><li>在 for 一開始，擴之前</li><li>只在迴圈全部結束後算一次</li></ul>
+  <p class="dexp">找最短是「夠了就縮」：每次總和 ≥ target 都是一個候選，先記下長度再縮。縮完總和可能已經不夠，那時記就錯了。找最長則相反，縮完視窗合法才記。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>minLen(<wbr>new int[] {1, 4, 4}, 4)</code> 回傳多少？</p>
+  <ul class="dopts"><li>3</li><li>2</li><li>0</li><li data-ok>1</li></ul>
+  <p class="dexp">擴到 4 時總和 5 ≥ 4，記長度 2，縮掉 1 後總和 4 還 ≥ 4，記長度 1；單獨一個 4 就夠了，最短是 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">找「最長」與找「最短」的可變視窗，縮左邊的時機差在哪？</p>
+  <ul class="dopts"><li>找最長每輪都縮一格；找最短從不縮</li><li data-ok>找最長是條件被破壞才縮；找最短是條件已經滿足就縮</li><li>兩者一樣，都是視窗長度超過 k 就縮</li><li>找最長從右邊縮；找最短從左邊縮</li></ul>
+  <p class="dexp">最長要把視窗撐大，只有出問題（例如重複）才不得不縮；最短要把視窗壓小，一滿足就試著縮。兩者都只從左邊縮、都只往右走。</p>
+</div>
+</section>
+
+<section>
+<p class="era">視窗在動，最大值也要跟著</p>
+<h3 class="head">滑動視窗最大值：雙端佇列</h3>
+<p>長度 k 的視窗從左滑到右，每個位置都要知道視窗裡的最大值。總和可以「加進來、減出去」，最大值不行：最大的那個滑出視窗後，誰是新的最大？每次重掃 k 個是 O(n × k)。</p>
+<p>做法是用<strong>雙端佇列</strong>（deque，兩頭都能進出，見〈堆疊與佇列〉），裡面放索引，並維持「對應的值由前到後遞減」：</p>
+<ul class="plainlist">
+<li><strong>前端</strong>：如果前端的索引已經滑出視窗（≤ i − k），從前端丟掉。</li>
+<li><strong>尾端</strong>：新元素進來前，把尾端所有「值 ≤ 新元素」的丟掉。它們比新來的小、又比新來的早離開，只要新來的還在視窗裡，它們永遠當不了最大值。這跟〈堆疊與佇列〉的單調堆疊是同一個想法。</li>
+<li>新元素的索引從尾端放進去，這時<strong>前端就是視窗裡的最大值</strong>。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 366" role="img" aria-label="用雙端佇列求滑動視窗最大值：陣列 4、2、5、1、3、6、2，視窗長度 3。i 等於 4 時 deque 裡是 5 與 3，最大值是前端的 5；i 等於 5 時前端的 5 滑出視窗，6 進來前把 3 也丟掉，deque 只剩 6">
+<rect x="110" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="138" y="55" font-size="14" text-anchor="middle" class="mono">4</text><text x="138" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="55" font-size="14" text-anchor="middle" class="mono">2</text><text x="194" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="30" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="250" y="55" font-size="14" text-anchor="middle" class="mono">5</text><text x="250" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="30" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="306" y="55" font-size="14" text-anchor="middle" class="mono">1</text><text x="306" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="30" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="362" y="55" font-size="14" text-anchor="middle" class="mono">3</text><text x="362" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="418" y="55" font-size="14" text-anchor="middle" class="mono">6</text><text x="418" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="30" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="55" font-size="14" text-anchor="middle" class="mono">2</text><text x="474" y="86" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="218" y="26" width="176" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><text x="20" y="55" font-size="13" class="mono">i = 4</text><text x="20" y="127" font-size="13" class="mono">deque</text><text x="76" y="116" font-size="11" opacity=".6">前端</text><rect x="110" y="102" width="72" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="146" y="127" font-size="14" text-anchor="middle" class="mono">5（2）</text><rect x="182" y="102" width="72" height="40" fill="var(--surface)" stroke="currentColor"/><text x="218" y="127" font-size="14" text-anchor="middle" class="mono">3（4）</text><text x="346" y="127" font-size="12.5">i = 4：3 進來前，尾端的 1 比 3 小，丟掉；最大值是前端的 5</text><rect x="110" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="138" y="225" font-size="14" text-anchor="middle" class="mono">4</text><text x="138" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="166" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="194" y="225" font-size="14" text-anchor="middle" class="mono">2</text><text x="194" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="222" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="250" y="225" font-size="14" text-anchor="middle" class="mono">5</text><text x="250" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="278" y="200" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="306" y="225" font-size="14" text-anchor="middle" class="mono">1</text><text x="306" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="334" y="200" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="362" y="225" font-size="14" text-anchor="middle" class="mono">3</text><text x="362" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="390" y="200" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="418" y="225" font-size="14" text-anchor="middle" class="mono">6</text><text x="418" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="446" y="200" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="474" y="225" font-size="14" text-anchor="middle" class="mono">2</text><text x="474" y="256" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><rect x="274" y="196" width="176" height="48" rx="6" fill="none" stroke="var(--gold)" stroke-width="2.5"/><text x="20" y="225" font-size="13" class="mono">i = 5</text><text x="20" y="297" font-size="13" class="mono">deque</text><text x="76" y="286" font-size="11" opacity=".6">前端</text><rect x="110" y="272" width="72" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="146" y="297" font-size="14" text-anchor="middle" class="mono">6（5）</text><text x="346" y="297" font-size="12.5">i = 5：前端索引 2 滑出視窗，丟掉；6 進來前把尾端的 3 也丟掉；最大值 6</text><text x="20" y="352" font-size="12" opacity=".6">視窗長度 3。deque 放索引（括號裡），對應的值由前到後遞減，所以前端永遠是視窗裡最大的</text>
+</svg>
+<figcaption>deque 前端放目前最大的；新來的從尾端進，進來前把尾端比它小的都丟掉，滑出視窗的從前端丟掉。</figcaption>
+</figure>
+<pre><code>import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+
+public class WindowMax {
+    static int[] maxOfWindows(int[] a, int k) {
+        int[] out = new int[a.length - k + 1];
+        Deque&lt;Integer&gt; dq = new ArrayDeque&lt;&gt;();      // 放索引；對應的值由前到後遞減
+        for (int i = 0; i &lt; a.length; i++) {
+            while (!dq.isEmpty() &amp;&amp; dq.peekFirst() &lt;= i - k) {
+                dq.pollFirst();                      // 前端滑出視窗了
+            }
+            while (!dq.isEmpty() &amp;&amp; a[dq.peekLast()] &lt;= a[i]) {
+                dq.pollLast();                       // 比新來的小，永遠輪不到它當最大
+            }
+            dq.offerLast(i);
+            if (i &gt;= k - 1) out[i - k + 1] = a[dq.peekFirst()];   // 前端就是最大值
+        }
+        return out;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Arrays.toString(maxOfWindows(new int[] {4, 2, 5, 1, 3, 6, 2}, 3)));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[5, 5, 5, 6, 6]</code></pre>
+<p>每個索引最多從尾端進來一次、從前端或尾端被丟掉一次，所以 n 個元素總共 O(n) 次進出。<code>ArrayDeque</code> 的文件寫「大部分 ArrayDeque 操作在攤銷常數時間內完成」（Most ArrayDeque operations run in amortized constant time.），<code>peekFirst</code>、<code>pollFirst</code>、<code>peekLast</code>、<code>pollLast</code>、<code>offerLast</code> 都在這一類。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a> 整題 O(n)，deque 最多放 k 個索引，額外空間 O(k)。</p>
+<p>放索引而不是放值，是因為要判斷「前端是不是已經滑出視窗」，只有值的話不知道它在哪。</p>
+<p class="formula">視窗最大值：deque 放索引、值由前到後遞減；前端滑出就丟、尾端比新來的小就丟；前端就是最大值</p>
+
+<div class="drill">
+  <p class="dq"><code>maxOfWindows(<wbr>new int[] {4, 2, 5, 1, 3, 6, 2}, 3)</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>[5, 5, 5, 6, 6]</li><li>[4, 5, 5, 6, 6]</li><li>[5, 5, 6, 6, 6]</li><li>[5, 5, 5, 6]</li></ul>
+  <p class="dexp">五個視窗：[4, 2, 5]、[2, 5, 1]、[5, 1, 3] 的最大值都是 5；[1, 3, 6]、[3, 6, 2] 是 6。長度 7、k = 3，有 5 個視窗。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一題，處理完 i = 3（值 1）之後，deque 裡對應的<strong>值</strong>由前到後是？</p>
+  <ul class="dopts"><li>[4, 2, 5, 1]</li><li data-ok>[5, 1]</li><li>[1]</li><li>[5]</li></ul>
+  <p class="dexp">i = 2 時 5 進來，把尾端的 2 和 4 都丟掉，deque 剩 [5]。i = 3 時 1 比 5 小，不丟任何東西，從尾端放進去：[5, 1]。前端 5 還在視窗裡，是最大值。</p>
+</div>
+<div class="drill">
+  <p class="dq">deque 裡為什麼放<strong>索引</strong>，不直接放值？</p>
+  <ul class="dopts"><li>因為 ArrayDeque 不能放 int</li><li>放索引比較省記憶體</li><li>為了讓輸出照索引排序</li><li data-ok>要判斷前端那個是不是已經滑出視窗，只有值的話不知道它在哪個位置</li></ul>
+  <p class="dexp">前端要不要丟，看的是它的索引是否 ≤ i − k。值相同的元素也可能在不同位置，只存值就判斷不了。ArrayDeque 放 Integer 是可以的。</p>
+</div>
+<div class="drill">
+  <p class="dq">長度 n、視窗 k，「每個視窗都重掃一遍找最大」和「雙端佇列」的時間分別是？</p>
+  <ul class="dopts"><li>O(n) 和 O(n)</li><li data-ok>O(n × k) 和 O(n)</li><li>O(n log k) 和 O(1)</li><li>O(k) 和 O(n × k)</li></ul>
+  <p class="dexp">約 n 個視窗、每個掃 k 格是 O(n × k)。deque 每個索引最多進一次、出一次，總共 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">新元素 x 進 deque 前，為什麼可以把尾端所有值 ≤ x 的都丟掉？</p>
+  <ul class="dopts"><li data-ok>它們比 x 小又比 x 早離開視窗，只要 x 還在，它們就不可能是最大值</li><li>為了讓 deque 不超過 k 個</li><li>因為它們已經滑出視窗了</li><li>丟掉是為了讓 deque 變成遞增</li></ul>
+  <p class="dexp">比 x 早進來就比 x 早離開；在它們還在視窗的每一刻，x 也在、而且不比它們小，所以它們永遠輪不到當最大值。滑出視窗是前端那條規則管的。</p>
+</div>
+<div class="drill">
+  <p class="dq">長度 n 的陣列、視窗 k，<code>maxOfWindows</code> 回傳的陣列長度是？</p>
+  <ul class="dopts"><li>n</li><li>k</li><li data-ok>n − k + 1</li><li>n − k</li></ul>
+  <p class="dexp">每個視窗一個最大值，視窗起點可以是 0 到 n − k，共 n − k + 1 個。程式裡 out 的長度也是 a.length − k + 1。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先算好累計，區間和變減法</p>
+<h3 class="head">前綴和：一次預算，之後區間和 O(1)</h3>
+<p>同一個陣列要被問很多次「索引 l 到 r 加起來是多少」。每次重加是 O(n)，問 q 次就是 O(n × q)。<strong>前綴和</strong>（prefix sum）先把「從頭加到每一格為止」的總和算好存起來，之後任何一段都是兩個數相減。</p>
+<p>Java 的 <code>Arrays.parallelPrefix</code> 做的就是這種累計，文件舉的例子：「陣列原本是 [2, 1, 0, 3]，運算是加法，結束時陣列變成 [2, 3, 3, 6]」（if the array initially holds [2, 1, 0, 3] and the operation performs addition, then upon return the array holds [2, 3, 3, 6].）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#parallelPrefix(int%5B%5D,java.util.function.IntBinaryOperator)" target="_blank" rel="noopener">出處</a> 解題時通常自己寫，而且多開一格：</p>
+<ul class="plainlist">
+<li><code>p</code> 的長度是 n + 1，<code>p[0] = 0</code>，<code>p[i + 1] = p[i] + a[i]</code>。也就是 <code>p[i]</code> ＝ a 的前 i 個（索引 0 到 i − 1）的和。</li>
+<li><code>a[l..r]</code>（含兩端）的和 ＝ <code>p[r + 1] - p[l]</code>：前 r + 1 個的和，減掉前 l 個的和，剩下的就是 l 到 r。</li>
+<li>多開那一格 <code>p[0] = 0</code>，是為了讓 l = 0 也能套同一個公式，不用特別處理。</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 286" role="img" aria-label="前綴和：陣列 a 是 3、1、4、1、5、9，前綴和 p 是 0、3、4、8、9、14、23。要算 a 索引 2 到 4 的和，用 p[5] 減 p[2]，14 減 4 等於 10">
+<text x="20" y="75" font-size="14" class="mono">a</text><rect x="178" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="206" y="75" font-size="14" text-anchor="middle" class="mono">3</text><text x="206" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="234" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="262" y="75" font-size="14" text-anchor="middle" class="mono">1</text><text x="262" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="290" y="50" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="318" y="75" font-size="14" text-anchor="middle" class="mono">4</text><text x="318" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="346" y="50" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="374" y="75" font-size="14" text-anchor="middle" class="mono">1</text><text x="374" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="402" y="50" width="56" height="40" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="430" y="75" font-size="14" text-anchor="middle" class="mono">5</text><text x="430" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="458" y="50" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="486" y="75" font-size="14" text-anchor="middle" class="mono">9</text><text x="486" y="106" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><text x="20" y="185" font-size="14" class="mono">p</text><rect x="150" y="160" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="178" y="185" font-size="14" text-anchor="middle" class="mono">0</text><text x="178" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">0</text><rect x="206" y="160" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="234" y="185" font-size="14" text-anchor="middle" class="mono">3</text><text x="234" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">1</text><rect x="262" y="160" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="290" y="185" font-size="14" text-anchor="middle" class="mono">4</text><text x="290" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">2</text><rect x="318" y="160" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="346" y="185" font-size="14" text-anchor="middle" class="mono">8</text><text x="346" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">3</text><rect x="374" y="160" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="402" y="185" font-size="14" text-anchor="middle" class="mono">9</text><text x="402" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">4</text><rect x="430" y="160" width="56" height="40" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="458" y="185" font-size="14" text-anchor="middle" class="mono">14</text><text x="458" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">5</text><rect x="486" y="160" width="56" height="40" fill="var(--surface)" stroke="currentColor"/><text x="514" y="185" font-size="14" text-anchor="middle" class="mono">23</text><text x="514" y="216" font-size="12" text-anchor="middle" class="mono" opacity=".6">6</text><text x="374" y="32" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">a[2..4] = 4 + 1 + 5 = 10</text><text x="566" y="178" font-size="12.5">p[i] = a[0] + … + a[i−1]</text><text x="566" y="198" font-size="12.5">p[0] = 0</text><text x="346" y="244" font-size="13" text-anchor="middle" fill="var(--slate-deep)">p[5] − p[2] = 14 − 4 = 10</text><text x="20" y="272" font-size="12" opacity=".6">a 的格子跟 p 錯開半格：p[i] 是 a 的第 i 格「左邊」全部的和。a[l..r] 的和 = p[r+1] − p[l]</text>
+</svg>
+<figcaption>先花 O(n) 算好前綴和，之後任何一段的和都是兩個數相減，O(1)。</figcaption>
+</figure>
+<pre><code>import java.util.Arrays;
+
+public class PrefixSum {
+    public static void main(String[] args) {
+        int[] a = {3, 1, 4, 1, 5, 9};
+        int[] p = new int[a.length + 1];            // p[i] = a[0] + … + a[i-1]，p[0] = 0
+        for (int i = 0; i &lt; a.length; i++) p[i + 1] = p[i] + a[i];
+        System.out.println(Arrays.toString(p));
+
+        // a[l..r]（含兩端）的和 = p[r + 1] - p[l]
+        System.out.println(p[5] - p[2]);            // a[2..4] = 4 + 1 + 5
+        System.out.println(p[6] - p[0]);            // 全部
+
+        int[] b = a.clone();
+        Arrays.parallelPrefix(b, Integer::sum);     // 原地變成「到這格為止的總和」
+        System.out.println(Arrays.toString(b));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>[0, 3, 4, 8, 9, 14, 23]
+10
+23
+[3, 4, 8, 9, 14, 23]</code></pre>
+<p>建表 O(n)，之後每次查詢 O(1)，問 q 次共 O(n + q)。前提是陣列<strong>不會被修改</strong>：改了一格，後面的前綴和全部要重算。</p>
+
+<h4>前綴和＋雜湊表：和為 k 的子陣列有幾段</h4>
+<p>問題：陣列（<strong>可以有負數</strong>，例如退款）裡，有幾段連續子陣列的和剛好是 k？有負數不能用滑動視窗（上一段的反例），兩層迴圈是 O(n²)。</p>
+<p>用前綴和換個問法：<code>a[l..r]</code> 的和是 k，等於 <code>p[r + 1] - p[l] = k</code>，也就是 <code>p[l] = p[r + 1] - k</code>。所以走到每個位置時，只要問「<strong>以前出現過幾次前綴和等於『目前前綴和 − k』</strong>」，這正是〈雜湊表：HashMap 怎麼做到幾乎一步找到〉的查補數，只是查的是前綴和。</p>
+<pre><code>import java.util.HashMap;
+import java.util.Map;
+
+public class SubarraySumK {
+    // 有幾段連續子陣列的和剛好是 k（可以有負數）
+    static int count(int[] a, int k) {
+        Map&lt;Integer, Integer&gt; seen = new HashMap&lt;&gt;();
+        seen.put(0, 1);                             // 前綴和 0 出現過一次（什麼都還沒加）
+        int prefix = 0, total = 0;
+        for (int x : a) {
+            prefix += x;
+            total += seen.getOrDefault(prefix - k, 0);   // 以前有幾個前綴和 = prefix - k
+            seen.merge(prefix, 1, Integer::sum);
+        }
+        return total;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(count(new int[] {1, 2, 1, -1, 2}, 3));
+        System.out.println(count(new int[] {2, -2, 2, -2}, 0));
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>3
+4</code></pre>
+<ul class="plainlist">
+<li><code>{1, 2, 1, -1, 2}</code>、k = 3 有三段：[1, 2]、[2, 1]、[1, 2, 1, −1]。</li>
+<li><code>{2, -2, 2, -2}</code>、k = 0 有四段：三個相鄰的 [2, −2]／[−2, 2]，加上整段。</li>
+<li><code>getOrDefault(prefix - k, 0)</code> 是「有這個鍵就回傳它的值，沒有就回傳給定的預設值」（Returns the value to which the specified key is mapped, or defaultValue if this map contains no mapping for the key.），沒出現過的前綴和就當 0 次。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#getOrDefault(java.lang.Object,V)" target="_blank" rel="noopener">出處</a></li>
+<li>一開始的 <code>seen.put(0, 1)</code> 代表「什麼都還沒加時，前綴和是 0」，這樣從索引 0 開始的那些段（例如 [1, 2]）才數得到。</li>
+</ul>
+<p>雜湊表的 <code>get</code>、<code>put</code> 在雜湊分散得好時是常數時間（This implementation provides constant-time performance for the basic operations (get and put), assuming the hash function disperses the elements properly among the buckets.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a>，所以整題平均 O(n) 時間、O(n) 額外空間。</p>
+
+<h4>二維前綴和（點到為止）</h4>
+<p>表格也可以預算：<code>p[i][j]</code> 是左上角 i 列 × j 欄那一塊的總和。任一塊長方形的和用「大塊 − 上面 − 左邊 + 左上角（被減了兩次，要加回一次）」四個數算出來，O(1)。</p>
+<pre><code>public class Prefix2D {
+    public static void main(String[] args) {
+        int[][] g = {
+            {1, 2, 3},
+            {4, 5, 6},
+            {7, 8, 9}};
+        int R = g.length, C = g[0].length;
+        int[][] p = new int[R + 1][C + 1];          // p[i][j] = 左上角 i × j 那一塊的總和
+        for (int i = 0; i &lt; R; i++)
+            for (int j = 0; j &lt; C; j++)
+                p[i + 1][j + 1] = g[i][j] + p[i][j + 1] + p[i + 1][j] - p[i][j];
+
+        // 第 1〜2 列、第 1〜2 欄（含兩端）那一塊：5 + 6 + 8 + 9
+        int r1 = 1, c1 = 1, r2 = 2, c2 = 2;
+        int sum = p[r2 + 1][c2 + 1] - p[r1][c2 + 1] - p[r2 + 1][c1] + p[r1][c1];
+        System.out.println(sum);
+    }
+}</code></pre>
+<p>執行結果：</p>
+<pre><code>28</code></pre>
+<p class="formula">前綴和：p[0] = 0、p[i+1] = p[i] + a[i]；a[l..r] = p[r+1] − p[l]；有負數的「和為 k」用前綴和＋雜湊表，O(n)</p>
+
+<div class="drill">
+  <p class="dq"><code>a = {2, 4, 1, 3}</code>，照上面的寫法（多開一格、p[0] = 0），前綴和陣列 p 是？</p>
+  <ul class="dopts"><li>[2, 6, 7, 10]</li><li data-ok>[0, 2, 6, 7, 10]</li><li>[0, 2, 4, 1, 3]</li><li>[2, 4, 1, 3, 10]</li></ul>
+  <p class="dexp">p[0] = 0，之後每格加上 a 的下一個：0、2、6、7、10，長度 n + 1 = 5。[2, 6, 7, 10] 是 parallelPrefix 那種不多開一格的結果。</p>
+</div>
+<div class="drill">
+  <p class="dq">接上題，<code>a[1..3]</code>（含兩端，4 + 1 + 3）用 p 怎麼算？</p>
+  <ul class="dopts"><li data-ok>p[4] − p[1] = 8</li><li>p[3] − p[1] = 5</li><li>p[3] − p[0] = 7</li><li>p[4] − p[2] = 4</li></ul>
+  <p class="dexp">a[l..r] = p[r + 1] − p[l]，l = 1、r = 3：p[4] − p[1] = 10 − 2 = 8。p[3] − p[1] 只算到索引 2，少了最後的 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列長度 n、不會被修改，要回答 q 次區間和。用前綴和的總時間是？</p>
+  <ul class="dopts"><li>O(n × q)</li><li>O(q log n)</li><li>O(n²)</li><li data-ok>O(n + q)</li></ul>
+  <p class="dexp">建表一次 O(n)，每次查詢兩個數相減 O(1)，q 次共 O(q)，加起來 O(n + q)。每次重加才是 O(n × q)。</p>
+</div>
+<div class="drill">
+  <p class="dq">前綴和陣列為什麼要多開一格、讓 <code>p[0] = 0</code>？</p>
+  <ul class="dopts"><li data-ok>讓 l = 0 的區間也能用 p[r + 1] − p[l] 算，不用特別處理</li><li>因為 Java 陣列的索引 0 不能用</li><li>為了避免溢位</li><li>為了讓 p 跟 a 一樣長</li></ul>
+  <p class="dexp">沒有 p[0] = 0 的話，從索引 0 開始的區間要另外寫一條「直接回傳 p[r]」。多一格之後所有區間都是同一個公式。p 反而比 a 長一格。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這段印出什麼？</p>
+<pre><code>int[] b = {1, 2, 3, 4};
+Arrays.parallelPrefix(b, Integer::sum);
+System.out.println(Arrays.toString(b));</code></pre>
+  <ul class="dopts"><li>[0, 1, 3, 6, 10]</li><li>[1, 2, 3, 4]</li><li data-ok>[1, 3, 6, 10]</li><li>[10, 9, 7, 4]</li></ul>
+  <p class="dexp">parallelPrefix 原地把每格換成「到這格為止的累計」：1、1 + 2、1 + 2 + 3、1 + 2 + 3 + 4。它不會多開一格，長度不變。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面的 <code>SubarraySumK.count</code> 數 <code>{3, 0, 3}</code> 裡和為 3 的連續子陣列，結果是？</p>
+  <ul class="dopts"><li data-ok>4</li><li>2</li><li>3</li><li>1</li></ul>
+  <p class="dexp">和為 3 的有 [3]、[3, 0]、[0, 3]、最後的 [3]，共 4 段。0 讓「[3] 和 [3, 0]」成為不同的兩段，這種情況用滑動視窗很容易數漏。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>count</code> 一開始為什麼要先 <code>seen.put(0, 1)</code>？</p>
+  <ul class="dopts"><li>避免 HashMap 是空的時候 get 丟例外</li><li data-ok>代表「什麼都還沒加」時前綴和是 0，從索引 0 開始的段才數得到</li><li>讓 k = 0 的情況回傳 0</li><li>只是習慣，拿掉結果不變</li></ul>
+  <p class="dexp">以 {1, 2} 找 k = 3 為例：走到 2 時前綴和是 3，要查 3 − 3 = 0 出現過幾次；沒放 (0, 1) 就查不到，[1, 2] 這段就漏了。getOrDefault 在空表上也不會丟例外。</p>
+</div>
+<div class="drill">
+  <p class="dq">「和為 k 的子陣列有幾段」，陣列<strong>有負數</strong>。下面哪個做法正確而且是 O(n)？</p>
+  <ul class="dopts"><li>可變長度滑動視窗</li><li>先排序再用左右往中間</li><li>兩層迴圈列出每一段</li><li data-ok>前綴和加 HashMap，查「目前前綴和 − k」出現過幾次</li></ul>
+  <p class="dexp">有負數時縮左邊不一定讓和變小，滑動視窗會漏；排序會打亂「連續」；兩層迴圈是 O(n²)。前綴和把區間和變成兩個前綴相減，雜湊表平均 O(1) 查到。</p>
+</div>
+<div class="drill">
+  <p class="dq">二維前綴和 <code>p[i][j]</code> 是左上角 i 列 × j 欄的總和。第 r1〜r2 列、第 c1〜c2 欄（含兩端）那一塊的和是？</p>
+  <ul class="dopts"><li>p[r2+1][c2+1] − p[r1][c1]</li><li>p[r2+1][c2+1] − p[r1][c2+1] − p[r2+1][c1]</li><li data-ok>p[r2+1][c2+1] − p[r1][c2+1] − p[r2+1][c1] + p[r1][c1]</li><li>p[r2][c2] − p[r1][c1]</li></ul>
+  <p class="dexp">大塊減掉上面那條、再減掉左邊那條，左上角那一小塊被減了兩次，要加回一次。只減兩次會多扣掉左上角。</p>
+</div>
+<div class="drill">
+  <p class="dq">用上面 <code>Prefix2D</code> 的表格（1〜9 排成 3 × 3），第 0〜1 列、第 0〜1 欄那一塊的和是多少？</p>
+  <ul class="dopts"><li>28</li><li>45</li><li>6</li><li data-ok>12</li></ul>
+  <p class="dexp">左上角 2 × 2 是 1、2、4、5，和為 12，也就是 p[2][2]。28 是程式裡算的右下角 5、6、8、9；45 是整張表。</p>
+</div>
+</section>
+
+<section>
+<p class="era">看到題目，先想是哪一招</p>
+<h3 class="head">四招怎麼選</h3>
+<div class="tablewrap"><table><thead><tr><th>題目的樣子</th><th>先想</th><th>時間</th></tr></thead><tbody>
+<tr><td>排好的陣列，找兩個（或三個）數的和</td><td>左右往中間</td><td>O(n)（三數和 O(n²)）</td></tr>
+<tr><td>原地移除、去重、只保留某些元素，要 O(1) 額外空間</td><td>快慢同向</td><td>O(n)</td></tr>
+<tr><td>連續 k 個的最大、最小、平均</td><td>固定長度滑動視窗</td><td>O(n)</td></tr>
+<tr><td>連續一段的「最長」「最短」，而且擴大、縮小有方向性（全是正數、不重複這類條件）</td><td>可變長度滑動視窗</td><td>O(n)</td></tr>
+<tr><td>連續 k 個的最大值</td><td>滑動視窗＋雙端佇列</td><td>O(n)</td></tr>
+<tr><td>陣列不變、問很多次區間和</td><td>前綴和</td><td>建表 O(n)，每次 O(1)</td></tr>
+<tr><td>和為 k 的子陣列，有負數</td><td>前綴和＋雜湊表</td><td>平均 O(n)</td></tr>
+</tbody></table></div>
+<p class="muted">這張表是建議的起手方向，不是保證：題目加了別的限制（例如要回傳原本的索引、陣列會被修改），就要跟著換做法。</p>
+
+<div class="drill">
+  <p class="dq">每日交易總額的陣列，找「連續 7 天」總額最大的那一段。先想哪一招？</p>
+  <ul class="dopts"><li data-ok>固定長度滑動視窗</li><li>左右往中間</li><li>前綴和＋雜湊表</li><li>先排序再取最大的 7 個</li></ul>
+  <p class="dexp">「連續」而且長度固定是 7，就是固定長度視窗：加進來的、減出去的，O(n)。排序會打亂天數的先後，取到的不是連續的 7 天。</p>
+</div>
+<div class="drill">
+  <p class="dq">帳戶每月餘額變動的陣列不會再改，報表要被查上萬次「第 l 月到第 r 月的變動總和」。先想哪一招？</p>
+  <ul class="dopts"><li data-ok>前綴和，建一次表，每次查詢兩數相減</li><li>每次查詢跑一次滑動視窗</li><li>每次查詢重加一遍</li><li>快慢同向</li></ul>
+  <p class="dexp">陣列不變、查很多次區間和，正是前綴和：建表 O(n)，每次查詢 O(1)。每次重加要 O(n)，上萬次就慢了。</p>
+</div>
+<div class="drill">
+  <p class="dq">已經排好的利率陣列，要找兩個利率加起來等於目標值，而且只能用 O(1) 額外空間。先想哪一招？</p>
+  <ul class="dopts"><li>雜湊表查補數</li><li data-ok>左右往中間</li><li>前綴和</li><li>固定長度滑動視窗</li></ul>
+  <p class="dexp">排好了、又限制 O(1) 空間，就是左右往中間。雜湊表也能找，但要 O(n) 空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">交易紀錄有入帳（正數）也有退款（負數），要數「總額剛好是 0 的連續一段」有幾段。先想哪一招？</p>
+  <ul class="dopts"><li>可變長度滑動視窗</li><li>左右往中間</li><li>快慢同向</li><li data-ok>前綴和＋雜湊表</li></ul>
+  <p class="dexp">有負數、問「和剛好是 k」的段數，就是前綴和＋雜湊表：兩個位置的前綴和相同，中間那段的和就是 0。滑動視窗遇到負數會漏。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單，先易後難</p>
+<h3 class="head">動手練</h3>
+<p>以下是 LeetCode 上考這課招式的題目，由易到難排。題目敘述請到題目頁看。</p>
+<div class="tablewrap"><table><thead><tr><th>題號與題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/remove-element/" target="_blank" rel="noopener">27. Remove Element</a></td><td>快慢同向：fast 讀、slow 寫</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/range-sum-query-immutable/" target="_blank" rel="noopener">303. Range Sum Query - Immutable</a></td><td>前綴和：p[r + 1] − p[l]</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" target="_blank" rel="noopener">167. Two Sum II - Input Array Is Sorted</a></td><td>左右往中間找兩數和</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/3sum/" target="_blank" rel="noopener">15. 3Sum</a></td><td>排序後固定一個數，剩下的左右往中間，並跳過重複</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/" target="_blank" rel="noopener">3. Longest Substring Without Repeating Characters</a></td><td>可變長度視窗找最長：重複了才縮</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/minimum-size-subarray-sum/" target="_blank" rel="noopener">209. Minimum Size Subarray Sum</a></td><td>可變長度視窗找最短：夠了就縮（全是正數）</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/subarray-sum-equals-k/" target="_blank" rel="noopener">560. Subarray Sum Equals K</a></td><td>前綴和＋雜湊表，先放 (0, 1)</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank" rel="noopener">239. Sliding Window Maximum</a></td><td>滑動視窗＋雙端佇列</td><td>Hard</td></tr>
+</tbody></table></div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>雙指標用兩個索引照規則走，每步排除不可能的情況，把 O(n²) 降成 O(n)。</li><li>左右往中間：陣列要排好；和太大 right−−、太小 left++，每步丟掉一個確定沒用的數。要不重複的答案就跳過相同的值。</li><li>快慢同向：fast 讀、slow 寫，slow 左邊是整理好的；比的是已留下的 a[slow − 2] 這類值，不是 a[fast − 2]。</li><li>固定長度視窗：加進來的、減出去的；可變長度視窗：right 擴，找最長「壞了才縮」、找最短「夠了就縮」。left、right 都只往右，O(n)。</li><li>可變視窗靠「擴大變大、縮小變小」的方向性；有負數的區間和問題改用前綴和。</li><li>滑動視窗最大值：deque 放索引、值由前到後遞減，前端就是最大值，每個索引進出各一次，O(n)。</li><li>前綴和：p[0] = 0、p[i+1] = p[i] + a[i]，a[l..r] = p[r+1] − p[l]；和為 k 的段數用前綴和＋雜湊表，先放 (0, 1)。</li></ul></div>
