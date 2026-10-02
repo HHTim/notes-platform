@@ -33,7 +33,7 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | 審查中（`review-algo-c`） | | |
+| `interview/17-java-modern-qa` 見上表 | ✅ `7957332`（14 題、15 個實跑類別；mins 18） | ✅ 10-02 審完：無錯誤級；三處「可能」寫成「必然」、出處對錯頁、來源註記漏四個、測驗兩題正解太短；清單 `.superpowers/audit/interview/findings-17.md`；修正交給 `fix-int17` | | |
 | `web/09-git-branching` Git 分支與協作 | 撰寫中（`write-algo-c` 轉做） | | | |
 | `web/10-cicd-pipeline` CI/CD：從 push 到上線 | 撰寫中（`write-algo-d` 轉做） | | | |
 
