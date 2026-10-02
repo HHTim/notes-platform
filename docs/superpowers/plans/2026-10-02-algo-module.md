@@ -12,16 +12,16 @@
 |---|---|---|---|---|
 | `01-complexity` | ✅ `bd27d72`（59 題、3 張圖、19 出處；mins 55） | 審查中（`review-algo-a`，01＋02 一起） | | |
 | `02-array-string` | ✅ `e0d7db4`（52 題、5 張圖、24 出處；mins 58） | 同上 | | |
-| `03-hash-table` | 撰寫中（10-02，Opus `write-algo-b`） | | | |
-| `04-linked-list` | 撰寫中（10-02，Opus `write-algo-b`） | | | |
+| `03-hash-table` | ✅ `e858aa1`＋`ef879b1`（52 題、4 張圖、42 出處；mins 60） | 審查中（`review-algo-b`，03＋04 一起） | | |
+| `04-linked-list` | ✅ `b584646`（51 題、9 張圖、9 出處；mins 50） | 同上 | | |
 | `05-stack-queue` | ✅ `457ac78`（53 題、6 張圖、27 出處／10 網址；mins 55） | 審查中（`review-algo-c`，05＋06 一起） | | |
 | `06-recursion-backtracking` | ✅ `6dfb0a9`（49 題、4 張圖、14 出處／6 網址；mins 50） | 同上 | | |
 | `07-sorting-binary-search` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
 | `08-two-pointers-window` | 撰寫中（10-02，Opus `write-algo-d`） | | | |
 | `09-tree-bst` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
-| `11-graph` | | | | |
-| `12-dynamic-programming` | | | | |
+| `11-graph` | 撰寫中（`write-algo-b` 第二輪） | | | |
+| `12-dynamic-programming` | 撰寫中（`write-algo-b` 第二輪） | | | |
 | `13-interview-strategy` | | | | |
 
 流程照多益文法：寫課 → 獨立審查 → 交回原寫課代理修正 → 原審查者範圍複審 → 主控修小尾巴、註冊、推。兩課審好就先上線。同時跑的代理約四到五個。
@@ -59,6 +59,7 @@ SVG 一律 `role="img"` 加中文 `aria-label`；`id` 用課的前綴（`cx-`、
 
 - `0463374` 課中練習題幹的程式碼區塊與選項之間留間距。
 - `eb11322` 程式碼字型關掉連字（== 連成長等號、!= 變 ≠）。
+- `1bdd14b` 面試集 JVM 快答：HashMap 擴容時機改成「門檻 12，放進第 13 筆時擴到 32」（雜湊表課寫課者實測發現）。
 
 ## 模組欄位（`write-algo-a` 建議，建立 module.json 時用）
 

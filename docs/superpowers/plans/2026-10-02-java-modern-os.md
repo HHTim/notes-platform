@@ -23,8 +23,8 @@
 
 | 課 | 寫課 | 審查 | 修正與複審 | 上線 |
 |---|---|---|---|---|
-| `java/12-lambda-functional` | 撰寫中（10-02，Opus `write-java-a`） | | | |
-| `java/13-stream-api` | 撰寫中（10-02，Opus `write-java-a`） | | | |
-| `java/14-modern-syntax` | | | | |
-| `java/15-os-process-io` | | | | |
+| `java/12-lambda-functional` | ✅ `86ea72a`＋`075d33e`（55 題；mins 55） | 審查中（`review-java-a`，12＋13 一起） | | |
+| `java/13-stream-api` | ✅ `c09e024`（57 題；mins 55） | 同上 | | |
+| `java/14-modern-syntax` | 撰寫中（`write-java-a` 第二輪） | | | |
+| `java/15-os-process-io` | 撰寫中（`write-java-a` 第二輪） | | | |
 | `interview/17-java-modern-qa` | | | | |
