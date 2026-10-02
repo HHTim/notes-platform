@@ -3,7 +3,7 @@
 <section>
     <p class="era">複寫</p>
     <h3 class="head">binlog、三條執行緒與半同步</h3>
-    <p class="muted">答題公式：一句話定義、取捨、版本註記。隔離層級、MVCC 與鎖見面試集〈資料庫面試題：索引、交易隔離與鎖〉；分片與複寫解決的是不同問題，對照表見資料庫模組第 4 課〈NoSQL 與資料庫設計〉，本課不重講。</p>
+    <p class="muted">答題公式：一句話定義、取捨、版本註記。隔離層級、MVCC 與鎖見面試集〈資料庫面試題：索引、交易隔離與鎖〉；分片與複寫解決的是不同問題，對照表見〈NoSQL 與資料庫設計〉，本課不重講。</p>
     <p class="q">面試官：MySQL 主從複寫怎麼運作？非同步跟半同步差在哪？</p>
     <p><strong>一句話定義：</strong>複寫（replication）是把一台 MySQL（手冊叫 source，本課稱主庫）的資料變更，複製到一台或多台其他 MySQL（replica，本課稱複本）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/replication.html" target="_blank" rel="noopener">出處</a>。主庫把每筆提交的變更記進二進位日誌（binary log，簡稱 binlog），複本拿去重放；8.4 預設用列格式（row-based），記「哪一列改成什麼」而不是 SQL 原句<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/replication-formats.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>三條執行緒：</strong>複本連上來時，主庫開一條 <code>Binlog Dump</code> 執行緒送 binlog；複本的接收執行緒（I/O receiver thread）把收到的內容寫進本機的中繼日誌（relay log，複本先抄下來、稍後再執行的那份日誌），套用執行緒（SQL applier thread）再讀中繼日誌、執行裡面的交易<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/replication-threads.html" target="_blank" rel="noopener">出處</a>。8.4 的套用端預設多執行緒：<code>replica_parallel_workers</code> 預設 4，由一條協調執行緒派工<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/replication-options-replica.html#sysvar_replica_parallel_workers" target="_blank" rel="noopener">出處</a>。</p>
@@ -41,14 +41,14 @@ SHOW VARIABLES LIKE 'rpl_semi_sync%';
 SELECT @@gtid_executed;      -- b9e303eb-...:1-8
 -- 複本：最多等 1 秒
 SELECT WAIT_FOR_EXECUTED_GTID_SET('b9e303eb-bbd6-11f1-b1c4-dae0644808c0:1-8', 1);   -- 0</code></pre>
-    <p class="muted">AWS 那邊：Aurora 的複本共用同一個叢集磁碟區，複寫延遲「通常遠低於 100 毫秒」，寫入量大時會拉長<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Replication.html" target="_blank" rel="noopener">出處</a>；RDS 的 Standby 對 Read Replica 見雲端模組第 6 課〈RDS 資料庫資源〉。</p>
+    <p class="muted">AWS 那邊：Aurora 的複本共用同一個叢集磁碟區，複寫延遲「通常遠低於 100 毫秒」，寫入量大時會拉長<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Replication.html" target="_blank" rel="noopener">出處</a>；RDS 的 Standby 對 Read Replica 見〈RDS 資料庫資源〉。</p>
 </section>
 <section>
     <p class="era">分片</p>
     <h3 class="head">垂直對水平、分片鍵、跨分片的三個難題</h3>
     <p class="q">面試官：垂直分割對水平分割？什麼時候該分片？</p>
     <p><strong>一句話定義：</strong>垂直分割（vertical partitioning）是把一張表的不同欄位拆開存；水平分割（horizontal partitioning）是把不同的列分到不同的實體分區。手冊寫得很直接：MySQL 的分割是水平分割，「不支援垂直分割，目前也沒有引入的計畫」<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/partitioning-overview.html" target="_blank" rel="noopener">出處</a>。分片（sharding）是把水平分割做到跨伺服器：同一張邏輯表的列散在多台獨立的資料庫上。</p>
-    <p><strong>什麼時候該分：</strong>複寫只複製「同一份」資料，解決的是讀取量與可用性；單一主庫的<strong>寫入</strong>吞吐或<strong>儲存容量</strong>到頂時，複本再多也沒用，才輪到分片。代價見資料庫模組第 4 課那張表：分片鍵怎麼選、跨片查詢、重新平衡。順序是先索引、讀寫分離、冷資料歸檔（很少用的舊資料搬去便宜的地方存），最後才分片——這是常見做法而非官方規範。</p>
+    <p><strong>什麼時候該分：</strong>複寫只複製「同一份」資料，解決的是讀取量與可用性；單一主庫的<strong>寫入</strong>吞吐或<strong>儲存容量</strong>到頂時，複本再多也沒用，才輪到分片。代價見〈NoSQL 與資料庫設計〉那張表：分片鍵怎麼選、跨片查詢、重新平衡。順序是先索引、讀寫分離、冷資料歸檔（很少用的舊資料搬去便宜的地方存），最後才分片——這是常見做法而非官方規範。</p>
     <p class="q">面試官：分片鍵怎麼選？範圍、雜湊、一致性雜湊各適合什麼？</p>
     <div class="tablewrap"><table>
       <thead><tr><th>分法</th><th>怎麼分</th><th>好處</th><th>壞處</th></tr></thead>
@@ -120,7 +120,7 @@ EXPLAIN SELECT * FROM tx_log WHERE booked_on &gt;= '2025-01-01' AND booked_on &l
 ALTER TABLE tx_log DROP PARTITION p2023;   -- 整年一次移除，不必逐列 DELETE</code></pre>
     <p>記得手冊的警告：「丟掉分區的同時，也刪掉了存在那個分區裡的所有資料」<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/partitioning-management-range-list.html" target="_blank" rel="noopener">出處</a>——所以先把該分區匯出到歸檔庫或物件儲存、核對筆數、才 DROP；報表與稽核查詢走歸檔庫或複本、不碰帳務主庫（常見安排，非官方規範）。DynamoDB 的對應物是存活時間（TTL）：替每個項目設到期時間戳，到期後「DynamoDB 會在幾天內自動刪除，不消耗寫入吞吐量」<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html" target="_blank" rel="noopener">出處</a>。</p>
     <p class="q">面試官：什麼時候該用 NoSQL？</p>
-    <p><strong>一句話定義：</strong>存取模式固定、以鍵查值為主、資料量與寫入量大到要橫向擴充，且不需要跨表 JOIN 與交易時，鍵值或文件型資料庫比關聯式划算；查詢多變、要複雜關聯與強一致交易的帳務核心，還是關聯式。完整判準見資料庫模組第 4 課。以 DynamoDB 為例，兩個要點：</p>
+    <p><strong>一句話定義：</strong>存取模式固定、以鍵查值為主、資料量與寫入量大到要橫向擴充，且不需要跨表 JOIN 與交易時，鍵值或文件型資料庫比關聯式划算；查詢多變、要複雜關聯與強一致交易的帳務核心，還是關聯式。完整判準見〈NoSQL 與資料庫設計〉。以 DynamoDB 為例，兩個要點：</p>
     <ul class="plainlist">
       <li><strong>只有鍵有綱要。</strong>「除了主鍵之外，表是無綱要的」；主鍵是分割鍵，或分割鍵加排序鍵<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a>。所以先想清楚怎麼查再決定鍵，跟關聯式先建模、後想查詢的順序相反。</li>
       <li><strong>預設最終一致讀。</strong>讀取「可能不反映剛完成的寫入」；要最新資料就把 <code>ConsistentRead</code> 設成 true，但強一致讀只支援表與本地次要索引（local secondary index，跟表用同一個分割鍵、只換排序鍵的索引），全域次要索引（global secondary index，可以用另一組分割鍵與排序鍵）與串流只能最終一致；最終一致讀的價格是強一致讀的一半<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html" target="_blank" rel="noopener">出處</a>——PACELC 的 L 對 C 變成每次讀都能選。</li>

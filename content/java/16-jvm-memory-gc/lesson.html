@@ -414,7 +414,7 @@ try {
 <div class="drill">
   <p class="dq">一個沒有上限的執行緒池在尖峰時開了好幾萬條平台執行緒，最可能出現哪一個錯？</p>
   <ul class="dopts"><li>OutOfMemoryError: Metaspace</li><li data-ok>OutOfMemoryError: unable to create native thread</li><li>StackOverflowError</li><li>Cannot reserve direct buffer memory</li></ul>
-  <p class="dexp">每條平台執行緒都要一條作業系統執行緒與自己的堆疊；JVMS 說配不出新執行緒的初始堆疊時丟 OutOfMemoryError，訊息是 unable to create native thread。下一課〈執行緒池與並行工具〉會講怎麼避免。</p>
+  <p class="dexp">每條平台執行緒都要一條作業系統執行緒與自己的堆疊；JVMS 說配不出新執行緒的初始堆疊時丟 OutOfMemoryError，訊息是 unable to create native thread。〈執行緒池與並行工具〉會講怎麼避免。</p>
 </div>
 </section>
 
@@ -425,7 +425,7 @@ try {
 <ul class="plainlist">
 <li><strong>只放不拿的 static 集合或快取</strong>：靜態欄位是 GC Root，Map 裡的東西一直可達。</li>
 <li><strong>沒關的資源</strong>：連線、檔案、串流沒關，背後的作業系統資源與緩衝區就一直占著，用 try-with-resources（見〈例外機制〉）。</li>
-<li><strong>ThreadLocal 用完沒 remove</strong>：<code>ThreadLocal</code> 的文件說，每條執行緒「只要還活著、而且 ThreadLocal 實體可存取」，就持有它那份副本的隱含參考；執行緒消失後副本才可以被回收。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a> 執行緒池裡的執行緒不會消失，所以要在用完時呼叫 <code>remove()</code>，下一課會實跑。</li>
+<li><strong>ThreadLocal 用完沒 remove</strong>：<code>ThreadLocal</code> 的文件說，每條執行緒「只要還活著、而且 ThreadLocal 實體可存取」，就持有它那份副本的隱含參考；執行緒消失後副本才可以被回收。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a> 執行緒池裡的執行緒不會消失，所以要在用完時呼叫 <code>remove()</code>，〈執行緒池與並行工具〉會實跑。</li>
 <li><strong>註冊了沒取消的監聽器</strong>：長壽的事件來源抓著監聽器，監聽器又抓著一大串物件。</li>
 <li><strong>類別載入器洩漏</strong>：只要載入器載出的類別還有實體活著，整個載入器和它所有類別的中繼資料都留在 Metaspace；上一段的 <code>Meta</code> 就是刻意做出來的版本。</li>
 </ul>

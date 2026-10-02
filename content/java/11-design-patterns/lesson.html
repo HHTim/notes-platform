@@ -8,7 +8,7 @@
 <p>它最大的價值之一是<strong>建立團隊的共同語言</strong>：說一句「這裡用策略模式」，比逐句描述「把好幾種演算法各包成一個可替換的物件」省事得多。</p>
 <blockquote>先確認哪裡會變、有什麼限制，再選模式；不要先選模式，再回頭找地方套。</blockquote>
 <p class="muted">模式不是越多越好。問題很單純時，直接而清楚的程式碼，通常比先蓋一套複雜架構更好維護。</p>
-<p class="muted">GoF 那本書總共 23 種模式，分成三群——這個總表與「創建型五個是哪五個」在面試集第 1 課〈Java 基礎快答〉有整理過。</p>
+<p class="muted">GoF 那本書總共 23 種模式，分成三群——這個總表與「創建型五個是哪五個」在〈Java 基礎快答〉有整理過。</p>
 </section>
 
 <section>
@@ -32,7 +32,7 @@
 <div class="term"><b>Factory Method 工廠方法</b><span>把「要建立哪一種具體物件」延後交給子類別或特定的建立者決定。</span></div>
 <div class="term"><b>Builder 建構者</b><span>把複雜物件的組裝步驟拆開，一步步設定完再產出成品。</span></div>
 <div class="term"><b>Adapter 轉接器</b><span>像轉接頭，把既有的介面轉成呼叫端要的樣子。</span></div>
-<div class="term"><b>Decorator 裝飾者</b><span>用包裝的方式疊加功能，不必改原本的類別。第 8 課的 I/O 鏈就是這個模式。</span></div>
+<div class="term"><b>Decorator 裝飾者</b><span>用包裝的方式疊加功能，不必改原本的類別。〈檔案與資料流〉的 I/O 鏈就是這個模式。</span></div>
 <div class="term"><b>Facade 門面</b><span>在複雜的子系統前面開一個簡單的統一入口。</span></div>
 <div class="term"><b>Proxy 代理人</b><span>用替身控制對真實物件的存取：延遲載入、權限檢查、遠端呼叫。</span></div>
 <div class="term"><b>Strategy 策略</b><span>把可替換的演算法各自包成物件，執行時再選。</span></div>
@@ -84,7 +84,7 @@ public static Service getInstance() {
     }
     return instance;
 }</code></pre>
-<p class="muted">那個 <code>volatile</code> 是這段程式的命脈。沒有它，因為第 10 課講的指令重排序，別的執行緒可能拿到一個「參考已經指過去、但建構子還沒跑完」的半成品物件。</p>
+<p class="muted">那個 <code>volatile</code> 是這段程式的命脈。沒有它，因為〈執行緒與並行〉講的指令重排序，別的執行緒可能拿到一個「參考已經指過去、但建構子還沒跑完」的半成品物件。</p>
 <p>第二種是<strong>靜態內部類別持有者</strong>——寫起來最短，而且延遲建立與執行緒安全都由類別初始化機制保證，一個同步字都不必寫：</p>
 <pre><code>public final class Service {
     private Service() { }
@@ -109,7 +109,7 @@ public static Service getInstance() {
 <section>
 <p class="era">唯一實體 ≠ 只有一條執行緒在用</p>
 <h3 class="head">Singleton 的代價</h3>
-<p>單例物件往往被很多條執行緒同時存取，所以<strong>「安全地只建立一次」只解決了初始化那一段</strong>。物件裡如果還留著可變狀態，那些讀寫本身要另外設計執行緒安全（回頭看第 10 課）。</p>
+<p>單例物件往往被很多條執行緒同時存取，所以<strong>「安全地只建立一次」只解決了初始化那一段</strong>。物件裡如果還留著可變狀態，那些讀寫本身要另外設計執行緒安全（回頭看〈執行緒與並行〉）。</p>
 <p class="formula">「單例」講的是實體數量與取得方式；「不可變」講的是建立後狀態能不能改——兩件事</p>
 <p>另一個代價是它會形成<strong>藏起來的全域相依</strong>：類別在自己內部直接 <code>getInstance()</code>，呼叫端從簽章上完全看不出它依賴了什麼，測試時也換不掉。依賴注入（dependency injection，把相依的物件從外面交給它，而不是自己去拿）就把這件事攤在陽光下：</p>
 <pre><code>public class CheckoutService {

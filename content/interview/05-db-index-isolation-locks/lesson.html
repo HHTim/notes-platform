@@ -3,7 +3,7 @@
 <section>
     <p class="era">索引結構</p>
     <h3 class="head">B+ 樹、叢集索引與二級索引</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補一句版本或實務註記。ACID 與交易基礎見資料庫模組第 2 課〈SQL 三種子語言：DDL、DML、DQL〉，本課不重講。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補一句版本或實務註記。ACID 與交易基礎見〈SQL 三種子語言：DDL、DML、DQL〉，本課不重講。</p>
     <p class="q">面試官：索引是什麼？為什麼用 B+ 樹，不用雜湊或二元樹？</p>
     <p><strong>一句話定義：</strong>索引是資料表旁邊另外維護的一份排序好的目錄，讓資料庫不用逐列掃描就能找到目標資料列。MySQL 的主鍵、唯一鍵、一般索引都存成 B-tree（多路平衡樹，手冊統稱 B-tree；面試常說的 B+ 樹是它把資料放在葉節點的變形）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>為什麼不是二元樹：</strong>B-tree 的一個節點可以有很多個子節點，不像二元樹每個節點只能有兩個<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_b_tree" target="_blank" rel="noopener">出處</a>。InnoDB 一個索引頁預設 16KB<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>，一頁能放很多個鍵，每往下一層容量就乘上一頁的鍵數，所以樹很矮——從根到葉只要讀少少幾頁。頁（page）正是 InnoDB 在硬碟與記憶體之間一次搬動的資料單位<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_page" target="_blank" rel="noopener">出處</a>，讀幾頁就是幾次 I/O，這是「適合磁碟」的意思。</p>
@@ -123,7 +123,7 @@ SELECT id FROM orders WHERE customer_id = 42 FOR UPDATE;
 INSERT INTO orders (customer_id, status, created_at, amount, phone)
 VALUES (42, 'NEW', NOW(), 1, '0999999999');
 -- 同一組操作改成 READ COMMITTED：B 立刻成功——因為這個等級不加間隙鎖</code></pre>
-    <p class="muted">分散式環境下這些鎖只管得到同一台資料庫；多台機器搶同一把鎖的問題見資料庫模組第 5 課〈分散式鎖與 Redis〉。</p>
+    <p class="muted">分散式環境下這些鎖只管得到同一台資料庫；多台機器搶同一把鎖的問題見〈分散式鎖與 Redis〉。</p>
 </section>
 <section>
     <p class="era">死結與結構變更</p>
@@ -159,6 +159,6 @@ ALTER TABLE orders ADD INDEX idx_created (created_at), ALGORITHM=INPLACE, LOCK=N
         <tr><th>讀寫互擋</th><td>一致性讀不加鎖<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></td><td>「讀永不擋寫、寫永不擋讀」，連 SERIALIZABLE 也靠可序列化快照隔離（SSI，靠偵測交易之間的相依關係、必要時中止其中一筆，而不是靠鎖）維持<a class="fixsrc" href="https://www.postgresql.org/docs/current/mvcc-intro.html" target="_blank" rel="noopener">出處</a></td></tr>
       </tbody>
     </table></div>
-    <p>面試時抓兩個對比最有效：預設隔離層級不同（所以同一段程式搬家後幻讀行為會變），以及舊版本的存放位置不同（所以 PostgreSQL 有 VACUUM、MySQL 有 undo 表空間膨脹）。Spring 端 <code>@Transactional</code> 的傳播行為見面試集〈Spring 面試快答：IoC、Bean、AOP 與交易〉；隔離層級怎麼對應見 Spring 模組第 6 課〈Spring AOP 與交易控制〉。</p>
+    <p>面試時抓兩個對比最有效：預設隔離層級不同（所以同一段程式搬家後幻讀行為會變），以及舊版本的存放位置不同（所以 PostgreSQL 有 VACUUM、MySQL 有 undo 表空間膨脹）。Spring 端 <code>@Transactional</code> 的傳播行為見面試集〈Spring 面試快答：IoC、Bean、AOP 與交易〉；隔離層級怎麼對應見〈Spring AOP 與交易控制〉。</p>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>InnoDB 索引是 B-tree：節點多路、一頁 16KB、樹很矮，等號與範圍都能用；雜湊只能等號。資料列住在叢集索引的葉節點，二級索引帶主鍵值、要回表。</li><li>複合索引照最左前綴用；對欄位套函式、字串欄位比數字、<code>LIKE '%x'</code>、OR 混到沒索引的欄位，索引都用不上。查詢欄位全在索引裡就是覆蓋索引，EXPLAIN 顯示 <code>Using index</code>。</li><li>EXPLAIN 盯 <code>type</code>、<code>key</code>、<code>rows</code>、<code>Extra</code>；<code>ALL</code>、<code>Using filesort</code>、<code>Using temporary</code> 是警訊。慢查詢靠 slow query log 抓，預設關、門檻 10 秒。</li><li>InnoDB 預設 REPEATABLE READ、PostgreSQL 預設 READ COMMITTED。MVCC 用 undo log 重建舊版本，一致性讀不加鎖；長交易會讓 undo 無法清除。</li><li>Next-Key 鎖＝記錄鎖＋前一段間隙鎖，InnoDB 靠它在 REPEATABLE READ 擋幻讀；READ COMMITTED 一般搜尋不加間隙鎖。悲觀鎖用 <code>FOR UPDATE</code>，樂觀鎖用版本欄位加重試。</li><li>死結由 InnoDB 自動偵測並還原較小的交易，應用程式要重試；<code>SHOW ENGINE INNODB STATUS</code> 看 LATEST DETECTED DEADLOCK。加欄位 INSTANT、加索引 in-place 不鎖表，改型別才重建。</li></ul></div>

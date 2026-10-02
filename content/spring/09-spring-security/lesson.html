@@ -15,7 +15,7 @@
 <h3 class="head">Spring Security 的認證流程</h3>
 <p>帳號密碼登入時，請求先由負責認證的 Filter 接住，再把憑證交給認證管理元件。它透過使用者資料服務查出帳號，用密碼編碼器比對密碼。成功之後，已認證的身分會放進安全內容保存區。</p>
 <div class="terms"><div class="term"><b>Authentication</b><span>代表目前的身分與憑證，也可以帶著角色或權限。</span></div><div class="term"><b>AuthenticationManager</b><span>接收認證要求，協調整個認證流程。</span></div><div class="term"><b>UserDetailsService</b><span>依使用者名稱載入帳號資料。</span></div><div class="term"><b>UserDetails</b><span>描述帳號、密碼雜湊值與權限的介面。</span></div><div class="term"><b>SecurityContextHolder</b><span>讓目前這次請求取得已認證身分的入口。</span></div></div>
-<p>帳號可以先放在記憶體裡方便示範或測試（<code>InMemoryUserDetailsManager</code> 就是這個用途），正式系統通常改從資料庫、LDAP（Lightweight Directory Access Protocol，查詢公司帳號目錄用的協定）或其他身分服務載入。密碼不應該存明文，要存適合密碼用途的單向雜湊結果，這點第 10 課會細談。</p>
+<p>帳號可以先放在記憶體裡方便示範或測試（<code>InMemoryUserDetailsManager</code> 就是這個用途），正式系統通常改從資料庫、LDAP（Lightweight Directory Access Protocol，查詢公司帳號目錄用的協定）或其他身分服務載入。密碼不應該存明文，要存適合密碼用途的單向雜湊結果，這點〈網站安全三題：CORS、CSRF、密碼學〉會細談。</p>
 </section>
 
 <section>
@@ -69,9 +69,9 @@ public void deleteMember(long memberId) {
   → 瀏覽器後續請求都帶著 JSESSIONID
   → 伺服器用它找到 Session 與登入身分
   → 登出或逾時後讓 Session 失效</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Session 是後端程式的一種數據儲存方式，實作方式不限，Spring Security 預設是使用 Java 的 map 變數來實作」，查證後更正：Session 本身是 Servlet 容器（例如 Tomcat）提供的 HttpSession，Spring Security 並沒有自己實作一套 Session；它預設做的是把安全內容存進 HttpSession，這件事由 HttpSessionSecurityContextRepository 負責，也可以換成 Redis 等外部儲存">Session 本身是 Servlet 容器提供的 <code>HttpSession</code>，Spring Security 沒有自己實作一套。官方文件的說法是「<code>HttpSessionSecurityContextRepository</code> 把 <code>SecurityContext</code> 關聯到 <code>HttpSession</code>」——它負責的是安全內容要放在哪裡，而放的地方就是容器的工作階段；換成 Redis（把資料放在記憶體裡的鍵值資料庫）這類外部儲存也是換掉這個儲存庫，不是換掉 Session 本身</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/authentication/persistence.html" target="_blank" rel="noopener">出處</a>。Redis 適合放登入資訊、卻不適合直接當分散式鎖的理由，見資料庫模組第 5 課〈分散式鎖與 Redis〉。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「Session 是後端程式的一種數據儲存方式，實作方式不限，Spring Security 預設是使用 Java 的 map 變數來實作」，查證後更正：Session 本身是 Servlet 容器（例如 Tomcat）提供的 HttpSession，Spring Security 並沒有自己實作一套 Session；它預設做的是把安全內容存進 HttpSession，這件事由 HttpSessionSecurityContextRepository 負責，也可以換成 Redis 等外部儲存">Session 本身是 Servlet 容器提供的 <code>HttpSession</code>，Spring Security 沒有自己實作一套。官方文件的說法是「<code>HttpSessionSecurityContextRepository</code> 把 <code>SecurityContext</code> 關聯到 <code>HttpSession</code>」——它負責的是安全內容要放在哪裡，而放的地方就是容器的工作階段；換成 Redis（把資料放在記憶體裡的鍵值資料庫）這類外部儲存也是換掉這個儲存庫，不是換掉 Session 本身</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/authentication/persistence.html" target="_blank" rel="noopener">出處</a>。Redis 適合放登入資訊、卻不適合直接當分散式鎖的理由，見〈分散式鎖與 Redis〉。</p>
 <p>Cookie 不只用來登入，也可以保存個人化設定、購物車識別資訊或表單進度。但敏感內容不該直接明文放進去。</p>
-<p>另一種架構是登入後發出權杖（token），之後由自訂 Filter 解析權杖並建立安全內容。最常見的權杖格式是 JWT（JSON Web Token）：伺服器把「你是誰、有哪些權限、什麼時候過期」寫成一段字串，再用自己的金鑰簽章；之後收到這段字串時驗一下簽章，就知道內容沒被人動過手腳，不必回頭查資料庫。要不要再把使用者狀態放進 Redis 是架構選擇，不是 JWT 的必要條件。權杖放在瀏覽器哪裡、CSRF 與 XSS 各要怎麼防，見第 10 課〈網站安全三題：CORS、CSRF、密碼學〉；面試怎麼答 JWT 與 OAuth 2.0 的分工，見面試集〈後端與雲端面試題庫〉。</p>
+<p>另一種架構是登入後發出權杖（token），之後由自訂 Filter 解析權杖並建立安全內容。最常見的權杖格式是 JWT（JSON Web Token）：伺服器把「你是誰、有哪些權限、什麼時候過期」寫成一段字串，再用自己的金鑰簽章；之後收到這段字串時驗一下簽章，就知道內容沒被人動過手腳，不必回頭查資料庫。要不要再把使用者狀態放進 Redis 是架構選擇，不是 JWT 的必要條件。權杖放在瀏覽器哪裡、CSRF 與 XSS 各要怎麼防，見〈網站安全三題：CORS、CSRF、密碼學〉；面試怎麼答 JWT 與 OAuth 2.0 的分工，見面試集〈後端與雲端面試題庫〉。</p>
 </section>
 
 <div class="keys"><p class="lbl">重點整理</p><ul><li>認證確認身分，授權判斷這個身分能不能做某件事；公開資源兩者都不需要。</li><li>Spring Security 透過 Filter 鏈在請求到達 Controller 前做安全檢查。</li><li>授權判斷現在由 <code>AuthorizationFilter</code> 負責，搭配 <code>authorizeHttpRequests</code> 設定。</li><li>路徑規則與方法層級規則互補，但後端才是權限判斷的最後防線。</li><li>RBAC 用角色承接一組權限，省掉逐一管理使用者權限的成本。</li><li>Session 由 Servlet 容器維護，Spring Security 只是把安全內容存進去。</li></ul></div>

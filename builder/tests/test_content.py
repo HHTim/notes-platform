@@ -76,7 +76,7 @@ class TestContent(unittest.TestCase):
         self.assertGreaterEqual(len(k8s['lessons']), 13)
         read = lambda d: (CONTENT / 'k8s' / d / 'lesson.html').read_text(encoding='utf-8')
         # 修字有帶到、圖有搬對位子（對應 rescue/build_spa.py 的加工）
-        self.assertIn('第 9 課要講的 Service 背後的執行者', read('07-cluster-brain'))
+        self.assertIn('〈Service：找路〉要講的 Service 背後的執行者', read('07-cluster-brain'))
         self.assertIn('（v1.24，2022 年）', read('06-pod-node'))
         self.assertIn('Gateway API', read('10-ingress'))
         self.assertIn('Kubernetes 的核心迴圈', read('05-why-k8s'))

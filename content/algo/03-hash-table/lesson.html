@@ -104,7 +104,7 @@ System.out.println((n - 1) &amp; h);</code></pre>
 <p>鍵的種類幾乎是無限的，桶卻只有幾個、幾千個，所以<strong>一定</strong>會有兩個不同的鍵算到同一格，這叫<strong>碰撞</strong>（collision）。這是鴿籠原理（10 隻鴿子塞進 9 個籠子，至少有一個籠子擠兩隻）：MIT 6.006 講義寫，桶數比鍵的可能種類少時，沒有任何雜湊函式能讓每個鍵各得一格，「一定存在兩個鍵 a、b 使得 h(a) = h(b)」（Always exists keys a, b such that h(a) = h(b) → Collision!）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a> 上一段的 <code>"Aa"</code> 與 <code>"BB"</code> 就是現成的例子，兩個字串的 <code>hashCode()</code> 都是 2112（普林斯頓的習題解答也舉這一組）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
 <p>碰撞了要把第二筆放哪？講義列了兩條路：「放到陣列裡別的位置」（store somewhere else in the array (open addressing)），或「放進另一個資料結構」（store in another data structure ... (chaining)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
 <h4>鏈結法：每個桶掛一條串列</h4>
-<p><strong>鏈結法</strong>（separate chaining）就像同一個置物櫃格子裡掛一串鑰匙圈：普林斯頓的寫法是替每個索引「建一條鏈結串列，串起雜湊到這個索引的所有鍵值」（build, for each of the M array indices, a linked list of the key-value pairs whose keys hash to that index）；找的時候分兩步，「先雜湊找到可能含有這個鍵的串列，再沿著串列逐一找」（hash to find the list that could contain the key, then sequentially search through that list for the key）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 鏈結串列本身怎麼運作，見下一課〈鏈結串列〉。</p>
+<p><strong>鏈結法</strong>（separate chaining）就像同一個置物櫃格子裡掛一串鑰匙圈：普林斯頓的寫法是替每個索引「建一條鏈結串列，串起雜湊到這個索引的所有鍵值」（build, for each of the M array indices, a linked list of the key-value pairs whose keys hash to that index）；找的時候分兩步，「先雜湊找到可能含有這個鍵的串列，再沿著串列逐一找」（hash to find the list that could contain the key, then sequentially search through that list for the key）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 鏈結串列本身怎麼運作，見〈鏈結串列〉。</p>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="鏈結法示意：8 個桶，0 號桶串著 banana、Aa、BB 三個節點，1 號桶串著 apple、cherry，2 號桶只有 kiwi，每條串列最後接 null">
   <defs><marker id="ht-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
@@ -697,7 +697,7 @@ public class Lru {
     }
 }</code></pre>
 <pre><code>[C, A, D]</code></pre>
-<p class="muted">面試的 LRU 題（動手練清單裡的 146 題）常要求自己用雜湊表加雙向鏈結串列寫，其實就是 <code>LinkedHashMap</code> 內部的做法；雙向串列怎麼接，下一課〈鏈結串列〉會畫。快取淘汰在系統層面的策略見〈系統設計：快取一致性與熱點〉。</p>
+<p class="muted">面試的 LRU 題（動手練清單裡的 146 題）常要求自己用雜湊表加雙向鏈結串列寫，其實就是 <code>LinkedHashMap</code> 內部的做法；雙向串列怎麼接，〈鏈結串列〉會畫。快取淘汰在系統層面的策略見〈系統設計：快取一致性與熱點〉。</p>
 <h4>TreeMap 找「最接近的鍵」</h4>
 <p>雜湊表只能回答「這個鍵在不在」，回答不了「比 x 小的最大鍵是誰」，因為它把鍵打散了。這種問題要用 <code>TreeMap</code>，例如依存款金額找利率級距：</p>
 <pre><code>import java.util.TreeMap;

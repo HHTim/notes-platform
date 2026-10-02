@@ -5,7 +5,7 @@
 <p class="era">先看全景</p>
 <h3 class="head">OpenShift 是 Kubernetes 加上一層平台</h3>
 <p>Red Hat OpenShift Container Platform（常縮寫成 OCP）核心就是 Kubernetes，上面再補開發、路由、安全和維運的整合。所以第 6〜12 課學的物件幾乎全部通用，指令從 <code>kubectl</code> 換成 <code>oc</code>（<code>oc</code> 也吃大部分 <code>kubectl</code> 的用法）。</p>
-<p>最明顯的多出來的東西是 <strong>Route</strong>：OpenShift 自己的對外 HTTP／HTTPS 入口。第 10 課講的 Ingress 在 OpenShift 上一樣能用，而 Red Hat 自己的文件與範例用的是 Route。</p>
+<p>最明顯的多出來的東西是 <strong>Route</strong>：OpenShift 自己的對外 HTTP／HTTPS 入口。〈對外入口〉講的 Ingress 在 OpenShift 上一樣能用，而 Red Hat 自己的文件與範例用的是 Route。</p>
 <p>這一課用一個具體的例子把東西串起來：一個部落格網站（WordPress）＋一個資料庫（MySQL）＋一個快取（Redis）。</p>
 <pre><code>外部使用者
     ↓ HTTPS
@@ -20,7 +20,7 @@ Route
 資料庫 Pod      快取 Pod
     ↓             ↓
    PVC           PVC</code></pre>
-<p class="muted">Deployment、Service、ConfigMap、Secret 的基本觀念見第 8〜10 課與第 18 課；這一課只講怎麼接起來、以及 OpenShift 特有的地方。</p>
+<p class="muted">Deployment、Service、ConfigMap、Secret 的基本觀念見〈Deployment：下單〉〈Service：找路〉〈對外入口〉與〈K8s 上手：Minikube 與上雲〉；這一課只講怎麼接起來、以及 OpenShift 特有的地方。</p>
 </section>
 
 <section>
@@ -38,7 +38,7 @@ Route
 <pre><code>oc project            # 現在在哪個專案
 oc get resourcequota  # 這個專案還剩多少額度
 oc get storageclass   # 有哪些儲存類別可以用</code></pre>
-<p class="q">但要講清楚一件事：<strong>套用 YAML 的先後順序，不等於應用程式的啟動順序。</strong>Kubernetes 是非同步調和的（第 5 課那個迴圈），你先建資料庫不代表網站起來時資料庫已經能接查詢。真正的保證來自就緒檢查（readiness probe）和應用程式自己的重試——這和第 16 課 Compose 的 <code>depends_on</code> 是同一個道理。</p>
+<p class="q">但要講清楚一件事：<strong>套用 YAML 的先後順序，不等於應用程式的啟動順序。</strong>Kubernetes 是非同步調和的（〈為什麼需要 Kubernetes〉那個迴圈），你先建資料庫不代表網站起來時資料庫已經能接查詢。真正的保證來自就緒檢查（readiness probe）和應用程式自己的重試——這和〈資料與 Compose〉講的 Compose <code>depends_on</code> 是同一個道理。</p>
 </section>
 
 <section>
@@ -62,7 +62,7 @@ stringData:
   DB_PASSWORD: 換成你自己的強密碼
   ADMIN_PASSWORD: 換成你自己的強密碼</code></pre>
 <p>工作負載用 <code>configMapKeyRef</code> 或 <code>secretKeyRef</code> 把單一欄位取出來當環境變數。<strong>引用時的 <code>name</code>（哪個 ConfigMap／Secret）和 <code>key</code>（裡面哪一個欄位）要和上面完全一致</strong>，錯一個字 Pod 就起不來。</p>
-<p class="muted">Secret 預設沒有加密這件事第 18 課講過，在 OpenShift 上一樣成立。密碼請用佔位字串進版控、實際值另外注入；教學範例常見的 <code>rootpass</code>、<code>wppass</code> 這種明碼寫法是為了講解方便，不是可以照抄的做法。</p>
+<p class="muted">Secret 預設沒有加密這件事〈K8s 上手：Minikube 與上雲〉講過，在 OpenShift 上一樣成立。密碼請用佔位字串進版控、實際值另外注入；教學範例常見的 <code>rootpass</code>、<code>wppass</code> 這種明碼寫法是為了講解方便，不是可以照抄的做法。</p>
 <p class="muted">還有一個寫法會讓人踩空：用 <code>cat &lt;&lt; 'EOF' | oc apply -f -</code> 送 YAML，裡面寫 <code>namespace: $PROJECT_NAME</code> 想代入專案名稱。但 here-document 的結束字（這裡是 <code>EOF</code>）<strong>只要加了引號，裡面的內容就不會做變數展開</strong>，那一行會原封不動送出去。<a class="fixsrc" href="https://www.gnu.org/software/bash/manual/bash.html#Here-Documents" target="_blank" rel="noopener">出處</a> 比較單純的做法是 YAML 裡乾脆不寫 <code>namespace</code>，先用 <code>oc project</code> 切到對的專案再套用。</p>
 </section>
 
@@ -79,7 +79,7 @@ spec:
   resources:
     requests:
       storage: 5Gi</code></pre>
-<p>這又是第 11 課那個模式：PVC 是單子，平台負責去生出真的儲存空間來滿足它。資料庫和網站內容各開一張，快取要不要開則看情況——它只是重建得回來的快取，還是裡面有不能掉的資料？<strong>不要因為「這是有狀態的服務」就一律給它一張。</strong></p>
+<p>這又是〈單子與執行者〉那個模式：PVC 是單子，平台負責去生出真的儲存空間來滿足它。資料庫和網站內容各開一張，快取要不要開則看情況——它只是重建得回來的快取，還是裡面有不能掉的資料？<strong>不要因為「這是有狀態的服務」就一律給它一張。</strong></p>
 <p class="q">PVC 一直卡在 Pending，優先查四件事：儲存類別（StorageClass）存不存在、存取模式（accessModes）平台支不支援、容量夠不夠、專案配額還有沒有。第一種特別容易中——抄來的範例寫了某個雲端專屬的儲存類別，但你這個環境沒有。</p>
 <p class="muted">YAML 裡省略 <code>storageClassName</code> 時，會不會自動用預設的儲存類別，取決於叢集有沒有設預設值。省略之前先用 <code>oc get storageclass</code> 看一眼。</p>
 </section>
@@ -134,7 +134,7 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi</code></pre>
-<p>注意 <code>WORDPRESS_DATABASE_HOST</code> 填的是 <code>database</code>——那是<strong>資料庫 Service 的名字</strong>，不是任何一個 Pod 的位址。這正是第 9 課講的「永遠不變的名字」實際用起來的樣子。</p>
+<p>注意 <code>WORDPRESS_DATABASE_HOST</code> 填的是 <code>database</code>——那是<strong>資料庫 Service 的名字</strong>，不是任何一個 Pod 的位址。這正是〈Service：找路〉講的「永遠不變的名字」實際用起來的樣子。</p>
 <p class="q">就緒檢查（readinessProbe）和存活檢查（livenessProbe）的分工不要搞混：<strong>就緒檢查決定要不要把流量送進來，存活檢查決定要不要把它砍掉重開。</strong>路徑、等待時間、逾時都要照那個映像檔真正的啟動行為調，抄別人的數字常常不合用。</p>
 
 <h4>映像檔的三個坑</h4>
@@ -192,7 +192,7 @@ spec:
     targetPort: http
   tls:
     termination: edge</code></pre>
-<p>Route 的後端是 <strong>Service</strong>（不是 Pod）——又是第 11 課那個模式：Route 是單子，真正在轉發的是 OpenShift 的路由器。<code>termination</code> 這個欄位在決定「加密在哪一段結束」，只有三個值：</p>
+<p>Route 的後端是 <strong>Service</strong>（不是 Pod）——又是〈單子與執行者〉那個模式：Route 是單子，真正在轉發的是 OpenShift 的路由器。<code>termination</code> 這個欄位在決定「加密在哪一段結束」，只有三個值：</p>
 <div class="tablewrap">
   <table>
     <thead><tr><th scope="col">寫法</th><th scope="col">加密到哪裡</th><th scope="col">什麼時候用</th></tr></thead>

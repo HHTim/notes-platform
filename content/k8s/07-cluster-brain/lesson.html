@@ -191,7 +191,7 @@
         <text x="390" y="282" font-size="13" text-anchor="middle" opacity=".8">差別只在上半部：master 跑那四個角色，worker 跑你的程式</text>
         <text x="390" y="300" font-size="11.5" text-anchor="middle" opacity=".6">正式環境會設定成「你的 Pod 不准排到 master 上」，讓大腦不被業務流量拖累</text>
       </svg>
-      <figcaption>那個「轉發表」（<code>kube-proxy</code>）是一支真的在跑的程式，負責把大腦發下來的名單寫進這台機器的網路規則——它就是第 9 課要講的 Service 背後的執行者。</figcaption>
+      <figcaption>那個「轉發表」（<code>kube-proxy</code>）是一支真的在跑的程式，負責把大腦發下來的名單寫進這台機器的網路規則——它就是〈Service：找路〉要講的 Service 背後的執行者。</figcaption>
     </figure>
     <p class="muted">三樣裡面<strong>只有容器執行環境和 kubelet 是每台都非有不可</strong>；第三樣 <code>kube-proxy</code>，官方在節點元件清單裡標的是 <strong>optional</strong>（選配）——它負責把 Service 的規則寫進機器的網路設定，但有些網路外掛（例如 Cilium）自己就把這件事做掉了，那種叢集上不會有 kube-proxy。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/overview/components/" target="_blank" rel="noopener">出處</a></p>
     <p class="muted">用託管的 K8s（GKE、EKS）時，左邊那整個框你看不到也連不進去，雲端商幫你顧。你只看得到右邊。</p>
@@ -208,6 +208,6 @@
     </ul>
     <p class="formula">K8s 的一切狀態都在 etcd 裡 ⟹ 備份 etcd ＝ 備份整個叢集</p>
     <p>反過來說，<strong class="hot">etcd 沒了，叢集就沒了</strong>。機器都還在、容器可能還在跑，但大腦完全失憶，不知道誰是誰、也不知道該有幾份。</p>
-    <p class="muted">分散式鎖（同一時間只讓一個人做事的那把鎖，第 12 課會用到）常拿 etcd 來做，就是這個東西。它被選中的理由是「換主機時不會弄丟已經答應的事」——Redis 官方自己寫的是複寫非同步、「acknowledged writes can still be lost during a failover」，已經回覆收到的寫入在換主機時仍可能掉。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/" target="_blank" rel="noopener">出處</a></p>
+    <p class="muted">分散式鎖（同一時間只讓一個人做事的那把鎖，〈壞掉的時候〉會用到）常拿 etcd 來做，就是這個東西。它被選中的理由是「換主機時不會弄丟已經答應的事」——Redis 官方自己寫的是複寫非同步、「acknowledged writes can still be lost during a failover」，已經回覆收到的寫入在換主機時仍可能掉。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/" target="_blank" rel="noopener">出處</a></p>
   </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>worker node 跑你的 Pod；master node 跑大腦（Control Plane），不跑你的程式。</li><li>四個角色：櫃檯（kube-apiserver）、檔案室（etcd）、排班的（kube-scheduler）、巡邏的（kube-controller-manager）；用 kubeadm 裝的叢集裡各自是一個 Pod。官方清單還有第五個 cloud-controller-manager，標為選配。</li><li>每台機器（不分 master/worker）通常有三樣：containerd、kubelet、kube-proxy——前兩樣必備，kube-proxy 官方標為選配（網路外掛可以取代它）。</li><li>etcd 只跟 kube-apiserver 講話，方向是櫃檯去讀寫它。</li><li>etcd 存所有單子和現況：備份 etcd ＝ 備份整個叢集。</li></ul></div>

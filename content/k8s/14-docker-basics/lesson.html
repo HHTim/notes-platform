@@ -4,20 +4,20 @@
 <section>
 <p class="era">實作篇・開場</p>
 <h3 class="head">前面講的是道理，這一課開始動手</h3>
-<p>第 4 課已經把 Docker 的三個東西講完了：Dockerfile 是食譜、映像檔（image）是成品、容器是跑起來的那一份。這一課不重講那三個詞，只補上手指頭的部分——實際要打哪些指令、每個參數在做什麼。</p>
-<p>動手前先記住一句話：<strong>容器是一種技術，Docker 只是這個技術的其中一個實作品。</strong>常常把兩個字當同義詞用，是因為 Docker 是最成功、用得最廣的那一個。這件事背後有一整套標準在撐著，那是第 20 課的內容。</p>
+<p>〈Docker〉已經把 Docker 的三個東西講完了：Dockerfile 是食譜、映像檔（image）是成品、容器是跑起來的那一份。這一課不重講那三個詞，只補上手指頭的部分——實際要打哪些指令、每個參數在做什麼。</p>
+<p>動手前先記住一句話：<strong>容器是一種技術，Docker 只是這個技術的其中一個實作品。</strong>常常把兩個字當同義詞用，是因為 Docker 是最成功、用得最廣的那一個。這件事背後有一整套標準在撐著，那是〈容器不等於 Docker〉的內容。</p>
 <div class="terms">
   <div class="term"><b>Docker Engine</b><span>真正在做事的那一支程式（正式名稱：容器引擎）。它負責建映像檔、開容器、管網路。</span></div>
   <div class="term"><b>Docker CLI</b><span>你在終端機打 <code>docker</code> 時用的那個介面。它自己不做事，只把你的要求送給 Engine。</span></div>
-  <div class="term"><b>Registry</b><span>映像檔倉庫，大家共用的架子（第 4 課提過）。預設是 Docker Hub。</span></div>
+  <div class="term"><b>Registry</b><span>映像檔倉庫，大家共用的架子（〈Docker〉提過）。預設是 Docker Hub。</span></div>
 </div>
 </section>
 
 <section>
 <p class="era">裝之前</p>
 <h3 class="head">Linux 容器要的是 Linux 核心，所以 Mac 和 Windows 得墊一層</h3>
-<p>容器靠的是 Linux 核心內建的兩個機制（第 3 課說過：一個讓你只看得到自己的東西，一個限制你能吃多少資源）。在 Linux 上這兩個機制本來就在，Docker Engine 直接用就好；在 macOS 和 Windows 上沒有 Linux 核心，所以得先有一個 Linux 環境，容器再跑在那裡面。</p>
-<p class="muted">要分清楚的是「誰需要 Linux」：<mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Engine 只能 run 在 Linux 環境!!」（連寫三次），查證後更正：Docker 官方文件寫 Docker Engine 透過 Docker Desktop 也能在 Windows 與 macOS 上取得；Windows 另有跑 Windows 容器的路線。「需要 Linux 核心」講的是 Linux 容器，不等於 Docker Engine 只存在於 Linux">需要 Linux 核心的是 <strong>Linux 容器</strong>，不是 Docker Engine 這支程式本身。Docker 官方文件寫的是 Docker Engine 透過 Docker Desktop 在 Windows、macOS、Linux 上都取得到，而且 Windows 上還有另一條跑 Windows 容器的路線</mark><a class="fixsrc" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">出處</a>。對 Mac 和 Windows 上要跑 Linux 容器的人來說，結論一樣：中間會有一層 Linux，只是你通常感覺不到。那一層長什麼樣，第 17 課拆開來看。</p>
+<p>容器靠的是 Linux 核心內建的兩個機制（〈容器〉說過：一個讓你只看得到自己的東西，一個限制你能吃多少資源）。在 Linux 上這兩個機制本來就在，Docker Engine 直接用就好；在 macOS 和 Windows 上沒有 Linux 核心，所以得先有一個 Linux 環境，容器再跑在那裡面。</p>
+<p class="muted">要分清楚的是「誰需要 Linux」：<mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Engine 只能 run 在 Linux 環境!!」（連寫三次），查證後更正：Docker 官方文件寫 Docker Engine 透過 Docker Desktop 也能在 Windows 與 macOS 上取得；Windows 另有跑 Windows 容器的路線。「需要 Linux 核心」講的是 Linux 容器，不等於 Docker Engine 只存在於 Linux">需要 Linux 核心的是 <strong>Linux 容器</strong>，不是 Docker Engine 這支程式本身。Docker 官方文件寫的是 Docker Engine 透過 Docker Desktop 在 Windows、macOS、Linux 上都取得到，而且 Windows 上還有另一條跑 Windows 容器的路線</mark><a class="fixsrc" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">出處</a>。對 Mac 和 Windows 上要跑 Linux 容器的人來說，結論一樣：中間會有一層 Linux，只是你通常感覺不到。那一層長什麼樣，〈Docker Desktop 與 Colima〉拆開來看。</p>
 <div class="tablewrap">
   <table>
     <thead><tr><th scope="col">你的電腦</th><th scope="col">常見裝法</th><th scope="col">中間那層 Linux</th></tr></thead>
@@ -69,7 +69,7 @@ docker container stop web # 管的是容器，動作是停掉名叫 web 的那�
   <li>配一個容器內部用的位址，把 8080 對到容器的 80。</li>
   <li>執行映像檔裡設定好的那個開機指令（nginx 這個映像檔是跑一支叫 <code>docker-entrypoint.sh</code> 的腳本）。</li>
 </ul>
-<p class="muted"><code>latest</code> 不是「永遠是最新版」的保證，它只是「沒指定版本時預設拿的那個標籤」，而它指到的內容會變。正式環境要指定測過的版本——這件事第 15 課再細講。</p>
+<p class="muted"><code>latest</code> 不是「永遠是最新版」的保證，它只是「沒指定版本時預設拿的那個標籤」，而它指到的內容會變。正式環境要指定測過的版本——這件事〈映像檔與 Dockerfile〉再細講。</p>
 </section>
 
 <section>
@@ -110,7 +110,7 @@ docker container exec -it web sh</code></pre>
 <section>
 <p class="era">容器是什麼東西</p>
 <h3 class="head">它不是縮小版的虛擬機，它就是一支程式</h3>
-<p>第 3 課從「共用作業系統」的角度講過差別，這裡補上一個從外面看得到的證據：<strong>在主機上用 <code>ps</code> 看，容器裡的程式就實實在在出現在主機的程序清單裡</strong>，只是被關進自己的房間、被限制了能吃多少 CPU 和記憶體。程式、行程（程序）、執行緒三者的關係見 Java 模組第 10 課〈執行緒與並行〉。</p>
+<p>〈容器〉從「共用作業系統」的角度講過差別，這裡補上一個從外面看得到的證據：<strong>在主機上用 <code>ps</code> 看，容器裡的程式就實實在在出現在主機的程序清單裡</strong>，只是被關進自己的房間、被限制了能吃多少 CPU 和記憶體。程式、行程（程序）、執行緒三者的關係見〈執行緒與並行〉。</p>
 <pre><code>docker container top web    # 看這個容器裡有哪些程序</code></pre>
 <p>所以會有這個後果：<strong>主程式停了，容器就退出了。</strong>容器沒有「開機、待機、關機」那一套，它的命跟那支主程式綁在一起。</p>
 </section>
