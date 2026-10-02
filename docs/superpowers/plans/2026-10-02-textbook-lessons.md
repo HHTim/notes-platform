@@ -48,6 +48,8 @@
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
 
+**主控決定（10-03）：全站拿掉課序指路。** 網站上的「第 N 課」照 module.json 順序算，跟資料夾編號已經有五個模組不一致（新課插隊），課序指路會悄悄變錯；`write-java-a` 掃出 205 處課序指路、9 處課名錯誤，一律改成只寫〈完整課名〉；本站課名才用〈〉，外部文章改「」或《》。新課寫作同樣只寫課名（守則原本就這樣規定）。
+
 **主控提醒（10-03）：** kubeconfig 所有代理共用，kubectl／istioctl 一律加 `--context`，不要切 current-context；Docker 資源吃緊，課寫完就刪自己的 kind 叢集。
 
 **主控提醒：** 主控 commit 只 add 指定檔案（`96cb2ff` 曾用 `git add content/web` 把別人的草稿一起帶進去）。
