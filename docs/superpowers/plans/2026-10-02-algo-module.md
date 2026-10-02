@@ -22,7 +22,7 @@
 | `10-heap` | 撰寫中（`write-algo-a` 第二輪） | | | |
 | `11-graph` | ✅ `c97dcc2`（54 題、7 張圖、21 出處；mins 60） | 審查中（`review-algo-d`，11＋12） | | |
 | `12-dynamic-programming` | ✅ `1a1db96`（56 題、5 張圖、15 出處；mins 60） | 同上 | | |
-| `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | ✅ 10-02 審完：無錯誤級；必修 LinkedHashMap 方向講反、「排序後重疊區間一定相鄰」不成立；33 題沒有對應的課；用詞統一；清單 `.superpowers/audit/algo/findings-13.md`；修正交給 `fix-algo-13` | | |
+| `13-interview-strategy` | ✅ `aa6d6d7`＋`459bb97`＋`e1e0150`（44 題、19 列對照表、四週 40 題計畫；mins 45） | ✅ 10-02 審完：無錯誤級；必修 LinkedHashMap 方向講反、「排序後重疊區間一定相鄰」不成立；33 題沒有對應的課；用詞統一；清單 `.superpowers/audit/algo/findings-13.md`；修正交給 `fix-algo-13` | ✅ `17d39c6`（11 條全改；主控抽查通過，未另派複審） | ✅ 10-02 上線 |
 
 流程照多益文法：寫課 → 獨立審查 → 交回原寫課代理修正 → 原審查者範圍複審 → 主控修小尾巴、註冊、推。兩課審好就先上線。同時跑的代理約四到五個。
 
