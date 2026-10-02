@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "想列出每個分行在 3 月 1 日之後開的帳戶數（沒有的顯示 0），寫成 branches LEFT JOIN accounts ON a.branch_id = b.branch_id WHERE a.opened_on &gt;= '2026-03-01' GROUP BY 分行。實跑只回 2 個分行。問題出在哪？",
+   "opts": [
+    "條件放 WHERE 把補 NULL 的分行濾掉，要搬進 ON",
+    "COUNT 應該改成 COUNT(*) 才數得到沒有帳戶的分行",
+    "LEFT JOIN 要改成 RIGHT JOIN，分行才會全部保留",
+    "GROUP BY 少寫了 a.account_id"
+   ],
+   "exp": "外連接後，WHERE 對右表欄位的條件會把補 NULL 的列濾掉，等於變成內連接。條件搬進 ON 之後實跑回 7 個分行，沒有符合帳戶的是 0。改成 COUNT(*) 反而會讓沒有帳戶的分行顯示 1。"
+  },
+  {
+   "q": "黑名單表 blocked 的 account_id 欄裡有一列是 NULL。WHERE account_id NOT IN (SELECT account_id FROM blocked) 會回傳什麼？",
+   "opts": [
+    "一列都不回",
+    "所有不在黑名單裡的帳戶",
+    "只回黑名單裡那些帳戶",
+    "報錯：子查詢不能有 NULL"
+   ],
+   "exp": "清單裡有 NULL 時，NOT IN 對「找不到相符值」的帳戶算出來是 NULL，不是 TRUE，WHERE 全部濾掉。改用 NOT EXISTS，或在子查詢加 WHERE account_id IS NOT NULL。"
+  },
+  {
+   "q": "branches LEFT JOIN accounts 後依分行 GROUP BY，用 COUNT(*) 數帳戶。沒有任何帳戶的「信義簡易分行」會顯示多少？",
+   "opts": [
+    "1",
+    "0",
+    "NULL",
+    "那個分行不會出現"
+   ],
+   "exp": "LEFT JOIN 替它補了一列 NULL，COUNT(*) 數的是列數，所以是 1，實跑驗證過。要數帳戶就用 COUNT(a.account_id)，NULL 不算，才是 0。"
+  },
+  {
+   "q": "MySQL 8.4 預設開著 ONLY_FULL_GROUP_BY。想依分行分組，每組隨便列一個戶名當代表就好，哪個寫法能跑？",
+   "opts": [
+    "SELECT branch_id, ANY_VALUE(owner), COUNT(*) … GROUP BY branch_id",
+    "SELECT branch_id, owner, COUNT(*) … GROUP BY branch_id",
+    "SELECT branch_id, owner, COUNT(*) … GROUP BY branch_id HAVING owner IS NOT NULL",
+    "SELECT branch_id, FIRST(owner), COUNT(*) … GROUP BY branch_id"
+   ],
+   "exp": "手冊說不在乎挑哪一個值時，可以用 ANY_VALUE() 參考沒聚合的欄位，不必關掉 ONLY_FULL_GROUP_BY；實跑每組回一個戶名。直接寫 owner 是 ERROR 1055；MySQL 沒有 FIRST() 這個聚合函數。"
+  },
+  {
+   "q": "每個分行依存款總額排名，取前三名；同分要並列，而且名次不跳號（兩個第一之後是第二）。排名函式該用哪個？",
+   "opts": [
+    "DENSE_RANK()",
+    "RANK()",
+    "ROW_NUMBER()",
+    "COUNT(*) OVER ()"
+   ],
+   "exp": "DENSE_RANK 同分同名次、下一個名次只加一；RANK 同分後會跳號（兩個第一之後是第三）；ROW_NUMBER 同分也硬排出先後，不會並列。"
+  },
+  {
+   "q": "想列出每筆存款，以及它占「同一個帳戶存款總額」的比例，最簡單的寫法是？",
+   "opts": [
+    "amount / SUM(amount) OVER (PARTITION BY account_id)",
+    "amount / SUM(amount) … GROUP BY account_id",
+    "amount / (SELECT SUM(amount) FROM transactions)",
+    "amount / COUNT(*) OVER (PARTITION BY account_id ORDER BY tx_id)"
+   ],
+   "exp": "視窗函式不併列，每筆存款旁邊都看得到自己帳戶的總和。實跑王小明的兩筆存款是 0.63 和 0.38。GROUP BY 會把每個帳戶併成一列，看不到個別存款；整張表的總和不是同一個帳戶的；COUNT 算的是筆數。"
+  },
+  {
+   "q": "交易表只有日期欄 tx_date，沒有時間。SUM(amount) OVER (PARTITION BY account_id ORDER BY tx_date) 算累計餘額，同一天有兩筆交易時，那兩列的累計值會怎樣？",
+   "opts": [
+    "兩列一樣，都是加完當天兩筆之後的值",
+    "第一列只加到自己，第二列再加上第二筆",
+    "第二列會是 NULL",
+    "報錯，ORDER BY 的值不能重複"
+   ],
+   "exp": "有 ORDER BY 的預設框架包含目前這列的所有同分列（同一天的列互為同分），所以兩列都加到當天結束。要一列一列算，就加一個能分出先後的排序欄位，或明寫 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW。"
+  },
+  {
+   "q": "找「連續 3 天以上有交易的帳戶」時，第一步為什麼要先 SELECT DISTINCT account_id, DATE(tx_time)？",
+   "opts": [
+    "同一天的多筆交易會佔用多個序號，日期減序號就錯位",
+    "DISTINCT 會讓 ROW_NUMBER 跑得比較快",
+    "沒有 DISTINCT，DATE() 函式會報錯",
+    "DISTINCT 會自動把日期依序排好"
+   ],
+   "exp": "日期減序號的技巧，前提是每天只有一列；同一天兩列會把後面的序號往後推，跟前面的日期撞成同一組。本課實測沒去重的版本，把王小明 10/1 到 10/5 算成連續 4 天，10/4 他其實沒登入。"
+  },
+  {
+   "q": "題目要求「第二高的金額，沒有第二名時回傳一列 NULL」。哪個寫法符合？",
+   "opts": [
+    "SELECT (SELECT DISTINCT amount FROM … ORDER BY amount DESC LIMIT 1 OFFSET 1) AS second_max",
+    "SELECT DISTINCT amount FROM … ORDER BY amount DESC LIMIT 1 OFFSET 1",
+    "SELECT amount FROM … ORDER BY amount DESC LIMIT 2",
+    "SELECT MAX(amount) FROM transactions WHERE amount &lt; (SELECT MAX(amount) FROM transactions) LIMIT 1 OFFSET 1"
+   ],
+   "exp": "直接 LIMIT 1 OFFSET 1 沒有第二名時回空結果；包成純量子查詢，子查詢沒有列，值就是 NULL，外層照樣回一列。LIMIT 2 會回兩列；「小於最大值的最大值」本來就對，沒有時也會回 NULL，但後面多了 OFFSET 1，把唯一的那一列跳過，實跑變成空結果。"
+  },
+  {
+   "q": "用遞迴 CTE 從總行往下列出所有分行。起點是 parent_id IS NULL 的總行，遞迴部分的 JOIN 條件該怎麼寫？",
+   "opts": [
+    "JOIN tree t ON b.parent_id = t.branch_id",
+    "JOIN tree t ON b.branch_id = t.parent_id",
+    "JOIN tree t ON b.branch_id = t.branch_id",
+    "JOIN tree t ON b.parent_id IS NULL"
+   ],
+   "exp": "往下一層是找「上一層是我」的分行，也就是 b.parent_id = t.branch_id。反過來寫是往上找，總行沒有上一層，實跑只回總行 1 列；用 branch_id 對 branch_id 會一直配到自己，實跑遞迴超過 1000 層被中止。"
+  }
+ ]
+}
