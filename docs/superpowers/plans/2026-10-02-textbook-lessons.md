@@ -38,7 +38,7 @@
 | `spring/22-db-migration` | 資料庫遷移：Flyway 與 Liquibase | ✅ `188d31a`（40 題、4 圖、17 網址；Flyway 12.4、MySQL 8.4 實跑 18 步）；Spring 9 課手機撐寬 `0da686c`；全站掃描另抓 6 頁撐寬，已修 `cde2a24`（全站 153 頁 0 頁撐寬） | ✅ 10-03 審完：一句引文找不到出處、repair 那題跟實跑不符、測驗正解太長；清單 `.superpowers/audit/spring/findings-22.md`；修正交回 `write-algo-d` | | | |
 | `java/18-solid-antipatterns` | SOLID 與常見反模式 | ✅ `e305b96`（43 題、3 圖、21 出處；mins 50） | ✅ 10-03 審完：無錯誤級，5 條小修主控直接改（Liskov 1987 原文 ACM 擋 403 無法逐字核對，主控決定保留 DOI） | — | ✅ 10-03 上線 `214d03f` | | | |
 | `cloud/16-aws-lb-autoscaling-messaging` | 負載平衡、自動擴展與訊息服務 | 撰寫中（`fix-algo-0910`） | | | |
-| `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | ✅ 10-03 審完：測驗一題正解可能不唯一、採 AWS 繁中官方譯名、分割區統一；縮到 mins 60；清單 `.superpowers/audit/cloud/findings-17.md`；修正排給 `fix-db08` | 修正 `b9fd0a8`（39 題、約 26,900 字）；範圍複審排隊 | | | |
+| `cloud/17-dynamodb-nosql` | DynamoDB 與 NoSQL 選型 | ✅ `5dcc4b7`（44 題、3 圖、26 網址；DynamoDB Local 3.3.1） | ✅ 10-03 審完：測驗一題正解可能不唯一、採 AWS 繁中官方譯名、分割區統一；縮到 mins 60；清單 `.superpowers/audit/cloud/findings-17.md`；修正排給 `fix-db08` | 修正 `b9fd0a8`（39 題、約 26,900 字）；範圍複審 ✅ | ✅ 10-03 上線（mins 65） | | | |
 | `database/09-sql-advanced` | SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式 | ✅ `88d46c5`（47 題、4 圖、18 網址；MySQL 8.4 與 PostgreSQL 18 對照） | ✅ 10-03 審完（`write-algo-b`）：長字串撐寬整頁、一題錯誤原因講錯、測驗一題洩題；「聚合函數」兩課改「聚合函式」；清單 `.superpowers/audit/database/findings-09.md`；修正交回 `fix-int17` | | | |
 | `web/15-linux-troubleshooting` | Linux 常用指令與線上排查 | 撰寫中（`fix-algo-0708`） | | | |
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | 撰寫中（`write-algo-a`） | | | |
