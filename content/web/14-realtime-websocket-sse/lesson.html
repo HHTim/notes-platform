@@ -1,4 +1,4 @@
-<!-- 來源：依 RFC 6455（WebSocket）、RFC 6202（長輪詢與 HTTP 串流）、RFC 9110、RFC 9113、RFC 8441、WHATWG HTML 規格〈Server-sent events〉章、MDN〈Using server-sent events〉、Spring Framework 7.0.9 參考文件（WebSocket、STOMP、SockJS、非同步請求）與 SseEmitter API 文件、nginx.org〈WebSocket proxying〉與 ngx_http_proxy_module 文件新寫；Spring Boot 4.1.1（Spring Framework 7.0.9、Java 21）示範專案、curl 8.7.1、Python websockets 17.1、Node 26.10 的輸出為 2026-10-02 實測 · 收錄日期：2026-10-02 -->
+<!-- 來源：依 RFC 6455（WebSocket）、RFC 6202（長輪詢與 HTTP 串流）、RFC 9110、RFC 9113、RFC 8441、WHATWG HTML 規格〈Server-sent events〉章、MDN〈Using server-sent events〉、Spring Framework 7.0.9 參考文件（WebSocket、STOMP、SockJS、非同步請求）與 SseEmitter API 文件、nginx.org〈WebSocket proxying〉與 ngx_http_proxy_module 文件新寫；Spring Boot 4.1.1（Spring Framework 7.0.9、Java 21）示範專案、curl 8.7.1、Python websockets 17.1、Node 26.10 的輸出為 2026-10-02 實測，SSE 的 curl 輸出與 Docker 官方映像檔 nginx:1.29（1.29.8）、nginx:1.24（1.24.0）的代理實測為 2026-10-03 · 收錄日期：2026-10-02 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>比較短輪詢、長輪詢、SSE、WebSocket 的方向、連線數、穿過代理的難易與斷線重連，依情境選一種</li><li>一步一步講 WebSocket 握手：Upgrade 請求、101 回應、Sec-WebSocket-Accept 怎麼算、之後的訊框、Ping 與 Close</li><li>看懂 <code>text/event-stream</code> 的格式，說出 <code>id</code>、<code>retry</code> 與 <code>Last-Event-ID</code> 怎麼讓 SSE 斷線後自動接著收</li><li>用 Spring Boot 4.1 寫出 <code>SseEmitter</code>、原生 WebSocket 處理器與 STOMP 端點，知道 Nginx 代理 WebSocket 要補哪兩個標頭</li></ul></div>
 
 <section>
@@ -179,23 +179,23 @@ real 3.04</code></pre>
 <p class="era">一個回應，慢慢寫</p>
 <h3 class="head">SSE：text/event-stream 與自動重連</h3>
 <p>SSE 的規格在 WHATWG HTML 標準裡：它「讓伺服器能透過 HTTP 把資料推給網頁」，用法是建立一個 <code>EventSource</code> 物件、註冊事件監聽（To enable servers to push data to web pages over HTTP or using dedicated server-push protocols, this specification introduces the EventSource interface.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#server-sent-events-intro" target="_blank" rel="noopener">WHATWG HTML 第 9.2 節</a> 回應的型別固定是 <code>text/event-stream</code>（This event stream format's MIME type is text/event-stream.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream" target="_blank" rel="noopener">WHATWG HTML 第 9.2.5 節</a></p>
-<p>內容是一行一行的「欄位名:值」，空一行代表一個事件結束。2026-10-02 用 <code>curl -N</code>（不要緩衝，收到就印）看示範專案的匯率串流，每秒一筆，左邊的時間是收到那一行的時刻：</p>
+<p>內容是一行一行的「欄位名:值」，空一行代表一個事件結束。2026-10-03 用 <code>curl -N</code>（不要緩衝，收到就印）看示範專案的匯率串流，每秒一筆，左邊的時間是收到那一行的時刻：</p>
 <pre><code>$ curl -sN -i http://127.0.0.1:9149/rates/stream
-23:52:19  HTTP/1.1 200
-23:52:19  Content-Type: text/event-stream
-23:52:19  Transfer-Encoding: chunked
-23:52:19
-23:52:19  id:1
-23:52:19  event:rate
-23:52:19  retry:3000
-23:52:19  data:{"pair":"USD/TWD","rate":30.512}
-23:52:19
-23:52:20  id:2
-23:52:20  event:rate
-23:52:20  retry:3000
-23:52:20  data:{"pair":"USD/TWD","rate":30.518}
-23:52:20
-23:52:21  id:3
+00:16:11  HTTP/1.1 200
+00:16:11  Content-Type: text/event-stream
+00:16:11  Transfer-Encoding: chunked
+00:16:11
+00:16:11  id:1
+00:16:11  event:rate
+00:16:11  retry:3000
+00:16:11  data:{"pair":"USD/TWD","rate":30.504}
+00:16:11
+00:16:12  id:2
+00:16:12  event:rate
+00:16:12  retry:3000
+00:16:12  data:{"pair":"USD/TWD","rate":30.508}
+00:16:12
+00:16:13  id:3
 …</code></pre>
 <div class="tablewrap"><table><thead><tr><th>欄位</th><th>瀏覽器怎麼處理（WHATWG 的規則）</th></tr></thead><tbody>
 <tr><th><code>data</code></th><td>把值加進資料緩衝區，後面補一個換行；多行 <code>data</code> 會接成一筆<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#processField" target="_blank" rel="noopener">§9.2.6</a></td></tr>
@@ -219,7 +219,7 @@ real 3.04</code></pre>
 <svg viewBox="0 0 760 392" role="img" aria-label="SSE 斷線自動重連，時間取自 2026-10-02 用 Node 內建 EventSource 實測：用戶端送 GET /rates/stream；伺服器在第 1、2、3 秒各送一筆事件，編號 1、2、3，之後結束回應。用戶端等 retry 指定的 3000 毫秒後自動重連，請求帶 Last-Event-ID: 3；伺服器從第 4 筆接著送，用戶端在 7.1 秒收到">
 <defs><marker id="rt-4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="rt-4g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker><marker id="rt-4s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--slate)"/></marker></defs><rect x="150" y="14" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="210" y="34" font-size="14" text-anchor="middle">用戶端</text><rect x="490" y="14" width="120" height="30" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="550" y="34" font-size="14" text-anchor="middle">伺服器</text><line x1="210" y1="44" x2="210" y2="380" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="550" y1="44" x2="550" y2="380" stroke="currentColor" stroke-width="1.2" stroke-opacity=".35"/><line x1="212" y1="75" x2="546" y2="87" stroke="currentColor" stroke-width="1.6" marker-end="url(#rt-4a)"/><text x="380" y="73" font-size="12.5" text-anchor="middle" class="mono">GET /rates/stream</text><line x1="548" y1="120" x2="214" y2="132" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#rt-4g)"/><text x="380" y="118" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">id:1  data:{…30.504}</text><line x1="548" y1="160" x2="214" y2="172" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#rt-4g)"/><text x="380" y="158" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">id:2  data:{…30.508}</text><line x1="548" y1="200" x2="214" y2="212" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#rt-4g)"/><text x="380" y="198" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">id:3  data:{…30.512}</text><text x="380" y="226" font-size="11.5" text-anchor="middle" opacity=".75">然後伺服器結束這個回應</text><line x1="212" y1="300" x2="546" y2="312" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#rt-4s)"/><text x="380" y="298" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">GET /rates/stream</text><text x="380" y="326" font-size="11.5" text-anchor="middle" opacity=".75">Last-Event-ID: 3（瀏覽器自動帶）</text><line x1="548" y1="350" x2="214" y2="362" stroke="var(--gold)" stroke-width="1.6" marker-end="url(#rt-4g)"/><text x="380" y="348" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">id:4  data:{…30.516}</text><text x="380" y="376" font-size="11.5" text-anchor="middle" opacity=".75">從下一筆接著送</text><text x="198" y="72" font-size="12" text-anchor="end" class="mono">0.0s</text><text x="198" y="132" font-size="12" text-anchor="end" class="mono">1.0s</text><text x="198" y="172" font-size="12" text-anchor="end" class="mono">2.0s</text><text x="198" y="212" font-size="12" text-anchor="end" class="mono">3.0s</text><text x="198" y="312" font-size="12" text-anchor="end" fill="var(--slate-deep)" class="mono">約 6s</text><text x="198" y="362" font-size="12" text-anchor="end" class="mono">7.1s</text><rect x="70" y="236" width="620" height="40" rx="6" fill="none" stroke="var(--slate)" stroke-dasharray="4 3"/><text x="380" y="261" font-size="12" text-anchor="middle" fill="var(--slate-deep)">斷線 → 等 retry 指定的 3000 毫秒 → 自動重連</text>
 </svg>
-<figcaption>斷線後等了 retry 指定的 3 秒才重連，重連的請求自動帶上最後收到的編號 3。重連後 7.1 秒才 open，是因為示範程式送第一筆前先等 1 秒，回應標頭跟著第一筆一起出去。（這一輪的匯率數字跟上面 curl 那一輪不同，是改過示範程式的算法，不影響重點。）</figcaption>
+<figcaption>斷線後等了 retry 指定的 3 秒才重連，重連的請求自動帶上最後收到的編號 3。重連後 7.1 秒才 open，是因為示範程式送第一筆前先等 1 秒，回應標頭跟著第一筆一起出去。（Node 這一輪是 2026-10-02 跑的，匯率數字跟上面 curl 那一輪相同，因為示範程式依事件編號算出匯率。）</figcaption>
 </figure>
 <p>readyState 0 是 CONNECTING：<code>EventSource</code> 斷線後不是放棄，而是回到「連線中」準備重連。WebSocket 沒有這個機制，斷了要自己寫重連，自己決定從哪裡補。</p>
 <p><strong>兩個實務限制：</strong></p>
@@ -447,23 +447,54 @@ return e;</code></pre></p>
     proxy_set_header Connection "upgrade";
     proxy_read_timeout 300s;                   # 預設 60 秒沒資料就關
 }</code></pre>
+<p>2026-10-03 用 Docker 跑官方映像檔 <code>nginx:1.29</code>（版本 1.29.8）實測，兩個位置都轉到同一個示範專案：<code>/bare/</code> 只有 <code>proxy_pass</code>，<code>/ws/</code> 補了 Upgrade 與 Connection 兩行。同一個握手請求打過去：</p>
+<pre><code>location /bare/ {
+    proxy_pass http://backend/;
+}
+location /ws/ {
+    proxy_pass http://backend/ws/;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+
+$ curl -s -i -N -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+    -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
+    http://127.0.0.1:9861/bare/ws/echo
+HTTP/1.1 400
+Server: nginx/1.29.8
+Content-Length: 34
+Connection: keep-alive
+
+Can "Upgrade" only to "WebSocket".
+
+$ curl …（同樣的標頭） http://127.0.0.1:9861/ws/echo
+HTTP/1.1 101
+Server: nginx/1.29.8
+Connection: upgrade
+Upgrade: websocket
+Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
+<p>沒補標頭的那條，400 和那句 <code>Can "Upgrade" only to "WebSocket".</code> 跟前面直接 GET 後端時一模一樣：後端只看到一個普通的 GET。用 Python websockets 走 <code>/ws/</code> 送「USD/TWD?」，收到 <code>echo: USD/TWD?</code>；走 <code>/bare/</code> 則是 <code>InvalidStatus server rejected WebSocket connection: HTTP 400</code>。</p>
 <figure>
 <svg viewBox="0 0 760 270" role="img" aria-label="Nginx 代理 WebSocket：瀏覽器送出帶 Upgrade: websocket 與 Connection: Upgrade 的請求。這兩個是逐跳標頭，Nginx 預設不會往後傳，要用 proxy_set_header 明確補上；補了，後面的 Spring Boot 回 101；沒補，Spring Boot 看不到升級要求，2026-10-02 實測回 400。另外連線閒置超過 proxy_read_timeout 預設 60 秒會被關掉，SSE 則要關掉代理緩衝">
-<defs><marker id="rt-5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="rt-5d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--danger)"/></marker></defs><rect x="20" y="60" width="150" height="120" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="84" font-size="14" text-anchor="middle">瀏覽器</text><text x="95" y="108" font-size="10.5" text-anchor="middle" class="mono">GET /ws/echo</text><text x="95" y="126" font-size="10.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">Upgrade: websocket</text><text x="95" y="144" font-size="10.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">Connection: Upgrade</text><text x="95" y="162" font-size="10.5" text-anchor="middle" class="mono">Sec-WebSocket-Key: …</text><rect x="300" y="40" width="160" height="160" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380" y="64" font-size="13" text-anchor="middle" fill="var(--slate-deep)">Nginx（反向代理）</text><text x="380" y="92" font-size="11.5" text-anchor="middle">Upgrade、Connection</text><text x="380" y="110" font-size="11.5" text-anchor="middle">是逐跳標頭，</text><text x="380" y="128" font-size="11.5" text-anchor="middle" fill="var(--danger)">預設不往後傳</text><text x="380" y="156" font-size="11" text-anchor="middle" class="mono">proxy_set_header</text><text x="380" y="172" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">明確補上才會傳</text><rect x="590" y="60" width="150" height="120" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="665" y="84" font-size="14" text-anchor="middle">Spring Boot</text><text x="665" y="112" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">有 Upgrade → 101</text><text x="665" y="134" font-size="11.5" text-anchor="middle" fill="var(--danger)">沒有 → 400</text><text x="665" y="156" font-size="10.5" text-anchor="middle" opacity=".7">（2026-10-02 實測）</text><line x1="172" y1="120" x2="296" y2="120" stroke="currentColor" stroke-width="1.5" marker-end="url(#rt-5a)"/><line x1="462" y1="100" x2="586" y2="100" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#rt-5a)"/><text x="524" y="92" font-size="11" text-anchor="middle" fill="var(--gold-deep)">有補標頭</text><line x1="462" y1="140" x2="586" y2="140" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#rt-5a)"/><text x="524" y="158" font-size="11" text-anchor="middle" fill="var(--danger)">沒補</text><text x="380" y="232" font-size="12" text-anchor="middle">另一個坑：連線閒置超過 proxy_read_timeout（預設 60 秒）會被 Nginx 關掉；用 Ping 或加長逾時</text><text x="380" y="254" font-size="12" text-anchor="middle">SSE 也走 Nginx 時，回應要能一筆一筆送出去：關掉代理緩衝（X-Accel-Buffering: no 或 proxy_buffering off）</text>
+<defs><marker id="rt-5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="rt-5d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--danger)"/></marker></defs><rect x="20" y="60" width="150" height="120" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="84" font-size="14" text-anchor="middle">瀏覽器</text><text x="95" y="108" font-size="10.5" text-anchor="middle" class="mono">GET /ws/echo</text><text x="95" y="126" font-size="10.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">Upgrade: websocket</text><text x="95" y="144" font-size="10.5" text-anchor="middle" fill="var(--gold-deep)" class="mono">Connection: Upgrade</text><text x="95" y="162" font-size="10.5" text-anchor="middle" class="mono">Sec-WebSocket-Key: …</text><rect x="300" y="40" width="160" height="160" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380" y="64" font-size="13" text-anchor="middle" fill="var(--slate-deep)">Nginx（反向代理）</text><text x="380" y="92" font-size="11.5" text-anchor="middle">Upgrade、Connection</text><text x="380" y="110" font-size="11.5" text-anchor="middle">是逐跳標頭，</text><text x="380" y="128" font-size="11.5" text-anchor="middle" fill="var(--danger)">預設不往後傳</text><text x="380" y="156" font-size="11" text-anchor="middle" class="mono">proxy_set_header</text><text x="380" y="172" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">明確補上才會傳</text><rect x="590" y="60" width="150" height="120" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="665" y="84" font-size="14" text-anchor="middle">Spring Boot</text><text x="665" y="112" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">有 Upgrade → 101</text><text x="665" y="134" font-size="11.5" text-anchor="middle" fill="var(--danger)">沒有 → 400</text><text x="665" y="156" font-size="10.5" text-anchor="middle" opacity=".7">（經 nginx 1.29.8 實測）</text><line x1="172" y1="120" x2="296" y2="120" stroke="currentColor" stroke-width="1.5" marker-end="url(#rt-5a)"/><line x1="462" y1="100" x2="586" y2="100" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#rt-5a)"/><text x="524" y="92" font-size="11" text-anchor="middle" fill="var(--gold-deep)">有補標頭</text><line x1="462" y1="140" x2="586" y2="140" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#rt-5a)"/><text x="524" y="158" font-size="11" text-anchor="middle" fill="var(--danger)">沒補</text><text x="380" y="232" font-size="12" text-anchor="middle">另一個坑：連線閒置超過 proxy_read_timeout（預設 60 秒）會被 Nginx 關掉；用 Ping 或加長逾時</text><text x="380" y="254" font-size="12" text-anchor="middle">SSE 也走 Nginx 時，回應要能一筆一筆送出去：關掉代理緩衝（X-Accel-Buffering: no 或 proxy_buffering off）</text>
 </svg>
-<figcaption>沒補標頭時，後端收到的就是一個普通的 GET。示範專案對沒有 Upgrade 的請求回 400，內文 Can "Upgrade" only to "WebSocket".（2026-10-02 用 curl 直接打後端實測；這台電腦沒有安裝 Nginx，Nginx 這一段沒有實跑。）</figcaption>
+<figcaption>Nginx 的存取日誌也記下兩種結果：<code>"GET /bare/ws/echo HTTP/1.1" 400</code> 與 <code>"GET /ws/echo HTTP/1.1" 101</code>（2026-10-03，nginx 1.29.8）。</figcaption>
 </figure>
 <p>三個設定各有出處：</p>
 <ul class="plainlist">
-<li><code>proxy_http_version</code>：nginx.org 寫「從 1.29.7 起預設用 1.1，1.29.7 以前預設用 1.0」（Since 1.29.7, version 1.1 is used by default. Before 1.29.7, version 1.0 was used by default.）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version" target="_blank" rel="noopener">ngx_http_proxy_module</a> Upgrade 是 HTTP/1.1 的機制，舊版 Nginx 一定要寫這行。</li>
+<li><code>proxy_http_version</code>：nginx.org 寫「從 1.29.7 起預設用 1.1，1.29.7 以前預設用 1.0」（Since 1.29.7, version 1.1 is used by default. Before 1.29.7, version 1.0 was used by default.）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version" target="_blank" rel="noopener">ngx_http_proxy_module</a> 用 <code>nginx:1.24</code>（1.24.0）實測沒寫這行時，Nginx 轉給上游的請求行是 <code>GET /x HTTP/1.0</code>，Upgrade 標頭照樣帶著。RFC 6455 規定握手「HTTP 版本至少要 1.1」（The method of the request MUST be GET, and the HTTP version MUST be at least 1.1.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1" target="_blank" rel="noopener">RFC 6455 第 4.1 節</a> 這次的 Tomcat 很寬鬆，照樣回了 101、訊息也收得到，但不能保證每個後端都接受。舊版 Nginx 寫上這行比較保險。</li>
 <li><code>proxy_read_timeout</code>：「被代理的伺服器在這段時間內沒有送任何東西，連線就關掉」（If the proxied server does not transmit anything within this time, the connection is closed.），預設 60 秒。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout" target="_blank" rel="noopener">ngx_http_proxy_module</a> nginx.org 也提另一個做法：讓後端定期送 Ping 訊框重設逾時（the proxied server can be configured to periodically send WebSocket ping frames to reset the timeout）。<a class="fixsrc" href="https://nginx.org/en/docs/http/websocket.html" target="_blank" rel="noopener">nginx.org〈WebSocket proxying〉</a></li>
-<li><strong>SSE 的緩衝：</strong>SSE 不用 Upgrade，但 Nginx 預設會先把上游的回應收進緩衝區（proxy_buffering 預設 on），事件可能卡住不即時。可以對這個位置設 <code>proxy_buffering off</code>，或讓後端在回應加 <code>X-Accel-Buffering: no</code>（Buffering can also be enabled or disabled by passing "yes" or "no" in the "X-Accel-Buffering" response header field.）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering" target="_blank" rel="noopener">ngx_http_proxy_module</a> 逾時同樣適用 proxy_read_timeout，定期送註解行可以撐住。</li>
+<li><strong>SSE 的緩衝：</strong>SSE 不用 Upgrade，但要能一筆一筆送出去。Nginx 預設開著代理緩衝（proxy_buffering 預設 on）。2026-10-03 用 nginx 1.29.8 實測三種位置，用 curl 記每次收到資料的時間：
+<pre><code>預設（緩衝開、沒壓縮）          00:13:08.54  00:13:09.66  00:13:10.59   三筆照樣每秒一筆
+緩衝開＋gzip（text/event-stream） 00:13:06.37                              三筆在最後一起到
+緩衝關＋gzip                      00:13:26.65  00:13:27.65  00:13:28.64   恢復每秒一筆</code></pre>
+所以這次的情況是「緩衝加上壓縮」才會整批到，單純的預設緩衝沒有卡住。保險的做法是對 SSE 的位置設 <code>proxy_buffering off</code>，或讓後端在回應加 <code>X-Accel-Buffering: no</code>（Buffering can also be enabled or disabled by passing “yes” or “no” in the “X-Accel-Buffering” response header field.）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering" target="_blank" rel="noopener">ngx_http_proxy_module</a> 逾時同樣適用 proxy_read_timeout，定期送註解行可以撐住。</li>
 </ul>
 <p>Nginx 之外，公司網路與網際網路上的代理也可能擋 WebSocket。Spring 文件提醒，網際網路上你管不到的嚴格代理可能「沒設定轉送 Upgrade 標頭，或把看起來閒置的長連線關掉」（either because they are not configured to pass on the Upgrade header or because they close long-lived connections that appear idle.），所以防火牆內的內部系統用 WebSocket 比較單純。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a> Spring 為此提供 SockJS 備援：「先試 WebSocket，不行就退回用 HTTP 技術模擬」（attempting to use WebSocket first and then falling back on HTTP-based techniques that emulate a WebSocket interaction）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/fallback.html" target="_blank" rel="noopener">Spring Framework 7.0 SockJS 備援</a></p>
 <div class="drill">
   <p class="dq">前端連 <code>wss://bank.example/ws/</code>，經過 Nginx 到後端 Spring Boot。Nginx 只有 <code>proxy_pass</code>，沒補任何標頭。最可能的結果是？</p>
   <ul class="dopts"><li data-ok>握手失敗</li><li>正常，Nginx 會自動處理升級</li><li>回 101，但之後收不到訊息</li><li>Nginx 自動改用 SSE</li></ul>
-  <p class="dexp">Upgrade 與 Connection 是逐跳標頭，不會自動傳給後端。後端看到的是普通 GET，示範專案對這種請求回 400。</p>
+  <p class="dexp">Upgrade 與 Connection 是逐跳標頭，不會自動傳給後端。2026-10-03 用 nginx 1.29.8 實測，只有 proxy_pass 的位置回 400，補了兩個標頭的位置回 101。</p>
 </div>
 <div class="drill">
   <p class="dq">要讓 Nginx 正確代理 WebSocket，location 裡最關鍵的兩行是？</p>
@@ -478,12 +509,12 @@ return e;</code></pre></p>
 <div class="drill">
   <p class="dq">SSE 經過 Nginx 後，事件不是每秒一筆，而是好幾筆一起「一坨」到。最該先檢查什麼？</p>
   <ul class="dopts"><li>是不是漏了 Upgrade 與 Connection 標頭</li><li data-ok>Nginx 的代理緩衝</li><li>瀏覽器的 retry 設定</li><li>Last-Event-ID 有沒有帶</li></ul>
-  <p class="dexp">Nginx 預設會先把上游回應收進緩衝區再送，SSE 一筆一筆的效果就沒了。SSE 是普通 HTTP，不需要 Upgrade；retry 與 Last-Event-ID 管的是重連。</p>
+  <p class="dexp">實測 nginx 1.29.8：代理緩衝開著、又對 text/event-stream 開 gzip 時，三筆在最後一起到；關掉 proxy_buffering 就恢復每秒一筆。SSE 是普通 HTTP，不需要 Upgrade；retry 與 Last-Event-ID 管的是重連。</p>
 </div>
 <div class="drill">
   <p class="dq">公司用的是 Nginx 1.24。WebSocket 的 location 沒寫 <code>proxy_http_version 1.1</code>。會怎樣？</p>
   <ul class="dopts"><li>沒差，Nginx 一直都預設 1.1</li><li>Nginx 會自動改用 HTTP/2 對上游說話</li><li data-ok>可能失敗，舊版預設 1.0</li><li>只影響 SSE，不影響 WebSocket</li></ul>
-  <p class="dexp">nginx.org：Before 1.29.7, version 1.0 was used by default。舊版要明寫 proxy_http_version 1.1，新版不寫也是 1.1。</p>
+  <p class="dexp">nginx.org：Before 1.29.7, version 1.0 was used by default。實測 nginx 1.24.0 沒寫時，送給上游的是 HTTP/1.0 的請求；RFC 6455 要求握手至少 HTTP/1.1。這次的 Tomcat 照樣接受，但換一個嚴格的後端就可能失敗。</p>
 </div>
 <div class="drill">
   <p class="dq">網銀的對外 App 要做即時通知，但有些客戶在管得很嚴的公司網路裡，WebSocket 常連不上。Spring 生態裡的對策是？</p>
