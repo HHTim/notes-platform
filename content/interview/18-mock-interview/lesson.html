@@ -275,7 +275,7 @@
     <h3 class="head">資料庫與快取</h3>
 
     <p class="q">第 25 題　面試官：複合索引 (a, b, c)，哪些查詢用得到？</p>
-    <p><strong>30 秒版：</strong>條件要從最左欄開始、連續往右：a、a 加 b、a 加 b 加 c 可以；a 加 c 只用到 a；b、b 加 c 用不到。二級索引查到主鍵後再回叢集索引拿整列，叫回表。</p>
+    <p><strong>30 秒版：</strong>條件要從最左欄開始、連續往右：a、a 加 b、a 加 b 加 c 可以；a 加 c 只用到 a；b、b 加 c 用不到（例外：只選索引欄位時，MySQL 8.0.13 起可能用跳躍掃描，見〈索引是怎麼運作的〉）。二級索引查到主鍵後再回叢集索引拿整列，叫回表。</p>
     <p><strong>追問一：哪些寫法讓索引用不上？</strong>要補的點：欄位套函式（<code>YEAR(created_at)</code>）、字串欄位跟數字比、<code>LIKE '%0123'</code>、OR 混到沒索引的欄位。</p>
     <p><strong>追問二：怎麼省掉回表？</strong>要補的點：覆蓋索引，要的欄位全在索引裡；EXPLAIN 的 Extra 出現 <code>Using index</code>。</p>
     <p class="muted">指路：資料庫模組〈索引是怎麼運作的〉；面試課〈資料庫面試題：索引、交易隔離與鎖〉。</p>
@@ -323,9 +323,9 @@
     <p class="muted">指路：面試課〈資料庫面試題：複寫、分片與 CAP〉。</p>
 
     <div class="drill">
-      <p class="dq">候選人答：「(a, b, c) 索引，<code>WHERE b = 2 AND c = 3</code> 用得到，欄位都在索引裡。」哪裡不對？</p>
-      <ul class="dopts"><li>要加 LIMIT 才用得到</li><li>條件寫成 c、b 的順序就用得到</li><li data-ok>條件沒從最左欄 a 開始用起</li><li>a 不在條件裡也行，只是比較慢</li></ul>
-      <p class="dexp">索引照 a、b、c 排，少了 a 就沒辦法定位。條件的書寫順序不影響。</p>
+      <p class="dq">候選人答：「(a, b, c) 索引，<code>SELECT * … WHERE b = 2 AND c = 3</code> 照樣能用索引定位，欄位都在索引裡。」哪裡不對？</p>
+      <ul class="dopts"><li>要加 LIMIT 才用得到</li><li>條件寫成 c、b 的順序就用得到</li><li data-ok>條件沒從最左欄 a 開始用起</li><li>只要 b、c 選擇性夠高就能定位</li></ul>
+      <p class="dexp">索引照 a、b、c 排，少了 a 就沒辦法定位。條件的書寫順序不影響。MySQL 8.0.13 起的跳躍掃描（skip scan）只在查詢只用到索引欄位時才可能派上用場，<code>SELECT *</code> 用不到，見〈索引是怎麼運作的〉。</p>
     </div>
     <div class="drill">
       <p class="dq">候選人答：「MySQL 預設 READ COMMITTED，所以報表可能前後對不上。」哪裡不對？</p>
