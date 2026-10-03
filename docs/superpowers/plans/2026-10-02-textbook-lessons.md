@@ -44,7 +44,7 @@
 | `k8s/23-service-mesh-serverless` | Service Mesh 與 Serverless：什麼時候值得用 | ✅ `45378e2`（45 題、5 圖、30 網址；kind＋Istio 1.31.1 實跑） | ✅ 10-03 審完：第一段 YAML 被截斷、正解太常最短；清單 `.superpowers/audit/k8s/findings-23.md`；修正交給 `fix-db08` | 修正 `d43a257`（4 條全改）；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | ✅ `d631eeb`（42 題、4 圖、12 網址；Batch 6.0.5、MySQL 8.4 四次執行實跑） | ✅ 10-03 審完：可上線，7 條順手修（結束代碼 5 的來源、兩處補出處、行／筆、選項長度）；清單 `.superpowers/audit/spring/findings-23.md`；交回 `write-algo-c` | 修正 `8c2501c`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | ✅ `12c638f`（48 題、3 圖、20 出處） | ✅ 10-03 審完：測驗角括號沒跳脫（註冊後測試會失敗）等 5 處小修，主控直接改 | — | ✅ 10-03 上線 | | | |
-| `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | ✅ `fcc43e1`（40 題追問鏈、15 題銀行情境、32 題練習） | ✅ 10-03 審完：技術說法都一致；課中練習補成四選一、熔斷改斷路器；清單 `.superpowers/audit/interview/findings-18.md`；修正交回 `write-algo-d` | 修正 `6c9ef61`（四選一、位置各 8 題）；範圍複審中 | | | |
+| `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | ✅ `fcc43e1`（40 題追問鏈、15 題銀行情境、32 題練習） | ✅ 10-03 審完：技術說法都一致；課中練習補成四選一、熔斷改斷路器；清單 `.superpowers/audit/interview/findings-18.md`；修正交回 `write-algo-d` | 修正 `6c9ef61`（四選一、位置各 8 題）；範圍複審 ✅（跳躍掃描兩處主控改） | ✅ 10-03 上線 | | | |
 | `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | ✅ `007996f`＋`11c870a`（39 題、2 圖、21 出處；MySQL 8.4 實跑死結對照；圖 id xfer-） | ✅ 10-03 審完：冪等鍵失敗結果講法跟 API 設計課相反沒點出、帳號權限說太寬、削峰／熔斷／寫入分片用詞；清單 `.superpowers/audit/interview/findings-19.md`；修正交給 `fix-algo-0910` | 修正 `419aead`（8 條全改）；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `algo/15-greedy-intervals` | 貪婪演算法與區間題 | 撰寫中（`fix-algo-1112`） | | | |
 | `english/21-english-interview` | 英文面試：自我介紹、講專案與常見問答 | 撰寫中（`write-algo-a`） | | | |
