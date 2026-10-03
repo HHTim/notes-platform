@@ -48,6 +48,7 @@
 | `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | ✅ `007996f`＋`11c870a`（39 題、2 圖、21 出處；MySQL 8.4 實跑死結對照；圖 id xfer-） | ✅ 10-03 審完：冪等鍵失敗結果講法跟 API 設計課相反沒點出、帳號權限說太寬、削峰／熔斷／寫入分片用詞；清單 `.superpowers/audit/interview/findings-19.md`；修正交給 `fix-algo-0910` | 修正 `419aead`（8 條全改）；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `algo/15-greedy-intervals` | 貪婪演算法與區間題 | 撰寫中（`fix-algo-1112`） | | | |
 | `english/21-english-interview` | 英文面試：自我介紹、講專案與常見問答 | 撰寫中（`write-algo-a`） | | | |
+| `interview/20-handwritten-coding` | 手寫程式題：LRU 快取、阻塞佇列、執行緒安全單例與生產者消費者 | 撰寫中（`write-algo-d`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 
 **主控決定（10-02）：Spring 模組新課一律以 Spring Boot 4.1.x（Framework 7.0.x、Hibernate 7.x、Security 7.x）、Java 21 實跑**——第 13、14 課先用了 4.1.1，其他課跟進；套件還不支援 Boot 4 的在課文註明。
