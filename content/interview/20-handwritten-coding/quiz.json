@@ -1,0 +1,54 @@
+{
+ "questions": [
+  {
+   "q": "用 LinkedHashMap 做 LRU 快取，要做哪兩件事？",
+   "opts": ["建構子第三個參數給 true，覆寫 removeEldestEntry", "覆寫 get 與 put，自己維護一份時間戳記", "改用 TreeMap，以最後使用時間當鍵", "用 Collections.synchronizedMap 包起來就好"],
+   "exp": "accessOrder 為 true 讓順序變成最近存取；removeEldestEntry 在 put 之後被呼叫，回傳 true 就刪最舊的。"
+  },
+  {
+   "q": "手寫 LRU（HashMap 加雙向串列），get 命中後要做什麼？",
+   "opts": ["把節點移到串列尾巴", "把節點從串列裡刪掉", "把節點移到串列的頭", "什麼都不用做"],
+   "exp": "尾巴放最近用過的，頭放最久沒用的；get 也算用過，要搬到尾巴。"
+  },
+  {
+   "q": "有界佇列的 wait 為什麼要包在 while 裡？",
+   "opts": ["醒來時條件可能被搶走，規格也允許虛假喚醒", "只是為了效能，用 if 也一樣正確", "Java 語法規定 wait 只能寫在 while 裡", "while 會自動幫你呼叫 notifyAll"],
+   "exp": "實跑 if 版：消費者丟 NoSuchElementException、佇列超過容量。虛假喚醒是 Object.wait 與 JLS 17.2.1 的說法。"
+  },
+  {
+   "q": "synchronized 版有界佇列用 notify 而不是 notifyAll，風險是？",
+   "opts": ["可能叫醒同一種角色，全部卡住", "丟出 IllegalMonitorStateException", "只會變慢，結果一樣正確", "消費者會拿到重複的元素"],
+   "exp": "生產者與消費者等在同一個集合；實跑容量 1、4 對 4，五次都卡住，8 條執行緒停在 WAITING。"
+  },
+  {
+   "q": "雙重檢查拿掉 volatile，問題在哪？",
+   "opts": ["別的執行緒可能拿到沒建完的物件", "一定會建出兩個不同的實體", "javac 會直接編譯失敗", "沒有問題，synchronized 已經夠了"],
+   "exp": "沒有 volatile 就沒有寫入對讀取的 happens-before；這是規格層面的問題，本機跑不出來。"
+  },
+  {
+   "q": "哪一種單例寫法能擋住用反射建出第二個實體？",
+   "opts": ["enum 寫法", "靜態內部類別", "雙重檢查加 volatile", "一開始就建好的靜態欄位"],
+   "exp": "JLS 8.9 禁止反射建立 enum 實體，實跑丟 IllegalArgumentException；其他三種的私有建構子都能被反射叫出來。"
+  },
+  {
+   "q": "BlockingQueue 有 3 個消費者，生產者做完要怎麼讓它們都結束？",
+   "opts": ["放 3 個結束物件，一個消費者一個", "放一個 null 進佇列當作信號", "呼叫 queue.clear() 清空佇列", "等佇列空了，消費者自己會結束"],
+   "exp": "BlockingQueue 不收 null，也沒有 close；只放一個時，實跑另外 2 個消費者卡在 take。"
+  },
+  {
+   "q": "令牌桶閒置很久之後，最多能一次放行幾個？",
+   "opts": ["桶的容量", "每秒補充的數量", "沒有上限", "0 個"],
+   "exp": "補代幣時跟容量取 Math.min，閒置再久也只累積到容量。"
+  },
+  {
+   "q": "令牌桶的 tryAcquire 沒加 synchronized，多執行緒下會怎樣？",
+   "opts": ["放行的數量超過桶裡的代幣", "放行的數量少於桶裡的代幣", "所有執行緒都卡住", "結果完全正確"],
+   "exp": "檢查與減一是兩步。實跑 8 條執行緒搶 100 個代幣，三輪放行 101、103、102 個。"
+  },
+  {
+   "q": "兩數之和的雜湊表解法，為什麼要先查補數、再把自己放進去？",
+   "opts": ["避免元素跟自己配對", "避免 HashMap 擴容", "讓答案的索引照大小排好", "避免雜湊碰撞"],
+   "exp": "先放再查，目標 6 遇到 3 時會查到自己；實跑 {3, 2, 4} 回傳 [0, 0]。"
+  }
+ ]
+}

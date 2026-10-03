@@ -1,0 +1,664 @@
+<!-- 來源：依 Java SE 25 API 文件（LinkedHashMap、Object.wait／notifyAll、Condition、BlockingQueue、ArrayBlockingQueue）、Java 語言規格 SE 25 第 8.9、12.4.1、17.2.1、17.4.5 節、普林斯頓《Algorithms》1.3 節新寫；程式碼全部自編，以 Java 21 編譯執行，多執行緒的正確版與錯誤版都實跑過 · 收錄日期：2026-10-03 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>手寫兩種 LRU 快取：<code>LinkedHashMap</code> 存取順序版，與雜湊表加雙向鏈結串列版</li><li>手寫有界阻塞佇列的 <code>synchronized</code> 版與 <code>ReentrantLock</code> 加兩個 <code>Condition</code> 版，說得出 <code>while</code> 為什麼不能寫成 <code>if</code></li><li>寫出三種執行緒安全的單例、用 <code>BlockingQueue</code> 寫生產者消費者、寫一個令牌桶限流器</li><li>暖身題反轉串列與兩數之和寫得出來，也認得出常見的寫錯版本</li></ul></div>
+<section>
+    <p class="era">先講規則</p>
+    <h3 class="head">手寫題，面試官在看什麼</h3>
+    <p>白板或線上編輯器手寫，面試官看三件事：題目先問清楚再動手、程式寫得出來而且邊界對、寫完自己拿小例子跑一遍。這就是〈面試解題流程與題型對照〉那六步（問清楚、暴力解、找瓶頸、寫程式、自己跑、講複雜度），這課不重講，只把一面常見的六題寫完。</p>
+    <p>每題的形狀一樣：題目、面試官要看什麼、完整程式（Java 21 實際編譯執行，輸出照貼）、常見寫錯的版本與實跑出來的現象、追問。多執行緒的錯誤版本，能用測試重現的都重現了；重現不了的會寫明「這是規格的說法」。</p>
+    <p class="formula">先問清楚 → 寫正確版 → 自己跑邊界 → 說出寫錯會怎樣</p>
+</section>
+<section>
+    <p class="era">第一題</p>
+    <h3 class="head">LRU 快取</h3>
+    <p><strong>題目：</strong>做一個容量固定的快取，<code>get</code> 與 <code>put</code> 都要平均 O(1)；滿了就丟掉最久沒用的那一個。LRU 是 least recently used，「最久沒用的先丟」。</p>
+    <p><strong>面試官要看：</strong>先問「可以用 <code>LinkedHashMap</code> 嗎」。可以的話十行寫完；不可以的話，要寫得出它內部的做法：雜湊表負責 O(1) 找到節點，雙向鏈結串列負責 O(1) 把用過的節點移到尾巴、從頭刪掉最舊的。</p>
+    <p><strong>版本一：LinkedHashMap。</strong>它有一個建構子 <code>LinkedHashMap(int initialCapacity, float loadFactor, boolean accessOrder)</code>，第三個參數給 <code>true</code>，走訪順序就變成「從最久沒存取到最近存取」，文件說這種 Map「很適合拿來做 LRU 快取」（This kind of map is well-suited to building LRU caches）。再覆寫 <code>removeEldestEntry</code>：它「由 put 與 putAll 在插入新項目之後呼叫」（This method is invoked by put and putAll after inserting a new entry into the map），回傳 true 就刪掉最舊的。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html" target="_blank" rel="noopener">出處</a></p>
+    <pre><code>import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class LruCache&lt;K, V&gt; extends LinkedHashMap&lt;K, V&gt; {
+    private final int capacity;
+
+    public LruCache(int capacity) {
+        super(16, 0.75f, true);              // 第三個參數 true：照「最近存取」排序
+        this.capacity = capacity;
+    }
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry&lt;K, V&gt; eldest) {
+        return size() &gt; capacity;            // put 之後才問：超過容量就丟最舊的
+    }
+
+    public static void main(String[] args) {
+        LruCache&lt;String, Integer&gt; cache = new LruCache&lt;&gt;(3);
+        cache.put("A", 1);
+        cache.put("B", 2);
+        cache.put("C", 3);
+        cache.get("A");                      // A 變成最近用過
+        cache.put("D", 4);                   // 超過 3 個，丟掉最久沒用的 B
+        System.out.println(cache.keySet());
+    }
+}</code></pre>
+    <pre><code>[C, A, D]</code></pre>
+    <p><strong>版本二：雜湊表加雙向鏈結串列。</strong>頭尾各放一個不存資料的虛擬節點，搬移與刪除就不必處理「剛好是頭」或「剛好是尾」，這招在〈鏈結串列〉講過。</p>
+<figure>
+<svg viewBox="0 0 560 150" role="img" aria-label="LRU 的雙向串列：虛擬頭 head 的下一個是最久沒用的節點 2，滿了先丟它；虛擬尾 tail 的前一個是最近用過的節點 1；雜湊表的值直接指向節點">
+  <defs><marker id="hw-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+  <g font-size="14" text-anchor="middle" fill="currentColor">
+    <rect x="10" y="80" width="80" height="40" rx="6" fill="none" stroke="#5E7A9B" stroke-dasharray="4 3"/><text x="50" y="105">head</text>
+    <rect x="150" y="80" width="80" height="40" rx="6" fill="none" stroke="#B5730F" stroke-width="2"/><text x="190" y="105">2</text>
+    <rect x="290" y="80" width="80" height="40" rx="6" fill="none" stroke="#5E7A9B"/><text x="330" y="105">1</text>
+    <rect x="430" y="80" width="80" height="40" rx="6" fill="none" stroke="#5E7A9B" stroke-dasharray="4 3"/><text x="470" y="105">tail</text>
+    <g stroke="currentColor" fill="none" marker-end="url(#hw-a1)">
+      <path d="M90 93 L148 93"/><path d="M150 107 L92 107"/>
+      <path d="M230 93 L288 93"/><path d="M290 107 L232 107"/>
+      <path d="M370 93 L428 93"/><path d="M430 107 L372 107"/>
+      <path d="M190 40 L190 76"/><path d="M330 40 L330 76"/>
+    </g>
+    <text x="190" y="30" fill="#B5730F">最久沒用：滿了先丟</text>
+    <text x="330" y="30">最近用過</text>
+    <text x="280" y="143" font-size="12">HashMap：鍵 → 節點，找到後直接改前後指標</text>
+  </g>
+</svg>
+<figcaption>容量 2，依序放 1、2，再讀 1：1 被移到 tail 前面，head 後面是最久沒用的 2，下一次放新的就丟它。每一步只改幾個指標，O(1)。</figcaption>
+</figure>
+    <pre><code>import java.util.HashMap;
+import java.util.Map;
+
+public class LruManual {
+    private static final class Node {
+        int key, value;
+        Node prev, next;
+        Node(int key, int value) { this.key = key; this.value = value; }
+    }
+
+    private final int capacity;
+    private final Map&lt;Integer, Node&gt; map = new HashMap&lt;&gt;();
+    private final Node head = new Node(0, 0);   // 虛擬頭：head.next 是最久沒用的
+    private final Node tail = new Node(0, 0);   // 虛擬尾：tail.prev 是最近用過的
+
+    public LruManual(int capacity) {
+        this.capacity = capacity;
+        head.next = tail;
+        tail.prev = head;
+    }
+
+    public int get(int key) {
+        Node node = map.get(key);
+        if (node == null) return -1;
+        unlink(node);
+        addLast(node);                          // 用過就移到最後面
+        return node.value;
+    }
+
+    public void put(int key, int value) {
+        Node node = map.get(key);
+        if (node != null) {                     // 已經有：改值、移到最後
+            node.value = value;
+            unlink(node);
+            addLast(node);
+            return;
+        }
+        if (map.size() == capacity) {           // 滿了：丟掉最前面那個
+            Node eldest = head.next;
+            unlink(eldest);
+            map.remove(eldest.key);             // 串列和 map 要一起刪，所以節點要存 key
+        }
+        node = new Node(key, value);
+        addLast(node);
+        map.put(key, node);
+    }
+
+    private void unlink(Node node) {
+        node.prev.next = node.next;
+        node.next.prev = node.prev;
+    }
+
+    private void addLast(Node node) {
+        node.prev = tail.prev;
+        node.next = tail;
+        tail.prev.next = node;
+        tail.prev = node;
+    }
+
+    public static void main(String[] args) {
+        LruManual cache = new LruManual(2);
+        cache.put(1, 10);
+        cache.put(2, 20);
+        cache.get(1);                 // 1 變成最近用過
+        cache.put(3, 30);             // 滿了，丟掉最久沒用的 2
+        System.out.println(cache.get(2) + " " + cache.get(1) + " " + cache.get(3));
+    }
+}</code></pre>
+    <pre><code>-1 10 30</code></pre>
+    <p><strong>常見寫錯：</strong></p>
+    <ul class="plainlist">
+      <li><b>忘了 accessOrder = true。</b>用預設建構子，順序是放入順序，<code>get</code> 不會改順序。同樣放 A、B、C、讀 A、放 D，實跑印出 <code>[B, C, D]</code>：剛用過的 A 被丟了，變成「先進先出」快取。</li>
+      <li><b>淘汰時只刪串列、忘了刪 map。</b>把 <code>map.remove(eldest.key)</code> 拿掉再跑：<code>get(2)</code> 拿到已經淘汰的舊值 20，而且那個節點又被接回串列，容量 2 的快取裡變成 3 個。節點要存 key，就是為了淘汰時能回頭刪 map。</li>
+      <li><b>更新已存在的鍵時又 new 一個節點。</b>舊節點留在串列裡，跟上一條是同一種壞法；要改值、再移到尾巴。</li>
+    </ul>
+    <p><strong>追問：</strong></p>
+    <ul class="plainlist">
+      <li><b>多執行緒能直接用嗎？</b>不能。文件寫 <code>LinkedHashMap</code>「不是同步的」，而且存取順序模式下「光是用 get 查詢就是結構修改」（In access-ordered linked hash maps, merely querying the map with get is a structural modification）。連讀取都會改串列，最簡單的做法是 <code>get</code>、<code>put</code> 都包在同一把鎖裡。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html" target="_blank" rel="noopener">出處</a></li>
+      <li><b>為什麼不用 ArrayList 記順序？</b>把用過的移到最後是 O(n)；雙向串列拿到節點之後是 O(1)。</li>
+    </ul>
+<div class="drill">
+  <p class="dq"><code>new LinkedHashMap&lt;&gt;(16, 0.75f, true)</code> 的第三個參數 <code>true</code> 做什麼？</p>
+  <ul class="dopts"><li>讓這個 Map 變成執行緒安全</li><li data-ok>走訪順序改成照最近存取排列</li><li>走訪順序改成照鍵的大小排列</li><li>允許鍵與值放 null</li></ul>
+  <p class="dexp">accessOrder 為 true 時，順序是從最久沒存取到最近存取，文件說這種 Map 很適合做 LRU 快取。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>removeEldestEntry</code> 什麼時候被呼叫？</p>
+  <ul class="dopts"><li>背景執行緒定期呼叫</li><li data-ok>put 插入之後</li><li>建構子裡只呼叫一次</li><li>每一次呼叫 get 之後</li></ul>
+  <p class="dexp">文件：This method is invoked by put and putAll after inserting a new entry into the map。所以判斷寫 size() &gt; capacity。</p>
+</div>
+<div class="drill">
+  <p class="dq">用預設建構子（沒給 <code>true</code>）、覆寫 <code>removeEldestEntry</code> 限制 3 個。放 A、B、C，讀 A，放 D。<code>keySet()</code> 印出什麼？</p>
+  <ul class="dopts"><li>[A, B, C]</li><li>[A, C, D]</li><li>[C, A, D]</li><li data-ok>[B, C, D]</li></ul>
+  <p class="dexp">預設是放入順序，get 不改順序，最舊的是 A，所以 A 被丟掉。實跑就是 [B, C, D]，變成先進先出。</p>
+</div>
+<div class="drill">
+  <p class="dq">手寫 LRU 的節點為什麼要存 key，不能只存 value？</p>
+  <ul class="dopts"><li>比較兩個節點時要用 key</li><li>串列要依 key 排序</li><li>HashMap 規定節點要有 key</li><li data-ok>淘汰時要拿 key 回頭刪 map</li></ul>
+  <p class="dexp">淘汰是從串列頭拿到節點，要同時刪掉 map 裡那一筆，就得知道它的 key。</p>
+</div>
+<div class="drill">
+  <p class="dq">手寫 LRU 頭尾各放一個虛擬節點，好處是什麼？</p>
+  <ul class="dopts"><li>整個快取少用一半記憶體</li><li>get 可以從 O(n) 變成 O(1)</li><li>map 不必再存節點的參考</li><li data-ok>搬移與刪除不必特別處理頭尾</li></ul>
+  <p class="dexp">每個真節點都有 prev 和 next，unlink 與 addLast 兩個方法就沒有例外情況。O(1) 是靠 map 直接拿到節點。</p>
+</div>
+<div class="drill">
+  <p class="dq">手寫 LRU 淘汰時忘了 <code>map.remove(eldest.key)</code>，實跑出現什麼？</p>
+  <ul class="dopts"><li>沒有影響，結果完全一樣</li><li data-ok>讀得到已淘汰的舊值，快取超過容量</li><li>編譯失敗，提示少了一行</li><li>第一次淘汰時就丟出 NullPointerException</li></ul>
+  <p class="dexp">容量 2 的快取，get(2) 拿到已淘汰的 20，節點又被接回串列，裡面變成 3 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">存取順序的 <code>LinkedHashMap</code>，多條執行緒只呼叫 <code>get</code>，安全嗎？</p>
+  <ul class="dopts"><li data-ok>不安全，get 也會改串列</li><li>容量小於 16 時才安全</li><li>安全，LinkedHashMap 有同步</li><li>安全，只讀不寫就沒問題</li></ul>
+  <p class="dexp">文件：在存取順序模式下，光是用 get 查詢就是結構修改。要包在同一把鎖裡。</p>
+</div>
+    <p class="muted">指路：〈雜湊表：HashMap 怎麼做到幾乎一步找到〉〈鏈結串列〉。</p>
+</section>
+<section>
+    <p class="era">第二題</p>
+    <h3 class="head">有界阻塞佇列</h3>
+    <p><strong>題目：</strong>寫一個容量固定的佇列：滿了 <code>put</code> 要等，空了 <code>take</code> 要等。不准用 <code>java.util.concurrent</code> 現成的佇列。</p>
+    <p><strong>面試官要看：</strong>等待條件用 <code>while</code> 包住、叫醒的方式選對、鎖一定會釋放。這題就是 <code>ArrayBlockingQueue</code> 的縮小版，它的文件自稱「經典的有界緩衝」（a classic "bounded buffer"）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ArrayBlockingQueue.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>版本一：synchronized 加 wait／notifyAll。</strong><code>wait()</code> 會放掉這個物件的鎖、進入等待集合；被叫醒後要重新搶到鎖才回來。生產者與消費者等在同一個等待集合，所以用 <code>notifyAll</code>。</p>
+    <pre><code>import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class SyncBuffer&lt;E&gt; {
+    private final Deque&lt;E&gt; items = new ArrayDeque&lt;&gt;();
+    private final int capacity;
+
+    public SyncBuffer(int capacity) { this.capacity = capacity; }
+
+    public synchronized void put(E e) throws InterruptedException {
+        while (items.size() == capacity) {   // 醒來要再檢查一次，所以是 while
+            wait();                          // 放掉鎖、進等待集合
+        }
+        items.addLast(e);
+        notifyAll();                         // 叫醒所有在等的（生產者和消費者都在同一個集合）
+    }
+
+    public synchronized E take() throws InterruptedException {
+        while (items.isEmpty()) {
+            wait();
+        }
+        E e = items.removeFirst();
+        notifyAll();
+        return e;
+    }
+}</code></pre>
+    <p><strong>版本二：ReentrantLock 加兩個 Condition。</strong>這是 <code>Condition</code> 文件自己舉的例子：希望把等著 put 與等著 take 的執行緒「放在不同的等待集合」，這樣有東西或有空位時「一次只叫醒一條」（We would like to keep waiting put threads and take threads in separate wait-sets so that we can use the optimization of only notifying a single thread at a time）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/locks/Condition.html" target="_blank" rel="noopener">出處</a></p>
+    <pre><code>import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class LockBuffer&lt;E&gt; {
+    private final Object[] items;
+    private int putIndex, takeIndex, count;
+    private final Lock lock = new ReentrantLock();
+    private final Condition notFull = lock.newCondition();    // 生產者在這裡等
+    private final Condition notEmpty = lock.newCondition();   // 消費者在這裡等
+
+    public LockBuffer(int capacity) { items = new Object[capacity]; }
+
+    public void put(E e) throws InterruptedException {
+        lock.lock();
+        try {
+            while (count == items.length) notFull.await();
+            items[putIndex] = e;
+            putIndex = (putIndex + 1) % items.length;           // 環狀陣列
+            count++;
+            notEmpty.signal();                                  // 只叫醒一個消費者
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public E take() throws InterruptedException {
+        lock.lock();
+        try {
+            while (count == 0) notEmpty.await();
+            E e = (E) items[takeIndex];
+            items[takeIndex] = null;                            // 不留參考，讓 GC 收得掉
+            takeIndex = (takeIndex + 1) % items.length;
+            count--;
+            notFull.signal();                                   // 只叫醒一個生產者
+            return e;
+        } finally {
+            lock.unlock();
+        }
+    }
+}</code></pre>
+    <p>測試：容量 8，4 個生產者各放 1 到 50,000，4 個消費者各取 50,000 個，把取到的值加總，跟應有的總和比。</p>
+    <pre><code>synchronized 版：總和 5000100000，應該是 5000100000
+ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
+    <p><strong>為什麼 while 不能寫成 if：</strong>醒來不代表條件成立，有兩個原因。</p>
+    <ul class="plainlist">
+      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，跑三次都壞：消費者丟 <code>NoSuchElementException</code>（每次 20〜53 次），生產者也不再檢查容量，容量 1 的佇列曾經塞到 9,490〜29,841 個。</li>
+      <li><b>虛假喚醒（規格的說法，沒有重現）。</b><code>Object.wait</code> 的文件：執行緒可能「沒被叫醒、沒被中斷、也沒逾時就醒來，這叫 spurious wakeup」，雖然實務上很少發生，應用程式「必須測試應該讓它醒來的條件，不成立就繼續等」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#wait(long,int)" target="_blank" rel="noopener">出處</a> JLS 17.2.1 也說這條規定讓 Java 的寫法必須「只在迴圈裡用 wait」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.2.1" target="_blank" rel="noopener">出處</a> 這種情況沒辦法刻意製造，本機也沒跑出來。</li>
+    </ul>
+    <p><strong>另一個常見寫錯：版本一用 notify。</strong>把 <code>notifyAll</code> 換成 <code>notify</code>，同一個等待集合裡有生產者也有消費者，只叫醒一個，可能叫到同一種角色，大家就一起睡著。容量 1、4 對 4、各 100,000 個，跑五次全部卡住：3 秒後只取走 3〜9 個，8 條執行緒都停在 WAITING。版本二可以用 <code>signal</code>，因為兩種角色分開等，叫醒的一定是對的那種。</p>
+    <p><strong>追問：</strong></p>
+    <ul class="plainlist">
+      <li><b>在 synchronized 外面呼叫 wait 會怎樣？</b>丟 <code>IllegalMonitorStateException</code>：文件規定呼叫者必須持有這個物件的監視器（monitor，<code>synchronized</code> 拿到的那把鎖）。</li>
+      <li><b>unlock 為什麼放 finally？</b><code>await</code> 可能丟 <code>InterruptedException</code>，不放 finally 鎖就永遠不還。</li>
+      <li><b>實務上會自己寫嗎？</b>不會，直接用 <code>ArrayBlockingQueue</code>，就是第四題。</li>
+    </ul>
+<div class="drill">
+  <p class="dq">執行緒在 <code>synchronized</code> 區塊裡呼叫 <code>wait()</code>，鎖會怎樣？</p>
+  <ul class="dopts"><li data-ok>放掉這個物件的鎖，醒來要重新搶</li><li>繼續握著鎖，直到被叫醒為止</li><li>直接交給呼叫 notify 的那條執行緒</li><li>放掉手上所有物件的鎖</li></ul>
+  <p class="dexp">wait 放掉的是這個物件的監視器，被叫醒後要重新取得鎖才會從 wait 回來。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>SyncBuffer</code> 的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，實跑結果？</p>
+  <ul class="dopts"><li data-ok>消費者丟例外，佇列也超過容量</li><li>第一次 put 就死結</li><li>編譯錯誤，wait 只能放在 while 裡</li><li>完全正常，只是比較慢一點</li></ul>
+  <p class="dexp">notifyAll 叫醒好幾個消費者，搶輸的那個醒來不再檢查，從空佇列拿就丟 NoSuchElementException；生產者也一樣不再檢查容量。</p>
+</div>
+<div class="drill">
+  <p class="dq">「虛假喚醒」這個理由，本課怎麼處理？</p>
+  <ul class="dopts"><li data-ok>規格允許，沒重現，照規格寫迴圈</li><li>只有 Condition 會，wait 不會</li><li>實跑重現了，每次都會發生</li><li>Java 21 起已經不會發生</li></ul>
+  <p class="dexp">Object.wait 與 JLS 17.2.1 都說可能沒被叫醒就醒來；沒辦法刻意製造，所以照規格一律用 while。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>SyncBuffer</code> 把 <code>notifyAll</code> 換成 <code>notify</code>，容量 1、4 對 4，實跑結果？</p>
+  <ul class="dopts"><li>消費者偶爾拿到 null</li><li>正常跑完，只是比較慢</li><li data-ok>8 條執行緒全部停在 WAITING</li><li>丟出 IllegalMonitorStateException</li></ul>
+  <p class="dexp">生產者與消費者等在同一個集合，只叫醒一個，叫到同一種角色就沒人能推進。五次全部卡住，只取走 3〜9 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼 <code>LockBuffer</code> 可以用 <code>signal</code>，不必 <code>signalAll</code>？</p>
+  <ul class="dopts"><li>ReentrantLock 不會虛假喚醒</li><li>signal 比較快，叫錯也沒關係</li><li>signal 本來就會叫醒全部</li><li data-ok>兩種角色分開等，叫醒的一定對</li></ul>
+  <p class="dexp">生產者只等 notFull、消費者只等 notEmpty，Condition 文件的例子就是為了一次只叫醒一條。虛假喚醒仍可能發生，所以還是 while。</p>
+</div>
+<div class="drill">
+  <p class="dq">在 <code>synchronized</code> 外面直接呼叫 <code>obj.wait()</code>，會怎樣？</p>
+  <ul class="dopts"><li data-ok>IllegalMonitorStateException</li><li>立刻回傳，當作已經被叫醒過</li><li>javac 編譯時直接報錯，不給過</li><li>自動先取得 obj 的鎖，再開始等待</li></ul>
+  <p class="dexp">文件規定呼叫者必須持有這個物件的監視器，否則丟 IllegalMonitorStateException；編譯器不會擋。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>LockBuffer</code> 的 <code>unlock()</code> 為什麼放在 <code>finally</code>？</p>
+  <ul class="dopts"><li data-ok>await 可能丟例外，不放 finally 鎖就不還</li><li>Java 規定 unlock 只能寫在 finally</li><li>finally 會順便幫忙呼叫 signal</li><li>放 finally 執行得比較快</li></ul>
+  <p class="dexp">await 被中斷會丟 InterruptedException，例外穿出去時 finally 保證鎖被釋放。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>take</code> 取出後寫 <code>items[takeIndex] = null</code>，目的是什麼？</p>
+  <ul class="dopts"><li>讓 count 的值保持正確</li><li data-ok>不留參考，讓 GC 收得掉</li><li>避免發生虛假喚醒</li><li>讓 put 用 null 判斷空位</li></ul>
+  <p class="dexp">陣列還指著已取出的元素，物件就一直被參考著；count 與索引另外維護，不靠 null 判斷。</p>
+</div>
+<div class="drill">
+  <p class="dq">Condition 文件的有界緩衝例子，說用兩個 Condition 的好處是？</p>
+  <ul class="dopts"><li>完全不需要拿鎖也能運作</li><li data-ok>一次只叫醒一條就夠</li><li>保證這個佇列永遠不會死結</li><li>讓等待的執行緒公平排隊</li></ul>
+  <p class="dexp">原文：keep waiting put threads and take threads in separate wait-sets so that we can use the optimization of only notifying a single thread at a time。</p>
+</div>
+    <p class="muted">指路：〈Java 並行快答：執行緒池、鎖與並行集合〉（synchronized 對 ReentrantLock、Condition）、〈執行緒與並行〉。</p>
+</section>
+<section>
+    <p class="era">第三題</p>
+    <h3 class="head">執行緒安全的單例</h3>
+    <p><strong>題目：</strong>寫一個延遲建立、多執行緒下也只有一個實體的單例。</p>
+    <p><strong>面試官要看：</strong>雙重檢查的 <code>volatile</code> 說得出理由，並知道有不必寫同步的寫法。三種寫法與單例的代價在〈設計模式〉講過，這裡寫出來並實跑。</p>
+    <p><strong>寫法一：雙重檢查加 volatile。</strong></p>
+    <pre><code>public final class DclConfig {
+    private static volatile DclConfig instance;      // volatile 不能省
+    private DclConfig() { }
+
+    public static DclConfig getInstance() {
+        if (instance == null) {                      // 第一次檢查：建好之後就不必搶鎖
+            synchronized (DclConfig.class) {
+                if (instance == null) {              // 第二次檢查：拿到鎖再看一次
+                    instance = new DclConfig();
+                }
+            }
+        }
+        return instance;
+    }
+}</code></pre>
+    <p>沒有 <code>volatile</code>，寫入與另一條執行緒的讀取之間沒有 happens-before，JLS 17.4.5 列的規則裡有一條「對 volatile 欄位的寫入 happens-before 之後每一次對該欄位的讀取」（A write to a volatile field happens-before every subsequent read of that field），少了它，別的執行緒可能拿到參考、卻看不到建構子寫完的內容。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.4.5" target="_blank" rel="noopener">出處</a> 這是規格層面的問題，本機拿掉 <code>volatile</code> 跑不出半成品，所以沒辦法用測試證明，只能照規格寫。</p>
+    <p><strong>寫法二：靜態內部類別。</strong>JLS 12.4.1：類別在「它宣告的靜態欄位被使用」之前一刻才初始化，所以第一次呼叫 <code>getInstance()</code> 才會建；12.4.2 又規定初始化前要先取得這個類別的初始化鎖，所以不必自己寫同步。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-12.html#jls-12.4.1" target="_blank" rel="noopener">出處</a></p>
+    <pre><code>public final class HolderConfig {
+    private HolderConfig() { }
+
+    private static final class Holder {             // 第一次用到 Holder.INSTANCE 才初始化
+        static final HolderConfig INSTANCE = new HolderConfig();
+    }
+
+    public static HolderConfig getInstance() {
+        return Holder.INSTANCE;
+    }
+}</code></pre>
+    <p><strong>寫法三：enum。</strong>JLS 8.9：「禁止用反射建立 enum 的實體」，而且序列化機制的特別處理「保證反序列化不會產生重複的實體」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-8.html#jls-8.9" target="_blank" rel="noopener">出處</a></p>
+    <pre><code>public enum EnumConfig {
+    INSTANCE;
+
+    public String region() { return "TW"; }
+}</code></pre>
+    <p>測試：8 條執行緒用 <code>CountDownLatch</code> 同時起跑，各呼叫一次，數拿到幾個不同的實體。三種都是 1 個。再用反射叫出私有建構子：<code>HolderConfig</code> 得到第二個不同的實體；<code>EnumConfig</code> 丟出 <code>IllegalArgumentException: Cannot reflectively create enum objects</code>。</p>
+
+    <p><strong>常見寫錯：</strong>延遲建立卻沒有同步（只有 <code>if (instance == null) instance = new …</code>）。建構子裡睡 10 毫秒放大時間差，8 條執行緒同時呼叫，實跑拿到 8 個不同實體。另一個錯是把 <code>synchronized</code> 加在整個 <code>getInstance</code> 上：正確，但建好之後每次讀都要搶鎖，這正是雙重檢查想省掉的。</p>
+    <p><strong>追問：</strong></p>
+    <ul class="plainlist">
+      <li><b>哪個最好？</b>不需要延遲就直接用 <code>static final</code> 欄位；要延遲用靜態內部類別；要擋反射與序列化用 enum。但〈設計模式〉的提醒要講：單例會藏起相依關係，能用依賴注入就用。</li>
+      <li><b>「只有一個」的範圍？</b>一個類別載入器底下一個，不是整個分散式系統唯一。</li>
+    </ul>
+<div class="drill">
+  <p class="dq">雙重檢查裡的 <code>volatile</code> 提供什麼？</p>
+  <ul class="dopts"><li>讓建出來的物件變成不可變的</li><li>讓兩次檢查中間不必拿鎖</li><li data-ok>寫入 happens-before 之後的讀取</li><li>讓 new 物件這件事變成一個原子動作</li></ul>
+  <p class="dexp">JLS 17.4.5：對 volatile 欄位的寫入 happens-before 之後每一次讀取，別的執行緒才不會拿到沒建完的物件。</p>
+</div>
+<div class="drill">
+  <p class="dq">沒同步的延遲建立，建構子睡 10 毫秒，8 條執行緒同時呼叫，實跑拿到幾個實體？</p>
+  <ul class="dopts"><li data-ok>8 個</li><li>2 個</li><li>1 個</li><li>程式死結</li></ul>
+  <p class="dexp">8 條都看到 instance == null，各建一個。</p>
+</div>
+<div class="drill">
+  <p class="dq">把雙重檢查的 <code>volatile</code> 拿掉，在本機跑會看到什麼？</p>
+  <ul class="dopts"><li>javac 編譯時直接報錯</li><li>JVM 會自動幫它補上 volatile</li><li>每次都拿到沒建完的物件</li><li data-ok>跑不出半成品，是規格層面的問題</li></ul>
+  <p class="dexp">規格允許出錯，不代表每台機器都跑得出來；所以只能照規格寫，不能拿「我跑過沒事」當證據。</p>
+</div>
+<div class="drill">
+  <p class="dq">靜態內部類別寫法，實體什麼時候建立？</p>
+  <ul class="dopts"><li>每次呼叫 getInstance 都重建</li><li>外部類別一載入就立刻建立</li><li>JVM 一啟動就先建立好</li><li data-ok>第一次用到 Holder.INSTANCE</li></ul>
+  <p class="dexp">JLS 12.4.1：靜態欄位被使用之前一刻才初始化該類別；Holder 只在 getInstance 裡被用到。</p>
+</div>
+<div class="drill">
+  <p class="dq">用反射叫出 enum 的建構子再 <code>newInstance</code>，實跑結果？</p>
+  <ul class="dopts"><li>回傳原本的那個實體</li><li data-ok>丟出 IllegalArgumentException</li><li>得到第二個不同的實體</li><li>丟出 InstantiationException</li></ul>
+  <p class="dexp">訊息是 Cannot reflectively create enum objects；同樣的事對靜態內部類別寫法做，會得到第二個實體。</p>
+</div>
+<div class="drill">
+  <p class="dq">把 <code>synchronized</code> 加在整個 <code>getInstance</code> 上，缺點是？</p>
+  <ul class="dopts"><li>多條執行緒一定會死結</li><li>多執行緒下仍會建出兩個</li><li>這樣就沒辦法延遲建立</li><li data-ok>建好後每次讀都要搶鎖</li></ul>
+  <p class="dexp">它是正確的，只是慢；雙重檢查的第一個 if 就是為了建好之後不必再拿鎖。</p>
+</div>
+<div class="drill">
+  <p class="dq">單例的「只有一個」，範圍是？</p>
+  <ul class="dopts"><li>整個叢集的所有機器</li><li>同一台機器上的所有行程</li><li data-ok>一個類別載入器底下</li><li>每一條執行緒各一個</li></ul>
+  <p class="dexp">兩個行程就兩份，應用程式伺服器上不同應用各有自己的載入器，也各一份。</p>
+</div>
+    <p class="muted">指路：〈設計模式〉〈執行緒與並行〉。</p>
+</section>
+<section>
+    <p class="era">第四題</p>
+    <h3 class="head">生產者消費者</h3>
+    <p><strong>題目：</strong>一個執行緒讀對帳檔、三個執行緒入帳，讀完要讓三個入帳執行緒都結束。</p>
+    <p><strong>面試官要看：</strong>用 <code>BlockingQueue</code> 的 <code>put</code>／<code>take</code>，不自己寫 wait／notify；佇列要有界；知道怎麼讓消費者收工。<code>BlockingQueue</code> 沒有 close，文件說常見做法是生產者放進「特殊的結束物件」（poison objects）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/BlockingQueue.html" target="_blank" rel="noopener">出處</a></p>
+    <pre><code>import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+public class Pipeline {
+    private static final String END = new String("__END__");   // 結束物件：比的是同一個物件
+
+    public static void main(String[] args) throws InterruptedException {
+        BlockingQueue&lt;String&gt; queue = new ArrayBlockingQueue&lt;&gt;(10);   // 有界：生產者太快會被 put 擋住
+        int consumers = 3;
+        AtomicInteger count = new AtomicInteger();
+        AtomicLong total = new AtomicLong();
+        List&lt;Thread&gt; workers = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; consumers; i++) {
+            workers.add(Thread.ofPlatform().name("consumer-" + i).start(() -&gt; {
+                try {
+                    while (true) {
+                        String line = queue.take();                     // 空了就等
+                        if (line == END) break;                         // 收到結束物件就收工
+                        total.addAndGet(Long.parseLong(line.split(",")[1]));
+                        count.incrementAndGet();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+        }
+        Thread producer = Thread.ofPlatform().name("producer").start(() -&gt; {
+            try {
+                for (int i = 1; i &lt;= 1000; i++) queue.put("TX" + i + "," + i);   // 滿了就等
+                for (int i = 0; i &lt; consumers; i++) queue.put(END);              // 一個消費者一個
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        producer.join();
+        for (Thread w : workers) w.join();
+        System.out.println("處理 " + count.get() + " 筆，金額合計 " + total.get());
+    }
+}</code></pre>
+    <pre><code>處理 1000 筆，金額合計 500500</code></pre>
+    <p><strong>常見寫錯：</strong></p>
+    <ul class="plainlist">
+      <li><b>三個消費者只放一個結束物件。</b>實跑：1 秒後還有 2 個消費者活著，狀態都是 WAITING，卡在 <code>take()</code> 上，程式結束不了。</li>
+      <li><b>結束物件寫成字面值 "__END__"、用 equals 比。</b>資料裡剛好有這個字串就會提早收工；用 <code>new</code> 出來的獨一物件、用 <code>==</code> 比，理由在〈Java 並行快答〉有寫。</li>
+      <li><b>用 <code>poll()</code> 加迴圈空轉。</b><code>poll()</code> 空的時候立刻回傳 null，迴圈會一直吃 CPU；要等就用 <code>take()</code>。</li>
+    </ul>
+    <p><strong>追問：</strong>為什麼不必加 <code>volatile</code>？文件寫：放進 <code>BlockingQueue</code> 之前的動作，happens-before 另一條執行緒取出之後的動作。同一頁也寫它可以安全地給多個生產者、多個消費者共用。</p>
+<div class="drill">
+  <p class="dq">3 個消費者，生產者只放 1 個結束物件，實跑結果？</p>
+  <ul class="dopts"><li>消費者丟出 NoSuchElementException</li><li>有一筆資料會被處理兩次</li><li data-ok>2 個消費者卡在 take，程式結束不了</li><li>3 個消費者都正常結束</li></ul>
+  <p class="dexp">拿到結束物件的那一個收工，另外兩個在空佇列上永遠等。有幾個消費者就放幾個。</p>
+</div>
+<div class="drill">
+  <p class="dq">結束物件為什麼用 <code>new String("__END__")</code>、用 <code>==</code> 比？</p>
+  <ul class="dopts"><li>字面值不能放進佇列</li><li>== 比 equals 快很多倍</li><li data-ok>資料剛好是這個字串也不會誤判</li><li>BlockingQueue 只收 new 出來的物件</li></ul>
+  <p class="dexp">字面值會進字串池，別處同樣的字面值是同一個物件；new 出來的獨一物件用 == 比，只認得它自己。</p>
+</div>
+<div class="drill">
+  <p class="dq">消費者改用 <code>poll()</code>（不帶時間）寫成迴圈，問題是？</p>
+  <ul class="dopts"><li>空的時候丟出 NoSuchElementException</li><li>空的時候消費者自動收工</li><li>空的時候會永遠阻塞下去</li><li data-ok>空了立刻回 null，空轉吃 CPU</li></ul>
+  <p class="dexp">poll() 屬於回傳特殊值那一組；要等就用 take()。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼用有界的 <code>ArrayBlockingQueue(10)</code>？</p>
+  <ul class="dopts"><li>BlockingQueue 介面只允許有界</li><li data-ok>生產者太快會被擋住，不吃光記憶體</li><li>有界佇列才放得進結束物件</li><li>有界佇列一定比無界的佇列快</li></ul>
+  <p class="dexp">無界佇列在消費者跟不上時會一直長；有界佇列讓 put 等待，自動減速。</p>
+</div>
+<div class="drill">
+  <p class="dq">生產者 <code>put</code> 之前寫的物件欄位，消費者 <code>take</code> 之後讀，需要 <code>volatile</code> 嗎？</p>
+  <ul class="dopts"><li data-ok>不需要，放入 happens-before 取出</li><li>需要，而且還要再加 synchronized</li><li>需要，取出之後先 sleep 一下再讀</li><li>需要，不然一定讀到舊值</li></ul>
+  <p class="dexp">BlockingQueue 文件的記憶體一致性說明：放入之前的動作 happens-before 另一條執行緒取出之後的動作。</p>
+</div>
+    <p class="muted">指路：〈Java 並行快答：執行緒池、鎖與並行集合〉〈執行緒池與並行工具〉。</p>
+</section>
+<section>
+    <p class="era">第五題</p>
+    <h3 class="head">限流器：令牌桶</h3>
+    <p><strong>題目：</strong>寫一個單機限流器：平均每秒 2 個，允許瞬間爆量 5 個。</p>
+    <p><strong>面試官要看：</strong>選對演算法、時間來源可以換（才測得了）、並行安全。四種演算法的差別在〈系統設計：秒殺與限流〉講過：令牌桶定速補代幣、閒置時累積，允許短暫爆量到桶的容量。這裡不開背景執行緒補代幣，每次呼叫時才依經過的時間補，一個鎖就夠。</p>
+    <pre><code>import java.util.function.LongSupplier;
+
+public class TokenBucket {
+    private final long capacity;          // 桶最多裝幾個代幣，也就是允許的爆量
+    private final double refillPerNano;   // 每奈秒補多少代幣
+    private final LongSupplier clock;     // 時間來源，測試時可以換成假的
+    private double tokens;
+    private long lastRefill;
+
+    public TokenBucket(long capacity, double perSecond, LongSupplier clock) {
+        this.capacity = capacity;
+        this.refillPerNano = perSecond / 1_000_000_000.0;
+        this.clock = clock;
+        this.tokens = capacity;           // 一開始是滿的
+        this.lastRefill = clock.getAsLong();
+    }
+
+    public synchronized boolean tryAcquire() {
+        long now = clock.getAsLong();
+        tokens = Math.min(capacity, tokens + (now - lastRefill) * refillPerNano);   // 用到時才補
+        lastRefill = now;
+        if (tokens &gt;= 1) {
+            tokens -= 1;
+            return true;
+        }
+        return false;
+    }
+
+    public static void main(String[] args) {
+        long[] now = {0};                                  // 假時鐘，單位奈秒
+        TokenBucket bucket = new TokenBucket(5, 2, () -&gt; now[0]);   // 容量 5、每秒補 2 個
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i &lt; 8; i++) sb.append(bucket.tryAcquire() ? "放" : "擋");
+        System.out.println("第 0 秒連打 8 次：" + sb);
+        now[0] = 1_000_000_000L;                            // 過了 1 秒
+        sb.setLength(0);
+        for (int i = 0; i &lt; 3; i++) sb.append(bucket.tryAcquire() ? "放" : "擋");
+        System.out.println("第 1 秒再打 3 次：" + sb);
+        now[0] = 10_000_000_000L;                           // 閒置很久
+        sb.setLength(0);
+        for (int i = 0; i &lt; 7; i++) sb.append(bucket.tryAcquire() ? "放" : "擋");
+        System.out.println("第 10 秒連打 7 次：" + sb);
+    }
+}</code></pre>
+    <pre><code>第 0 秒連打 8 次：放放放放放擋擋擋
+第 1 秒再打 3 次：放放擋
+第 10 秒連打 7 次：放放放放放擋擋</code></pre>
+    <p>閒置 9 秒最多也只累積到 5 個，因為補代幣時跟容量取 <code>Math.min</code>。</p>
+    <p><strong>常見寫錯：</strong></p>
+    <ul class="plainlist">
+      <li><b>tryAcquire 沒加 synchronized。</b>「檢查還有沒有、再減一」是兩步，8 條執行緒同時搶 100 個代幣，實跑三輪放行 101、103、102 個。</li>
+      <li><b>改用固定視窗卻沒講邊界問題。</b>同樣用假時鐘寫一個「每分鐘 100 個」的固定視窗，第 59.9 秒打 100 個、第 60.0 秒再打 100 個，0.1 秒內放進 200 個。</li>
+      <li><b>直接呼叫 System.nanoTime()、不能換時鐘。</b>正確性沒問題，但測試只能真的等，又慢又不穩。</li>
+    </ul>
+    <p><strong>追問：</strong>多台伺服器怎麼辦？計數器放 Redis，用 Lua 腳本讓「加一、設過期、判斷」原子完成，見〈系統設計：秒殺與限流〉。</p>
+<div class="drill">
+  <p class="dq">令牌桶容量 5、每秒補 2 個，第 0 秒連打 8 次，結果？</p>
+  <ul class="dopts"><li>8 次全部放行</li><li>前 2 次放行，後 6 次擋下</li><li>8 次全部擋下</li><li data-ok>前 5 次放行，後 3 次擋下</li></ul>
+  <p class="dexp">一開始桶是滿的，5 個代幣用完就擋。實跑：放放放放放擋擋擋。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一個令牌桶閒置 9 秒後連打 7 次，結果？</p>
+  <ul class="dopts"><li>放 18 次以上</li><li>7 次全部放行</li><li data-ok>放 5 次、擋 2 次</li><li>放 2 次、擋 5 次</li></ul>
+  <p class="dexp">補代幣時跟容量取 Math.min，閒置再久也只累積到 5 個。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>tryAcquire</code> 沒加 <code>synchronized</code>，8 條執行緒搶 100 個代幣，實跑結果？</p>
+  <ul class="dopts"><li>剛好放行 100 個</li><li data-ok>放行超過 100 個</li><li>放行少於 100 個</li><li>程式死結</li></ul>
+  <p class="dexp">檢查與減一是兩步，兩條執行緒可能都看到還有 1 個。三輪實跑放行 101、103、102 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">令牌桶的時間來源寫成 <code>LongSupplier</code>，主要理由是？</p>
+  <ul class="dopts"><li>Java 規定時間要這樣傳</li><li>比 System.nanoTime 更準</li><li data-ok>測試時換假時鐘，不必真的等</li><li>可以讓類別變成執行緒安全</li></ul>
+  <p class="dexp">正式環境傳 System::nanoTime，測試傳一個自己控制的陣列，結果才穩定、也跑得快。</p>
+</div>
+<div class="drill">
+  <p class="dq">固定視窗每分鐘 100 個，第 59.9 秒打 100 個、第 60.0 秒再打 100 個，放進幾個？</p>
+  <ul class="dopts"><li>150 個</li><li data-ok>200 個</li><li>100 個</li><li>0 個</li></ul>
+  <p class="dexp">60.0 秒進到新視窗，計數歸零。這就是固定視窗的邊界問題，0.1 秒內放進兩倍。</p>
+</div>
+    <p class="muted">指路：〈系統設計：秒殺與限流〉。</p>
+</section>
+<section>
+    <p class="era">第六題</p>
+    <h3 class="head">暖身兩題：反轉串列、兩數之和</h3>
+    <p><strong>面試官要看：</strong>五分鐘內寫對、邊界自己測。兩題的推導在〈鏈結串列〉〈雜湊表：HashMap 怎麼做到幾乎一步找到〉，鏈結串列的定義照普林斯頓《Algorithms》：「要嘛是空的（null），要嘛是一個指向節點的參考，節點有一筆資料和一個指向另一條鏈結串列的參考」。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+    <pre><code>import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+public class WarmUp {
+    static final class ListNode {
+        int val;
+        ListNode next;
+        ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+    }
+
+    static ListNode reverse(ListNode head) {
+        ListNode prev = null, cur = head;
+        while (cur != null) {
+            ListNode next = cur.next;   // 先記住下一個
+            cur.next = prev;            // 箭頭掉頭
+            prev = cur;
+            cur = next;
+        }
+        return prev;                    // cur 走到 null 時，prev 是新的頭
+    }
+
+    static int[] twoSum(int[] nums, int target) {
+        Map&lt;Integer, Integer&gt; seen = new HashMap&lt;&gt;();   // 看過的數字 → 索引
+        for (int i = 0; i &lt; nums.length; i++) {
+            Integer j = seen.get(target - nums[i]);     // 先查補數
+            if (j != null) return new int[]{j, i};
+            seen.put(nums[i], i);                       // 再把自己放進去
+        }
+        return new int[0];                              // 找不到：回空陣列（先跟面試官約定）
+    }
+
+    static String show(ListNode head) {
+        StringBuilder sb = new StringBuilder();
+        for (ListNode n = head; n != null; n = n.next) sb.append(n.val).append(" -&gt; ");
+        return sb.append("null").toString();
+    }
+
+    public static void main(String[] args) {
+        ListNode list = new ListNode(1, new ListNode(2, new ListNode(3, null)));
+        System.out.println(show(reverse(list)));
+        System.out.println(show(reverse(null)) + " / " + show(reverse(new ListNode(7, null))));
+        System.out.println(Arrays.toString(twoSum(new int[]{2, 7, 11, 15}, 9)));
+        System.out.println(Arrays.toString(twoSum(new int[]{3, 2, 4}, 6)));
+        System.out.println(Arrays.toString(twoSum(new int[]{3}, 6)));
+    }
+}</code></pre>
+    <pre><code>3 -&gt; 2 -&gt; 1 -&gt; null
+null / 7 -&gt; null
+[0, 1]
+[1, 2]
+[]</code></pre>
+    <p><strong>常見寫錯：</strong></p>
+    <ul class="plainlist">
+      <li><b>反轉忘了先存 next。</b>改完箭頭 <code>cur.next</code> 已經是 prev，後面整段弄丟；最後回傳 <code>cur</code> 也錯，迴圈結束時它一定是 null。</li>
+      <li><b>兩數之和先放再查。</b>對 <code>{3, 2, 4}</code>、目標 6 實跑回傳 <code>[0, 0]</code>：3 跟自己配對了。</li>
+      <li><b>沒先問找不到要回什麼。</b>回 null、空陣列、還是丟例外，先跟面試官講好。</li>
+    </ul>
+    <p><strong>追問：</strong>反轉用遞迴寫呢？程式短，但每層呼叫占一格呼叫堆疊，額外空間 O(n)，很長的串列可能 <code>StackOverflowError</code>。兩數之和陣列已排序呢？改用雙指標，額外空間 O(1)。</p>
+<div class="drill">
+  <p class="dq">反轉串列忘了先存 <code>next</code>，結果是？</p>
+  <ul class="dopts"><li>javac 編譯錯誤</li><li>結果一樣，只是比較慢</li><li data-ok>後面整段弄丟</li><li>陷入無窮迴圈走不完</li></ul>
+  <p class="dexp">cur.next 先被改成 prev，再用 cur = cur.next 就走回去了；從 prev 只看得到 1 -&gt; null。</p>
+</div>
+<div class="drill">
+  <p class="dq">迴圈版反轉最後寫成 <code>return cur;</code>，回傳什麼？</p>
+  <ul class="dopts"><li data-ok>null</li><li>原本的頭</li><li>最後一個處理的節點</li><li>反轉後的頭</li></ul>
+  <p class="dexp">迴圈跑到 cur 變成 null 才停，新的頭在 prev。</p>
+</div>
+<div class="drill">
+  <p class="dq">兩數之和改成先 <code>put</code> 再查補數，對 <code>{3, 2, 4}</code>、目標 6 實跑回傳？</p>
+  <ul class="dopts"><li>[0, 2]</li><li>[]</li><li data-ok>[0, 0]</li><li>[1, 2]</li></ul>
+  <p class="dexp">放進 3 之後查補數 3，查到自己。正確的先查再放回傳 [1, 2]。</p>
+</div>
+<div class="drill">
+  <p class="dq">遞迴版反轉的額外空間是多少？</p>
+  <ul class="dopts"><li data-ok>O(n)</li><li>O(1)</li><li>O(log n)</li><li>O(n²)</li></ul>
+  <p class="dexp">每個節點一層沒結束的呼叫，占呼叫堆疊；串列很長可能 StackOverflowError。</p>
+</div>
+<div class="drill">
+  <p class="dq">陣列已經排序好，兩數之和最省空間的做法？</p>
+  <ul class="dopts"><li>兩層迴圈逐對試</li><li data-ok>雙指標，額外空間 O(1)</li><li>先複製一份陣列再排序</li><li>HashMap 邊走邊記，O(n) 空間</li></ul>
+  <p class="dexp">排好序就從兩端往中間夾，見〈雙指標、滑動視窗與前綴和〉。</p>
+</div>
+    <p class="muted">指路：〈鏈結串列〉〈雜湊表：HashMap 怎麼做到幾乎一步找到〉〈雙指標、滑動視窗與前綴和〉。</p>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>LRU：<code>LinkedHashMap</code> 第三個參數 <code>true</code> 加 <code>removeEldestEntry</code>；自己寫是 HashMap 加雙向串列、虛擬頭尾，節點存 key，淘汰時串列與 map 一起刪。</li><li>有界佇列：等待一律 <code>while</code>，因為醒來時條件可能已被搶走，規格也允許虛假喚醒；同一個等待集合用 <code>notifyAll</code>，兩個 <code>Condition</code> 分開等才可以 <code>signal</code>；<code>unlock</code> 放 finally。</li><li>單例：雙重檢查的 <code>volatile</code> 提供 happens-before；靜態內部類別靠類別初始化；enum 擋反射與序列化。沒同步的延遲建立實跑會建出好幾個。</li><li>生產者消費者：有界 <code>BlockingQueue</code> 加 <code>put</code>／<code>take</code>，每個消費者一個結束物件，用 <code>==</code> 比。</li><li>限流：令牌桶用到時才補、跟容量取小、整段加鎖、時鐘可換；固定視窗有邊界放兩倍的問題。</li><li>暖身：反轉先存 next、回傳 prev；兩數之和先查補數再放自己；找不到回什麼先問。</li></ul></div>
