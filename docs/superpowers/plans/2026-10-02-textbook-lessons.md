@@ -45,7 +45,7 @@
 | `spring/23-spring-batch` | Spring Batch：銀行批次怎麼寫 | ✅ `d631eeb`（42 題、4 圖、12 網址；Batch 6.0.5、MySQL 8.4 四次執行實跑） | ✅ 10-03 審完：可上線，7 條順手修（結束代碼 5 的來源、兩處補出處、行／筆、選項長度）；清單 `.superpowers/audit/spring/findings-23.md`；交回 `write-algo-c` | 修正 `8c2501c`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `algo/14-trie-bit-math` | Trie、位元運算與常見數學題 | ✅ `12c638f`（48 題、3 圖、20 出處） | ✅ 10-03 審完：測驗角括號沒跳脫（註冊後測試會失敗）等 5 處小修，主控直接改 | — | ✅ 10-03 上線 | | | |
 | `interview/18-mock-interview` | 模擬面試：Java 後端一面 40 題 | 撰寫中（`write-algo-d`） | | | |
-| `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | ✅ `007996f`（39 題、2 圖、21 出處；MySQL 8.4 實跑死結對照） | 審查中（`review-algo-d`） | | | |
+| `interview/19-system-design-transfer` | 系統設計：銀行轉帳系統 | ✅ `007996f`＋`11c870a`（39 題、2 圖、21 出處；MySQL 8.4 實跑死結對照；圖 id xfer-） | 審查中（`review-algo-d`） | | | |
 | `algo/15-greedy-intervals` | 貪婪演算法與區間題 | 撰寫中（`fix-algo-1112`） | | | |
 | `english/21-english-interview` | 英文面試：自我介紹、講專案與常見問答 | 撰寫中（`write-algo-a`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
