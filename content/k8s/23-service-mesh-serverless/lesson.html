@@ -16,7 +16,60 @@ metadata:
 ---
 apiVersion: v1
 kind: Namespace
-metadata:</code></pre>
+metadata:
+  name: legacy                       # 沒有注入 sidecar 的對照組
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helloworld
+  namespace: bank
+spec:
+  selector:
+    app: helloworld
+  ports:
+  - name: http
+    port: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-v1
+  namespace: bank
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: helloworld, version: v1}
+  template:
+    metadata:
+      labels: {app: helloworld, version: v1}
+    spec:
+      containers:
+      - name: helloworld
+        image: docker.io/istio/examples-helloworld-v1:1.0
+        ports: [{containerPort: 5000}]
+---
+# helloworld-v2 同上，只把 v1 換成 v2（名稱、version 標籤、映像檔 examples-helloworld-v2:1.0）
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  namespace: bank
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: client}
+  template:
+    metadata:
+      labels: {app: client}
+    spec:
+      containers:
+      - name: curl
+        image: curlimages/curl:8.11.1
+        command: ["sleep", "infinity"]   # 只是待著，讓我們用 kubectl exec 進去打 curl
+---
+# legacy 命名空間的 client 同上，只把 namespace 換成 legacy</code></pre>
 <pre><code>$ kubectl get pod -n bank -l app=client
 NAME                      READY   STATUS    RESTARTS   AGE
 client-5d4dc5766c-ltt9j   2/2     Running   0          46s
@@ -40,7 +93,7 @@ client-5d4dc5766c-xv68c   1/1     Running   0          46s</code></pre>
 </div>
 <div class="drill">
   <p class="dq">先部署了服務，之後才替命名空間貼上注入標籤。現有的 Pod 會怎樣？</p>
-  <ul class="dopts"><li>馬上被加上 sidecar，不必重啟</li><li>被 Istio 刪掉重建</li><li>變成 READY 0/1</li><li data-ok>不變，要重啟才會被注入</li></ul>
+  <ul class="dopts"><li>馬上被加上 sidecar，不必重啟</li><li>被 Istio 刪掉重建</li><li>變成 READY 0/1</li><li data-ok>不變，要重啟 Pod 才會被注入</li></ul>
   <p class="dexp">注入發生在 Pod 建立時改寫規格。官方比較表寫 sidecar 模式加入網格要 restart all pods；不必重啟的是 ambient 模式。</p>
 </div>
 <div class="drill">
@@ -133,7 +186,7 @@ curl 結束碼 56</code></pre>
 </svg>
 <figcaption>兩個 istio-proxy 之間是 mTLS，憑證由 istiod 簽發；沒有代理的 legacy client 送明文，STRICT 時被拒絕。</figcaption>
 </figure>
-<p>加密之外，mTLS 帶來的是<strong>身分</strong>。把 helloworld 代理手上的憑證拿出來看：</p>
+<p>加密之外，mTLS 帶來的是<strong>身分</strong>。把 helloworld 代理手上的憑證拿出來看（<code>proxy-config secret</code> 的輸出省略了 SERIAL NUMBER 那一欄，所以欄位沒對齊）：</p>
 <pre><code>$ istioctl proxy-config secret helloworld-v1-5bb8cc5b68-ptj54 -n bank
 RESOURCE NAME     TYPE           STATUS     VALID CERT  NOT AFTER                NOT BEFORE
 default           Cert Chain     ACTIVE     true  2026-10-03T20:53:43Z     2026-10-02T20:51:43Z
@@ -145,10 +198,10 @@ X509v3 Subject Alternative Name: critical
 notBefore=Oct  2 20:51:43 2026 GMT
 notAfter=Oct  3 20:53:43 2026 GMT</code></pre>
 <p>憑證裡的身分是 <code>spiffe://<wbr>cluster.<wbr>local/<wbr>ns/<wbr>bank/<wbr>sa/<wbr>default</code>。SPIFFE 是一套工作負載身分的標準，SPIFFE ID 是「唯一且明確識別一個工作負載的字串」，格式是 <code>spiffe://</code> 信任網域 / 工作負載識別。<a class="fixsrc" href="https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/" target="_blank" rel="noopener">出處</a> 在 Kubernetes 上，Istio 用的身分是 service account（服務帳號，Pod 跑起來時代表的 K8s 帳號）<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a>，所以這串讀作「<code>bank</code> 命名空間的 <code>default</code> 服務帳號」。實驗沒有替 Pod 指定服務帳號，大家都是 <code>default</code>；授權規則（AuthorizationPolicy）就是拿這個身分寫「誰可以呼叫我」，例如官方範例的 <code>principals: ["cluster.local/ns/default/sa/sleep"]</code><a class="fixsrc" href="https://istio.io/latest/docs/reference/config/security/authorization-policy/" target="_blank" rel="noopener">出處</a>，所以正式環境每個服務要有自己的服務帳號，否則分不出誰是誰。</p>
-<p>憑證的有效期間從 10/2 20:51:43 到 10/3 20:53:43，24 小時又 2 分鐘。這對上 Istio 代理的設定 <code>SECRET_TTL</code>，預設 <code>24h0m0s</code>，「Istio 代理要求的憑證壽命」（The cert lifetime requested by istio agent）。<a class="fixsrc" href="https://istio.io/latest/docs/reference/commands/pilot-agent/" target="_blank" rel="noopener">出處</a> 這麼短沒關係，因為換證是自動的：Istio 代理與 istiod「一起把金鑰與憑證的輪替自動化」（work together with istiod to automate key and certificate rotation at scale）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a> 根憑證（<code>ROOTCA</code>）實測有效十年。</p>
+<p>憑證的有效期間從 10/2 20:51:43 到 10/3 20:53:43，24 小時又 2 分鐘。多的 2 分鐘是起始時間（notBefore）往前多算的：Istio 簽憑證時把 notBefore 設成「現在減 2 分鐘」，原始碼註解說這是為了應付 CA 與工作負載之間的時鐘誤差（This is meant to handle cases where we have clock skew between the CA and workloads.）。<a class="fixsrc" href="https://github.com/istio/istio/blob/1.31.1/security/pkg/pki/util/generate_cert.go#L283-L285" target="_blank" rel="noopener">出處</a> 扣掉這 2 分鐘就是 24 小時，對上 Istio 代理的設定 <code>SECRET_TTL</code>，預設 <code>24h0m0s</code>，「Istio 代理要求的憑證壽命」（The cert lifetime requested by istio agent）。<a class="fixsrc" href="https://istio.io/latest/docs/reference/commands/pilot-agent/" target="_blank" rel="noopener">出處</a> 這麼短沒關係，因為換證是自動的：Istio 代理與 istiod「一起把金鑰與憑證的輪替自動化」（work together with istiod to automate key and certificate rotation at scale）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a> 根憑證（<code>ROOTCA</code>）實測有效十年。</p>
 <div class="drill">
   <p class="dq">兩個都有 sidecar 的服務，沒寫任何 PeerAuthentication，它們之間的流量是？</p>
-  <ul class="dopts"><li>明文，要設 STRICT 才會加密</li><li data-ok>自動升級成 mTLS</li><li>被拒絕，要先設 PERMISSIVE</li><li>只有伺服器出示憑證的一般 TLS</li></ul>
+  <ul class="dopts"><li>明文，要設 STRICT 才會加密</li><li data-ok>兩邊都有代理，自動升級成 mTLS</li><li>被拒絕，要先設 PERMISSIVE</li><li>只有伺服器出示憑證的一般 TLS</li></ul>
   <p class="dexp">官方：Istio automatically upgrades all traffic between two PEPs to mutual TLS。PERMISSIVE 只是伺服器那一側「也收明文」，兩邊都有代理時照樣走 mTLS。</p>
 </div>
 <div class="drill">
@@ -271,7 +324,7 @@ $ （同一個指令）   # 第 3 輪
 </div>
 <div class="drill">
   <p class="dq">從 10% 推到 30%、50%、100%，Istio 本身會自動做嗎？</p>
-  <ul class="dopts"><li data-ok>不會，要人或工具去改權重</li><li>會，VirtualService 有自動推進的欄位</li><li>會，看到錯誤率下降就自動推</li><li>會，每 10 分鐘自動加一成</li></ul>
+  <ul class="dopts"><li data-ok>不會，要人或工具去改權重</li><li>會，有自動推進的欄位</li><li>會，看到錯誤率下降就自動推</li><li>會，每 10 分鐘自動加一成</li></ul>
   <p class="dexp">VirtualService 只寫「現在的比例」。看指標、決定推進或退回，要人來做，或交給接得上網格的漸進式部署工具。</p>
 </div>
 </section>
@@ -334,7 +387,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 </div>
 <div class="drill">
   <p class="dq">下游所有實體都掛了，Envoy 回 503。這時誰該決定要顯示什麼給使用者？</p>
-  <ul class="dopts"><li>Envoy，設 VirtualService 的降級欄位</li><li>istiod，它會自動換一個健康的叢集</li><li>不必處理，網格會一直重試到成功</li><li data-ok>程式自己，用降級回呼處理</li></ul>
+  <ul class="dopts"><li>Envoy，設 VirtualService 的降級欄位</li><li>istiod，它會自動換一個健康的叢集</li><li>不必處理，網格會一直重試到成功</li><li data-ok>應用程式自己，用降級回呼決定顯示什麼</li></ul>
   <p class="dexp">官方：The application must implement any fallback logic needed to handle the HTTP 503 error code。網格管連線，降級與業務訊息是程式的事。</p>
 </div>
 </section>
@@ -406,7 +459,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 </div>
 <div class="drill">
   <p class="dq">ambient 模式下想做 90/10 的權重切分，需要什麼？</p>
-  <ul class="dopts"><li>什麼都不用，ztunnel 就會做</li><li>改回在每個 Pod 注入 sidecar</li><li>只有 sidecar 模式能做權重</li><li data-ok>部署 waypoint</li></ul>
+  <ul class="dopts"><li>什麼都不用，ztunnel 就會做</li><li>改回在每個 Pod 注入 sidecar</li><li>只有 sidecar 模式能做權重</li><li data-ok>部署 waypoint 代理處理第七層</li></ul>
   <p class="dexp">權重看的是 HTTP 請求，屬於第七層。比較表寫 ambient 的流量管理是 Full Istio feature set (requires using waypoint)，不必改回 sidecar。</p>
 </div>
 <div class="drill">
@@ -430,7 +483,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <p>把兩件事放在一起會推出一個常見的坑（本課的推論，不是文件原文）：每個環境各自留著自己的資料庫連線，流量一衝高，環境數跟著衝高，資料庫連線數也一起衝。用容器跑的服務有固定幾份、每份一個連線池，總數可以算；Lambda 的總數跟同時請求數綁在一起。</p>
 <div class="drill">
   <p class="dq">某個 Lambda 函式同時有 50 個請求在處理。有幾個執行環境在忙？</p>
-  <ul class="dopts"><li>1 個，請求排隊</li><li data-ok>50 個</li><li>依記憶體設定決定，通常 4 個</li><li>1,000 個，一次開到上限</li></ul>
+  <ul class="dopts"><li>1 個，請求排隊</li><li data-ok>50 個，一個請求一個環境</li><li>依記憶體設定決定，通常 4 個</li><li>1,000 個，一次開到上限</li></ul>
   <p class="dexp">官方：For each concurrent request, Lambda provisions a separate instance of your execution environment。一個環境同一時間只處理一個請求。</p>
 </div>
 <div class="drill">
@@ -450,7 +503,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 </div>
 <div class="drill">
   <p class="dq">行銷活動讓同時請求從 10 衝到 800，每個環境開一個 5 條連線的連線池。最可能先出事的是？</p>
-  <ul class="dopts"><li>Lambda 的帳戶上限 1,000 不夠</li><li>Lambda 不允許超過 100 個環境</li><li data-ok>資料庫連線數：最多 4,000 條</li><li>每個環境的 Init 都會超過 10 秒的上限</li></ul>
+  <ul class="dopts"><li>Lambda 的帳戶上限 1,000 不夠</li><li>Lambda 不允許超過 100 個環境</li><li data-ok>資料庫連線數：800 × 5，最多 4,000 條</li><li>每個環境的 Init 都會超過 10 秒的上限</li></ul>
   <p class="dexp">環境數跟著同時請求數走，每個環境各有自己的連線。800 還沒到預設上限 1,000，但 800 × 5 條連線對資料庫來說很可能已經太多。</p>
 </div>
 </section>
@@ -518,12 +571,12 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <p>文件的建議是「避免在初始化時快取應該唯一的資料，例如產生記錄用的唯一 ID 或設定亂數種子」，要在 handler 裡產生，或用快照前後的執行階段掛勾（runtime hook）重新產生。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart-uniqueness.html" target="_blank" rel="noopener">出處</a> 銀行的交易序號、一次性密碼這類東西尤其要注意。</p>
 <div class="drill">
   <p class="dq">開了 SnapStart 之後，Init 階段什麼時候跑？</p>
-  <ul class="dopts"><li>每次 Invoke 之前</li><li>每個新環境建立時</li><li data-ok>發佈函式版本時</li><li>完全不跑，SnapStart 跳過初始化</li></ul>
+  <ul class="dopts"><li>每次 Invoke 之前</li><li>每個新環境建立時</li><li data-ok>發佈函式版本時，跑完拍成快照</li><li>完全不跑，SnapStart 跳過初始化</li></ul>
   <p class="dexp">官方：Lambda initializes your function when you publish a function version，然後拍快照；之後新環境從快照恢復。初始化有做，只是移到發佈時做一次。</p>
 </div>
 <div class="drill">
   <p class="dq">static 初始化時產生一個 UUID 當環境編號，開了 SnapStart。從快照恢復的多個環境會？</p>
-  <ul class="dopts"><li>各自產生不同的 UUID</li><li>恢復時 Lambda 會自動重新產生</li><li>恢復失敗，SnapStart 不允許 static 欄位</li><li data-ok>拿到同一個 UUID</li></ul>
+  <ul class="dopts"><li>各自產生不同的 UUID</li><li>恢復時 Lambda 會自動重新產生</li><li>恢復失敗，SnapStart 不允許 static 欄位</li><li data-ok>拿到同一個 UUID，因為來自同一份快照</li></ul>
   <p class="dexp">初始化結果被拍進快照，每個環境都從同一份快照恢復。官方範例因此把 UUID.randomUUID() 放在 handler 裡第一次用到時才產生。</p>
 </div>
 <div class="drill">
@@ -538,7 +591,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 </div>
 <div class="drill">
   <p class="dq">流量很稀疏的 Java 轉帳查詢 API，每次冷啟動都讓使用者等很久，而且要求啟動時間可預期。官方建議的是？</p>
-  <ul class="dopts"><li>把記憶體調到最小，啟動比較快</li><li>把逾時調到 15 分鐘</li><li>改成在 handler 裡初始化 Spring</li><li data-ok>預置並行</li></ul>
+  <ul class="dopts"><li>把記憶體調到最小，啟動比較快</li><li>把逾時調到 15 分鐘</li><li>改成在 handler 裡初始化 Spring</li><li data-ok>預置並行，事先初始化好的環境</li></ul>
   <p class="dexp">原文 If you need predictable function start times for your workload, provisioned concurrency is the recommended solution。SnapStart 能縮短冷啟動，但要「可預期」官方指的是預置並行，代價是沒請求也計費。</p>
 </div>
 </section>
@@ -600,12 +653,12 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 </div>
 <div class="drill">
   <p class="dq">同時 3 個請求，Cloud Run 服務的並行上限是 80。最少需要幾個執行個體？</p>
-  <ul class="dopts"><li>3 個，一個請求一個</li><li data-ok>1 個</li><li>80 個，先開滿</li><li>0 個，Cloud Run 不用執行個體</li></ul>
+  <ul class="dopts"><li>3 個，一個請求一個</li><li data-ok>1 個就夠，它能同時處理 80 個</li><li>80 個，先開滿</li><li>0 個，Cloud Run 不用執行個體</li></ul>
   <p class="dexp">一個執行個體可以同時處理到並行上限那麼多個請求。這是跟 Lambda「一個請求一個環境」最大的差別。</p>
 </div>
 <div class="drill">
   <p class="dq">某支舊程式不是執行緒安全的，同時處理兩個請求會出錯。部署到 Cloud Run 要怎麼設？</p>
-  <ul class="dopts"><li>最少執行個體數設 1</li><li>請求逾時設 60 分鐘</li><li>最多執行個體數設 1</li><li data-ok>並行數設 1</li></ul>
+  <ul class="dopts"><li>最少執行個體數設 1</li><li>請求逾時設 60 分鐘</li><li>最多執行個體數設 1</li><li data-ok>並行數設 1，一次一個</li></ul>
   <p class="dexp">官方：if your code cannot process parallel requests, set concurrency to 1。最多執行個體數設 1 是限制總共幾個執行個體，跟每個執行個體同時處理幾個無關。</p>
 </div>
 <div class="drill">
@@ -615,7 +668,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 </div>
 <div class="drill">
   <p class="dq">Cloud Run 官方範例在全域變數旁註明 must be thread-safe，Lambda 的同類範例沒有。為什麼？</p>
-  <ul class="dopts"><li data-ok>一個執行個體會同時處理多個請求</li><li>Cloud Run 只支援多執行緒的語言</li><li>Lambda 的全域變數不會被重用</li><li>Cloud Run 的全域變數存在資料庫裡</li></ul>
+  <ul class="dopts"><li data-ok>一個執行個體會同時處理多個請求</li><li>Cloud Run 只支援多執行緒的語言</li><li>Lambda 的全域變數不會被重用</li><li>全域變數存在資料庫裡</li></ul>
   <p class="dexp">多個請求同時在一個執行個體裡跑，就會同時碰到同一個全域變數。Lambda 一個環境同一時間只處理一個請求，沒有這個問題。</p>
 </div>
 </section>
