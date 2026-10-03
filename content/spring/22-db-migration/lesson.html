@@ -1,5 +1,5 @@
 <!-- 來源：依 Redgate Flyway 官方文件（Versioned migrations、Repeatable migrations、Migrations、Flyway schema history table、Validate、Repair、Undo、Out of order setting、Migration transaction handling、Baselines）、Liquibase 5.1 使用者指南（What is a changelog／changeset／rollback、DATABASECHANGELOG table）、Spring Boot 4.1 參考文件 Database Initialization 與屬性附錄、Hibernate ORM 7.4 使用者指南 Schema generation、MySQL 8.4 手冊（Statements That Cause an Implicit Commit、Atomic Data Definition Statement Support）、Martin Fowler〈ParallelChange〉新寫；示範專案以 Spring Boot 4.1.1（Flyway 12.4.0、Liquibase 5.0.3、Hibernate 7.4.5）、Java 21、Docker 的 MySQL 8.4.11 實跑，日誌與資料表內容都是實跑輸出 · 收錄日期：2026-10-03 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出正式環境為什麼不靠 <code>ddl-auto</code> 建表，改用版本化的遷移腳本</li><li>看懂 Flyway 的檔名規則與 <code>flyway_schema_history</code> 表，知道啟動時它做了哪幾步</li><li>處理三種常見的啟動失敗：改了已套用的腳本、晚到的版本、跑到一半失敗的腳本</li><li>知道社群版 Flyway 沒有 undo、為什麼要「往前修」，以及 Liquibase 長什麼樣</li><li>用擴張收縮的做法，在不停機的情況下改欄位名稱</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出正式環境為什麼不靠 <code>ddl-auto</code> 建表、改用版本化的遷移腳本，看懂 Flyway 的檔名規則與 <code>flyway_schema_history</code> 表</li><li>處理三種常見的啟動失敗：改了已套用的腳本、晚到的版本、跑到一半失敗的腳本</li><li>知道社群版 Flyway 沒有 undo、為什麼要「往前修」，以及 Liquibase 怎麼自帶 rollback</li><li>用擴張收縮的做法，在不停機的情況下改欄位名稱</li></ul></div>
 
 <section>
 <p class="era">表要改，但不能靠運氣</p>
@@ -133,7 +133,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank` (execution ti
 </div>
 <div class="drill">
   <p class="dq">把 <code>R__account_summary_view.<wbr>sql</code> 的 SELECT 多加一個欄位再啟動，會發生什麼？</p>
-  <ul class="dopts"><li>啟動失敗，因為校驗和不符</li><li>V1 到 V3 也會跟著重跑一次</li><li>什麼都不做，R 只會跑一次</li><li data-ok>R 重跑，歷史表多一筆</li></ul>
+  <ul class="dopts"><li data-ok>R 重跑，歷史表多一筆</li><li>啟動失敗，因為校驗和不符</li><li>V1 到 V3 也會跟著重跑一次</li><li>什麼都不做，R 只會跑一次</li></ul>
   <p class="dexp">可重複腳本的校驗和一變就重跑，不算錯誤。實跑：with repeatable migration "account summary view"，歷史表第 5 筆的 checksum 變成 25797383。</p>
 </div>
 <div class="drill">
@@ -154,7 +154,7 @@ Either revert the changes to the migration, or run repair to update the schema h
 <p>應用程式直接起不來。Spring Boot 的 <code>spring.<wbr>flyway.<wbr>validate-<wbr>on-<wbr>migrate</code> 預設是 true（Whether to automatically call validate when performing a migration. true）<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>，validate 不過就不 migrate。錯誤訊息給了兩條路：</p>
 <ul class="plainlist">
 <li><strong>把檔案改回去</strong>（revert the changes）：這幾乎永遠是對的。改 V1 不會讓已經存在的表變成 80，正式環境的表還是 50，只是腳本跟實際對不上了。要改長度，<strong>新增一支 V</strong> 去 ALTER。Flyway 文件的建議就是：已經套用到下游環境的版本化腳本不要改，「最好建立一支新的版本化腳本，往前修」（It's best to create a new versioned migration script and roll forward any necessary changes.）。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>執行 repair</strong>：repair 會「把已套用腳本的校驗和、描述與類型，對齊成目前檔案的版本」（Realign the checksums, descriptions and types of the applied migrations with the ones of the available migrations）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/repair" target="_blank" rel="noopener">出處</a> 它只改歷史表、不改你的表。只有在「改的內容不影響結果」（例如只改註解、排版）時才適合用。</li>
+<li><strong>執行 repair</strong>：repair 會「把已套用腳本的校驗和、描述與類型，對齊成目前檔案的版本」（Realign the checksums, descriptions and types of the applied migrations with the ones of the available migrations）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/repair" target="_blank" rel="noopener">出處</a> 它只改歷史表、不改你的表。比較安全的用法是只在改了註解、排版這類不影響結果的內容時用它。</li>
 </ul>
 <p class="formula">已套用的版本化腳本不改；要改結構就加一支新的 V；repair 只改歷史表</p>
 
@@ -194,7 +194,7 @@ Either revert the changes to the migration, or run repair to update the schema h
 <pre><code>WARN DbMigrate : outOfOrder mode is active. Migration of schema `bank` may not be reproducible.
 INFO DbMigrate : Migrating schema `bank` to version "2.1 - add index owner" [out of order]
 INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at version v2.1 (execution time 00:00.015s)</code></pre>
-<p>它跑了，但警告「可能無法重現」（may not be reproducible）：正式環境是 V3 → V2_1，新建的環境卻是 V2_1 → V3。另一種做法是 Flyway 文件建議的：用時間當版本號，例如 <code>V4_20220308163340__mychange4.<wbr>sql</code>，降低兩人撞號或插隊的機會。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></p>
+<p>它跑了，但警告「可能無法重現」（may not be reproducible）：正式環境是 V3 → V2_1，新建的環境卻是 V2_1 → V3。另一種做法是用時間當版本號的一部分。Flyway 文件寫 Flyway Desktop 產生腳本時「預設把時間戳記放進版本號，因為這樣可以避免兩位成員同時新增遷移時撞號」（Flyway Desktop generates a timestamp as part of the version by default when generating migrations as it helps to avoid conflicts if two team members simultaneously add migrations with no conflicting SQL）。它減少的是撞號；晚合進來的腳本照樣是晚到的版本。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">版本比目前小又沒跑過：預設擋下；out-of-order=true 會跑，但順序可能不能重現</p>
 
 <div class="drill">
@@ -209,8 +209,8 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 </div>
 <div class="drill">
   <p class="dq">兩個人常在同一天各自新增遷移腳本、撞到同一個版本號。Flyway 文件建議的減少衝突方式是？</p>
-  <ul class="dopts"><li>兩個人共用同一支腳本，輪流往下寫</li><li>全部改用可重複腳本，就不需要版本號</li><li>每次部署都打開 out-of-order</li><li data-ok>版本號加上時間</li></ul>
-  <p class="dexp">文件：To avoid version conflicts in team environments, use timestamps in the migration versions。</p>
+  <ul class="dopts"><li data-ok>版本號加上時間</li><li>兩個人共用同一支腳本，輪流往下寫</li><li>全部改用可重複腳本，就不需要版本號</li><li>每次部署都打開 out-of-order</li></ul>
+  <p class="dexp">文件說 Flyway Desktop 預設把時間戳記放進版本號，because it helps to avoid conflicts if two team members simultaneously add migrations。</p>
 </div>
 </section>
 
@@ -254,8 +254,8 @@ DbRepair : Manual cleanup of the remaining effects of the failed migration may s
 repair：[Removed failed migrations]</code></pre>
 <pre><code>INFO DbMigrate : Migrating schema `bank` to version "4 - add status"
 INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at version v4 (execution time 00:00.038s)</code></pre>
-<p class="muted">實跑時故意讓 repair 去預設位置找（腳本其實在 <code>mig/</code>），它回報 <code>Marked missing migrations as deleted</code>，在歷史表插入 type 為 <code>DELETE</code> 的紀錄，把「找不到檔案」的腳本標成已刪除。這就是文件那句提醒的原因。</p>
-<p class="formula">MySQL 的 DDL 一句一提交：一支腳本只放一件 DDL；失敗了先清半套、repair（同樣的 locations）、再重跑</p>
+<p class="muted">實跑時故意讓 repair 去預設位置找（腳本其實在 <code>mig/</code>），預設位置只有舊的 V1、V2。它回報 <code>Marked missing migrations as deleted</code>，在歷史表插了一筆 type 為 <code>DELETE</code> 的紀錄，把找不到檔案的那支可重複腳本標成已刪除；V3〜V6 比本機最高的 V2 新，被當成未來版本，預設忽略。歷史表就這樣被改了，這是文件那句提醒的原因。</p>
+<p class="formula">MySQL 的 DDL 一句一提交：建議一支腳本只放一件 DDL；失敗了先清半套、repair（同樣的 locations）、再重跑</p>
 
 <div class="drill">
   <p class="dq">V4 有兩句 DDL，第一句成功、第二句語法錯誤，資料庫是 MySQL 8.4。失敗後第一句加的欄位怎樣了？</p>
@@ -278,9 +278,9 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
   <p class="dexp">repair 只移除失敗紀錄；不先刪 status，V4 第一句重跑時會因為欄位已存在而失敗。</p>
 </div>
 <div class="drill">
-  <p class="dq">執行 repair 時沒給跟 migrate 一樣的 locations，Flyway 在預設位置找不到任何腳本。實跑結果是？</p>
-  <ul class="dopts"><li>報錯並停止，什麼都不改</li><li>只移除失敗的那一筆，其他不動</li><li data-ok>把找不到檔案的紀錄標成已刪除</li><li>自動在整台機器上搜尋正確的資料夾</li></ul>
-  <p class="dexp">repair 會 Mark all missing migrations as deleted；找不到檔案就全部當成「缺少」。所以文件寫 repair must be given the same locations as migrate。</p>
+  <p class="dq">執行 repair 時沒給跟 migrate 一樣的 locations，預設位置只有舊的 V1、V2，沒有後來的 V3〜V6，也沒有那支可重複腳本。實跑結果是？</p>
+  <ul class="dopts"><li data-ok>那支可重複腳本被標成已刪除</li><li>報錯並停止，什麼都不改</li><li>V3〜V6 全部被標成已刪除</li><li>自動在整台機器上搜尋正確的資料夾</li></ul>
+  <p class="dexp">repair 會 Mark all missing migrations as deleted，實跑多了一筆 type 為 DELETE 的紀錄，就是那支可重複腳本。V3〜V6 比本機最高的 V2 還新，被當成 future（未來版本），預設忽略、不處理。結果看起來沒事，其實歷史表已經被改了，所以文件寫 repair must be given the same locations as migrate。</p>
 </div>
 <div class="drill">
   <p class="dq">在 MySQL 上，為什麼建議一支遷移腳本只放一件 DDL？</p>
@@ -312,7 +312,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 </div>
 <div class="drill">
   <p class="dq">一個已經上線多年、表都建好了的資料庫，第一次要改用 Flyway 管。第一步該做什麼？</p>
-  <ul class="dopts"><li>打開 out-of-order，讓 V1 可以晚一點跑</li><li>把現有的表全部刪掉，再用 V1 重建一次</li><li>直接放 V1 進去，讓 Flyway 照常執行</li><li data-ok>先 baseline，把現狀標成起點</li></ul>
+  <ul class="dopts"><li data-ok>先 baseline，把現狀標成起點</li><li>打開 out-of-order，讓 V1 可以晚一點跑</li><li>把現有的表全部刪掉，再用 V1 重建一次</li><li>直接放 V1 進去，讓 Flyway 照常執行</li></ul>
   <p class="dexp">非空的 schema 要先 baseline（或設 baseline-on-migrate），Flyway 才知道現在的狀態是起點，不會拿 V1 去建已經存在的表。</p>
 </div>
 </section>
@@ -320,7 +320,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <section>
 <p class="era">同一件事，另一套工具</p>
 <h3 class="head">Liquibase 一眼</h3>
-<p>Liquibase 用 changelog（變更紀錄檔）描述結構，裡面每一個 changeset 是一個變更單位。文件：changeset「由 author 與 id 兩個屬性，加上 changelog 的檔案路徑，唯一標記」（A changeset is uniquely tagged by both the author and id attributes (author:id), as well as the changelog file path.）<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changeset" target="_blank" rel="noopener">出處</a>；changelog 可以寫成 SQL、XML、YAML、JSON。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-2-1/what-is-a-changelog" target="_blank" rel="noopener">出處</a> Spring Boot 加 <code>spring-<wbr>boot-<wbr>starter-<wbr>liquibase</code> 就會在啟動時執行。示範的第二個 changeset（YAML）：</p>
+<p>Liquibase 用 changelog（變更紀錄檔）描述結構，裡面每一個 changeset 是一個變更單位。文件：changeset「由 author 與 id 兩個屬性，加上 changelog 的檔案路徑，唯一標記」（A changeset is uniquely tagged by both the author and id attributes (author:id), as well as the changelog file path.）<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changeset" target="_blank" rel="noopener">出處</a>；changelog 可以寫成 SQL、XML、YAML、JSON。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changelog" target="_blank" rel="noopener">出處</a> Spring Boot 加 <code>spring-<wbr>boot-<wbr>starter-<wbr>liquibase</code> 就會在啟動時執行。示範的第二個 changeset（YAML）：</p>
 <pre><code>id: 2-add-branch
 author: tim
 changes:
@@ -387,7 +387,7 @@ UPDATE account SET owner_name = owner WHERE owner_name IS NULL;</code></pre>
 <pre><code>id	owner	owner_name
 1	alice	alice
 2	bob	bob</code></pre>
-<p>新欄位要可以是 NULL，舊程式插入資料時才不會失敗；加欄位用 <code>ALGORITHM=INSTANT</code> 不會鎖住大表（Online DDL 的細節見〈交易隔離層級與鎖〉）。過渡期那一版程式要兩個欄位都寫，<code>UPDATE</code> 補的是上線前的舊資料。<strong>遷移</strong>：所有程式改讀寫 <code>owner_name</code>（示範把實體改成 <code>@Column(<wbr>name = "owner_name")</code>），舊版全部下線。<strong>收縮</strong>：</p>
+<p>新欄位要可以是 NULL，舊程式插入資料時才不會失敗；加欄位用 <code>ALGORITHM=INSTANT</code> 不必複製整張表、不會長時間鎖表；但仍要短暫的中繼資料鎖，前面有長交易時會等（見〈交易隔離層級與鎖〉）。過渡期那一版程式要兩個欄位都寫，<code>UPDATE</code> 補的是上線前的舊資料。<strong>遷移</strong>：所有程式改讀寫 <code>owner_name</code>（示範把實體改成 <code>@Column(<wbr>name = "owner_name")</code>），舊版全部下線。<strong>收縮</strong>：</p>
 <pre><code>-- 收縮：確定沒有任何版本的程式還在讀寫 owner 之後才做
 ALTER TABLE account MODIFY COLUMN owner_name VARCHAR(80) NOT NULL;
 ALTER TABLE account DROP COLUMN owner;</code></pre>
@@ -424,4 +424,4 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank` (execution ti
   <p class="dexp">MySQL 允許刪掉 view 依賴的欄位，壞掉的 view 要等被查詢才報錯；收縮時要連 view 一起改。</p>
 </div>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>正式環境的結構交給 Flyway／Liquibase；Hibernate 設 <code>ddl-auto=validate</code> 只核對。非內嵌資料庫的 ddl-auto 預設是 none。</li><li>Flyway 檔名 <code>V版本__描述.sql</code>，版本照數字排序、只跑一次；<code>R__描述.sql</code> 沒有版本、內容變了就重跑、永遠排最後。歷史表記版本、CRC32 校驗和與成敗。Boot 4 要 <code>spring-<wbr>boot-<wbr>starter-<wbr>flyway</code>，MySQL 再加 <code>flyway-mysql</code>。</li><li>改了已套用的腳本：校驗和不符、啟動失敗。改回去，要改結構就加新的 V；repair 只改歷史表。</li><li>版本比目前小又沒跑過：預設擋下；<code>out-of-order=true</code> 會跑，但順序可能無法重現；版本號可以加時間減少衝突。</li><li>MySQL 的 DDL 會隱含提交，失敗會留半套與一筆 success = 0：先手動清理、再 repair（同樣的 locations）、再重跑；一支腳本只放一件 DDL。</li><li>社群版 Flyway 沒有 undo（Teams 才有），改錯就往前修；clean-disabled 預設 true；既有資料庫先 baseline。Liquibase 用 changelog 與 changeset，可自帶 rollback。</li><li>不相容的改動用擴張收縮：先加可為 NULL 的新欄位並補資料、程式全部換用新欄位、最後才刪舊欄位，依賴舊欄位的 view 要一起改。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>正式環境的結構交給 Flyway／Liquibase；Hibernate 設 <code>ddl-auto=validate</code> 只核對。非內嵌資料庫的 ddl-auto 預設是 none。</li><li>Flyway 檔名 <code>V版本__描述.sql</code>，版本照數字排序、只跑一次；<code>R__描述.sql</code> 沒有版本、內容變了就重跑、永遠排最後。歷史表記版本、CRC32 校驗和與成敗。Boot 4 要 <code>spring-<wbr>boot-<wbr>starter-<wbr>flyway</code>，MySQL 再加 <code>flyway-mysql</code>。</li><li>改了已套用的腳本：校驗和不符、啟動失敗。改回去，要改結構就加新的 V；repair 只改歷史表。</li><li>版本比目前小又沒跑過：預設擋下；<code>out-of-order=true</code> 會跑，但順序可能無法重現；版本號可以加時間減少衝突。</li><li>MySQL 的 DDL 會隱含提交，失敗會留半套與一筆 success = 0：先手動清理、再 repair（同樣的 locations）、再重跑；建議一支腳本只放一件 DDL。</li><li>社群版 Flyway 沒有 undo（Teams 才有），改錯就往前修；clean-disabled 預設 true；既有資料庫先 baseline。Liquibase 用 changelog 與 changeset，可自帶 rollback。</li><li>不相容的改動用擴張收縮：先加可為 NULL 的新欄位並補資料、程式全部換用新欄位、最後才刪舊欄位，依賴舊欄位的 view 要一起改。</li></ul></div>
