@@ -1,0 +1,715 @@
+<!-- 來源：依普林斯頓 Kevin Wayne〈Greedy Algorithms I〉講義（https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf，依 Kleinberg–Tardos《Algorithm Design》第 4 章）新寫；另參考 algs4 第 4.3 節、中央銀行兒童網〈新臺幣如何設計與使用？〉；程式碼與練習題全部自編，以 Java 21 實際編譯執行，貪婪解另用暴力解或動態規劃逐一比對 · 收錄日期：2026-10-03 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出貪婪演算法是什麼，以及證明它對的兩種常見思路（交換論證、一路領先），並用反例證明它錯</li><li>分清找零什麼時候可以貪婪（新臺幣面額）、什麼時候一定要動態規劃（怪面額）</li><li>寫出區間題四招：排序後合併、按結束時間挑最多不重疊、用最小堆或掃描線算最少會議室、插入區間</li><li>用「目前能到的最遠位置」解跳躍遊戲，用「油不夠就換起點」解加油站</li></ul></div>
+
+<section>
+<p class="era">每一步都挑眼前最好的</p>
+<h3 class="head">貪婪是什麼、什麼時候對</h3>
+<p>收銀員找零錢：要找 67 元，先拿 50，再拿 10，再拿 5，再拿兩個 1，每次都拿「不超過剩下金額的最大面額」。這種<strong>每一步都做眼前最好的選擇，而且選了就不回頭</strong>的做法，叫<strong>貪婪演算法</strong>（greedy algorithm）。普林斯頓 Kevin Wayne 的講義（依 Kleinberg–Tardos《Algorithm Design》第 4 章）把收銀員的做法寫成：「每一輪加上一枚不會超過應付金額的最大面額硬幣」（At each iteration, add coin of the largest value that does not take us past the amount to be paid.）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>貪婪寫起來短、跑得快（常常是排序 O(n log n) 加掃一遍），難處在<strong>它不一定對</strong>。〈動態規劃入門〉的找零就是反例：面額 1、3、4 湊 6 元，貪婪拿 4 + 1 + 1 共 3 枚，最少其實是 3 + 3 兩枚。動態規劃把每種選擇都試過；貪婪只試一種，所以要先說服自己「眼前最好的那一步，不會害到後面」。</p>
+<p>Wayne 的講義整理了三種證明貪婪正確的思路：<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>一路領先</strong>（greedy algorithm stays ahead）：證明每一步之後，貪婪的結果「至少跟任何其他演算法一樣好」（its solution is at least as good as any other algorithm's）。</li>
+<li><strong>結構上的下限</strong>（structural）：先找出「任何解都至少要這麼多」的下限，再證明貪婪剛好達到。後面的會議室題就是這種。</li>
+<li><strong>交換論證</strong>（exchange argument）：「把任何一個解一步一步換成貪婪找到的解，而且品質不變差」（Gradually transform any solution to the one found by the greedy algorithm without hurting its quality.）。後面的「最多不重疊區間」用的就是這個。</li>
+</ul>
+<p>面試時不必寫完整證明，但要能用一句話講出直覺，並且<strong>先想反例</strong>：試幾組小資料，看貪婪會不會輸給暴力解。這課每一個貪婪都用暴力解或動態規劃比對過。你已經看過的貪婪：〈圖：BFS、DFS 與拓樸排序〉的 Dijkstra 每次拿目前最近的頂點；algs4 說最小生成樹的演算法都是「貪婪演算法的特例」（they are special cases of the greedy algorithm）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/43mst/" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">下面哪一句最能描述貪婪演算法？</p>
+  <ul class="dopts"><li data-ok>每步選眼前最好，選了不回頭</li><li>把所有選法都試過再挑最好的</li><li>把問題切成兩半各自解再合併</li><li>先存下子問題的答案再拼起來</li></ul>
+  <p class="dexp">試遍所有選法是暴力或回溯；切兩半是分治；存子問題答案是動態規劃。貪婪只走一條路。</p>
+</div>
+<div class="drill">
+  <p class="dq">貪婪演算法最大的風險是什麼？</p>
+  <ul class="dopts"><li>一定比動態規劃慢很多</li><li>需要非常多的記憶體</li><li>只能用在已經排好序的資料</li><li data-ok>眼前最好可能害到後面</li></ul>
+  <p class="dexp">面額 1、3、4 湊 6 元，先拿 4 看起來最好，結果要 3 枚，最佳是 2 枚。貪婪通常反而比較快、比較省空間。</p>
+</div>
+<div class="drill">
+  <p class="dq">「把任何一個最佳解一步一步換成貪婪的解，而且不會變差」是哪一種證明思路？</p>
+  <ul class="dopts"><li>一路領先</li><li>結構上的下限</li><li data-ok>交換論證</li><li>數學歸納法求遞迴式</li></ul>
+  <p class="dexp">講義原文 Gradually transform any solution to the one found by the greedy algorithm without hurting its quality，就是交換論證。</p>
+</div>
+<div class="drill">
+  <p class="dq">想到一個貪婪解法，面試時第一件該做的檢查是？</p>
+  <ul class="dopts"><li>直接寫程式送出看結果</li><li data-ok>找小例子跟暴力解比</li><li>先算清楚空間複雜度</li><li>先把它改寫成遞迴版本</li></ul>
+  <p class="dexp">貪婪錯的時候常常一組三、四個元素的小資料就看得出來。找不到反例，再講正確性的直覺。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個演算法<strong>是</strong>貪婪的？</p>
+  <ul class="dopts"><li>合併排序</li><li>0/1 背包的填表</li><li>列出所有排列的回溯</li><li data-ok>Dijkstra</li></ul>
+  <p class="dexp">Dijkstra 每一步選目前最近、而且選了就定案。合併排序是分治，背包填表是動態規劃，列排列是回溯。</p>
+</div>
+<div class="drill">
+  <p class="dq">algs4 說 Kruskal、Prim 這些最小生成樹演算法是什麼的特例？</p>
+  <ul class="dopts"><li data-ok>貪婪演算法</li><li>動態規劃</li><li>二分搜尋</li><li>回溯法</li></ul>
+  <p class="dexp">原文 they are special cases of the greedy algorithm：每次挑一條目前最輕、而且合法的邊。</p>
+</div>
+</section>
+
+<section>
+<p class="era">收銀員的做法什麼時候對</p>
+<h3 class="head">找零：新臺幣面額可以貪婪，怪面額不行</h3>
+<p>Wayne 的講義先問「收銀員的做法對任何一組面額都是最佳嗎？」，答案是「不是」（Q. Is cashier's algorithm optimal for any set of denominations? A. No.），舉了兩個反例：美國郵票面額 1、10、21、34、70、100……湊 140 分，貪婪拿 100 + 34 + 六個 1 共 8 張，最佳是 70 + 70 兩張；面額 7、8、9 湊 15，貪婪先拿 9 之後就湊不出來了，但 7 + 8 可以。同一份講義也證明了「收銀員的做法對美國硬幣 1、5、10、25、100 是最佳的」（Theorem. Cashier's algorithm is optimal for U.S. coins { 1, 5, 10, 25, 100 }.）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a> 所以「貪婪對不對」看的是<strong>面額組合</strong>，不是演算法本身。</p>
+<p>新臺幣呢？中央銀行說流通使用的鈔票有 100、200、500、1,000、2,000 元，「經常使用的硬幣則有 1 元、5 元、10 元、20 元及 50 元等 5 種」。<a class="fixsrc" href="https://knowledge.cbc.gov.tw/child/money02.html" target="_blank" rel="noopener">出處</a> 用〈動態規劃入門〉的最小硬幣數當標準答案，一個金額一個金額比對：</p>
+<pre><code>import java.util.Arrays;
+
+public class Coins {
+    // 貪婪（收銀員的做法）：每次拿不超過剩餘金額的最大面額
+    static int greedy(int[] desc, int amount) {
+        int count = 0;
+        for (int c : desc) {
+            count += amount / c;
+            amount %= c;
+        }
+        return amount == 0 ? count : -1;               // 湊不出來回傳 -1
+    }
+
+    // 動態規劃：最少幾枚（〈動態規劃入門〉的寫法）
+    static int[] dp(int[] coins, int max) {
+        int[] f = new int[max + 1];
+        Arrays.fill(f, Integer.MAX_VALUE);
+        f[0] = 0;
+        for (int x = 1; x &lt;= max; x++)
+            for (int c : coins)
+                if (c &lt;= x &amp;&amp; f[x - c] != Integer.MAX_VALUE) f[x] = Math.min(f[x], f[x - c] + 1);
+        return f;
+    }
+
+    static void compare(String name, int[] desc, int max) {
+        int[] best = dp(desc, max);
+        int diff = 0, first = -1;
+        for (int x = 1; x &lt;= max; x++) {
+            int b = best[x] == Integer.MAX_VALUE ? -1 : best[x];
+            if (greedy(desc, x) != b) { diff++; if (first &lt; 0) first = x; }
+        }
+        System.out.print(name + "：1～" + max + " 元裡貪婪跟最佳解不同的有 " + diff + " 個");
+        if (first &gt; 0) {
+            System.out.print("，第一個是 " + first + " 元（貪婪 " + greedy(desc, first) + " 枚，最少 " + best[first] + " 枚）");
+        }
+        System.out.println();
+    }
+
+    public static void main(String[] args) {
+        compare("新臺幣 1、5、10、20、50、100、200、500、1000、2000", new int[]{2000, 1000, 500, 200, 100, 50, 20, 10, 5, 1}, 10000);
+        compare("面額 1、3、4", new int[]{4, 3, 1}, 100);
+        compare("美國郵票 1、10、21、34、70、100", new int[]{100, 70, 34, 21, 10, 1}, 300);
+        int[] postal = {100, 70, 34, 21, 10, 1};
+        System.out.println("郵票湊 140 元：貪婪 " + greedy(postal, 140) + " 枚，最少 " + dp(postal, 140)[140] + " 枚（70 + 70）");
+        System.out.println("面額 7、8、9 湊 15 元：貪婪 " + greedy(new int[]{9, 8, 7}, 15) + "，最少 " + dp(new int[]{9, 8, 7}, 15)[15] + " 枚");
+    }
+}</code></pre>
+<pre><code>新臺幣 1、5、10、20、50、100、200、500、1000、2000：1～10000 元裡貪婪跟最佳解不同的有 0 個
+面額 1、3、4：1～100 元裡貪婪跟最佳解不同的有 24 個，第一個是 6 元（貪婪 3 枚，最少 2 枚）
+美國郵票 1、10、21、34、70、100：1～300 元裡貪婪跟最佳解不同的有 157 個，第一個是 30 元（貪婪 10 枚，最少 3 枚）
+郵票湊 140 元：貪婪 8 枚，最少 2 枚（70 + 70）
+面額 7、8、9 湊 15 元：貪婪 -1，最少 2 枚</code></pre>
+<p>新臺幣 1～10,000 元每一個金額，貪婪都跟最佳解一樣多張；面額 1、3、4 在 100 元以內有 24 個金額會輸；郵票的例子 30 元就錯（21 + 九個 1 共 10 張，10 + 10 + 10 只要 3 張），140 元正是講義的例子。面額 7、8、9 湊 15 元，貪婪連解都找不到（回傳 -1）。這裡對新臺幣的結論是實跑比對的結果，不是證明；面試時說「這組面額我驗證過貪婪是對的」比「貪婪就是對的」站得住。題目給的面額是任意的時候，一律用動態規劃。</p>
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="同樣是貪婪找零：新臺幣面額湊 67 元拿 50、10、5、1、1 共 5 枚，跟最佳解一樣；面額 1、3、4 湊 6 元，貪婪拿 4、1、1 共 3 枚，最佳是 3、3 兩枚">
+  <text x="20" y="34" font-size="13" font-weight="700">新臺幣湊 67 元</text>
+  <g font-size="13" text-anchor="middle" class="mono">
+  <circle cx="190" cy="30" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="190" y="35">50</text>
+  <circle cx="240" cy="30" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="240" y="35">10</text>
+  <circle cx="290" cy="30" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="290" y="35">5</text>
+  <circle cx="340" cy="30" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="340" y="35">1</text>
+  <circle cx="390" cy="30" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="390" y="35">1</text>
+  </g>
+  <text x="430" y="35" font-size="12">貪婪 5 枚 ＝ 最佳 5 枚</text>
+  <text x="20" y="104" font-size="13" font-weight="700">面額 1、3、4 湊 6 元</text>
+  <g font-size="13" text-anchor="middle" class="mono">
+  <circle cx="190" cy="100" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="190" y="105">4</text>
+  <circle cx="240" cy="100" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="240" y="105">1</text>
+  <circle cx="290" cy="100" r="20" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="290" y="105">1</text>
+  <circle cx="190" cy="160" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="190" y="165">3</text>
+  <circle cx="240" cy="160" r="20" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="240" y="165">3</text>
+  </g>
+  <text x="330" y="105" font-size="12" fill="var(--gold-deep)">貪婪：先拿最大的 4，3 枚</text>
+  <text x="280" y="165" font-size="12" fill="var(--slate-deep)">動態規劃：3 + 3，2 枚</text>
+  <text x="380" y="200" font-size="12" text-anchor="middle">古銅＝貪婪的選法；灰藍＝最佳解</text>
+</svg>
+<figcaption>同一個貪婪做法，新臺幣面額剛好對，面額 1、3、4 就錯。對不對取決於面額組合。</figcaption>
+</figure>
+
+<div class="drill">
+  <p class="dq">用新臺幣面額找零 87 元，貪婪會拿哪些？</p>
+  <ul class="dopts"><li>50、10、10、10、5、1、1，共 7 枚</li><li>20、20、20、20、5、1、1，共 7 枚</li><li data-ok>50、20、10、5、1、1，共 6 枚</li><li>50、20、10、5、2，共 5 枚</li></ul>
+  <p class="dexp">每次拿不超過剩餘金額的最大面額：50（剩 37）、20（剩 17）、10（剩 7）、5（剩 2）、1、1。新臺幣沒有 2 元硬幣。</p>
+</div>
+<div class="drill">
+  <p class="dq">面額 1、3、4，湊 6 元，貪婪與最佳解分別要幾枚？</p>
+  <ul class="dopts"><li>都是 2 枚</li><li>都是 3 枚</li><li data-ok>貪婪 3 枚，最佳 2 枚</li><li>貪婪 2 枚，最佳 3 枚</li></ul>
+  <p class="dexp">貪婪 4 + 1 + 1，最佳 3 + 3。這是〈動態規劃入門〉用過的反例，實跑也是第一個出錯的金額。</p>
+</div>
+<div class="drill">
+  <p class="dq">面額 7、8、9 湊 15 元，貪婪會怎樣？</p>
+  <ul class="dopts"><li>拿 9 + 6，剛好 2 枚就湊到</li><li data-ok>先拿 9，之後湊不出來</li><li>拿 8 + 7，共 2 枚</li><li>拿 7 + 8，共 2 枚</li></ul>
+  <p class="dexp">講義的第二個反例：沒有面額 1 時，貪婪甚至可能連可行解都找不到，但 7 + 8 是可以的。</p>
+</div>
+<div class="drill">
+  <p class="dq">「新臺幣面額用貪婪找零一定最佳」這句話，這課的根據是什麼？</p>
+  <ul class="dopts"><li>中央銀行公告保證一定最佳</li><li>講義證明了所有國家的硬幣都可以</li><li>貪婪演算法永遠是最佳的</li><li data-ok>實跑比對 1～10000 元</li></ul>
+  <p class="dexp">講義證明的是美國硬幣；中央銀行只公告面額。這課對新臺幣的結論是逐一比對的實跑結果，不是證明。</p>
+</div>
+<div class="drill">
+  <p class="dq">面試題「給你任意一組面額 coins，求湊出 amount 最少要幾枚」，該用什麼？</p>
+  <ul class="dopts"><li>貪婪，先排序再從大拿到小</li><li data-ok>動態規劃</li><li>二分搜尋</li><li>雙指標</li></ul>
+  <p class="dexp">面額是任意的，貪婪可能錯，也可能找不到解。動態規劃把每種「最後一枚」都試過（〈動態規劃入門〉）。</p>
+</div>
+<div class="drill">
+  <p class="dq">講義對美國硬幣 1、5、10、25、100 的結論是？</p>
+  <ul class="dopts"><li data-ok>有證明是最佳的</li><li>貪婪不一定是最佳的</li><li>貪婪會找不到解</li><li>要改用動態規劃才對</li></ul>
+  <p class="dexp">原文 Theorem. Cashier's algorithm is optimal for U.S. coins { 1, 5, 10, 25, 100 }。同一份講義也舉了郵票面額的反例。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先排好，能合併的就在隔壁</p>
+<h3 class="head">區間題一：合併重疊區間</h3>
+<p>一堆區間（例如會議時段、交易的有效期間），把重疊的合併成一段。做法：<strong>依起點排序</strong>，再從左到右掃，跟「目前合併好的最後一段」比：起點不超過它的尾端就是重疊，把尾端延長；否則開新的一段。〈面試解題流程與題型對照〉的說法是：依起點排好序之後，能合併成同一段的區間一定連在一起，跟目前這段的尾端比就夠了。排序用〈排序與二分搜尋〉的 Comparator。</p>
+<pre><code>static List&lt;int[]&gt; merge(int[][] a) {
+    int[][] s = a.clone();
+    Arrays.sort(s, Comparator.comparingInt(x -&gt; x[0]));
+    List&lt;int[]&gt; out = new ArrayList&lt;&gt;();
+    for (int[] cur : s) {
+        int[] last = out.isEmpty() ? null : out.get(out.size() - 1);
+        if (last != null &amp;&amp; cur[0] &lt;= last[1]) {
+            last[1] = Math.max(last[1], cur[1]);    // 重疊：延長尾端（注意取 max）
+        } else {
+            out.add(new int[]{cur[0], cur[1]});
+        }
+    }
+    return out;
+}</code></pre>
+<pre><code>合併：[1, 5] [7, 11] [13, 15]
+合併（包在裡面）：[1, 10]</code></pre>
+<figure>
+<svg viewBox="0 0 760 244" role="img" aria-label="五個區間依起點排好是 [1,4]、[3,5]、[7,9]、[8,11]、[13,15]；[1,4] 與 [3,5] 合併成 [1,5]，[7,9] 與 [8,11] 合併成 [7,11]，[13,15] 自己一段">
+  <text x="20" y="22" font-size="12" font-weight="700">依起點排序後</text>
+  <rect x="100" y="30" width="120" height="20" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="160" y="44" font-size="11" text-anchor="middle" class="mono">[1,4]</text>
+  <rect x="180" y="56" width="80" height="20" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="220" y="70" font-size="11" text-anchor="middle" class="mono">[3,5]</text>
+  <rect x="340" y="82" width="80" height="20" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="380" y="96" font-size="11" text-anchor="middle" class="mono">[7,9]</text>
+  <rect x="380" y="108" width="120" height="20" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="440" y="122" font-size="11" text-anchor="middle" class="mono">[8,11]</text>
+  <rect x="580" y="134" width="80" height="20" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="620" y="148" font-size="11" text-anchor="middle" class="mono">[13,15]</text>
+  <text x="20" y="178" font-size="12" font-weight="700" fill="var(--gold-deep)">合併結果</text>
+  <rect x="100" y="186" width="160" height="22" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="180" y="202" font-size="11" text-anchor="middle" class="mono">[1,5]</text>
+  <rect x="340" y="186" width="160" height="22" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="420" y="202" font-size="11" text-anchor="middle" class="mono">[7,11]</text>
+  <rect x="580" y="186" width="80" height="22" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="620" y="202" font-size="11" text-anchor="middle" class="mono">[13,15]</text>
+  <line x1="60" y1="218" x2="700" y2="218" stroke="currentColor" stroke-opacity=".4"/>
+  <line x1="60" y1="218" x2="60" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="60" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">0</text>
+  <line x1="100" y1="218" x2="100" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="100" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">1</text>
+  <line x1="140" y1="218" x2="140" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="140" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">2</text>
+  <line x1="180" y1="218" x2="180" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="180" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">3</text>
+  <line x1="220" y1="218" x2="220" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="220" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">4</text>
+  <line x1="260" y1="218" x2="260" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="260" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">5</text>
+  <line x1="300" y1="218" x2="300" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="300" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">6</text>
+  <line x1="340" y1="218" x2="340" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="340" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">7</text>
+  <line x1="380" y1="218" x2="380" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="380" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">8</text>
+  <line x1="420" y1="218" x2="420" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="420" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">9</text>
+  <line x1="460" y1="218" x2="460" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="460" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">10</text>
+  <line x1="500" y1="218" x2="500" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="500" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">11</text>
+  <line x1="540" y1="218" x2="540" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="540" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">12</text>
+  <line x1="580" y1="218" x2="580" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="580" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">13</text>
+  <line x1="620" y1="218" x2="620" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="620" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">14</text>
+  <line x1="660" y1="218" x2="660" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="660" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">15</text>
+  <line x1="700" y1="218" x2="700" y2="223" stroke="currentColor" stroke-opacity=".4"/><text x="700" y="236" font-size="11" text-anchor="middle" opacity=".6" class="mono">16</text>
+</svg>
+<figcaption>依起點排序後，往右掃：碰到的起點不超過目前尾端就合併、延長尾端；超過就開新的一段。</figcaption>
+</figure>
+<p>兩個容易錯的地方：</p>
+<ul class="plainlist">
+<li><strong>尾端要取 max</strong>：<code>[1, 10]</code> 後面接 <code>[2, 3]</code>，新的尾端還是 10，不是 3。實跑第二行就是這個情況。</li>
+<li><strong>端點相接算不算重疊，看題目</strong>：這段程式用 <code>&lt;=</code>，<code>[1, 5]</code> 和 <code>[5, 8]</code> 會合併成 <code>[1, 8]</code>（LeetCode 56 題的定義）。會議室「5 點結束、5 點開始」通常不算撞期，那就是半開區間 <code>[s, e)</code>，比較要改成 <code>&lt;</code>。下面幾題都會遇到這個選擇。</li>
+</ul>
+<p>時間：排序 O(n log n)，掃一遍 O(n)，共 O(n log n)。</p>
+
+<div class="drill">
+  <p class="dq">合併區間的第一步通常是？</p>
+  <ul class="dopts"><li>依長度排序</li><li>放進堆疊</li><li data-ok>依起點排序</li><li>放進 HashMap</li></ul>
+  <p class="dexp">依起點排好後，能合併的會連在一起，掃一遍就好。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>[[2,5],[5,9]]</code> 用上面的 merge（比較用 <code>&lt;=</code>）會得到什麼？</p>
+  <ul class="dopts"><li>[[2,5],[5,9]]</li><li data-ok>[[2,9]]</li><li>[[2,5]]</li><li>[[5,9]]</li></ul>
+  <p class="dexp">5 &lt;= 5 算重疊，合併成 [2,9]。如果題目是半開區間、相接不算重疊，就要改成 &lt;。</p>
+</div>
+<div class="drill">
+  <p class="dq">已合併到 <code>[1, 10]</code>，下一個是 <code>[2, 3]</code>，合併後是？</p>
+  <ul class="dopts"><li>[1, 3]</li><li>[2, 10]</li><li data-ok>[1, 10]</li><li>[1, 10] 與 [2, 3] 兩段</li></ul>
+  <p class="dexp">新尾端是 max(10, 3) = 10。直接寫 last[1] = cur[1] 會把尾端縮成 3，是常見錯誤。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>[[8,11],[1,4],[3,5],[13,15],[7,9]]</code> 合併後有幾段？</p>
+  <ul class="dopts"><li>2 段</li><li data-ok>3 段</li><li>4 段</li><li>5 段</li></ul>
+  <p class="dexp">排序後 [1,4]、[3,5] 合成 [1,5]，[7,9]、[8,11] 合成 [7,11]，[13,15] 單獨一段。實跑第一行就是這三段。</p>
+</div>
+<div class="drill">
+  <p class="dq">n 個區間合併，時間複雜度是？</p>
+  <ul class="dopts"><li>O(n)</li><li>O(n²)</li><li>O(log n)</li><li data-ok>O(n log n)</li></ul>
+  <p class="dexp">排序 O(n log n) 加掃一遍 O(n)。如果輸入已經排好序，就只剩 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼不依「結束時間」排序來合併？</p>
+  <ul class="dopts"><li>結束時間沒有辦法排序</li><li>依結束時間排序會慢很多</li><li data-ok>長區間會排在後面，得回頭改</li><li>其實一樣，兩種排法都可以</li></ul>
+  <p class="dexp">例如 [1,10] 結束得晚，排在 [2,3]、[4,5] 後面，掃到它時要把前面兩段都吸收，單純「跟最後一段比」就不夠了。</p>
+</div>
+</section>
+
+<section>
+<p class="era">最早結束的，留最多空間給後面</p>
+<h3 class="head">區間題二：最多能選幾個不重疊的區間</h3>
+<p>一間會議室，一堆會議申請，最多能排進幾場（不能撞期）？講義叫它區間排程（interval scheduling），並列了三種直覺的排法：最早開始、最早結束、最短的先。正確的是<strong>依結束時間由早到晚，能放就放</strong>（Consider jobs in ascending order of fj.），而且「最早結束優先的演算法是最佳的」（Theorem. The earliest-finish-time-first algorithm is optimal.）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a></p>
+<pre><code>static int maxNonOverlap(int[][] a, Comparator&lt;int[]&gt; order) {
+    int[][] s = a.clone();
+    Arrays.sort(s, order);
+    int count = 0, lastEnd = Integer.MIN_VALUE;
+    for (int[] cur : s) {
+        if (cur[0] &gt;= lastEnd) { count++; lastEnd = cur[1]; }
+    }
+    return count;
+}</code></pre>
+<pre><code>依結束時間：4 個
+依開始時間：3 個
+依長度：1 個（同一組資料依結束時間 2 個）
+最少要刪幾個才不重疊：7
+1000 組隨機測資，依結束時間的答案跟試遍所有子集合不同的有 0 組</code></pre>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="11 個會議依結束時間挑選：先挑 [1,4)，再挑第一個開始時間不早於 4 的 [5,7)，再挑 [8,11)，最後挑 [12,16)，共 4 場，用古銅標出；其他會議因為跟已選的重疊而略過">
+  <rect x="100" y="8" width="120" height="18" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="160" y="20" font-size="11" text-anchor="middle" class="mono">[1,4)</text>
+  <rect x="180" y="32" width="80" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="220" y="44" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[3,5)</text>
+  <rect x="60" y="56" width="240" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="180" y="68" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[0,6)</text>
+  <rect x="260" y="80" width="80" height="18" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="300" y="92" font-size="11" text-anchor="middle" class="mono">[5,7)</text>
+  <rect x="180" y="104" width="240" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="300" y="116" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[3,9)</text>
+  <rect x="260" y="128" width="160" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="340" y="140" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[5,9)</text>
+  <rect x="300" y="152" width="160" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="380" y="164" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[6,10)</text>
+  <rect x="380" y="176" width="120" height="18" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="440" y="188" font-size="11" text-anchor="middle" class="mono">[8,11)</text>
+  <rect x="380" y="200" width="160" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="460" y="212" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[8,12)</text>
+  <rect x="140" y="224" width="480" height="18" rx="4" fill="var(--surface)" stroke="currentColor" opacity="0.45"/><text x="380" y="236" font-size="11" text-anchor="middle" class="mono" opacity="0.45">[2,14)</text>
+  <rect x="540" y="248" width="160" height="18" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="620" y="260" font-size="11" text-anchor="middle" class="mono">[12,16)</text>
+  <line x1="60" y1="280" x2="700" y2="280" stroke="currentColor" stroke-opacity=".4"/>
+  <line x1="60" y1="280" x2="60" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="60" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">0</text>
+  <line x1="100" y1="280" x2="100" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="100" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">1</text>
+  <line x1="140" y1="280" x2="140" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="140" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">2</text>
+  <line x1="180" y1="280" x2="180" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="180" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">3</text>
+  <line x1="220" y1="280" x2="220" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="220" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">4</text>
+  <line x1="260" y1="280" x2="260" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="260" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">5</text>
+  <line x1="300" y1="280" x2="300" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="300" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">6</text>
+  <line x1="340" y1="280" x2="340" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="340" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">7</text>
+  <line x1="380" y1="280" x2="380" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="380" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">8</text>
+  <line x1="420" y1="280" x2="420" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="420" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">9</text>
+  <line x1="460" y1="280" x2="460" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="460" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">10</text>
+  <line x1="500" y1="280" x2="500" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="500" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">11</text>
+  <line x1="540" y1="280" x2="540" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="540" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">12</text>
+  <line x1="580" y1="280" x2="580" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="580" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">13</text>
+  <line x1="620" y1="280" x2="620" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="620" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">14</text>
+  <line x1="660" y1="280" x2="660" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="660" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">15</text>
+  <line x1="700" y1="280" x2="700" y2="285" stroke="currentColor" stroke-opacity=".4"/><text x="700" y="298" font-size="11" text-anchor="middle" opacity=".6" class="mono">16</text>
+</svg>
+<figcaption>依結束時間挑：每次選「最早結束、而且不跟已選的撞」的會議。古銅是選中的 4 場，灰色因撞期略過。</figcaption>
+</figure>
+<p>為什麼對？用交換論證的直覺：任何一個最佳排法，把它的第一場換成「最早結束的那場」，不會撞到後面的場次（因為它結束得最早），場數也不變；再對剩下的時段重複同樣的論證。講義的證明就是這樣：取貪婪與最佳解第一個不同的位置，問「為什麼不把最佳解的那一場換成貪婪的那一場？」（why not replace job jr+1 with job ir+1?），換完「仍然可行、仍然最佳」（solution still feasible and optimal）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a> 實跑也比對了 1,000 組隨機資料，跟「試遍所有子集合」的答案全部一樣。</p>
+<p>另外兩種排法的反例都在實跑裡：依開始時間只排得進 3 場（一開始就選到很長的 [0, 6)）；依長度，<code>[1,5) [4,7) [6,10)</code> 會先選最短的 [4,7)，把兩邊都擋掉，只得 1 場，依結束時間是 2 場。</p>
+<p>同一招的變形：LeetCode 435「最少刪幾個才不重疊」就是 n 減去最多能留幾個；452「最少幾支箭射破所有氣球」也是依結束位置排序，一支箭射在第一個結束點上。時間都是排序的 O(n log n)。</p>
+
+<div class="drill">
+  <p class="dq">要排進最多場不撞期的會議，該依什麼排序？</p>
+  <ul class="dopts"><li>開始時間由早到晚</li><li>長度由短到長</li><li data-ok>結束時間由早到晚</li><li>長度由長到短</li></ul>
+  <p class="dexp">講義的定理：earliest-finish-time-first 是最佳的。另外兩種直覺都有反例，實跑裡各有一組。</p>
+</div>
+<div class="drill">
+  <p class="dq">區間 <code>[1,3) [2,5) [4,7) [6,9)</code>（半開，相接不算撞），依結束時間挑，最多幾個？</p>
+  <ul class="dopts"><li>1</li><li data-ok>2</li><li>3</li><li>4</li></ul>
+  <p class="dexp">先選 [1,3)；[2,5) 撞到；[4,7) 開始 4 ≥ 3，選；[6,9) 開始 6 &lt; 7，撞。共 2 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼「依開始時間」不對？</p>
+  <ul class="dopts"><li>開始時間可能會相同</li><li>開始時間沒有辦法排序</li><li>其實依開始時間也是對的</li><li data-ok>最早開始的可能很長</li></ul>
+  <p class="dexp">實跑的資料裡 [0, 6) 最早開始，選了它就排不進 [1,4)、[3,5)、[5,7) 的組合，結果只有 3 場，依結束時間有 4 場。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>[1,5) [4,7) [6,10)</code> 依長度最短先選，會得到幾個？</p>
+  <ul class="dopts"><li>2</li><li>3</li><li data-ok>1</li><li>0</li></ul>
+  <p class="dexp">最短的是 [4,7)，它跟另外兩個都撞，選了之後就只剩它。依結束時間會選 [1,5) 和 [6,10)，共 2 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">10 個區間，最多能留 6 個不重疊。LeetCode 435「最少刪幾個才不重疊」的答案是？</p>
+  <ul class="dopts"><li>6</li><li data-ok>4</li><li>10</li><li>16</li></ul>
+  <p class="dexp">最少刪的個數 ＝ 總數 − 最多能留的個數 ＝ 10 − 6。實跑那組 11 個留 4 個，刪 7 個。</p>
+</div>
+<div class="drill">
+  <p class="dq">交換論證在這題的直覺是什麼？</p>
+  <ul class="dopts"><li data-ok>把第一場換成最早結束的</li><li>貪婪選的場次一定最長</li><li>每一場都要跟所有場比較</li><li>先把重疊的合併再數場數</li></ul>
+  <p class="dexp">最早結束的那場留給後面的時間最多，換進最佳解不會變差；一路換下去，最佳解就變成貪婪的解。講義原文 why not replace job jr+1 with job ir+1?</p>
+</div>
+<div class="drill">
+  <p class="dq">程式裡 <code>cur[0] &gt;= lastEnd</code> 用 <code>&gt;=</code> 代表什麼？</p>
+  <ul class="dopts"><li>相接的區間算撞期</li><li>兩場之間一定要留空檔</li><li>跟用 &gt; 完全一樣</li><li data-ok>相接不算撞期</li></ul>
+  <p class="dexp">開始時間等於上一場的結束時間也能放，是半開區間 [s, e) 的寫法。題目若說相接也算重疊，就改成 &gt;。</p>
+</div>
+</section>
+
+<section>
+<p class="era">同一時間最多幾場</p>
+<h3 class="head">區間題三：會議室最少要幾間</h3>
+<p>所有會議都要開，最少要幾間會議室？講義叫它區間分割（interval partitioning），用的是第二種證明思路，結構上的下限：在某個時間點同時進行的會議數叫<strong>深度</strong>（depth），「需要的會議室數 ≥ 深度」（Number of classrooms needed ≥ depth.），而且最早開始優先的做法剛好用到深度那麼多間，所以是最佳的。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a> 兩種寫法：</p>
+<ul class="plainlist">
+<li><strong>最小堆</strong>：依開始時間排序；堆裡放每間會議室「目前那場的結束時間」，堆頂就是最早空出來的那間。新會議的開始時間不早於堆頂，就沿用那間（取出、放回新的結束時間），否則開新的一間。講義的實作也是「把會議室存在優先佇列裡（鍵＝最後一場的結束時間）」（Store classrooms in a priority queue (key = finish time of its last lecture).）。優先佇列見〈堆積與優先佇列〉。</li>
+<li><strong>掃描線</strong>：把開始時間、結束時間各自排序，像兩根手指往右掃；遇到開始就 +1、遇到已經過去的結束就 −1，途中的最大值就是答案。同一個時間點，先處理結束（半開區間的「5 點結束、5 點開始」不需要兩間）。</li>
+</ul>
+<pre><code>import java.util.*;
+
+public class Rooms {
+    // 會議室最少幾間（作法一）：依開始時間排序，最小堆存每間會議室的結束時間
+    static int byHeap(int[][] a) {
+        int[][] s = a.clone();
+        Arrays.sort(s, Comparator.comparingInt(x -&gt; x[0]));
+        PriorityQueue&lt;Integer&gt; ends = new PriorityQueue&lt;&gt;();
+        for (int[] m : s) {
+            if (!ends.isEmpty() &amp;&amp; ends.peek() &lt;= m[0]) ends.poll();   // 最早空出來的那間可以用
+            ends.offer(m[1]);
+        }
+        return ends.size();
+    }
+
+    // 作法二：掃描線。開始 +1、結束 −1，同一時間先處理結束
+    static int bySweep(int[][] a) {
+        int n = a.length;
+        int[] starts = new int[n], ends = new int[n];
+        for (int i = 0; i &lt; n; i++) { starts[i] = a[i][0]; ends[i] = a[i][1]; }
+        Arrays.sort(starts);
+        Arrays.sort(ends);
+        int rooms = 0, best = 0, j = 0;
+        for (int i = 0; i &lt; n; i++) {
+            while (j &lt; n &amp;&amp; ends[j] &lt;= starts[i]) { j++; rooms--; }   // 已經結束的先離場
+            rooms++;
+            best = Math.max(best, rooms);
+        }
+        return best;
+    }
+
+    public static void main(String[] args) {
+        int[][] a = {{9, 10}, {9, 12}, {10, 11}, {10, 13}, {11, 14}, {13, 15}};
+        System.out.println("最小堆：" + byHeap(a) + " 間，掃描線：" + bySweep(a) + " 間");
+        System.out.println("[1,5) [5,8) 端點相接：" + byHeap(new int[][]{{1, 5}, {5, 8}}) + " 間");
+
+        Random r = new Random(7);                      // 隨機測資：兩種作法比對，再跟「同時進行的最多場數」比對
+        int bad = 0;
+        for (int t = 0; t &lt; 1000; t++) {
+            int n = 1 + r.nextInt(12);
+            int[][] m = new int[n][];
+            for (int i = 0; i &lt; n; i++) { int s = r.nextInt(20); m[i] = new int[]{s, s + 1 + r.nextInt(8)}; }
+            int depth = 0;
+            for (int x = 0; x &lt; 30; x++) {
+                int c = 0;
+                for (int[] k : m) if (k[0] &lt;= x &amp;&amp; x &lt; k[1]) c++;
+                depth = Math.max(depth, c);
+            }
+            if (byHeap(m) != depth || bySweep(m) != depth) bad++;
+        }
+        System.out.println("1000 組隨機測資，兩種作法跟同時進行的最多場數不一致的有 " + bad + " 組");
+    }
+}</code></pre>
+<pre><code>最小堆：3 間，掃描線：3 間
+[1,5) [5,8) 端點相接：1 間
+1000 組隨機測資，兩種作法跟同時進行的最多場數不一致的有 0 組</code></pre>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="六場會議 9-10、9-12、10-11、10-13、11-14、13-15。用最小堆分配：會議室一放 9-10、10-11、11-14，會議室二放 9-12、13-15，會議室三放 10-13。10 點到 11 點之間同時有 9-12、10-11、10-13 三場，深度 3，所以至少要 3 間">
+  <rect x="250" y="22" width="90" height="150" fill="var(--slate-soft)" opacity=".6"/>
+  <text x="295" y="16" font-size="11" text-anchor="middle" fill="var(--slate-deep)">10～11 點同時 3 場（深度 3）</text>
+  <text x="140" y="54" font-size="12" text-anchor="end">會議室一</text>
+  <rect x="162" y="36" width="86" height="26" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="205" y="56" font-size="11" text-anchor="middle" class="mono">9–10</text>
+  <rect x="252" y="36" width="86" height="26" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="295" y="56" font-size="11" text-anchor="middle" class="mono">10–11</text>
+  <rect x="342" y="36" width="266" height="26" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="475" y="56" font-size="11" text-anchor="middle" class="mono">11–14</text>
+  <text x="140" y="100" font-size="12" text-anchor="end">會議室二</text>
+  <rect x="162" y="82" width="266" height="26" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="295" y="102" font-size="11" text-anchor="middle" class="mono">9–12</text>
+  <rect x="522" y="82" width="176" height="26" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="610" y="102" font-size="11" text-anchor="middle" class="mono">13–15</text>
+  <text x="140" y="146" font-size="12" text-anchor="end">會議室三</text>
+  <rect x="252" y="128" width="266" height="26" rx="4" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="385" y="148" font-size="11" text-anchor="middle" class="mono">10–13</text>
+  <line x1="160" y1="182" x2="700" y2="182" stroke="currentColor" stroke-opacity=".4"/>
+  <line x1="160" y1="182" x2="160" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="160" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">9</text>
+  <line x1="250" y1="182" x2="250" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="250" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">10</text>
+  <line x1="340" y1="182" x2="340" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="340" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">11</text>
+  <line x1="430" y1="182" x2="430" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="430" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">12</text>
+  <line x1="520" y1="182" x2="520" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="520" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">13</text>
+  <line x1="610" y1="182" x2="610" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="610" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">14</text>
+  <line x1="700" y1="182" x2="700" y2="187" stroke="currentColor" stroke-opacity=".4"/><text x="700" y="200" font-size="11" text-anchor="middle" opacity=".6" class="mono">15</text>
+  <text x="430" y="236" font-size="12" text-anchor="middle">古銅＝一場會議；同一列是同一間會議室</text>
+</svg>
+<figcaption>最小堆的分配結果。10:00～11:00 同時有三場（深度 3），所以 3 間是最少；演算法剛好用了 3 間。</figcaption>
+</figure>
+<p>兩種寫法時間都是 O(n log n)（排序加上 n 次堆操作）。實跑另外用 1,000 組隨機資料，把兩種寫法跟「逐一時間點數同時有幾場」的答案比對，全部一致。LeetCode 253 是付費題，公開題 2406「把區間分成最少幾組」是同一題。</p>
+
+<div class="drill">
+  <p class="dq">會議室題用最小堆時，堆裡放的是什麼？</p>
+  <ul class="dopts"><li>每場會議各自的開始時間</li><li>每場會議的長度</li><li data-ok>每間會議室的結束時間</li><li>會議室的編號</li></ul>
+  <p class="dexp">堆頂是最早空出來的會議室，新會議只要跟它比就知道能不能沿用。講義：key = finish time of its last lecture。</p>
+</div>
+<div class="drill">
+  <p class="dq">會議 <code>[1,4) [2,5) [7,9)</code> 最少要幾間會議室？</p>
+  <ul class="dopts"><li>1</li><li data-ok>2</li><li>3</li><li>0</li></ul>
+  <p class="dexp">[1,4) 和 [2,5) 在 2～4 之間同時進行，深度 2；[7,9) 時前兩場都結束了，可以沿用。</p>
+</div>
+<div class="drill">
+  <p class="dq">講義用什麼證明「最少會議室數」的貪婪是最佳的？</p>
+  <ul class="dopts"><li>交換論證</li><li>一路領先</li><li>窮舉所有可能的排法</li><li data-ok>結構上的下限</li></ul>
+  <p class="dexp">任何排法在最擁擠的時間點都至少要那麼多間；演算法達到這個下限，所以不可能更少。</p>
+</div>
+<div class="drill">
+  <p class="dq">掃描線做法，同一個時間點有一場結束、一場開始，為什麼要先處理結束？</p>
+  <ul class="dopts"><li data-ok>結束的那間可以接著用</li><li>因為結束時間比較重要</li><li>先處理開始會丟出例外</li><li>處理順序沒有任何影響</li></ul>
+  <p class="dexp">實跑 [1,5) [5,8) 只要 1 間。若先 +1 再 −1，途中會短暫算成 2。題目若說相接算撞期，就反過來先處理開始。</p>
+</div>
+<div class="drill">
+  <p class="dq">實跑的六場會議 9-10、9-12、10-11、10-13、11-14、13-15，最少幾間？</p>
+  <ul class="dopts"><li>2</li><li data-ok>3</li><li>4</li><li>6</li></ul>
+  <p class="dexp">10～11 點同時有 9-12、10-11、10-13 三場，深度 3。兩種寫法實跑都是 3。</p>
+</div>
+<div class="drill">
+  <p class="dq">用最小堆時，新會議的開始時間比堆頂的結束時間<strong>早</strong>，該怎麼做？</p>
+  <ul class="dopts"><li>把堆頂取出再放回去</li><li>把這場新會議丟掉</li><li>把整個堆清空重來</li><li data-ok>多開一間</li></ul>
+  <p class="dexp">連最早空出來的那間都還沒空，其他間更不可能，只好多開一間。最後堆的大小就是答案。</p>
+</div>
+<div class="drill">
+  <p class="dq">LeetCode 253 Meeting Rooms II 是付費題，這課換成哪一題練同一招？</p>
+  <ul class="dopts"><li data-ok>2406. Divide Intervals Into Minimum Number of Groups</li><li>56. Merge Intervals</li><li>435. Non-overlapping Intervals</li><li>55. Jump Game</li></ul>
+  <p class="dexp">2406 要把區間分成最少幾組、同組不重疊，就是最少幾間會議室。注意那題的區間是兩端都包含的閉區間。</p>
+</div>
+</section>
+
+<section>
+<p class="era">已經排好的，插一個進去</p>
+<h3 class="head">區間題四：插入區間</h3>
+<p>一串已經依起點排好、互不重疊的區間，插入一個新的，結果仍要排好、不重疊。不必整個重新排序：分三段掃一遍，左邊完全不碰的照抄、跟新區間重疊的全部吸收進來、右邊的照抄，O(n)。</p>
+<pre><code>import java.util.*;
+
+public class InsertInterval {
+    // 已經排序、互不重疊的區間，插入一個新的：左邊不碰的照抄、碰到的合併、右邊照抄
+    static List&lt;int[]&gt; insert(int[][] a, int[] add) {
+        List&lt;int[]&gt; out = new ArrayList&lt;&gt;();
+        int i = 0, n = a.length;
+        int s = add[0], e = add[1];
+        while (i &lt; n &amp;&amp; a[i][1] &lt; s) out.add(a[i++]);                  // 完全在左邊
+        while (i &lt; n &amp;&amp; a[i][0] &lt;= e) {                                // 跟新區間重疊：吸收進來
+            s = Math.min(s, a[i][0]);
+            e = Math.max(e, a[i][1]);
+            i++;
+        }
+        out.add(new int[]{s, e});
+        while (i &lt; n) out.add(a[i++]);                                 // 完全在右邊
+        return out;
+    }
+
+    public static void main(String[] args) {
+        int[][] a = {{1, 2}, {4, 6}, {7, 8}, {9, 11}, {13, 15}};
+        StringBuilder sb = new StringBuilder();
+        for (int[] x : insert(a, new int[]{5, 9})) sb.append(Arrays.toString(x)).append(' ');
+        System.out.println(sb.toString().trim());
+    }
+}</code></pre>
+<pre><code>[1, 2] [4, 11] [13, 15]</code></pre>
+<p>新區間 [5, 9] 碰到 [4, 6]、[7, 8]、[9, 11]，三段一起吸收成 [4, 11]。判斷「完全在左邊」用 <code>a[i][1] &lt; s</code>，「重疊」用 <code>a[i][0] &lt;= e</code>，這裡端點相接（[9, 11] 的 9 等於新區間的 9）算重疊，跟 LeetCode 57 的定義一樣。</p>
+
+<div class="drill">
+  <p class="dq">插入區間為什麼可以做到 O(n)，不需要重新排序？</p>
+  <ul class="dopts"><li>因為 Java 的排序特別快</li><li>因為只插入一個，所以 O(1)</li><li>因為用了二分搜尋找位置</li><li data-ok>已經排好，掃一遍分三段</li></ul>
+  <p class="dexp">已經有順序可以利用。重新合併也對，但要 O(n log n)。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>[[1,4],[7,9]]</code> 插入 <code>[3,6]</code>，結果是？</p>
+  <ul class="dopts"><li>[[1,4],[3,6],[7,9]]</li><li data-ok>[[1,6],[7,9]]</li><li>[[1,9]]</li><li>[[3,6],[7,9]]</li></ul>
+  <p class="dexp">[1,4] 跟 [3,6] 重疊，合成 [1,6]；[7,9] 的起點 7 &gt; 6，不碰，照抄。</p>
+</div>
+<div class="drill">
+  <p class="dq">吸收重疊的區間時，新區間的起點與終點怎麼更新？</p>
+  <ul class="dopts"><li data-ok>起點取 min、終點取 max</li><li>起點取 max、終點取 min</li><li>都取被吸收那段的值</li><li>都不變</li></ul>
+  <p class="dexp">合併後要涵蓋所有碰到的區間，所以起點取最左、終點取最右。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>[[1,2],[5,6]]</code> 插入 <code>[3,4]</code>，結果是？</p>
+  <ul class="dopts"><li data-ok>[[1,2],[3,4],[5,6]]</li><li>[[1,6]]</li><li>[[1,4],[5,6]]</li><li>[[3,4],[5,6]]</li></ul>
+  <p class="dexp">[1,2] 完全在左邊、[5,6] 完全在右邊，沒有重疊，新區間單獨插在中間。</p>
+</div>
+<div class="drill">
+  <p class="dq">判斷「完全在新區間左邊」的條件是？（新區間 [s, e]）</p>
+  <ul class="dopts"><li><code>a[i][0] &lt; s</code></li><li data-ok><code>a[i][1] &lt; s</code></li><li><code>a[i][1] &lt; e</code></li><li><code>a[i][0] &gt; e</code></li></ul>
+  <p class="dexp">那段的終點都還沒到 s，兩者才不會碰到。只看起點會把跨過 s 的區間誤當成左邊。a[i][0] &gt; e 是「完全在右邊」。</p>
+</div>
+</section>
+
+<section>
+<p class="era">記住最遠能到哪裡</p>
+<h3 class="head">跳躍遊戲與加油站</h3>
+<p><strong>跳躍遊戲</strong>：<code>nums[i]</code> 是站在位置 i 最多能往前跳幾格，問能不能到最後一格。不必試每一種跳法，只要一路記住「目前能到的最遠位置」：走到某一格時它已經超過最遠位置，就到不了。<strong>最少跳幾次</strong>則像〈圖：BFS、DFS 與拓樸排序〉的 BFS 一層一層往外擴：每一層是「再跳一次能到的範圍」，走完一層就算一次。</p>
+<p><strong>加油站</strong>：環狀路線上有 n 站，第 i 站加 <code>gas[i]</code>，開到下一站要 <code>cost[i]</code>，問從哪一站出發能繞一圈。兩個觀察：總油量小於總消耗，從哪裡出發都不行；從 start 出發開到 i 時油變負，那 start 到 i 之間任何一站出發也都到不了 i + 1（它們出發時油箱都是 0，比從 start 開過來時少），所以直接把起點換成 i + 1。</p>
+<pre><code>public class Jump {
+    // 跳躍遊戲：nums[i] 是在位置 i 最多能往前跳幾格。能不能走到最後一格？
+    static boolean canJump(int[] nums) {
+        int farthest = 0;                              // 目前能到達的最遠位置
+        for (int i = 0; i &lt; nums.length; i++) {
+            if (i &gt; farthest) return false;            // 連這一格都到不了
+            farthest = Math.max(farthest, i + nums[i]);
+        }
+        return true;
+    }
+
+    // 最少跳幾次：一層一層往外擴（像 BFS），每一層能到的範圍是 [start, end]
+    static int minJumps(int[] nums) {
+        int jumps = 0, end = 0, farthest = 0;
+        for (int i = 0; i &lt; nums.length - 1; i++) {
+            farthest = Math.max(farthest, i + nums[i]);
+            if (i == end) {                            // 這一層走完了，必須再跳一次
+                jumps++;
+                end = farthest;
+            }
+        }
+        return jumps;
+    }
+
+    // 加油站：gas[i] 是第 i 站能加的油，cost[i] 是開到下一站要的油。從哪一站出發能繞一圈？
+    static int gasStation(int[] gas, int[] cost) {
+        int total = 0, tank = 0, start = 0;
+        for (int i = 0; i &lt; gas.length; i++) {
+            total += gas[i] - cost[i];
+            tank += gas[i] - cost[i];
+            if (tank &lt; 0) {                            // 從 start 出發到不了 i+1：start 到 i 之間都不行
+                start = i + 1;
+                tank = 0;
+            }
+        }
+        return total &lt; 0 ? -1 : start;                 // 總油量不夠，從哪裡出發都不行
+    }
+
+    public static void main(String[] args) {
+        System.out.println("[2,1,3,0,1,2] 能到嗎？" + canJump(new int[]{2, 1, 3, 0, 1, 2}) + "，最少跳 " + minJumps(new int[]{2, 1, 3, 0, 1, 2}) + " 次");
+        System.out.println("[1,2,0,0,3] 能到嗎？" + canJump(new int[]{1, 2, 0, 0, 3}));
+        System.out.println("加油站 gas=[3,1,2,5,1] cost=[2,3,4,1,2]：從第 " + gasStation(new int[]{3, 1, 2, 5, 1}, new int[]{2, 3, 4, 1, 2}) + " 站出發");
+        System.out.println("加油站 gas=[2,2,2] cost=[3,2,2]：" + gasStation(new int[]{2, 2, 2}, new int[]{3, 2, 2}));
+
+        java.util.Random r = new java.util.Random(3);  // 隨機測資：跟逐站試、BFS 的答案比對
+        int bad = 0;
+        for (int t = 0; t &lt; 2000; t++) {
+            int n = 1 + r.nextInt(8);
+            int[] nums = new int[n], gas = new int[n], cost = new int[n];
+            for (int i = 0; i &lt; n; i++) { nums[i] = r.nextInt(4); gas[i] = r.nextInt(6); cost[i] = r.nextInt(6); }
+            int bfs = bfsJumps(nums);
+            if (canJump(nums) != (bfs &gt;= 0)) bad++;
+            if (bfs &gt;= 0 &amp;&amp; minJumps(nums) != bfs) bad++;
+            if (gasStation(gas, cost) != gasBrute(gas, cost)) bad++;
+        }
+        System.out.println("2000 組隨機測資，跟逐一嘗試的答案不同的有 " + bad + " 處");
+    }
+
+    static int bfsJumps(int[] nums) {                  // 一般 BFS：最少幾步到最後一格，到不了回傳 -1
+        int n = nums.length;
+        int[] d = new int[n];
+        java.util.Arrays.fill(d, -1);
+        d[0] = 0;
+        java.util.ArrayDeque&lt;Integer&gt; q = new java.util.ArrayDeque&lt;&gt;();
+        q.add(0);
+        while (!q.isEmpty()) {
+            int i = q.poll();
+            for (int k = 1; k &lt;= nums[i] &amp;&amp; i + k &lt; n; k++)
+                if (d[i + k] &lt; 0) { d[i + k] = d[i] + 1; q.add(i + k); }
+        }
+        return d[n - 1];
+    }
+
+    static int gasBrute(int[] gas, int[] cost) {       // 每一站都當起點試一次
+        int n = gas.length;
+        for (int s = 0; s &lt; n; s++) {
+            int tank = 0; boolean ok = true;
+            for (int k = 0; k &lt; n &amp;&amp; ok; k++) {
+                int i = (s + k) % n;
+                tank += gas[i] - cost[i];
+                if (tank &lt; 0) ok = false;
+            }
+            if (ok) return s;
+        }
+        return -1;
+    }
+}</code></pre>
+<pre><code>[2,1,3,0,1,2] 能到嗎？true，最少跳 2 次
+[1,2,0,0,3] 能到嗎？false
+加油站 gas=[3,1,2,5,1] cost=[2,3,4,1,2]：從第 3 站出發
+加油站 gas=[2,2,2] cost=[3,2,2]：-1
+2000 組隨機測資，跟逐一嘗試的答案不同的有 0 處</code></pre>
+<p>三個函式都是 O(n)。這兩題的正確性這裡只講直覺，所以實跑另外用 2,000 組隨機資料跟「一般 BFS」與「每一站都當起點試一次」比對，全部一致。</p>
+
+<div class="drill">
+  <p class="dq"><code>[2,1,3,0,1,2]</code> 能走到最後一格嗎？</p>
+  <ul class="dopts"><li>能，最少跳 5 次</li><li>不能</li><li>能，最少跳 1 次</li><li data-ok>能，最少跳 2 次</li></ul>
+  <p class="dexp">從 0 跳到 2（nums[2] = 3），再從 2 跳到 5。實跑 true、2 次。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>[1,2,0,0,3]</code> 為什麼到不了最後一格？</p>
+  <ul class="dopts"><li data-ok>最遠只到位置 3，那裡是 0</li><li>第一格就跳不動了</li><li>最後一格是 3，數字太大了</li><li>陣列的長度太短了一點</li></ul>
+  <p class="dexp">0+1=1、1+2=3、2+0=2、3+0=3，最遠到位置 3，那一格不能再往前，位置 4 超過最遠位置。</p>
+</div>
+<div class="drill">
+  <p class="dq">跳躍遊戲的 <code>canJump</code> 一路維護的是什麼？</p>
+  <ul class="dopts"><li>目前跳了幾次</li><li>每一格的最少跳躍次數</li><li data-ok>目前能到達的最遠位置</li><li>還沒走過的格子</li></ul>
+  <p class="dexp">farthest = max(farthest, i + nums[i])；走到的格子 i 超過 farthest 就表示到不了。</p>
+</div>
+<div class="drill">
+  <p class="dq">加油站 <code>gas=[3,1,2,5,1]</code>、<code>cost=[2,3,4,1,2]</code>，從第幾站出發？（從 0 數）</p>
+  <ul class="dopts"><li>0</li><li>1</li><li>2</li><li data-ok>3</li></ul>
+  <p class="dexp">每站 gas − cost 是 1、−2、−2、4、−1：從 0 出發到第 1 站後油變 −1，換起點到 2；第 2 站又變負，換到 3；之後 4、3 都不負。總和 12 − 12 = 0，有解。實跑從第 3 站。</p>
+</div>
+<div class="drill">
+  <p class="dq">加油站題，什麼情況可以直接回傳 -1？</p>
+  <ul class="dopts"><li data-ok>總油量小於總消耗</li><li>第一站的 gas 小於 cost</li><li>有任何一站的 gas 小於 cost</li><li>站的數量是奇數</li></ul>
+  <p class="dexp">總油量不夠繞一圈，從哪裡出發都不行。單一站 gas &lt; cost 只表示不能從那站出發。</p>
+</div>
+<div class="drill">
+  <p class="dq">從 start 出發開到 i 時油變負，為什麼直接把起點換成 i + 1，而不是 start + 1？</p>
+  <ul class="dopts"><li>因為 i + 1 離得比較近</li><li>因為題目就是這樣規定</li><li>其實換成 start + 1 才對</li><li data-ok>中間站出發時油更少</li></ul>
+  <p class="dexp">從 start 開到中間某站時油箱 ≥ 0，從那站「重新出發」油箱是 0，只會更差。所以中間那些站都可以跳過，這讓整題變成 O(n)。</p>
+</div>
+<div class="drill">
+  <p class="dq">跳躍遊戲 II（最少跳幾次）的 <code>minJumps</code> 跟哪一個演算法的想法最像？</p>
+  <ul class="dopts"><li data-ok>BFS</li><li>DFS</li><li>二分搜尋</li><li>合併排序</li></ul>
+  <p class="dexp">每一層是「再跳一次能到的範圍」，走完一層 jumps 加 1，跟 BFS 依步數一層一層拜訪一樣。實跑也拿一般 BFS 比對過。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先試反例，再決定</p>
+<h3 class="head">貪婪還是動態規劃，以及動手練</h3>
+<p>看到「最多、最少」的題目，可以先問兩個問題：有沒有一個<strong>排序或規則</strong>讓「眼前最好」看起來不會害到後面（最早結束、最遠能到）？拿三、四個元素的小例子跟暴力解比，<strong>找得到反例嗎</strong>？找不到反例、又講得出交換或領先的直覺，就用貪婪；找得到反例（怪面額找零、0/1 背包），就回到〈動態規劃入門〉。</p>
+<div class="tablewrap"><table><thead><tr><th>題目</th><th>貪婪規則</th><th>時間</th></tr></thead><tbody>
+<tr><th>合併區間</th><td>依起點排序，跟最後一段的尾端比</td><td>O(n log n)</td></tr>
+<tr><th>最多不重疊區間</th><td>依結束時間排序，能放就放</td><td>O(n log n)</td></tr>
+<tr><th>最少會議室</th><td>依開始時間排序，最小堆放結束時間；或掃描線</td><td>O(n log n)</td></tr>
+<tr><th>插入區間</th><td>左、重疊、右三段</td><td>O(n)</td></tr>
+<tr><th>跳躍遊戲</th><td>記住最遠能到哪裡</td><td>O(n)</td></tr>
+<tr><th>加油站</th><td>總和不夠就 -1；油變負就換起點</td><td>O(n)</td></tr>
+</tbody></table></div>
+<p>下面的題目連到 LeetCode 題目頁，題目敘述請到原站看。每題先在紙上找反例，再寫程式。</p>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>考這課的哪一招</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/merge-intervals/" target="_blank" rel="noopener">56. Merge Intervals</a></td><td>依起點排序後合併，尾端取 max</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/insert-interval/" target="_blank" rel="noopener">57. Insert Interval</a></td><td>左、重疊、右三段，O(n)</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/non-overlapping-intervals/" target="_blank" rel="noopener">435. Non-overlapping Intervals</a></td><td>依結束時間挑最多不重疊，答案是 n 減去它</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/" target="_blank" rel="noopener">452. Minimum Number of Arrows to Burst Balloons</a></td><td>依結束位置排序，箭射在第一個結束點</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/divide-intervals-into-minimum-number-of-groups/" target="_blank" rel="noopener">2406. Divide Intervals Into Minimum Number of Groups</a></td><td>最少會議室：最小堆或掃描線（閉區間）</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/jump-game/" target="_blank" rel="noopener">55. Jump Game</a></td><td>記住最遠能到哪裡</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/jump-game-ii/" target="_blank" rel="noopener">45. Jump Game II</a></td><td>一層一層往外擴，數層數</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/gas-station/" target="_blank" rel="noopener">134. Gas Station</a></td><td>總和判斷有沒有解，油變負就換起點</td><td>Medium</td></tr>
+</tbody></table></div>
+
+<div class="drill">
+  <p class="dq">「n 樣東西各有重量與價值，背包容量有限，每樣最多拿一次，求最大價值」，該用什麼？</p>
+  <ul class="dopts"><li>貪婪：價值除以重量最高的先拿</li><li>依重量排序後合併</li><li data-ok>動態規劃</li><li>掃描線</li></ul>
+  <p class="dexp">這是 0/1 背包，〈動態規劃入門〉看過 MIT 的反例：照單位價值先拿會錯。東西不能切開時，要用動態規劃。</p>
+</div>
+<div class="drill">
+  <p class="dq">判斷一題能不能用貪婪，下面哪個做法最實在？</p>
+  <ul class="dopts"><li>看題目有沒有「最多」兩個字</li><li data-ok>找小例子跟暴力解比</li><li>看輸入資料有沒有排序</li><li>看答案是不是整數</li></ul>
+  <p class="dexp">「最多、最少」的題目貪婪和動態規劃都可能，關鍵在有沒有反例。這課的每個貪婪都跟暴力解或動態規劃比對過。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一題<strong>不適合</strong>用貪婪？</p>
+  <ul class="dopts"><li>新臺幣面額找零最少張數</li><li>一間會議室最多排幾場</li><li>能不能跳到最後一格</li><li data-ok>任意面額找零最少枚數</li></ul>
+  <p class="dexp">任意面額可能出現 1、3、4 或 7、8、9 這種貪婪會錯的組合，要用動態規劃。其他三題都有可靠的貪婪規則。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>貪婪：每一步選眼前最好、選了不回頭；快，但不一定對。證明思路有一路領先、結構上的下限、交換論證；面試先找反例，再講直覺。</li><li>找零：收銀員的做法對美國硬幣有證明、對新臺幣面額實跑 1～10000 元都最佳；面額 1、3、4、郵票、7、8、9 都有反例。任意面額用動態規劃。</li><li>合併區間：依起點排序，起點不超過目前尾端就合併，尾端取 max；端點相接算不算重疊看題目。</li><li>最多不重疊區間：依結束時間排序、能放就放（交換論證）；最少刪幾個＝n 減去它；射氣球同招。</li><li>最少會議室＝最擁擠時的深度：依開始時間排序加最小堆（放結束時間），或開始、結束各自排序的掃描線，同時刻先處理結束。</li><li>插入區間：左、重疊、右三段掃一遍，O(n)。</li><li>跳躍遊戲：記住最遠能到哪裡；最少跳幾次像 BFS 數層數。加油站：總和不夠就 -1，油變負就把起點換到下一站。</li></ul></div>
