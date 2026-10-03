@@ -21,7 +21,8 @@
   <text x="195" y="142" font-size="14" text-anchor="middle">ALB</text>
   <text x="195" y="162" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">一個入口</text>
   <rect x="270" y="30" width="230" height="240" rx="10" fill="none" stroke="var(--slate)" stroke-dasharray="6 4"/>
-  <text x="280" y="50" font-size="12.5" fill="var(--slate-deep)">Auto Scaling 群組（目標群組）</text>
+  <text x="280" y="50" font-size="12.5" fill="var(--slate-deep)">Auto Scaling 群組</text>
+  <text x="280" y="22" font-size="12" fill="var(--slate-deep)">（註冊到 ALB 的目標群組）</text>
   <rect x="285" y="62" width="95" height="196" rx="6" fill="none" stroke="currentColor" stroke-opacity=".35"/>
   <text x="332" y="80" font-size="11.5" text-anchor="middle" opacity=".7">可用區 a</text>
   <rect x="390" y="62" width="95" height="196" rx="6" fill="none" stroke="currentColor" stroke-opacity=".35"/>
@@ -36,7 +37,7 @@
   <text x="437" y="230" font-size="12" text-anchor="middle" opacity=".8">新加的</text>
   <line x1="240" y1="135" x2="295" y2="117" stroke="currentColor" marker-end="url(#lb-1-arrow)"/>
   <line x1="240" y1="150" x2="295" y2="168" stroke="currentColor" marker-end="url(#lb-1-arrow)"/>
-  <line x1="240" y1="128" x2="400" y2="108" stroke="currentColor" marker-end="url(#lb-1-arrow)"/>
+  <polyline points="240,122 290,88 437,88 437,93" fill="none" stroke="currentColor" marker-end="url(#lb-1-arrow)"/>
   <line x1="500" y1="145" x2="538" y2="145" stroke="currentColor" marker-end="url(#lb-1-arrow)"/>
   <rect x="540" y="120" width="70" height="50" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/>
   <text x="575" y="150" font-size="14" text-anchor="middle">SNS</text>
@@ -69,12 +70,12 @@
 <h3 class="head">ALB 對 NLB：第 7 層與第 4 層</h3>
 <p>OSI 模型把網路分成七層，這裡只看兩層：第 4 層傳輸層（TCP、UDP，只看 IP 與連接埠）、第 7 層應用層（HTTP，看得到網址、主機名稱、標頭）。</p>
 <ul class="plainlist">
-<li><strong>ALB</strong> 在第七層（functions at the application layer, the seventh layer），收到請求後「依優先順序評估監聽器規則」，再從那條規則的目標群組選一台（evaluates the listener rules in priority order）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>ALB</strong> 在第七層（functions at the application layer, the seventh layer），收到請求後「依優先順序評估監聽器（listener；AWS 中文文件叫「接聽程式」）規則」，再從那條規則的目標群組選一台（evaluates the listener rules in priority order）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>NLB</strong> 在第四層，「每秒可以處理數百萬個請求」（It can handle millions of requests per second.）。它不看 HTTP 內容，TCP 流量用來源與目的 IP、連接埠、序號算出的流雜湊（flow hash）選目標，同一條連線會一直送到同一台。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>比喻：ALB 是銀行大廳的服務台，會看你手上的單子（網址、主機名稱）再指你去哪個櫃檯；NLB 是總機轉接，只看你撥的分機號碼（IP、連接埠），飛快接過去，不管你要講什麼。</p>
 
-<p><strong>ALB 的規則。</strong>監聽器（listener）是在某個連接埠等連線的那一端，例如 HTTPS 443。它的規則「依優先順序由小到大評估」，「都不符合時，執行預設規則的動作」（Rules are evaluated in priority order, from the lowest value to the highest value. … If the conditions for no rules are met, the actions for the default rule are performed.）。<a class="fixsrc" href="https://docs.aws.amazon.com/cli/latest/reference/elbv2/create-rule.html" target="_blank" rel="noopener">出處</a> 最常用的兩種條件：</p>
+<p><strong>ALB 的規則。</strong>監聽器是在某個連接埠等連線的那一端，例如 HTTPS 443。它的規則「依優先順序由小到大評估」，「都不符合時，執行預設規則的動作」（Rules are evaluated in priority order, from the lowest value to the highest value. … If the conditions for no rules are met, the actions for the default rule are performed.）。<a class="fixsrc" href="https://docs.aws.amazon.com/cli/latest/reference/elbv2/create-rule.html" target="_blank" rel="noopener">出處</a> 最常用的兩種條件：</p>
 <ul class="plainlist">
 <li><code>path-pattern</code>（依網址路徑，例如 <code>/api/*</code>）：路徑樣式「區分大小寫」（A path pattern is case-sensitive），而且「只比對網址的路徑，不比對查詢參數」（applied only to the path of the URL, not to its query parameters）。</li>
 <li><code>host-header</code>（依主機名稱，例如 <code>admin.example.com</code>）：主機名稱「不區分大小寫」（A hostname is not case-sensitive）。</li>
@@ -125,12 +126,12 @@
 
 <div class="drill">
   <p class="dq">網址 <code>/api/*</code> 要送到 API 服務，<code>/static/*</code> 要送到前端服務。該用哪一種負載平衡器？</p>
-  <ul class="dopts"><li data-ok>ALB</li><li>NLB，因為它比較快</li><li>兩個都可以，NLB 也能看路徑</li><li>都不行，要自己寫一台轉發伺服器</li></ul>
+  <ul class="dopts"><li data-ok>ALB 的 path-pattern</li><li>NLB，因為它比較快</li><li>兩個都可以，NLB 也能看路徑</li><li>都不行，要自己寫一台轉發伺服器</li></ul>
   <p class="dexp">依網址路徑分流要看得懂 HTTP，是第 7 層的工作，ALB 用 path-pattern 條件就做得到。NLB 在第 4 層，只看 IP 與連接埠。</p>
 </div>
 <div class="drill">
   <p class="dq">ALB 監聽器有兩條規則：優先 10 是 <code>path-pattern /api/*</code>，優先 20 是 <code>host-header admin.example.com</code>。請求 <code>https://admin.example.com/api/users</code> 會走哪一條？</p>
-  <ul class="dopts"><li>優先 20，因為主機名稱比路徑先比</li><li data-ok>優先 10</li><li>兩條都會執行</li><li>預設規則，因為同時符合兩條會衝突</li></ul>
+  <ul class="dopts"><li>優先 20，主機名稱先比</li><li data-ok>優先 10，路徑先符合</li><li>兩條都會執行</li><li>預設規則，因為同時符合兩條會衝突</li></ul>
   <p class="dexp">規則照數字由小到大比，第一條符合的就用。這個請求的路徑符合 /api/*，在優先 10 就被接走了，不會再看優先 20。</p>
 </div>
 <div class="drill">
@@ -145,7 +146,7 @@
 </div>
 <div class="drill">
   <p class="dq">Spring Boot 服務放在 ALB 後面，程式裡用 <code>request.getRemoteAddr()</code> 取到的 IP 都一樣、不是使用者的。最可能的原因是？</p>
-  <ul class="dopts"><li>使用者都經過同一個公司的代理伺服器，所以 IP 一樣</li><li>要改用 NLB 才拿得到任何 IP</li><li>安全群組的入站規則把來源位址換成了 VPC 的位址</li><li data-ok>連線來自 ALB，要讀 X-Forwarded-For</li></ul>
+  <ul class="dopts"><li>使用者都經過同一個公司的代理伺服器</li><li>NLB 才拿得到 IP，ALB 拿不到</li><li>安全群組把來源位址換成 VPC 的位址</li><li data-ok>IP 在 X-Forwarded-For 裡</li></ul>
   <p class="dexp">後端看到的連線來自 ALB；使用者的 IP 要從 X-Forwarded-For 標頭讀。安全群組只決定放不放行，不改位址。</p>
 </div>
 <div class="drill">
@@ -154,13 +155,13 @@
   <p class="dexp">文件：原本就有 X-Forwarded-For 時，ALB 把用戶端 IP 接在既有標頭後面，所以可能有好幾個以逗號分隔的 IP（例如中間還經過一層代理）。讀的時候要知道哪一段是自己的負載平衡器加的。</p>
 </div>
 <div class="drill">
-  <p class="dq">合作廠商要求「只能從固定 IP 連進來，他們要加白名單」，而且協定是自訂的 TCP。比較適合用？</p>
-  <ul class="dopts"><li>ALB，用主機名稱分流</li><li data-ok>NLB，每個子網路可掛一個 Elastic IP</li><li>ALB 加 X-Forwarded-For，對方用標頭裡的 IP 加白名單</li><li>不用負載平衡器</li></ul>
-  <p class="dexp">NLB 在每個可用區有固定 IP，對外的還能每個子網路掛一個 Elastic IP，給對方加白名單；它也是第 4 層，自訂 TCP 協定沒問題。ALB 只處理 HTTP、HTTPS，也沒有固定 IP。</p>
+  <p class="dq">合作廠商要求「只能從固定 IP 連進來，他們要加白名單」，協定是自訂的 TCP，後面有好幾台機器要分流。比較適合用？</p>
+  <ul class="dopts"><li>ALB，用主機名稱分流</li><li data-ok>NLB，每個子網路可掛一個 Elastic IP</li><li>ALB 加 X-Forwarded-For，對方用標頭裡的 IP 加白名單</li><li>ALB，用路徑把這家廠商分到專屬的目標群組</li></ul>
+  <p class="dexp">NLB 對外時每個子網路可以掛一個 Elastic IP，給對方加白名單；它在第 4 層，自訂 TCP 協定沒問題。ALB 在第 7 層處理 HTTP、HTTPS，依路徑或主機名稱分流解決不了「自訂 TCP」與「固定 IP」。</p>
 </div>
 <div class="drill">
   <p class="dq">NLB 的目標群組是 instance 類型，後端 EC2 收到的封包，來源 IP 預設是誰的？</p>
-  <ul class="dopts"><li>NLB 的私有 IP</li><li>NLB 的 Elastic IP</li><li data-ok>使用者的 IP</li><li>NAT Gateway 的公有 IP，因為流量從外面進來</li></ul>
+  <ul class="dopts"><li>NLB 的私有 IP</li><li>NLB 的 Elastic IP</li><li data-ok>使用者自己的公有 IP</li><li>NAT Gateway 的公有 IP</li></ul>
   <p class="dexp">文件的預設值表：instance 類型的目標群組預設開啟保留來源 IP。IP 類型、協定是 TCP 或 TLS 的才預設關閉，關閉時後端看到的是 NLB 的私有 IP。</p>
 </div>
 </section>
@@ -168,7 +169,7 @@
 <section>
 <p class="era">每隔幾秒敲一次門，沒人應就不派客人過去</p>
 <h3 class="head">目標群組與健康檢查</h3>
-<p><strong>目標群組</strong>（target group）是負載平衡器要分給的那群後端，<strong>目標類型</strong>（instance、ip、lambda）「建立之後不能改」（After you create a target group, you can't change its target type.）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html" target="_blank" rel="noopener">出處</a> 健康檢查設在目標群組上，ALB 的參數與預設值：</p>
+<p><strong>目標群組</strong>（target group）是負載平衡器要分給的那群後端，<strong>目標類型</strong>（instance、ip、lambda）「建立之後不能改」（After you create a target group, you can't change its target type.）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html" target="_blank" rel="noopener">出處</a> 健康檢查（AWS 中文主控台叫「運作狀態檢查」）設在目標群組上，ALB 的參數與預設值：</p>
 <div class="tablewrap"><table><thead><tr><th>參數</th><th>意思</th><th>ALB 預設（instance、ip 類型）</th></tr></thead><tbody>
 <tr><th><code>HealthCheckPath</code></th><td>打哪個路徑</td><td><code>/</code></td></tr>
 <tr><th><code>HealthCheckIntervalSeconds</code></th><td>每隔幾秒檢查一台</td><td>30 秒</td></tr>
@@ -182,7 +183,7 @@
 <p>三個跟健康檢查有關的行為，常出現在面試與故障排除裡：</p>
 <ul class="plainlist">
 <li><strong>全部都不健康時，照樣送。</strong>「只剩不健康的目標時，負載平衡器把請求送給所有目標，不管健康狀態」（routes requests to all those targets, regardless of their health status）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html" target="_blank" rel="noopener">出處</a> 這是怕健康檢查本身設錯時整個服務斷線，所以檢查全失敗、網站卻正常，要回頭看路徑和狀態碼。</li>
-<li><strong>拿掉一台時，先讓它做完手上的請求。</strong>註銷中的目標不收新請求，預設等 300 秒（waits 300 seconds before completing the deregistration process），手上沒請求就立刻完成，這叫註銷延遲。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html" target="_blank" rel="noopener">出處</a> 請求都很短的服務可以調短。</li>
+<li><strong>拿掉一台時，先讓它做完手上的請求。</strong>取消註冊中的目標不收新請求，預設等 300 秒（waits 300 seconds before completing the deregistration process），手上沒請求就立刻完成，這叫取消註冊延遲。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html" target="_blank" rel="noopener">出處</a> 請求都很短的服務可以調短。</li>
 <li><strong>健康檢查要檢查什麼，是設計取捨。</strong>例如指到 Spring Boot 的 <code>/actuator/health</code>，它若連帶檢查資料庫，資料庫一慢，所有機器會同時被判不健康。</li>
 </ul>
 <pre><code># 建立目標群組：健康檢查打 /actuator/health，每 15 秒一次，連續 3 次成功算健康
@@ -207,9 +208,9 @@ aws elbv2 create-target-group --name api-tg --protocol HTTP --port 8080 \
   <p class="dexp">Matcher 預設 200。要嘛把健康檢查改到會回 200 的路徑，要嘛把 Matcher 設成包含 302 的範圍（可設 200〜499 之間的值）。</p>
 </div>
 <div class="drill">
-  <p class="dq">縮減時把一台機器從目標群組註銷，它手上還有正在處理的請求。預設會怎樣？</p>
+  <p class="dq">縮減時把一台機器從目標群組取消註冊，它手上還有正在處理的請求。預設會怎樣？</p>
   <ul class="dopts"><li data-ok>不收新的，最多等 300 秒做完手上的</li><li>立刻切斷，請求失敗</li><li>一直等到手上的請求全部做完為止，沒有時間上限</li><li>把手上的請求轉給別台重做一次</li></ul>
-  <p class="dexp">這是註銷延遲：預設 300 秒，手上沒有請求就立刻完成。請求都很短的服務可以調短，縮減會快很多。</p>
+  <p class="dexp">這是取消註冊延遲：預設 300 秒，手上沒有請求就立刻完成。請求都很短的服務可以調短，縮減會快很多。</p>
 </div>
 <div class="drill">
   <p class="dq">健康檢查路徑設成 <code>/actuator/health</code>，而它會連帶檢查資料庫。資料庫變慢的那幾分鐘，最可能出現什麼情況？</p>
@@ -273,12 +274,12 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
 </div>
 <div class="drill">
   <p class="dq">想讓「平均 CPU 維持在 50% 左右」，最推薦用哪一種擴展政策？</p>
-  <ul class="dopts"><li data-ok>目標追蹤</li><li>簡單擴展加冷卻</li><li>排程擴展，每小時加一台</li><li>步進擴展，因為官方建議 CPU 這類指標用步進</li></ul>
+  <ul class="dopts"><li data-ok>目標追蹤，設目標值</li><li>簡單擴展加上冷卻</li><li>排程擴展，每小時加一台</li><li>步進擴展，自己切段</li></ul>
   <p class="dexp">目標追蹤就是「選指標和目標值，其他交給它」，文件也強烈建議 CPU、每個目標的請求數用目標追蹤。排程適合可預期的時段；步進要自己切段。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個群組設了兩條目標追蹤：CPU 50%、每個目標的請求數 1000。現在 CPU 70%、請求數 600，會怎樣？</p>
-  <ul class="dopts"><li>不動，兩條政策的意見不一致時會互相抵銷</li><li>縮減，因為請求數低於目標</li><li data-ok>擴展</li><li>取兩條的平均再決定</li></ul>
+  <ul class="dopts"><li>不動，兩條互相抵銷</li><li>縮減，請求數低於目標</li><li data-ok>擴展（任一條要就擴展）</li><li>取兩條的平均值再決定要不要動</li></ul>
   <p class="dexp">文件：任何一條目標追蹤要擴展就擴展；要所有條都準備縮減才會縮減。偏向「寧可多一台」。</p>
 </div>
 <div class="drill">
@@ -298,7 +299,7 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
 </div>
 <div class="drill">
   <p class="dq">K8s 的 HPA 和 EC2 Auto Scaling 都是「依指標調整數量」。最大的差別是？</p>
-  <ul class="dopts"><li data-ok>HPA 調 Pod，Auto Scaling 調 EC2，後者慢得多</li><li>HPA 不能依 CPU 擴展，只能依自訂指標</li><li>Auto Scaling 只能手動調整台數，不能依指標自動擴展</li><li>兩個完全一樣</li></ul>
+  <ul class="dopts"><li data-ok>HPA 調 Pod，它調 EC2</li><li>HPA 不能依 CPU 擴展</li><li>Auto Scaling 只能手動調台數</li><li>兩個完全一樣，只是名字不同</li></ul>
   <p class="dexp">兩者想法相同，調的東西不同。開一台 EC2 要開機、載入程式，比開一個 Pod 慢，所以 EC2 上更需要暖機設定與排程擴展先撐起來。</p>
 </div>
 </section>
@@ -306,7 +307,7 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
 <section>
 <p class="era">拿走的工作先藏起來，做完才真的刪掉</p>
 <h3 class="head">SQS：標準佇列與 FIFO 佇列</h3>
-<p>SQS 跟〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉的佇列有一個關鍵差別：<strong>沒有 ack</strong>。收走的訊息「仍在佇列中，但暫時對其他消費者不可見」（it remains in the queue but becomes temporarily invisible to other consumers），處理完要自己呼叫 <code>DeleteMessage</code>；沒刪，<strong>可見性逾時</strong>（visibility timeout）一過就重新可見，可能被別人取走。預設 30 秒、最長 12 小時，可用 <code>ChangeMessageVisibility</code> 延長。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">出處</a></p>
+<p>SQS 跟〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉的佇列有一個關鍵差別：<strong>沒有 ack</strong>。收走的訊息「仍在佇列中，但暫時對其他消費者不可見」（it remains in the queue but becomes temporarily invisible to other consumers），處理完要自己呼叫 <code>DeleteMessage</code>；沒刪，<strong>可見性逾時</strong>（visibility timeout）一過就重新可見，可能被別人取走。預設 30 秒、最長 12 小時（從第一次收到算起，延長也不會重算：Extending the timeout doesn't reset this 12-hour limit.），可用 <code>ChangeMessageVisibility</code> 延長。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">出處</a></p>
 <p>在 LocalStack 上實跑（佇列的可見性逾時設 5 秒；<code>$Q</code> 是佇列網址，<code>None</code> 表示沒收到任何訊息；以下都是 LocalStack，不是真的 AWS）：</p>
 <pre><code># 佇列 transfer-jobs，可見性逾時 5 秒；$Q 是它的網址
 $ aws sqs send-message --queue-url $Q --message-body 't-3001 A轉出1000' --query MessageId --output text
@@ -334,21 +335,21 @@ None</code></pre>
   <text x="185" y="115" font-size="13" text-anchor="middle">看不到（可見性逾時 5 秒）</text>
   <rect x="310" y="88" width="40" height="44" fill="var(--surface)" stroke="currentColor"/>
   <text x="330" y="152" font-size="11.5" text-anchor="middle">重新可見</text>
-  <rect x="350" y="88" width="210" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
-  <text x="455" y="115" font-size="13" text-anchor="middle">又看不到</text>
+  <rect x="350" y="88" width="300" height="44" fill="var(--gold-soft)" stroke="var(--gold)"/>
+  <text x="405" y="115" font-size="13" text-anchor="middle">又看不到</text>
   <text x="60" y="70" font-size="12.5">第 0 秒：第一次收</text>
   <text x="60" y="48" font-size="12" fill="var(--gold-deep)">收到次數 1</text>
   <text x="350" y="70" font-size="12.5">第 6 秒：第二次收</text>
   <text x="350" y="48" font-size="12" fill="var(--gold-deep)">收到次數 2</text>
-  <rect x="570" y="88" width="140" height="44" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
-  <text x="640" y="115" font-size="13" text-anchor="middle">DeleteMessage</text>
-  <text x="640" y="152" font-size="12" text-anchor="middle" fill="var(--slate-deep)">這時才真的消失</text>
+  <rect x="470" y="93" width="130" height="34" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="535" y="115" font-size="13" text-anchor="middle">DeleteMessage</text>
+  <text x="535" y="152" font-size="12" text-anchor="middle" fill="var(--slate-deep)">逾時內刪除，這時才真的消失</text>
   <text x="40" y="195" font-size="12.5" opacity=".75">「收走」不等於「處理完」：沒刪除，逾時一到就會再被別人（或自己）收到</text>
 </svg>
 <figcaption>可見性逾時是 SQS 版的「處理完才確認」：Delete 就是確認，逾時到了還沒確認，就重新排回去。</figcaption>
 </figure>
 
-<p><strong>標準佇列：至少一次、不保證順序。</strong>「確保至少一次送達，……可能送達不只一份，偶爾也會不照順序」（more than one copy of a message might be delivered, and messages may occasionally arrive out of order）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html" target="_blank" rel="noopener">出處</a> 原因是訊息存在好幾台伺服器上，刪除時有一台連不上，那份就沒刪到，所以 AWS 要求應用程式冪等（Design your applications to be idempotent）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html" target="_blank" rel="noopener">出處</a> 這種重複 LocalStack 重現不了，上面看到的重複是可見性逾時造成的。</p>
+<p><strong>標準佇列：至少一次、不保證順序。</strong>「確保至少一次送達，……可能送達不只一份，偶爾也會不照順序」（more than one copy of a message might be delivered, and messages may occasionally arrive out of order）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html" target="_blank" rel="noopener">出處</a> 原因是訊息存在好幾台伺服器上，刪除時有一台連不上，那份就沒刪到，所以 AWS 建議把應用程式設計成冪等（Design your applications to be idempotent）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html" target="_blank" rel="noopener">出處</a> 這種重複 LocalStack 重現不了，上面看到的重複是可見性逾時造成的。</p>
 
 <p><strong>FIFO 佇列：照順序、不重複放進佇列。</strong>佇列名稱要以 <code>.fifo</code> 結尾。兩個重點：</p>
 <ul class="plainlist">
@@ -404,7 +405,7 @@ $ aws sqs receive-message --queue-url $DLQ --query 'Messages[].Body' --output te
 p-9 金額格式錯誤</code></pre>
 <p>收了 2 次都沒刪，第 3 次來源佇列就是空的，訊息已經在 <code>payments-dlq</code>。死信佇列的保留期限要設得比來源佇列長：標準佇列的訊息到期時間從「最初進來源佇列」那一刻算起，搬到死信佇列不會重算。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">出處</a></p>
 
-<p><strong>長輪詢。</strong>收訊息要消費者主動去問（輪詢）。預設的<strong>短輪詢</strong>只查一部分伺服器，沒訊息也馬上回空的；<strong>長輪詢</strong>是 <code>WaitTimeSeconds</code> 大於 0，等到有訊息或時間到才回，最長 20 秒（The maximum long polling wait time is 20 seconds.），空回應少很多。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html" target="_blank" rel="noopener">出處</a> LocalStack 實測：空佇列短輪詢約 0.6 秒回空的（多半是啟動 CLI 容器的時間）；長輪詢等 10 秒、另一個程式在第 3 秒送一則進來，約 4.2 秒就拿到那一則回來，沒等滿 10 秒。</p>
+<p><strong>長輪詢。</strong>收訊息要消費者主動去問（輪詢）。預設的<strong>短輪詢</strong>只查一部分伺服器，沒訊息也馬上回空的；<strong>長輪詢</strong>是 <code>WaitTimeSeconds</code> 大於 0，等到有訊息或時間到才回，最長 20 秒（The maximum long polling wait time is 20 seconds.），空回應少很多。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html" target="_blank" rel="noopener">出處</a> LocalStack 實測：空佇列短輪詢約 0.5〜0.6 秒就回空的（多半是啟動 CLI 容器的時間）；長輪詢等 10 秒、另一個程式在第 3 秒送一則進來，約 4 秒就拿到那一則回來（每次跑不同，重跑在 3.6〜4.2 秒之間），沒等滿 10 秒。</p>
 <p class="formula">SQS 沒有 ack：收走＝暫時看不到，Delete 才是處理完；逾時沒刪就重新可見。標準至少一次、順序盡力；FIFO 群組內有序、5 分鐘內去重。maxReceiveCount 次後進死信；長輪詢最多等 20 秒</p>
 
 <div class="drill">
@@ -434,7 +435,7 @@ p-9 金額格式錯誤</code></pre>
 </div>
 <div class="drill">
   <p class="dq">轉帳指令要「同一個帳號照順序處理，不同帳號可以同時處理」。用 FIFO 佇列時，訊息群組 ID 該填什麼？</p>
-  <ul class="dopts"><li>每則都用不同的隨機值</li><li>全部用同一個值</li><li data-ok>帳號</li><li>轉帳金額</li></ul>
+  <ul class="dopts"><li>每則都用不同的隨機值</li><li>全部用同一個值</li><li data-ok>帳號，同帳號一個群組</li><li>轉帳金額</li></ul>
   <p class="dexp">同一個群組內嚴格照順序，不同群組可以平行。用帳號當群組，同一帳號有序、不同帳號互不卡住。全部用同一個值也有序，但只能一則一則做；隨機值就沒有順序了。</p>
 </div>
 <div class="drill">
@@ -454,7 +455,7 @@ p-9 金額格式錯誤</code></pre>
 </div>
 <div class="drill">
   <p class="dq">轉送政策設 <code>maxReceiveCount</code> 為 1。會有什麼風險？</p>
-  <ul class="dopts"><li>訊息永遠進不了死信佇列</li><li>佇列會自動變成 FIFO 佇列，以免訊息亂序</li><li>死信佇列會被塞爆而刪掉訊息</li><li data-ok>一次失敗就進死信</li></ul>
+  <ul class="dopts"><li>訊息永遠進不了死信佇列</li><li>佇列自動變成 FIFO</li><li>死信佇列被塞爆</li><li data-ok>一次失敗就進死信</li></ul>
   <p class="dexp">文件：maxReceiveCount 設太低（例如 1），一次失敗就會進死信佇列；要設得夠高，讓暫時性錯誤有機會重試成功。</p>
 </div>
 <div class="drill">
@@ -464,7 +465,7 @@ p-9 金額格式錯誤</code></pre>
 </div>
 <div class="drill">
   <p class="dq">消費者每秒問一次空的佇列，每次都馬上拿到空回應，帳單上的請求數很高。改什麼最有效？</p>
-  <ul class="dopts"><li data-ok>改用長輪詢</li><li>把可見性逾時調長</li><li>換成 FIFO 佇列</li><li>加開消費者，讓每台輪流去問，分攤請求數</li></ul>
+  <ul class="dopts"><li data-ok>改用長輪詢，等到才回</li><li>把可見性逾時調長</li><li>換成 FIFO 佇列</li><li>加開消費者分攤請求</li></ul>
   <p class="dexp">短輪詢沒訊息也馬上回空的；長輪詢會等到有訊息或時間到才回，大幅減少空回應。最長 20 秒。實跑裡長輪詢等到訊息進來就回應了（約 4 秒），沒有等滿 10 秒。</p>
 </div>
 </section>
@@ -517,8 +518,8 @@ $ aws sns publish --topic-arn $TOPIC_ARN --message 't-5001 A轉出3000' --messag
 $ aws sns publish --topic-arn $TOPIC_ARN --message 't-5002 A轉出250000' --message-attributes '{"amount":{"DataType":"Number","StringValue":"250000"}}' --query MessageId --output text
 # 從 $QN 收
 $ aws sqs receive-message --queue-url $QN --max-number-of-messages 10 --wait-time-seconds 2 --query 'Messages[].Body' --output json | python3 body.py
-JSON 信封：Type=Notification、Message=t-5002 A轉出250000、MessageAttributes={"amount": "250000"}（另有 TopicArn、Signature 等 7 個欄位）
 JSON 信封：Type=Notification、Message=t-5001 A轉出3000、MessageAttributes={"amount": "3000"}（另有 TopicArn、Signature 等 7 個欄位）
+JSON 信封：Type=Notification、Message=t-5002 A轉出250000、MessageAttributes={"amount": "250000"}（另有 TopicArn、Signature 等 7 個欄位）
 # 從 $QL 收
 $ aws sqs receive-message --queue-url $QL --max-number-of-messages 10 --wait-time-seconds 2 --query 'Messages[].Body' --output json | python3 body.py
 原始內容：t-5001 A轉出3000
@@ -526,7 +527,7 @@ $ aws sqs receive-message --queue-url $QL --max-number-of-messages 10 --wait-tim
 # 從 $QA 收
 $ aws sqs receive-message --queue-url $QA --max-number-of-messages 10 --wait-time-seconds 2 --query 'Messages[].Body' --output json | python3 body.py
 JSON 信封：Type=Notification、Message=t-5002 A轉出250000、MessageAttributes={"amount": "250000"}（另有 TopicArn、Signature 等 7 個欄位）</code></pre>
-<p>notify 收到 JSON 信封，要先解開才拿得到 <code>Message</code>；ledger 直接是內容；risk-large 只收到 250,000 那則。另外試了不設佇列政策，LocalStack 照樣送進佇列（它沒有檢查這條政策）；真的 AWS 少了這條就收不到，所以 LocalStack 跑得通不代表權限設對了。</p>
+<p>notify 收到 JSON 信封，要先解開才拿得到 <code>Message</code>（這次兩則剛好照發布順序出來，但標準佇列不保證順序）；ledger 直接是內容；risk-large 只收到 250,000 那則。另外試了不設佇列政策，LocalStack 照樣送進佇列（它沒有檢查這條政策）；真的 AWS 少了這條就收不到，所以 LocalStack 跑得通不代表權限設對了。</p>
 <p>SNS 扇出到多條 SQS，效果像 Kafka 的「每個服務一個消費者群組」或 RabbitMQ 的 fanout 交換器；差別是 SQS 處理完就刪，不能倒回重讀，見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</p>
 <p class="formula">SNS 推、SQS 拉：主題扇出給每條訂閱的佇列各一份；佇列要允許主題 sqs:SendMessage；預設收 JSON 信封、可開原始傳遞；預設全收、可設篩選政策</p>
 
@@ -552,9 +553,9 @@ JSON 信封：Type=Notification、Message=t-5002 A轉出250000、MessageAttribut
 </div>
 <div class="drill">
   <p class="dq">SNS 扇出到三條 SQS，跟 Kafka 讓三個服務各用一個消費者群組相比，SQS 這邊做不到的是？</p>
-  <ul class="dopts"><li>三個服務都收到同一則</li><li>各服務照自己的速度處理</li><li>服務暫時下線時，訊息還留著等它回來</li><li data-ok>處理完再倒回去重讀</li></ul>
+  <ul class="dopts"><li>三個服務都收到同一則</li><li>各服務照自己的速度處理</li><li>服務下線時訊息還在</li><li data-ok>處理完後倒回去重讀</li></ul>
   <p class="dexp">SQS 處理完就刪掉，沒有位移可以倒回。三個服務都收到、各自的速度、下線時暫存，SNS 加 SQS 都做得到。</p>
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>ALB 在第 7 層，依路徑（區分大小寫、不看查詢參數）、主機名稱（不分大小寫）等條件分流，規則照優先順序由小到大比、都不符合走預設規則；後端看到的來源是 ALB，使用者 IP 在 X-Forwarded-For。</li><li>NLB 在第 4 層，用流雜湊選後端，每秒可處理數百萬請求；可保留來源 IP（預設值看目標類型），每個可用區有固定 IP、可掛 Elastic IP。</li><li>目標群組的目標類型建了不能改；ALB 健康檢查預設間隔 30 秒、逾時 5 秒、健康 5 次、不健康 2 次、狀態碼 200；全部不健康時照樣送；註銷延遲預設 300 秒。</li><li>Auto Scaling 群組：最小 ≤ 期望 ≤ 最大；預設只看 EC2 狀態檢查、忽略 ELB 健康檢查；目標追蹤像恆溫器、官方建議優先用，任何一條要擴展就擴展、全部同意才縮減；步進依超標幅度；排程用 cron、預設 UTC；冷卻預設 300 秒只管簡單擴展；暖機預設沒開、強烈建議設。</li><li>SQS 沒有 ack：收走後在可見性逾時（預設 30 秒、最長 12 小時）內看不到，DeleteMessage（帶這次的 receipt handle）才是處理完。</li><li>標準佇列至少一次、順序盡力，消費端要冪等；FIFO 佇列以 .fifo 結尾，同一個訊息群組嚴格有序，5 分鐘去重區間內同編號只留一份，但逾時沒刪一樣會再收到。</li><li>死信佇列：收到超過 maxReceiveCount 次就搬過去，要同帳號同區域、保留期限比來源長；長輪詢最多等 20 秒，減少空回應。</li><li>SNS 扇出：主題複製給每條訂閱的 SQS；佇列要允許主題 sqs:SendMessage（本課的 LocalStack 少了也照送，真的 AWS 會擋）；預設收 JSON 信封、可開原始傳遞；預設全收、可用篩選政策。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>ALB 在第 7 層，依路徑（區分大小寫、不看查詢參數）、主機名稱（不分大小寫）等條件分流，規則照優先順序由小到大比、都不符合走預設規則；後端看到的來源是 ALB，使用者 IP 在 X-Forwarded-For。</li><li>NLB 在第 4 層，用流雜湊選後端，每秒可處理數百萬請求；可保留來源 IP（預設值看目標類型），每個可用區有固定 IP、可掛 Elastic IP。</li><li>目標群組的目標類型建了不能改；ALB 健康檢查預設間隔 30 秒、逾時 5 秒、健康 5 次、不健康 2 次、狀態碼 200；全部不健康時照樣送；取消註冊延遲預設 300 秒。</li><li>Auto Scaling 群組：最小 ≤ 期望 ≤ 最大；預設只看 EC2 狀態檢查、忽略 ELB 健康檢查；目標追蹤像恆溫器、官方建議優先用，任何一條要擴展就擴展、全部同意才縮減；步進依超標幅度；排程用 cron、預設 UTC；冷卻預設 300 秒只管簡單擴展；暖機預設沒開、強烈建議設。</li><li>SQS 沒有 ack：收走後在可見性逾時（預設 30 秒、最長 12 小時）內看不到，DeleteMessage（帶這次的 receipt handle）才是處理完。收到超過 maxReceiveCount 次就搬去死信佇列（同帳號同區域、保留期限比來源長）；長輪詢最多等 20 秒。</li><li>標準佇列至少一次、順序盡力，消費端要冪等；FIFO 佇列以 .fifo 結尾，同一個訊息群組嚴格有序，5 分鐘去重區間內同編號只留一份，但逾時沒刪一樣會再收到。</li><li>SNS 扇出：主題複製給每條訂閱的 SQS；佇列要允許主題 sqs:SendMessage（本課的 LocalStack 少了也照送，真的 AWS 會擋）；預設收 JSON 信封、可開原始傳遞；預設全收、可用篩選政策。</li></ul></div>
