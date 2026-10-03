@@ -1,4 +1,4 @@
-<!-- 來源：依官方文件與公開架構指南新寫。MySQL 8.4 參考手冊（InnoDB 鎖定讀取、死結處理）https://dev.mysql.com/doc/refman/8.4/en/ · Stripe API 冪等請求 https://docs.stripe.com/api/idempotent_requests · IETF draft-ietf-httpapi-idempotency-key-header-07 · microservices.io Saga 與交易式 Outbox · AWS 規範性指引 Saga 編排模式 · Azure 架構中心補償交易模式 · Martin Fowler〈Account〉〈Accounting Entry〉 · Wikipedia〈Double-entry bookkeeping〉 · Azure Blob 不可變儲存體、Amazon S3 Object Lock · Amazon DynamoDB 寫入分片 · Google《Site Reliability Engineering》第 6 章；示範程式以 Java 21＋MySQL 8.4.11（Docker mysql:8.4）實際執行 · 收錄日期：2026-10-03 -->
+<!-- 來源：依官方文件與公開架構指南新寫。MySQL 8.4 參考手冊（InnoDB 鎖定讀取、死結處理）https://dev.mysql.com/doc/refman/8.4/en/ · Stripe API 冪等請求 https://docs.stripe.com/api/idempotent_requests · IETF draft-ietf-httpapi-idempotency-key-header-07 · microservices.io Saga 與交易式 Outbox · AWS 規範性指引 Saga 編排模式 · Azure 架構中心補償交易模式 · Martin Fowler〈Account〉〈Accounting Entry〉 · Wikipedia〈Double-entry bookkeeping〉 · Azure Blob 不可變儲存體、Amazon S3 Object Lock · Amazon DynamoDB 寫入碎片 · Google《Site Reliability Engineering》第 6 章；示範程式以 Java 21＋MySQL 8.4.11（Docker mysql:8.4）實際執行 · 收錄日期：2026-10-03 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>在系統設計面試裡，先問對需求再畫圖：同行與跨行、即時與批次、一致性要求、流量規模</li><li>用雙重記帳設計帳務資料表，說清楚為什麼「每筆轉帳一借一貸、總和為零」，並用一筆資料庫交易完成同行轉帳</li><li>講出冪等鍵、跨行 Saga 與 Outbox、失敗補償與人工處理各自擋住哪一種錯</li><li>回答限額與風控放哪、稽核紀錄怎麼做到不可改、熱帳戶怎麼辦、對帳與監控看什麼</li></ul></div>
 <p class="muted">本課是面試答法加一段實跑示範。交易隔離與鎖的細節見〈交易隔離層級與鎖〉，冪等鍵的 HTTP 寫法見〈API 設計進階：版本、分頁、冪等與錯誤格式〉，佇列與 Outbox 的實作見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉，最終一致的基本答法見面試集〈系統設計：訊息佇列與最終一致性〉。</p>
 
@@ -136,7 +136,7 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 不固定順序上鎖：成功 1036 筆、餘額不足 0 筆、死結 175 次
   總餘額 20000，所有分錄加總 0，分錄筆數 2072，加總不為 0 的轉帳 0 筆
 應用程式帳號改分錄：UPDATE command denied to user 'app'@'172.17.0.1' for table 'journal_entry'</code></pre>
-<p>兩種上鎖順序最後的帳都對得上（總餘額 20000、分錄加總 0、每筆轉帳的分錄加總都是 0），因為死結時 InnoDB「自動偵測交易死結，還原一筆或多筆交易來解開死結」（InnoDB automatically detects transaction deadlocks and rolls back a transaction or transactions to break the deadlock.），<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 被還原的那筆不留痕跡。差別在死結次數：固定順序 0 次；不固定順序這一次實跑 175 次（另外三次 161～179 次，固定順序四次都是 0），每一次都是一筆得重試的失敗轉帳。MySQL 也提醒「隨時準備好在死結時重新執行交易」（Always be prepared to re-issue a transaction if it fails due to deadlock.）、「讓交易小而短」（Keep transactions small and short in duration）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 所以交易裡不要呼叫外部服務（簡訊、風控 API），那會讓鎖握得很久。隔離層級與鎖的細節見〈交易隔離層級與鎖〉。</p>
+<p>兩種上鎖順序最後的帳都對得上（總餘額 20000、分錄加總 0、每筆轉帳的分錄加總都是 0），因為死結時 InnoDB「自動偵測交易死結，還原一筆或多筆交易來解開死結」（InnoDB automatically detects transaction deadlocks and rolls back a transaction or transactions to break the deadlock.），<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 被還原的那筆不留痕跡。差別在死結次數：固定順序 0 次；不固定順序這一次實跑 175 次（每次跑不同，約 160〜185 次；固定順序每次都是 0），每一次都是一筆得重試的失敗轉帳。MySQL 也提醒「隨時準備好在死結時重新執行交易」（Always be prepared to re-issue a transaction if it fails due to deadlock.）、「讓交易小而短」（Keep transactions small and short in duration）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 所以交易裡不要呼叫外部服務（簡訊、風控 API），那會讓鎖握得很久。隔離層級與鎖的細節見〈交易隔離層級與鎖〉。</p>
 
 <div class="drill">
   <p class="dq">同行轉帳「扣款、入帳、寫兩筆分錄」為什麼要放在同一筆資料庫交易裡？</p>
@@ -169,9 +169,9 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <p class="era">按兩下也只扣一次</p>
 <h3 class="head">冪等鍵：防重送</h3>
 <p class="q">面試官：使用者按了兩次送出，或手機網路斷了自動重送，怎麼保證只扣一次？</p>
-<p><strong>一句話定義：</strong>用戶端每筆轉帳產生一個冪等鍵，伺服器把它存成唯一索引；同一個鍵第二次進來，回傳第一次的結果，不再執行。</p>
-<p>Stripe 的文件是業界常被引用的寫法：冪等鍵讓用戶端在連線錯誤時「可以安全地重送請求，不會建立第二個物件或做兩次更新」（you can safely repeat the request without risk of creating a second object or performing the update twice），伺服器「保存第一次請求的狀態碼與回應內容……之後同一個鍵的請求都回傳同樣的結果」（Subsequent requests with the same key return the same result, including 500 errors.），而且會比對參數，「跟原本的請求不同就回錯誤」（errors if they're not the same to prevent accidental misuse）。<a class="fixsrc" href="https://docs.stripe.com/api/idempotent_requests" target="_blank" rel="noopener">出處</a> IETF 也在把 <code>Idempotency-Key</code> 這個 HTTP 標頭標準化（草案 draft-ietf-httpapi-idempotency-key-header）。<a class="fixsrc" href="https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/" target="_blank" rel="noopener">出處</a> HTTP 介面怎麼寫見〈API 設計進階：版本、分頁、冪等與錯誤格式〉。</p>
-<p>示範裡的做法是讓資料庫保證：<code>idempotency_key</code> 是唯一索引，<code>INSERT</code> 撞到就表示做過了。把「記下這個鍵」和「扣款」放在同一筆交易裡很重要：如果鍵先寫進去、扣款失敗卻沒還原，重送會被誤判成已處理。反過來，示範中餘額不足時整筆還原，鍵也不會留下，客戶補足餘額後可以用同一個鍵重試；要不要這樣設計，是要先跟業務講好的規則。</p>
+<p><strong>一句話定義：</strong>用戶端每筆轉帳產生一個冪等鍵，伺服器把它存成唯一索引；同一個鍵第二次進來，回傳第一次的結果，不再執行（本課示範只回報「已處理過」；正式做法要存下並回第一次的回應）。</p>
+<p>Stripe 的文件是業界常被引用的寫法：冪等鍵讓用戶端在連線錯誤時「可以安全地重送請求，不會建立第二個物件或做兩次更新」（you can safely repeat the request without risk of creating a second object or performing the update twice），伺服器「保存第一次請求的狀態碼與回應內容……之後同一個鍵的請求都回傳同樣的結果」（Subsequent requests with the same key return the same result, including 500 errors.），而且會比對參數，「跟原本的請求不同就回錯誤」（errors if they're not the same to prevent accidental misuse）。<a class="fixsrc" href="https://docs.stripe.com/api/idempotent_requests" target="_blank" rel="noopener">出處</a> IETF 有一份把 <code>Idempotency-Key</code> 這個 HTTP 標頭標準化的草案（draft-ietf-httpapi-idempotency-key-header），目前已過期，不是正式標準。<a class="fixsrc" href="https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/" target="_blank" rel="noopener">出處</a> HTTP 介面怎麼寫見〈API 設計進階：版本、分頁、冪等與錯誤格式〉。</p>
+<p>示範裡的做法是讓資料庫保證：<code>idempotency_key</code> 是唯一索引，<code>INSERT</code> 撞到就表示做過了。把「記下這個鍵」和「扣款」放在同一筆交易裡很重要：如果鍵先寫進去、扣款失敗卻沒還原，重送會被誤判成已處理。失敗的結果要不要存，有兩種做法：Stripe 與 IETF 草案是連錯誤也存、重送回同一個錯誤（〈API 設計進階：版本、分頁、冪等與錯誤格式〉的範例就是這樣）；本課示範為了簡短沒存失敗結果，餘額不足時鍵會跟著整筆還原，補足餘額後同一個鍵可以重試。正式系統照哪一種，要先跟業務講好。</p>
 
 <div class="drill">
   <p class="dq">冪等鍵應該由誰產生？</p>
@@ -231,7 +231,7 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <ul class="plainlist">
 <li><strong>中間帳戶</strong>：扣款時不是直接把錢「送出去」，而是客戶帳戶 −1000、銀行的轉出中間帳戶 +1000，兩筆分錄加總仍是 0。對方成功後再從中間帳戶結清；對方拒絕就反向記兩筆退回客戶。錢在任何時刻都看得到在哪個帳戶。</li>
 <li><strong>Outbox</strong>：扣款與「要送給清算機構的指令」寫在同一筆本地交易裡（Outbox 表），再由另一個程序讀出來送。microservices.io 說服務必須「原子地更新資料庫並送出訊息」，而資料庫加訊息代理的分散式交易（2PC）常常不可行（it is not viable to use a traditional distributed transaction (2PC) that spans the database and the message broker）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 實作見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</li>
-<li><strong>逾時不是失敗</strong>：送出之後沒有回覆，可能對方已經入帳、只是回覆丟了。這時先用同一個轉帳序號向對方查詢；不能直接補償退款，否則錢會變成兩份。</li>
+<li><strong>逾時不是失敗</strong>：送出之後沒有回覆，可能對方已經入帳、只是回覆丟了。這時建議先用同一個轉帳序號向對方查詢，不要直接補償退款，否則錢會變成兩份。Azure 補償交易模式也提醒「最終一致的某一步什麼時候算失敗，不一定好判斷」，它可能卡住而不是馬上失敗，所以需要逾時機制（It might not be easy to determine when a step in an operation that implements eventual consistency fails. A step might not fail immediately but instead get blocked. You might need to implement a timeout mechanism.）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/compensating-transaction" target="_blank" rel="noopener">出處</a></li>
 <li><strong>Saga 沒有隔離</strong>：microservices.io 也列出它的缺點是「缺乏隔離」（Lack of isolation），並行的 saga 可能讀到中間狀態，要另外設計對策。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a> 轉帳的對策就是先把錢移到中間帳戶：客戶在「已扣款」之後就看不到那筆錢，不會被重複花掉。</li>
 </ul>
 
@@ -296,7 +296,7 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <li><strong>風控評分放在受理之前，但不放進資料庫交易</strong>：呼叫風控服務要時間，放進交易會讓鎖握很久（上一段 MySQL 的建議）。先評分、通過才開始轉帳交易；風控服務掛掉時是「一律拒絕」還是「小額放行」，是要先跟業務講好的規則。</li>
 <li><strong>事後監控</strong>：通過的交易仍送去非同步分析，發現異常再凍結與人工處理。</li>
 </ul>
-<p>限流與熔斷的做法見面試集〈系統設計：秒殺與限流〉與〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
+<p>限流與斷路器的做法見面試集〈系統設計：秒殺與限流〉與〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
 
 <div class="drill">
   <p class="dq">每日限額 5 萬，已轉 4 萬，兩筆 8000 元的轉帳同時進來。限額檢查放在交易外、先查後扣，可能發生什麼？</p>
@@ -319,9 +319,9 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <p class="era">寫了就不能改</p>
 <h3 class="head">稽核紀錄不可改</h3>
 <p class="q">面試官：怎麼保證分錄與稽核紀錄不會被改？</p>
-<p><strong>一句話定義：</strong>從權限、資料表設計、儲存三層一起做：應用程式帳號只有新增與查詢權限，表的設計只新增不修改，歸檔放在 WORM（寫一次、讀多次）儲存。</p>
+<p><strong>一句話定義：</strong>從權限、資料表設計、儲存三層一起做：應用程式帳號對分錄表只有新增與查詢權限，表的設計只新增不修改，歸檔放在 WORM（寫一次、讀多次）儲存。</p>
 <ul class="plainlist">
-<li><strong>權限</strong>：示範最後一行，應用程式帳號只有 <code>SELECT, INSERT</code>，想改分錄就被拒絕：<code>UPDATE command denied</code>。就算程式有漏洞，也改不了帳。</li>
+<li><strong>權限</strong>：示範最後一行，應用程式帳號對分錄表（<code>journal_entry</code>）只有 <code>SELECT, INSERT</code>，想改分錄就被拒絕（轉帳本身要更新 <code>account</code> 的餘額，示範只對分錄表這樣授權）：<code>UPDATE command denied</code>。就算程式有漏洞，也改不了帳。</li>
 <li><strong>WORM 儲存</strong>：Azure Blob 的不可變儲存體讓資料處在 WORM 狀態，「在使用者指定的期間內不能被修改或刪除」（data can't be modified or deleted for a user-specified interval）；<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-storage-overview" target="_blank" rel="noopener">出處</a> Amazon S3 Object Lock 也是「寫一次、讀多次（WORM）模型」（Object Lock uses a write-once-read-many (WORM) model to store objects.）。<a class="fixsrc" href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html" target="_blank" rel="noopener">出處</a> 每日的分錄與稽核紀錄可以定期匯出到這類儲存。</li>
 <li><strong>誰做了什麼</strong>：稽核紀錄記下操作者、時間、來源、前後狀態；人工處理也要留紀錄（上一段）。</li>
 </ul>
@@ -350,9 +350,9 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 <p><strong>一句話定義：</strong>每筆轉入都要鎖那一列，所有交易排在同一把鎖後面，吞吐量被一列卡住；做法是把這個帳戶拆成多個子帳戶分散寫入，或入帳時只寫分錄、餘額延後彙總。</p>
 <p>這是「熱點」問題：寫入集中在同一筆資料上。示範裡固定順序上鎖讓轉帳排成一條隊伍，對一般帳戶剛好，對熱帳戶就是瓶頸。建議的做法：</p>
 <ul class="plainlist">
-<li><strong>拆子帳戶</strong>：公司帳戶在內部分成 N 個子帳戶，轉入時隨機或依序挑一個，查詢餘額時加總。Amazon DynamoDB 文件稱類似的手法為寫入分片：「在分區鍵後面加一個隨機數字」，把寫入「隨機分散到更大的空間」（add a random number to the end of the partition key values. Then you randomize the writes across the larger space.）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html" target="_blank" rel="noopener">出處</a> 同一個道理也適用在關聯式資料庫的列鎖。</li>
+<li><strong>拆子帳戶</strong>：公司帳戶在內部分成 N 個子帳戶，轉入時隨機或依序挑一個，查詢餘額時加總。Amazon DynamoDB 文件稱類似的手法為寫入碎片（write sharding）：「在分割鍵後面加一個隨機數字」，把寫入「隨機分散到更大的空間」（add a random number to the end of the partition key values. Then you randomize the writes across the larger space.）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html" target="_blank" rel="noopener">出處</a> 同一個道理也適用在關聯式資料庫的列鎖。</li>
 <li><strong>入帳只寫分錄</strong>：轉入對收款方不會讓餘額變成負數，可以只新增分錄、不鎖餘額那一列，餘額由批次或定時彙總。代價是收款方看到的餘額會晚一點，這要跟業務講清楚。</li>
-<li><strong>佇列削峰</strong>：先受理、排隊、依處理能力入帳（面試集〈系統設計：秒殺與限流〉的以佇列平衡負載），代價同樣是入帳時間變晚。</li>
+<li><strong>用佇列緩衝尖峰</strong>：先受理、排隊、依處理能力入帳（面試集〈系統設計：秒殺與限流〉的以佇列平衡負載），代價同樣是入帳時間變晚。</li>
 </ul>
 <p class="muted">轉出不能用「只寫分錄、延後彙總」：轉出要先確定餘額夠，必須讀到最新的餘額並鎖住。</p>
 
@@ -451,6 +451,7 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
   <line x1="115" y1="196" x2="115" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
   <line x1="413" y1="200" x2="194" y2="256" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
   <rect x="440" y="240" width="100" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="490" y="266" font-size="12" text-anchor="middle">監控與追蹤</text>
+  <line x1="490" y1="206" x2="490" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
   <rect x="560" y="240" width="160" height="44" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="640" y="260" font-size="12" text-anchor="middle">WORM 歸檔</text><text x="640" y="276" font-size="10" text-anchor="middle">分錄與稽核紀錄</text>
   <line x1="600" y1="206" x2="630" y2="236" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#xfer-a2)"/>
   <text x="680" y="20" font-size="11" text-anchor="end" fill="var(--slate-deep)">實線＝請求流程；虛線＝批次或非同步</text>
