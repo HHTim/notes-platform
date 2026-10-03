@@ -1,0 +1,439 @@
+<!-- 來源：整理自本站面試集與 Java、Spring、資料庫、容器與 Kubernetes、網頁與網路基礎、演算法各模組既有的課，不新增事實主張；每題的出處、實跑輸出與版本界線在「指路」寫的那幾課 · 收錄日期：2026-10-03 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用五輪 40 題替自己做一次模擬一面：每題先講 30 秒，再接兩層追問</li><li>知道每題的 30 秒版要有哪些關鍵字、被追問時要補哪些點</li><li>練過 15 題銀行情境：轉帳冪等、對帳批次、交易隔離、密碼保存、稽核紀錄、正式環境上線</li><li>答不出來時知道該回本站哪一課</li></ul></div>
+<section>
+    <p class="era">怎麼用這課</p>
+    <h3 class="head">遮住答案、計時、聽追問</h3>
+    <p>這課不教新東西，是面試前最後一輪自我測驗。40 題從本站各課挑出，分五輪。哪些題目「面試常考」沒有統計出處，這裡的挑法是建議：先練這 40 題，有餘力再回各課練其他題。</p>
+    <ul class="plainlist">
+      <li><b>主問題與 30 秒版：</b>遮住答案，計時自己講一遍。講不出一句話定義加一個取捨，這題就回去複習。</li>
+      <li><b>兩層追問：</b>面試官通常往你講得最薄的地方戳：第一層問細節或例外，第二層往實務或版本差異推。每層附「要補的點」。</li>
+      <li><b>指路：</b>答案的技術說法跟指到的課一致，出處與實跑輸出在那幾課裡。還沒上線的課也照課名列出。</li>
+    </ul>
+    <p>標「銀行情境」的題目，建議先用情境裡的名詞回答，再講技術。每輪最後的課中練習考兩件事：這個回答哪裡不夠、下一個追問最可能是什麼。</p>
+</section>
+<section>
+    <p class="era">第一輪</p>
+    <h3 class="head">Java 語言與 JVM</h3>
+
+    <p class="q">第 1 題　面試官：String、StringBuilder、StringBuffer 差在哪？</p>
+    <p><strong>30 秒版：</strong>String 不可變，串接、取代都產生新物件，迴圈裡大量串接又慢又浪費。另外兩個可變：StringBuffer 執行緒安全但慢，StringBuilder 不保證但快。要改值用 StringBuilder，真的有多執行緒同時改同一份才用 StringBuffer。</p>
+    <p><strong>追問一：為什麼 String 要不可變？</strong>要補的點：不可變才能共用，字面值放進字串池共用同一個實體；值不變，<code>hashCode()</code> 算一次就能存起來，當 HashMap 的鍵才快。</p>
+    <p><strong>追問二：<code>"Hello" == "Hel" + "lo"</code> 是 true 嗎？</strong>要補的點：兩邊都是編譯期常數，指向池裡同一個實體，是 true；右邊換成變數就是執行期新物件，是 false，加 <code>.intern()</code> 才又是 true。</p>
+    <p class="muted">指路：Java 模組〈物件與類別〉；面試課〈Java 基礎快答〉〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+
+    <p class="q">第 2 題　面試官：HashMap 內部長什麼樣？什麼時候擴容？</p>
+    <p><strong>30 秒版：</strong>桶陣列，用 <code>hashCode()</code> 決定落在哪個桶，同桶串成鏈結串列。預設容量 16、負載因子 0.75，超過 12 筆、也就是放第 13 筆時擴成 32。Java 8 起同一桶太長改成紅黑樹，最壞查找從 O(n) 變 O(log n)。</p>
+    <p><strong>追問一：多長才轉紅黑樹？</strong>要補的點：同一桶已有 8 個節點再放一筆，而且容量已達 64；不到 64 先擴容。縮回 6 個退回串列。</p>
+    <p><strong>追問二：Hashtable 呢？</strong>要補的點：它整張表一把鎖，文件自己說：不需要執行緒安全用 HashMap，需要高並行用 ConcurrentHashMap，兩種情況都不該選它。</p>
+    <p class="muted">指路：Java 模組〈集合與泛型〉、演算法模組〈雜湊表：HashMap 怎麼做到幾乎一步找到〉；面試課〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+
+    <p class="q">第 3 題　面試官：equals() 和 hashCode() 有什麼約定？</p>
+    <p><strong>30 秒版：</strong>覆寫 <code>equals()</code> 就要一起覆寫 <code>hashCode()</code>。約定：同一物件多次呼叫 <code>hashCode()</code> 給同樣的值；<code>equals()</code> 相等的兩個物件，<code>hashCode()</code> 必須相同。反過來不成立。</p>
+    <p><strong>追問一：只覆寫 equals() 會怎樣？</strong>要補的點：Hash 家族靠 <code>hashCode()</code> 加 <code>equals()</code> 判重複，放進 HashSet 會「明明一樣卻被當成兩筆」。</p>
+    <p><strong>追問二：TreeSet 也看 hashCode() 嗎？</strong>要補的點：不看，Tree 家族看 <code>compareTo()</code> 或 Comparator 是不是 0。</p>
+    <p class="muted">指路：Java 模組〈套件與 Object 類別〉〈集合與泛型〉；面試課〈Java 基礎快答〉。</p>
+
+    <p class="q">第 4 題　面試官：OutOfMemoryError 有哪幾種？</p>
+    <p><strong>30 秒版：</strong>是一組錯，看訊息分辨：Java heap space 是堆不夠，不一定是洩漏，可能只是 <code>-Xmx</code> 太小；GC overhead limit exceeded 是幾乎一直在回收卻收不回空間；Metaspace 要找類別載入器洩漏；unable to create native thread 是執行緒開太多。</p>
+    <p><strong>追問一：有垃圾回收，為什麼還會洩漏？</strong>要補的點：「忘記放手」：活很久的東西抓著該死的東西，例如只塞不拿的 static 集合、沒關的資源、池裡沒 <code>remove()</code> 的 ThreadLocal。</p>
+    <p><strong>追問二：線上爆了先做什麼？</strong>要補的點：先確認 <code>-Xmx</code>；還是爆就抓 heap dump 看誰占最多。</p>
+    <p class="muted">指路：Java 模組〈JVM 記憶體與垃圾回收〉；面試課〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+
+    <p class="q">第 5 題　面試官：Serial、Parallel、G1、ZGC 怎麼選？</p>
+    <p><strong>30 秒版：</strong>取捨是吞吐量對停頓時間。Serial 單執行緒，給小資料；Parallel 拚吞吐、能忍停頓，給批次；G1 兼顧停頓目標與吞吐，給一般伺服器；ZGC 停頓一毫秒內、犧牲一些吞吐。Java 9 起預設 G1。</p>
+    <p><strong>追問一：一定是 G1 嗎？</strong>要補的點：要「伺服器級機器」：兩顆以上處理器、記憶體 1792 MB 以上，否則 Serial。容器只給 1 顆 CPU 時就是 Serial。</p>
+    <p><strong>追問二：容器限制 1 GiB，堆多大？</strong>要補的點：讀得到上限，但 <code>MaxRAMPercentage</code> 預設 25%，只有 256 MiB。可調到 75%；不調到 100%，因為堆外還有 Metaspace、執行緒堆疊，超過上限可能被 OOMKilled。</p>
+    <p class="muted">指路：Java 模組〈JVM 記憶體與垃圾回收〉；面試課〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉〈容器與部署面試題：映像分層、K8s 部署策略與探針〉。</p>
+
+    <p class="q">第 6 題　面試官：受檢例外和非受檢例外差在哪？</p>
+    <p><strong>30 秒版：</strong>受檢例外（IOException、SQLException）編譯器逼你處理：try-catch 或 throws；非受檢的 RuntimeException 家族不逼；Error 不寫程式去救。自訂受檢例外適合呼叫端可預期、可補救的業務失敗。</p>
+    <p><strong>追問一：finalize 還能用嗎？</strong>要補的點：Java 9 起棄用、Java 18 起標記準備移除（JEP 421）。釋放資源改用 try-with-resources。</p>
+    <p><strong>追問二：@Transactional 方法丟受檢例外會還原嗎？</strong>要補的點：預設不會，只有 RuntimeException 與 Error 會；要還原設 <code>rollbackFor</code>。</p>
+    <p class="muted">指路：Java 模組〈例外機制〉、Spring 模組〈@Transactional 的傳播、隔離與失效情境〉；面試課〈Java 基礎快答〉。</p>
+
+    <p class="q">第 7 題　面試官：Optional 該怎麼用？</p>
+    <p><strong>30 秒版：</strong>主要當方法回傳型別，表達「可能沒有結果」。不要用在欄位、參數、集合；本身不要是 null；優先 <code>map</code>、<code>orElse</code>，不要先 <code>isPresent()</code> 再 <code>get()</code>。</p>
+    <p><strong>追問一：orElse 和 orElseGet 差在哪？</strong>要補的點：<code>orElse(x)</code> 的 x 一定先算好；<code>orElseGet</code> 沒值才呼叫，預設值很貴時用它。</p>
+    <p><strong>追問二：金額包成 record Money 有什麼限制？</strong>要補的點：不能 extends、隱含 final；只是淺層不可變，元件是清單時要 <code>List.copyOf</code>；驗證寫在緊湊建構子。</p>
+    <p class="muted">指路：Java 模組〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉；面試課〈Java 現代語法快答：Lambda、Stream、Optional 與 record〉。</p>
+
+    <p class="q">第 8 題　面試官：父委派是什麼？</p>
+    <p><strong>30 秒版：</strong>類別載入分載入、連結、初始化三步。載入器先問父親，父親找不到才自己找；同名類別由最上層找得到的載入器定義，自己寫的 <code>java.lang.String</code> 搶不到。</p>
+    <p><strong>追問一：三層載入器叫什麼？</strong>要補的點：Bootstrap、Platform、Application。答 Extension 是 Java 8 的答案，Java 9 起擴充機制移除。</p>
+    <p><strong>追問二：反覆重新部署，Metaspace 一直漲？</strong>要補的點：類別載入器洩漏：只要它載的類別還有實體活著、或有人抓著它，整個載入器的類別中繼資料都留著。</p>
+    <p class="muted">指路：Java 模組〈套件與 Object 類別〉；面試課〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+
+    <div class="drill">
+      <p class="dq">候選人答：「String 串接很慢，所以串字串都用 StringBuffer。」哪裡不夠？</p>
+      <ul class="dopts"><li>沒說 String 是哪一版加入的</li><li data-ok>單執行緒該用 StringBuilder</li><li>沒提可以用加號直接串接</li></ul>
+      <p class="dexp">StringBuffer 執行緒安全但慢；沒有多執行緒同時改同一份時，用比較快的 StringBuilder。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「HashMap 預設容量 16，裝滿 16 筆才擴容。」哪裡不對？</p>
+      <ul class="dopts"><li>擴容是變三倍</li><li>預設容量其實是 10</li><li data-ok>第 13 筆就擴容</li></ul>
+      <p class="dexp">門檻是 16 × 0.75 = 12，超過就擴成 32。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「Java 8 起同一桶太長會轉紅黑樹。」照本課的追問鏈，下一個追問最可能是？</p>
+      <ul class="dopts"><li data-ok>「多長才轉？還要什麼條件？」</li><li>「String 為什麼不可變？」</li><li>「TreeMap 怎麼排？」</li></ul>
+      <p class="dexp">答了「會轉」就會被問門檻：8 個節點、容量 64、縮回 6 個。另外兩題跟這條追問鏈無關。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「容器給 1 GiB，JVM 讀得到上限，所以堆就是 1 GiB。」哪裡不對？</p>
+      <ul class="dopts"><li>JVM 讀不到容器上限</li><li data-ok>堆預設只拿上限的 25%</li><li>堆一律固定 512 MiB</li></ul>
+      <p class="dexp">容器支援預設開著，讀得到上限沒錯，但 <code>MaxRAMPercentage</code> 預設 25%，1 GiB 只有 256 MiB。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「預設回收器是 G1。」面試官說這是只給 1 顆 CPU 的容器。少了什麼？</p>
+      <ul class="dopts"><li>容器裡會自動改用 ZGC</li><li>G1 在 Java 14 已經移除</li><li data-ok>不到兩顆處理器就預設 Serial</li></ul>
+      <p class="dexp">預設 G1 要兩顆以上處理器、記憶體 1792 MB 以上。Java 14 移除的是 CMS。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「類別載入器有 Bootstrap、Extension、Application 三層。」哪裡不夠？</p>
+      <ul class="dopts"><li data-ok>這是 Java 8 的答案</li><li>少了第四層 System 載入器</li><li>Bootstrap 是 Java 11 才加入的</li></ul>
+      <p class="dexp">Java 9 起擴充機制移除，中間那層改叫 Platform。</p>
+    </div>
+</section>
+<section>
+    <p class="era">第二輪</p>
+    <h3 class="head">並行</h3>
+
+    <p class="q">第 9 題（銀行情境）　面試官：夜間對帳批次的執行緒池，參數怎麼給？</p>
+    <p><strong>30 秒版：</strong>ThreadPoolExecutor 七個參數：corePoolSize、maximumPoolSize、keepAliveTime 與 unit、workQueue、threadFactory、handler。順序：核心沒滿就開執行緒，滿了先排隊，佇列滿了才加到最大，最大也滿才拒絕。對帳池用有界的 ArrayBlockingQueue 加 CallerRunsPolicy，執行緒取名字，thread dump 才認得出來。</p>
+    <p><strong>追問一：為什麼不用 newFixedThreadPool？</strong>要補的點：它是無界佇列，任務湧入時吃光堆，maximumPoolSize 也失效；newCachedThreadPool 則是執行緒無上限。文件本身鼓勵用工廠方法，所以答「知道預設值再用」。</p>
+    <p><strong>追問二：轉帳 API 的池滿了，任務直接丟掉行嗎？</strong>要補的點：不行。DiscardPolicy 只給可丟的工作；轉帳寧可失敗也不能默默丟，用預設 AbortPolicy 丟 RejectedExecutionException。CallerRunsPolicy 等於自動減速，適合批次。</p>
+    <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 10 題　面試官：執行緒池要開多大？</p>
+    <p><strong>30 秒版：</strong>沒有官方公式：CPU 密集約等於核心數，I/O 密集可以多很多。「核心數 ×（1 + 等待 ÷ 計算）」出自教材不是官方文件，只是起點，要靠壓測修正。</p>
+    <p><strong>追問一：容器裡核心數怎麼拿？</strong>要補的點：<code>availableProcessors()</code>，容器有設 CPU 上限就回傳上限；要手動壓用 <code>-XX:<wbr>ActiveProcessorCount</code>。</p>
+    <p><strong>追問二：Java 21 有不用估的做法嗎？</strong>要補的點：每個任務一條虛擬執行緒（<code>newVirtualThreadPerTaskExecutor</code>）。它換吞吐不換速度、不要池化；限下游用 Semaphore。</p>
+    <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 11 題　面試官：synchronized 和 ReentrantLock 差在哪？</p>
+    <p><strong>30 秒版：</strong>基本行為相同、都可重入。ReentrantLock 要手動解鎖（unlock 放 finally），多了 <code>tryLock</code> 限時、等鎖可中斷、公平鎖、多個 Condition。dump 裡等 synchronized 是 BLOCKED，等 ReentrantLock 是 WAITING。</p>
+    <p><strong>追問一：公平鎖要開嗎？</strong>要補的點：保證不飢餓，代價是吞吐量較低、常常慢很多；<code>tryLock()</code> 不遵守公平設定。</p>
+    <p><strong>追問二：虛擬執行緒還要避開 synchronized 嗎？</strong>要補的點：Java 21 會釘住載體；Java 24 起（JEP 491）不會了，可以依需求選。</p>
+    <p class="muted">指路：Java 模組〈執行緒與並行〉〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 12 題　面試官：volatile 保證什麼？</p>
+    <p><strong>30 秒版：</strong>可見性：寫 volatile 欄位 happens-before 之後每次讀，寫旗標前寫的普通變數也一起看得到。不保證原子性：<code>count++</code> 仍是讀、加、寫三步。</p>
+    <p><strong>追問一：計數器怎麼寫？</strong>要補的點：用鎖或原子類別；「先檢查再動作」也一樣。</p>
+    <p><strong>追問二：還有哪些 happens-before？</strong>要補的點：解鎖對之後上同一把鎖、<code>start()</code>、<code>join()</code>；<code>Semaphore.release</code>、<code>countDown</code> 這類工具也有，透過它們交手的資料不必再加 volatile。</p>
+    <p class="muted">指路：Java 模組〈執行緒與並行〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 13 題　面試官：ConcurrentHashMap 怎麼做到高並行？</p>
+    <p><strong>30 秒版：</strong>讀取不加鎖。Java 8 起空桶插入只靠 CAS（比較並交換），其他更新拿桶裡第一個節點當 synchronized 的鎖；桶太長轉紅黑樹。「16 個 Segment」是 Java 7 的答案。</p>
+    <p><strong>追問一：先 get 再 put 有什麼問題？</strong>要補的點：兩次呼叫之間會被插隊；用 <code>computeIfAbsent</code>、<code>merge</code> 一次做完。</p>
+    <p><strong>追問二：能放 null 嗎？</strong>要補的點：鍵與值都不行。</p>
+    <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 14 題　面試官：授信查核要同時查餘額與額度，CompletableFuture 怎麼寫？</p>
+    <p><strong>30 秒版：</strong>兩個 <code>supplyAsync</code>，<code>thenCombine</code> 等兩個都到再合併，<code>orTimeout</code> 設逾時，<code>exceptionally</code> 把失敗轉成拒絕，最後 <code>join</code>。Future 只能 <code>get</code> 阻塞等、不能串接。</p>
+    <p><strong>追問一：沒傳 Executor 跑在哪？</strong>要補的點：<code>ForkJoinPool.<wbr>commonPool()</code>，整個 JVM 共用；拿它跑阻塞 I/O，幾個慢請求就卡住全 JVM 的非同步工作，要傳自己的池。</p>
+    <p><strong>追問二：exceptionally 拿到原本的例外嗎？</strong>要補的點：上游例外被包成 CompletionException，先拆 <code>getCause()</code>；<code>orTimeout</code> 的 TimeoutException 不會被包。</p>
+    <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 15 題　面試官：ThreadLocal 為什麼會洩漏？</p>
+    <p><strong>30 秒版：</strong>每條執行緒有自己的副本，常用來綁使用者 ID、交易 ID。池裡的執行緒不會死，副本一直掛著，還會被下一個借到這條執行緒的請求讀到；用完一定 <code>remove()</code>。</p>
+    <p><strong>追問一：還有什麼用途？</strong>要補的點：快取非執行緒安全的物件，例如 SimpleDateFormat。</p>
+    <p><strong>追問二：換成虛擬執行緒，這種快取還有用嗎？</strong>要補的點：沒意義。虛擬執行緒從不池化、不被不相關的任務重用。</p>
+    <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <p class="q">第 16 題（銀行情境）　面試官：A 轉 B、B 轉 A 同時進來，各自先鎖自己的帳戶，會怎樣？</p>
+    <p><strong>30 秒版：</strong>可能死結，兩邊永遠互相等待。教科書的四個條件（互斥、持有並等待、不可搶占、循環等待）破一條就好：照帳號大小取鎖，破循環等待；<code>tryLock</code> 帶逾時、等不到就放棄，破持有並等待。</p>
+    <p><strong>追問一：服務卡住，怎麼確認是死結？</strong>要補的點：先看 CPU，吃滿多半是迴圈；閒著再用 <code>jcmd &lt;pid&gt; Thread.print -l</code> 拿 thread dump，找 <code>Found one Java-level deadlock</code>。</p>
+    <p><strong>追問二：活鎖、飢餓是什麼？</strong>要補的點：飢餓是長期拿不到資源；活鎖是沒被阻塞、卻忙著回應彼此而推不動。飢餓用公平鎖，活鎖常見解法是重試加隨機等待。</p>
+    <p class="muted">指路：Java 模組〈執行緒與並行〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
+
+    <div class="drill">
+      <p class="dq">候選人答：「任務進來先開到 maximumPoolSize，都忙了再排隊。」哪裡不對？</p>
+      <ul class="dopts"><li data-ok>核心滿了先排隊，佇列滿才加</li><li>maximumPoolSize 只在關閉時用</li><li>任務一律排隊，不開新執行緒</li></ul>
+      <p class="dexp">順序是核心、佇列、最大、拒絕：佇列滿了才加到最大。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「對帳池用 <code>newFixedThreadPool(8)</code> 就好。」最大的風險是？</p>
+      <ul class="dopts"><li>8 條執行緒一定不夠</li><li data-ok>佇列無界，可能吃光堆</li><li>固定池不能跑批次工作</li></ul>
+      <p class="dexp">它用無界的 LinkedBlockingQueue，任務一直進來佇列就一直長。改有界佇列加 CallerRunsPolicy。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「轉帳池滿了用 DiscardPolicy，系統比較穩。」下一個追問最可能是？</p>
+      <ul class="dopts"><li>「DiscardPolicy 是哪一版加的？」</li><li>「池可以設幾條執行緒？」</li><li data-ok>「丟掉的轉帳誰知道？」</li></ul>
+      <p class="dexp">DiscardPolicy 默默丟掉、不通知任何人；轉帳要讓呼叫端知道失敗，用 AbortPolicy。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「計數器宣告成 volatile，<code>count++</code> 就安全了。」哪裡不夠？</p>
+      <ul class="dopts"><li>volatile 只能用在 static 欄位</li><li data-ok>volatile 只保證可見、不保證原子性</li><li>volatile 會讓讀取變慢十倍</li></ul>
+      <p class="dexp"><code>count++</code> 是三步，兩條執行緒可能讀到同一個值各加一次。要用鎖或原子類別。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「我用 <code>supplyAsync</code> 同時查餘額與額度，再 <code>thenCombine</code>。」面試官最可能戳哪裡？</p>
+      <ul class="dopts"><li>「Future 是哪一版加入的？」</li><li data-ok>「沒傳 Executor 跑在哪？」</li><li>「thenCombine 能合併幾個？」</li></ul>
+      <p class="dexp">沒傳就跑在整個 JVM 共用的 common pool，查餘額是阻塞 I/O，會拖累其他非同步工作。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「我開一個 200 條虛擬執行緒的池，順便限流。」哪裡不對？</p>
+      <ul class="dopts"><li>虛擬執行緒最多 100 條</li><li>虛擬執行緒只跑 CPU 密集工作</li><li data-ok>不要池化，限流用 Semaphore</li></ul>
+      <p class="dexp">池是為了共用稀有資源，虛擬執行緒不稀有；要限並行數用 Semaphore。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「服務卡住了，先重啟再說。」面試官問是不是死結，少了哪一步？</p>
+      <ul class="dopts"><li data-ok>看 CPU、拿 thread dump</li><li>先把執行緒池調大一倍</li><li>先全部改用 ReentrantLock</li></ul>
+      <p class="dexp">重啟會把證據清掉。CPU 閒著才像死結，jcmd Thread.print 會印出 Found one Java-level deadlock。</p>
+    </div>
+</section>
+<section>
+    <p class="era">第三輪</p>
+    <h3 class="head">Spring 與交易</h3>
+
+    <p class="q">第 17 題　面試官：IoC 和 DI 差在哪？</p>
+    <p><strong>30 秒版：</strong>IoC 是原則：物件不自己建立或找相依，改由容器負責；DI 是做法：容器建立物件時把相依送進去。必要相依用建構子注入，官方理由是可以寫成不可變、必要相依不會是 null；欄位注入能動但官方不推。</p>
+    <p><strong>追問一：Bean 預設單例，執行緒安全嗎？</strong>要補的點：singleton 是每個容器一份，多條執行緒共用同一物件；安不安全看 Bean 有沒有可變狀態。</p>
+    <p><strong>追問二：A、B 互相需要怎麼辦？</strong>要補的點：建構子注入下啟動就丟 BeanCurrentlyInCreationException；Spring Boot 2.6 起預設禁止循環參考，答「責任切錯了，重新設計」。</p>
+    <p class="muted">指路：Spring 模組〈Spring 入門與 IoC、DI〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
+
+    <p class="q">第 18 題　面試官：同一個類別裡呼叫自己的 @Transactional 方法，為什麼沒有交易？</p>
+    <p><strong>30 秒版：</strong>交易長在代理上。外部呼叫先經過代理；目標物件裡用 this 呼叫自己，沒經過代理，<code>@Transactional</code>、<code>@Cacheable</code> 都不生效。</p>
+    <p><strong>追問一：怎麼修？</strong>要補的點：官方最推薦把方法搬到另一個 Bean；其次自己注入自己；最不建議 <code>AopContext.currentProxy()</code>。</p>
+    <p><strong>追問二：還有哪些情況會失效？</strong>要補的點：代理攔不到：private 方法、自己 new 的物件；攔到了卻不還原：丟受檢例外、例外被吞掉、在新執行緒裡做事。</p>
+    <p class="muted">指路：Spring 模組〈Spring AOP 與交易控制〉〈@Transactional 的傳播、隔離與失效情境〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
+
+    <p class="q">第 19 題（銀行情境）　面試官：轉帳失敗時，「有人嘗試轉帳」的稽核紀錄也要留，怎麼寫？</p>
+    <p><strong>30 秒版：</strong>稽核方法放另一個 Bean，用 REQUIRES_NEW 另開一筆交易先提交，外層轉帳失敗只還原轉帳。內容寫「嘗試」不寫「完成」，因為提交時還不知道轉帳成不成功。</p>
+    <p><strong>追問一：用 NESTED 不行嗎？</strong>要補的點：NESTED 是儲存點，仍屬外層交易，外層還原它也還原；而且 JPA 的交易管理器預設不支援。</p>
+    <p><strong>追問二：REQUIRES_NEW 的代價？</strong>要補的點：外層連線還綁著，內層再借一條；大量並行時連線池可能借光甚至死結。</p>
+    <p class="muted">指路：Spring 模組〈@Transactional 的傳播、隔離與失效情境〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
+
+    <p class="q">第 20 題　面試官：內層 REQUIRED 方法丟 RuntimeException，外層 catch 住正常結束，結果？</p>
+    <p><strong>30 秒版：</strong>整筆還原，呼叫端收到 UnexpectedRollbackException。同一筆交易被內層標成只能還原，外層要求提交時改成還原，用這個例外告訴呼叫端其實沒提交。</p>
+    <p><strong>追問一：要內層失敗不影響外層呢？</strong>要補的點：內層改 REQUIRES_NEW；用 JDBC 的話也能用 NESTED，只退回儲存點。</p>
+    <p><strong>追問二：轉帳成功才發簡訊怎麼寫？</strong>要補的點：<code>@TransactionalEventListener</code>，預設提交成功才執行；<code>@EventListener</code> 在發布當下就跑，還原了簡訊也已送出。</p>
+    <p class="muted">指路：Spring 模組〈@Transactional 的傳播、隔離與失效情境〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
+
+    <p class="q">第 21 題　面試官：Spring Boot 自動組態怎麼運作？</p>
+    <p><strong>30 秒版：</strong>依 classpath 上的 jar 自動設定。候選類別列在 jar 裡的 AutoConfiguration.imports 檔；生不生效看 <code>@Conditional</code> 家族；你自己定義的 Bean 優先，例如自己加了 DataSource，預設的內嵌資料庫就退開。</p>
+    <p><strong>追問一：怎麼知道哪些生效？</strong>要補的點：<code>--debug</code> 啟動印條件報告；關掉用 <code>exclude</code>。</p>
+    <p><strong>追問二：@SpringBootApplication 包了哪三個？</strong>要補的點：@EnableAutoConfiguration、@ComponentScan、@SpringBootConfiguration；第三個常被答錯成 @Configuration。</p>
+    <p class="muted">指路：Spring 模組〈Spring Boot 自動組態與 Actuator〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
+
+    <p class="q">第 22 題　面試官：API 收到 JWT，資源伺服器檢查什麼？</p>
+    <p><strong>30 秒版：</strong>設好 <code>issuer-uri</code> 就自動找到公鑰；驗簽章、exp、nbf 與 iss，把 scope 對應成 <code>SCOPE_</code> 開頭的權限。權杖不可信回 401，權限不夠回 403。</p>
+    <p><strong>追問一：aud 有驗嗎？</strong>要補的點：預設不驗，要設 <code>audiences</code> 或自訂驗證器，否則發給別的 API 的權杖也能進來。</p>
+    <p><strong>追問二：JWT 怎麼撤銷？</strong>要補的點：驗證時不回頭問伺服器，撤銷是弱項。存取權杖短效；更新權杖只送授權伺服器，撤銷就撤它，再加輪替，舊的被重複使用就會被發現。</p>
+    <p class="muted">指路：Spring 模組〈JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接〉；面試課〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉。</p>
+
+    <p class="q">第 23 題（銀行情境）　面試官：網路銀行的登入密碼怎麼存？</p>
+    <p><strong>30 秒版：</strong>只存專為密碼設計的慢雜湊，不存明文、不加密、不用 SHA-256 這類快速雜湊。OWASP：首選 Argon2id；不可用時 scrypt；bcrypt 給舊系統；要 FIPS-140 合規用 PBKDF2。</p>
+    <p><strong>追問一：SHA-256 加鹽不夠嗎？</strong>要補的點：鹽讓攻擊者不能一次破所有人，但不會讓猜一次變慢；慢雜湊讓破一個人也很貴。</p>
+    <p><strong>追問二：舊系統存的是 MD5，怎麼換？</strong>要補的點：DelegatingPasswordEncoder 用前綴分辨演算法，新舊共存，登入成功時升級；不想等登入，可以整批包成 bcrypt(md5(密碼))，下次登入再換成直接對密碼算的。</p>
+    <p class="muted">指路：Spring 模組〈JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接〉；面試課〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉。</p>
+
+    <p class="q">第 24 題（銀行情境）　面試官：App 逾時自動重送轉帳，怎麼保證只扣一次？</p>
+    <p><strong>30 秒版：</strong>兩道：用戶端帶 <code>Idempotency-Key</code>（UUID），伺服器存下第一次的結果，同一把鍵再來就回同樣結果，失敗也照回；資料庫用唯一約束擋重複，多台伺服器時靠它。這個標頭出自 IETF 草案，草案已過期、不是 RFC。</p>
+    <p><strong>追問一：同鍵不同金額？第一次還沒處理完？</strong>要補的點：沒帶鍵回 400；同鍵不同內容回 422；原請求還在處理回 409。</p>
+    <p><strong>追問二：Redis SET NX 擋不就夠了？</strong>要補的點：Redis 擋掉絕大多數重複，資料庫唯一索引是最後一道保險；同時插同一列可能死結，所以不讓它扛全部流量。</p>
+    <p class="muted">指路：Spring 模組〈API 設計進階：版本、分頁、冪等與錯誤格式〉；面試課〈系統設計：秒殺與限流〉。</p>
+
+    <div class="drill">
+      <p class="dq">候選人答：「同一個類別裡 <code>a()</code> 呼叫有 @Transactional 的 <code>b()</code>，所以 <code>b()</code> 有交易。」哪裡不對？</p>
+      <ul class="dopts"><li>@Transactional 只能加在類別上</li><li data-ok>this 呼叫不經過代理</li><li>b() 必須是 static 才有交易</li></ul>
+      <p class="dexp">只有從外面經過代理的呼叫會被攔；最推薦的修法是把 b() 搬到另一個 Bean。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「稽核用 NESTED，有儲存點，外層失敗稽核也留得住。」哪裡不對？</p>
+      <ul class="dopts"><li>NESTED 會另外開一條連線</li><li>NESTED 會讓外層提早提交</li><li data-ok>外層還原它也跟著還原</li></ul>
+      <p class="dexp">NESTED 仍屬外層交易；要獨立留下只能用 REQUIRES_NEW。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「稽核用 REQUIRES_NEW，轉帳失敗也留得住。」下一個追問最可能是？</p>
+      <ul class="dopts"><li data-ok>「多借一條連線，池會怎樣？」</li><li>「Bean 預設作用域是什麼？」</li><li>「JWT 有哪三段？」</li></ul>
+      <p class="dexp">REQUIRES_NEW 的代價是多借一條連線，大量並行時連線池可能借光。另外兩題跟這條追問鏈無關。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「餘額不足丟自訂的 InsufficientBalanceException（繼承 Exception），交易會還原。」哪裡不夠？</p>
+      <ul class="dopts"><li>自訂例外不能用在交易方法</li><li data-ok>受檢例外預設照樣提交、不還原</li><li>Spring 會把這種例外吞掉</li></ul>
+      <p class="dexp">預設只有 RuntimeException 與 Error 會還原；繼承 Exception 要設 rollbackFor。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「資源伺服器會驗 JWT 的簽章、exp、iss 和 aud。」哪裡不對？</p>
+      <ul class="dopts"><li data-ok>aud 預設不驗，要另外設</li><li>簽章要自己寫程式驗</li><li>exp 預設不驗，要另外打開</li></ul>
+      <p class="dexp">預設驗簽章、exp、nbf 與 iss；aud 要另外設 audiences。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「密碼用 SHA-256 加鹽，每人的鹽不同，很安全。」哪裡不夠？</p>
+      <ul class="dopts"><li>鹽應該全站共用同一個</li><li data-ok>快速雜湊讓攻擊者猜得很快</li><li>SHA-256 可以直接反推原文</li></ul>
+      <p class="dexp">鹽只擋「一次破所有人」，不會讓猜一次變慢；要用 Argon2id 這類可以調慢的演算法。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「轉帳要帶 Idempotency-Key，同一把鍵就回第一次的結果。」下一個追問最可能是？</p>
+      <ul class="dopts"><li>「UUID 有幾個位元？」</li><li data-ok>「同鍵不同金額呢？」</li><li>「HTTP/2 差在哪？」</li></ul>
+      <p class="dexp">同鍵不同內容是最典型的邊界，回 422；還在處理回 409；沒帶鍵回 400。</p>
+    </div>
+</section>
+<section>
+    <p class="era">第四輪</p>
+    <h3 class="head">資料庫與快取</h3>
+
+    <p class="q">第 25 題　面試官：複合索引 (a, b, c)，哪些查詢用得到？</p>
+    <p><strong>30 秒版：</strong>條件要從最左欄開始、連續往右：a、a 加 b、a 加 b 加 c 可以；a 加 c 只用到 a；b、b 加 c 用不到。二級索引查到主鍵後再回叢集索引拿整列，叫回表。</p>
+    <p><strong>追問一：哪些寫法讓索引用不上？</strong>要補的點：欄位套函式（<code>YEAR(created_at)</code>）、字串欄位跟數字比、<code>LIKE '%0123'</code>、OR 混到沒索引的欄位。</p>
+    <p><strong>追問二：怎麼省掉回表？</strong>要補的點：覆蓋索引，要的欄位全在索引裡；EXPLAIN 的 Extra 出現 <code>Using index</code>。</p>
+    <p class="muted">指路：資料庫模組〈索引是怎麼運作的〉；面試課〈資料庫面試題：索引、交易隔離與鎖〉。</p>
+
+    <p class="q">第 26 題（銀行情境）　面試官：對帳報表跑到一半有轉帳進來，數字會不會前後對不上？</p>
+    <p><strong>30 秒版：</strong>看隔離層級。READ COMMITTED 擋髒讀，REPEATABLE READ 再擋不可重複讀，SERIALIZABLE 全擋。InnoDB 預設 REPEATABLE READ，一般 SELECT 讀交易第一次讀取時建立的快照，同一筆交易裡前後一致；PostgreSQL 預設 READ COMMITTED。</p>
+    <p><strong>追問一：讀快照為什麼不用等鎖？</strong>要補的點：MVCC。舊版本存在 undo log，讀到比快照新的就沿指標回溯；這種一致性讀不加鎖。</p>
+    <p><strong>追問二：報表交易可以開很久嗎？</strong>要補的點：不建議。還有快照可能用到的 undo log 不能清，手冊建議只讀的交易也要定期提交。</p>
+    <p class="muted">指路：資料庫模組〈交易隔離層級與鎖〉；面試課〈資料庫面試題：索引、交易隔離與鎖〉。</p>
+
+    <p class="q">第 27 題（銀行情境）　面試官：扣款要防兩筆同時扣同一帳戶，悲觀鎖還是樂觀鎖？</p>
+    <p><strong>30 秒版：</strong>悲觀鎖先鎖再改：<code>SELECT … FOR UPDATE</code>，適合失敗比例高或代價大。樂觀鎖先改再驗：version 帶進 WHERE，影響列數 0 就重讀再試，適合衝突少。衝突高時重試一直失敗，悲觀鎖反而省。</p>
+    <p><strong>追問一：FOR UPDATE 有什麼前提？</strong>要補的點：autocommit 關閉或已 START TRANSACTION 才有意義；不想等鎖可加 NOWAIT 或 SKIP LOCKED。</p>
+    <p><strong>追問二：直接 UPDATE 帶條件呢？</strong>要補的點：秒殺扣庫存那題就是這招：<code>WHERE … AND stock &gt; 0</code>，正確性沒問題；代價是同一列的更新排隊，熱門那列會變慢。</p>
+    <p class="muted">指路：資料庫模組〈交易隔離層級與鎖〉；面試課〈資料庫面試題：索引、交易隔離與鎖〉〈系統設計：秒殺與限流〉。</p>
+
+    <p class="q">第 28 題　面試官：資料庫回 ERROR 1213 Deadlock found，怎麼處理？</p>
+    <p><strong>30 秒版：</strong>InnoDB 預設偵測死結，還原其中較小的那筆（以異動列數計），被還原的那方要重試。典型成因是兩筆交易以相反順序鎖同一批列。答到重試才算完整。</p>
+    <p><strong>追問一：怎麼查是哪兩條 SQL？</strong>要補的點：<code>SHOW ENGINE INNODB STATUS</code> 的 LATEST DETECTED DEADLOCK，只留最近一次。</p>
+    <p><strong>追問二：怎麼減少？</strong>要補的點：交易小而短、用同樣順序存取、FOR UPDATE 的欄位建好索引，掃得少就鎖得少。</p>
+    <p class="muted">指路：資料庫模組〈交易隔離層級與鎖〉；面試課〈資料庫面試題：索引、交易隔離與鎖〉。</p>
+
+    <p class="q">第 29 題（銀行情境）　面試官：匯率放在 Redis，更新時先刪快取還是先更新資料庫？</p>
+    <p><strong>30 秒版：</strong>先更新資料庫，再刪快取。反過來的話，兩步之間別人讀不到快取，撈到舊匯率又回填，舊值留到 TTL 到期。對的順序也只是縮短視窗，Cache-Aside 不保證一致。</p>
+    <p><strong>追問一：延遲雙刪解決什麼？</strong>要補的點：業界慣用、官方沒這名字：隔幾百毫秒再刪一次，清掉被回填的舊值。延遲是猜的，仍是最終一致。</p>
+    <p><strong>追問二：一定要寫完立刻讀到呢？</strong>要補的點：換 Write-Through；不管哪種順序都要設 TTL 當最後一道保險。</p>
+    <p class="muted">指路：資料庫模組〈快取放哪裡、怎麼失效〉；面試課〈系統設計：快取一致性與熱點〉。</p>
+
+    <p class="q">第 30 題　面試官：快取雪崩、穿透、擊穿各是什麼？</p>
+    <p><strong>30 秒版：</strong>都是業界慣用語，共同點是請求繞過快取打到資料庫。雪崩是一大批 key 同時失效，TTL 加隨機秒數；穿透是查不存在的資料，用 Bloom Filter 或替查無結果設短 TTL；擊穿是一把熱門 key 剛好過期，用互斥重建。</p>
+    <p><strong>追問一：跨機器的互斥重建？</strong>要補的點：<code>SET 鍵 值 NX EX 秒數</code> 搶短鎖，搶到的查資料庫回填，沒搶到的等一下重讀。</p>
+    <p><strong>追問二：熱 key 加節點能分攤嗎？</strong>要補的點：不能，一把 key 只住一個槽、一個槽只由一個節點服務；用本地快取擋讀，或複製成多份 key 分散。</p>
+    <p class="muted">指路：資料庫模組〈快取放哪裡、怎麼失效〉〈分散式鎖與 Redis〉；面試課〈系統設計：快取一致性與熱點〉。</p>
+
+    <p class="q">第 31 題（銀行情境）　面試官：日終對帳要找「有轉出、沒對應入帳」的交易，SQL 怎麼寫？</p>
+    <p><strong>30 秒版：</strong>用 NOT EXISTS：子查詢只要回傳任何一列，EXISTS 就是 TRUE，所以留下的就是找不到對應入帳的。不能用 INNER JOIN，它只留兩邊都配得到的，正好漏掉要找的。</p>
+    <p><strong>追問一：為什麼不用 NOT IN？</strong>要補的點：子查詢結果只要有一個 NULL，NOT IN 就不可能是 TRUE，一列都不回。</p>
+    <p><strong>追問二：改用 JPA 逐筆取交易明細，跑了 101 句 SQL？</strong>要補的點：N+1：1 句查清單，再替 N 筆的延遲載入關聯各補 1 句。用 JOIN FETCH 或 <code>@EntityGraph</code> 一句拿齊，或 <code>@BatchSize</code> 批次抓。</p>
+    <p class="muted">指路：資料庫模組〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉、Spring 模組〈JPA 效能：N+1、延遲載入與批次〉。</p>
+
+    <p class="q">第 32 題（銀行情境）　面試官：讀寫分離後，使用者剛轉完帳，刷新卻看不到那筆交易？</p>
+    <p><strong>30 秒版：</strong>複寫預設非同步，複本可能還是舊的。由簡到繁：關鍵讀（餘額、明細）固定走主庫；讀自己的寫，寫後幾秒內同一使用者導回主庫（常見做法，非官方規範）；GTID 等待，在複本等它套用完那筆交易，逾時改走主庫。</p>
+    <p><strong>追問一：延遲怎麼量？</strong>要補的點：<code>Seconds_<wbr>Behind_<wbr>Source</code>，但它量的是複本內部兩條執行緒的落差，網路慢時常顯示 0。</p>
+    <p><strong>追問二：主庫掛了切到複本，會掉資料嗎？</strong>要補的點：非同步下可能：複本還沒收到的交易就丟了。</p>
+    <p class="muted">指路：面試課〈資料庫面試題：複寫、分片與 CAP〉。</p>
+
+    <div class="drill">
+      <p class="dq">候選人答：「(a, b, c) 索引，<code>WHERE b = 2 AND c = 3</code> 用得到，欄位都在索引裡。」哪裡不對？</p>
+      <ul class="dopts"><li>條件寫成 c、b 的順序就用得到</li><li>要加 LIMIT 才用得到</li><li data-ok>條件沒從最左欄 a 開始用起</li></ul>
+      <p class="dexp">索引照 a、b、c 排，少了 a 就沒辦法定位。條件的書寫順序不影響。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「MySQL 預設 READ COMMITTED，所以報表可能前後對不上。」哪裡不對？</p>
+      <ul class="dopts"><li data-ok>InnoDB 預設 REPEATABLE READ</li><li>MySQL 預設是 SERIALIZABLE</li><li>MySQL 不能設定隔離層級</li></ul>
+      <p class="dexp">InnoDB 預設 REPEATABLE READ，一般 SELECT 讀同一份快照；PostgreSQL 預設才是 READ COMMITTED。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「扣款我用樂觀鎖，加 version 欄位。」下一個追問最可能是？</p>
+      <ul class="dopts"><li>「InnoDB 的頁有多大？」</li><li data-ok>「衝突很多、一直重試失敗呢？」</li><li>「version 要用什麼型別？」</li></ul>
+      <p class="dexp">樂觀鎖的弱點在衝突：衝突高時重試一直失敗，悲觀鎖反而省。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「死結 InnoDB 會自己處理，應用程式不用管。」哪裡不夠？</p>
+      <ul class="dopts"><li>InnoDB 不會偵測死結</li><li data-ok>被還原的那筆交易要重試</li><li>兩筆交易都會被還原</li></ul>
+      <p class="dexp">InnoDB 只還原較小的那筆，它的工作沒做成；應用程式要處理「交易必須重試」。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「快取穿透就是熱門 key 過期，加互斥鎖重建。」哪裡不對？</p>
+      <ul class="dopts"><li data-ok>那是擊穿；穿透是查不存在的</li><li>穿透是 Redis 整台掛掉</li><li>穿透只發生在本地快取</li></ul>
+      <p class="dexp">擊穿是熱門 key 過期；穿透是查不存在的資料；雪崩是一大批 key 同時失效。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人寫 <code>WHERE tx_id NOT IN (SELECT ref_tx_id FROM credit)</code>，一列都沒有，但明明有沒入帳的。最可能的原因？</p>
+      <ul class="dopts"><li>debit 表沒有建索引</li><li>NOT IN 最多只比 100 個值</li><li data-ok>子查詢結果裡有 NULL</li></ul>
+      <p class="dexp">清單裡有 NULL 時 NOT IN 的結果是 NULL 不是 TRUE。改 NOT EXISTS 或先排除 NULL。</p>
+    </div>
+</section>
+<section>
+    <p class="era">第五輪</p>
+    <h3 class="head">系統設計與部署</h3>
+
+    <p class="q">第 33 題（銀行情境）　面試官：銀行 App 整點發紅包、限量一萬份，入口怎麼限流？</p>
+    <p><strong>30 秒版：</strong>固定視窗最簡單，但邊界瞬間可放進兩倍；滑動視窗沒有邊界問題，但要記每筆時間；漏桶固定速率流出，保護處理能力固定的下游，例如核心帳務；令牌桶允許短暫爆量，適合 Gateway 吸收開搶尖峰，超額回 429。</p>
+    <p><strong>追問一：Gateway 有十台，不就變十倍？</strong>要補的點：計數器放共用的 Redis，「加一、設過期、判斷」寫成 Lua 腳本一次原子完成；代價是每次多一趟 Redis 往返。</p>
+    <p><strong>追問二：庫存直接 UPDATE 扣不行嗎？</strong>要補的點：不會超賣，但同一列的更新排隊；量小這行就夠，量大才把擋人搬到 Redis，資料庫留著當最後保險。</p>
+    <p class="muted">指路：Spring 模組〈韌性模式：Resilience4j 的斷路器、重試與限流〉；面試課〈系統設計：秒殺與限流〉。</p>
+
+    <p class="q">第 34 題（銀行情境）　面試官：轉帳完成要通知下游，先寫資料庫再發 Kafka，有什麼問題？</p>
+    <p><strong>30 秒版：</strong>對兩個系統各寫一次：資料庫成功但訊息沒送出，下游不知道；訊息送了但資料庫失敗，資料可能被弄壞。用交易式 Outbox：訊息跟轉帳寫進同一筆交易的 outbox 表，再由另一個程序轉送，保證只在提交時送出。</p>
+    <p><strong>追問一：轉送了兩次怎麼辦？</strong>要補的點：Outbox 是至少一次，消費端必須冪等。Kafka 的剛好一次只在「Kafka 讀、Kafka 寫」內成立。</p>
+    <p><strong>追問二：跨行轉帳能用最終一致嗎？</strong>要補的點：「對方何時看到錢」可以，「錢的總額」不行。跨系統用 Saga 加冪等加對帳；跟業務講「送出成功」跟「對方看到」是兩個時間點，畫面顯示處理中。</p>
+    <p class="muted">指路：Spring 模組〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉；面試課〈系統設計：訊息佇列與最終一致性〉。</p>
+
+    <p class="q">第 35 題（銀行情境）　面試官：入帳服務收到同一則訊息兩次，怎麼不重複入帳？</p>
+    <p><strong>30 秒版：</strong>前提是訊息帶全域唯一編號。去重表：「訊息編號加消費者名稱」當主鍵，跟入帳放同一筆交易，重複就撞主鍵整筆還原；或拿轉帳序號當唯一索引；或用版本號條件更新。</p>
+    <p><strong>追問一：一直處理失敗的訊息？</strong>要補的點：進死信佇列，留證據不是丟掉；數量大於 0 要告警，修好要能重放。</p>
+    <p><strong>追問二：都冪等了還要對帳嗎？</strong>要補的點：要。對帳是承認「至少一次」與補償失敗一定會發生；日終兩邊逐筆比對，差異進人工處理。</p>
+    <p class="muted">指路：Spring 模組〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉；面試課〈系統設計：訊息佇列與最終一致性〉。</p>
+
+    <p class="q">第 36 題　面試官：核心帳務慢了或掛了，你的服務要跟著掛嗎？</p>
+    <p><strong>30 秒版：</strong>不要。斷路器：關閉時照常呼叫並記失敗，失敗率達門檻就開啟、直接拒絕；過一段時間半開，放少量試探，好了回關閉。再配降級：入帳改進佇列慢慢補，畫面顯示「稍後入帳」。</p>
+    <p><strong>追問一：哪些例外算失敗？</strong>要補的點：Resilience4j 預設全部都算；餘額不足是正確的業務拒絕，要列進 <code>ignoreExceptions</code>，否則可能把好好的下游熔斷掉。</p>
+    <p><strong>追問二：失敗了重試不就好？</strong>要補的點：重試要配四樣：次數上限、指數退避、抖動、冪等；入帳要帶冪等鍵讓下游去重。</p>
+    <p class="muted">指路：Spring 模組〈韌性模式：Resilience4j 的斷路器、重試與限流〉；面試課〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。</p>
+
+    <p class="q">第 37 題　面試官：一筆轉帳經過四個服務，出錯時怎麼查是哪一段？</p>
+    <p><strong>30 秒版：</strong>分散式追蹤：A 呼叫 B 時把 trace ID 與 span ID 傳過去，B 建立同一條 trace 的子 span。預設用 W3C 的 <code>traceparent</code> 標頭，四個欄位：版本、trace-id、parent-id、trace-flags。Spring Boot 用 Micrometer Tracing，可接 OpenTelemetry。</p>
+    <p><strong>追問一：指標、日誌、追蹤怎麼分工？</strong>要補的點：指標說有沒有事，追蹤說在哪一段，日誌說那段發生什麼。黃金訊號：延遲、流量、錯誤、飽和。</p>
+    <p><strong>追問二：Prometheus 怎麼拿指標？</strong>要補的點：HTTP 拉取 <code>/actuator/prometheus</code>；預設只開 health 端點，要自己打開。</p>
+    <p class="muted">指路：Spring 模組〈可觀測性：Micrometer、Prometheus 與 OpenTelemetry〉；面試課〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。</p>
+
+    <p class="q">第 38 題　面試官：服務上 Kubernetes，三種探針各決定什麼？</p>
+    <p><strong>30 秒版：</strong>存活探針失敗，重啟容器；就緒探針失敗不重啟，Pod 不再收 Service 的流量；啟動探針只在啟動時跑，成功前另兩種不跑。Actuator 有現成的 liveness 與 readiness 端點。</p>
+    <p><strong>追問一：存活探針要查資料庫嗎？</strong>要補的點：不要，資料庫一掛會重啟所有實例、連鎖故障。啟動慢就設啟動探針。</p>
+    <p><strong>追問二：滾動更新怎麼不掉服務？怎麼回退？</strong>要補的點：<code>maxUnavailable: 0</code>；回退用 <code>kubectl rollout undo</code>，但它只改叢集，Git 裡的設定檔要一起還原。</p>
+    <p class="muted">指路：容器與 Kubernetes 模組〈部署策略與探針〉；面試課〈容器與部署面試題：映像分層、K8s 部署策略與探針〉。</p>
+
+    <p class="q">第 39 題（銀行情境）　面試官：上正式環境要經過變更審核，CI/CD 怎麼設計？</p>
+    <p><strong>30 秒版：</strong>做到持續交付：建置、測試、掃描、打映像檔、推上 registry 都自動，最後一步由核准的人按。GitHub Actions 的 job 寫 <code>environment: production</code>，保護規則全過才開始。</p>
+    <p><strong>追問一：怎麼確保經過兩個人？</strong>要補的點：設指定核准人，再開「禁止自己核准自己」；部署分支只允許 main。</p>
+    <p><strong>追問二：正式環境的密碼放哪？</strong>要補的點：環境層級的 secrets，核准前 job 讀不到。</p>
+    <p class="muted">指路：網頁與網路基礎模組〈CI/CD：從 push 到上線〉；面試課〈容器與部署面試題：映像分層、K8s 部署策略與探針〉。</p>
+
+    <p class="q">第 40 題（銀行情境）　面試官：帳戶表的 owner 欄位要改名，滾動更新時怎麼不中斷？</p>
+    <p><strong>30 秒版：</strong>滾動更新時新舊版程式同時在跑，直接改名，舊版就找不到欄位。用擴張收縮：先加可為 NULL 的新欄位並補資料，程式全換用新欄位，最後才刪舊欄位。</p>
+    <p><strong>追問一：遷移腳本怎麼管？</strong>要補的點：Flyway 版本化腳本照版本號、只套用一次；歷史表存校驗和，套用過的腳本被改，驗證就不過。</p>
+    <p><strong>追問二：Hibernate 的 ddl-auto 怎麼設？</strong>要補的點：結構交給 Flyway，只設 <code>validate</code>，對不上就不讓應用程式起來。</p>
+    <p class="muted">指路：Spring 模組〈資料庫遷移：Flyway 與 Liquibase〉；面試課〈容器與部署面試題：映像分層、K8s 部署策略與探針〉。</p>
+
+    <div class="drill">
+      <p class="dq">候選人答：「限流用固定視窗，每分鐘最多 100 次。」哪裡不夠？</p>
+      <ul class="dopts"><li>固定視窗只能以秒為單位</li><li data-ok>交界的瞬間可放進兩倍流量</li><li>固定視窗不能用 Redis 做</li></ul>
+      <p class="dexp">12:00:59 與 12:01:00 各放滿一次，一秒內就進了 200 個。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「先寫資料庫、再發 Kafka，發送失敗就重試。」哪裡不夠？</p>
+      <ul class="dopts"><li data-ok>兩步之間當機就沒得重試</li><li>Kafka 本身不支援重試</li><li>應該先發 Kafka 再寫資料庫</li></ul>
+      <p class="dexp">程式在發訊息前掛掉，重試的程式碼根本沒機會跑；用 Outbox 把訊息跟業務寫進同一筆交易。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「Kafka 有剛好一次，入帳服務不必做冪等。」哪裡不對？</p>
+      <ul class="dopts"><li>Kafka 只支援至多一次</li><li data-ok>寫進資料庫那一步，仍然要做冪等</li><li>剛好一次只有 RabbitMQ 有</li></ul>
+      <p class="dexp">剛好一次只在「Kafka 讀、Kafka 寫」內成立；寫進資料庫還是靠去重表或唯一鍵。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「斷路器用預設值，所有例外都算失敗。」放在入帳情境，哪裡不夠？</p>
+      <ul class="dopts"><li>斷路器只能算逾時</li><li>預設值一定要全部重設</li><li data-ok>業務拒絕不該算失敗</li></ul>
+      <p class="dexp">餘額不足是正確回應；算成失敗的話，可能把好好的帳務熔斷掉。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「存活探針檢查資料庫，資料庫掛了就重啟。」哪裡不對？</p>
+      <ul class="dopts"><li data-ok>會讓所有實例一起重啟</li><li>存活探針只能檢查 TCP 埠</li><li>存活探針失敗不會重啟容器</li></ul>
+      <p class="dexp">重啟救不了外部系統，只會讓全部實例一起倒，造成連鎖故障。</p>
+    </div>
+    <div class="drill">
+      <p class="dq">候選人答：「正式環境部署要指定核准人。」下一個追問最可能是？</p>
+      <ul class="dopts"><li>「Actions 是用什麼語言寫的？」</li><li>「基礎映像檔選哪一個？」</li><li data-ok>「自己核准自己呢？」</li></ul>
+      <p class="dexp">變更審核的重點是兩個人；要開「禁止自己核准自己」。</p>
+    </div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>每題先一句話定義，再一個取捨或例外；30 秒講不完，就回指路的那一課。</li><li>Java：第 13 筆擴容、8 個節點加容量 64 才樹化；預設 G1 有伺服器級機器的前提，容器裡堆預設 25%；Extension 載入器是 Java 8 的答案。</li><li>並行：核心、佇列、最大、拒絕；批次用有界佇列加 CallerRunsPolicy，轉帳用 AbortPolicy；volatile 不保證原子性；沒傳 Executor 就跑共用的 common pool。</li><li>Spring：自我呼叫不經過代理；稽核用 REQUIRES_NEW；受檢例外預設提交；aud 預設不驗；密碼用慢雜湊；冪等鍵加資料庫唯一約束。</li><li>資料庫：最左前綴；InnoDB 預設 REPEATABLE READ；死結要重試；先更新資料庫再刪快取；NOT IN 碰到 NULL 一列都不回。</li><li>系統設計：多台限流用 Redis 加 Lua；Outbox 加消費端冪等，最後還有對帳；業務拒絕不算斷路器失敗；存活探針不查外部系統；欄位改名用擴張收縮。</li></ul></div>
