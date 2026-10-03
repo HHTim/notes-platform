@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "8 核心的伺服器，top 顯示 load average 1.20、%Cpu 那一行 us 2.0、wa 0.1，使用者卻說交易很慢。最合理的判斷是？",
+   "opts": [
+    "這台不忙，慢在下游或網路",
+    "CPU 不夠用，要再加幾顆核心",
+    "磁碟太慢，wa 太高",
+    "記憶體不夠，要加 swap"
+   ],
+   "exp": "負載 1.2 遠低於 8 核心，us、wa 都很低，這台幾乎是閒的。慢在這台機器以外的地方，例如它在等資料庫或外部 API 回應，該用 curl -w 量時間、看下游。"
+  },
+  {
+   "q": "日誌第 6 欄是路徑。要列出被呼叫最多次的前 3 個路徑，下面哪一個指令正確？",
+   "opts": [
+    "awk '{print $6}' app.log | sort | uniq -c | sort -rn | head -3",
+    "awk '{print $6}' app.log | uniq -c | sort -rn | head -3",
+    "sort app.log | uniq -c | sort -rn | head -3",
+    "awk '{print $6}' app.log | sort | head -3"
+   ],
+   "exp": "先取出那一欄、sort 把相同的排在一起、uniq -c 計數、sort -rn 依次數由大到小、head -3 取前三。少了第一個 sort，uniq 只會合併相鄰的重複；直接 sort 整行比的是整行內容。"
+  },
+  {
+   "q": "ls -l 顯示 -rwxr-x--- 1 root ops … deploy.sh。不在 ops 群組的一般帳號執行 ./deploy.sh 會怎樣？",
+   "opts": [
+    "Permission denied",
+    "可以執行，因為擁有者那組有 x",
+    "可以讀內容，但不能執行",
+    "要看 deploy.sh 的內容才知道"
+   ],
+   "exp": "這個帳號不是擁有者 root，也不在群組 ops，套用最後三個字元 ---，讀和執行都不行。權限是依「擁有者 → 群組 → 其他人」挑一組來看，不是任何一組有 x 就能執行。"
+  },
+  {
+   "q": "對一個 Java 服務下 kill PID 之後，它印出關機掛鉤的訊息並結束。shell 看到的結束碼是？",
+   "opts": [
+    "143",
+    "0",
+    "137",
+    "15"
+   ],
+   "exp": "實驗裡 SIGTERM 結束的 Teller 結束碼是 143（128 + 15）。137 是被 SIGKILL（128 + 9）。15 是 SIGTERM 的編號，不是結束碼。"
+  },
+  {
+   "q": "bank-api 的單元檔沒有 SuccessExitStatus=143，值班同事用 systemctl stop 正常停掉它。systemctl is-active 會回什麼？",
+   "opts": [
+    "failed",
+    "inactive",
+    "active",
+    "unknown"
+   ],
+   "exp": "JVM 處理完 SIGTERM 後以 143 結束，systemd 看到非 0 結束碼就記成失敗，實驗裡就是 failed。加上 SuccessExitStatus=143 之後才會是 inactive。"
+  },
+  {
+   "q": "df -h 顯示 /var 是 100%，du -sh /var 卻只有 40%。最可能的原因與下一個指令是？",
+   "opts": [
+    "被刪但還開著；lsof +L1 /var",
+    "du 算錯了；改用 ls -l 加總",
+    "inode 用光了；先 df -i 確認",
+    "有人正在寫入；等一下再看"
+   ],
+   "exp": "df 看檔案系統區塊的實際占用，du 只算目錄裡看得到的檔案。差距通常是被 rm 掉、但還有行程開著的檔案，lsof +L1 列得出來。inode 用光時 df -h 不會是 100%。"
+  },
+  {
+   "q": "ss -tan state close-wait 列出上千條，Local Address 都是本機的 8080。問題出在哪一端？",
+   "opts": [
+    "8080 這個服務自己沒 close",
+    "連進來的用戶端忘了 close",
+    "作業系統的 TCP 參數設錯",
+    "中間的負載平衡器卡住連線"
+   ],
+   "exp": "CLOSE-WAIT 是「對方已經送出關閉，本端程式還沒 close」。停在 8080 這端，就是這個服務自己的連線或串流沒關，實驗的 LeakyServer 就是這樣。"
+  },
+  {
+   "q": "nc -zv -w 3 10.0.5.20 443 等了 3 秒才回逾時，沒有 Connection refused。最可能的方向是？",
+   "opts": [
+    "封包被擋掉，沒有任何回應",
+    "那台主機的 443 沒人在聽",
+    "DNS 解析失敗，找不到主機",
+    "TLS 憑證過期，握手失敗"
+   ],
+   "exp": "沒人聽的埠會立刻回 refused；一直等到逾時，表示根本沒收到回應，常見原因是防火牆丟包或路由不通。這裡用 IP，跟 DNS 無關；nc -z 不做 TLS。"
+  },
+  {
+   "q": "top -H -p 5120 找到吃 CPU 的執行緒 ID 是 5133，服務跑在 JDK 17。在 jstack 輸出裡該搜什麼？",
+   "opts": [
+    "nid=0x140d",
+    "nid=5133",
+    "tid=0x140d",
+    "[5133]"
+   ],
+   "exp": "JDK 17 的 jstack 印十六進位的 nid（實跑同一支程式是 nid=0x34 這種格式），5133 換成十六進位是 0x140d。JDK 21 才直接印十進位。 tid= 後面是記憶體位址；方括號裡的號碼是 JDK 21 才有的格式。"
+  },
+  {
+   "q": "free -h 顯示 available 只剩 120Mi，swap 的 used 一直在增加。這代表什麼？",
+   "opts": [
+    "真的不夠了，開始用 swap",
+    "很正常，Linux 會把記憶體拿去當快取",
+    "free 欄位比較準，這裡要看 free",
+    "swap 增加代表磁碟快滿了"
+   ],
+   "exp": "available 已經把可回收的快取算進去，只剩 120Mi 又一直用到 swap，就是真的吃緊。只有 free 小、available 很大時才是快取造成的正常現象。"
+  }
+ ]
+}

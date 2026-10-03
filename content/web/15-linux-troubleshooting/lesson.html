@@ -1,0 +1,837 @@
+<!-- 來源：依 man7.org Linux 手冊頁（ps(1)、top(1)、kill(1)、signal(7)、free(1)、uptime(1)、bash(1)、grep(1)、find(1)、gawk(1)、less(1)、sudo(8)、ss(8)、lsof(8)、unlink(2)、systemctl(1)、journalctl(1)、systemd.service(5)、systemd.kill(5)）、GNU coreutils 手冊（df、du、tail、chmod 數字模式）、curl 手冊、Ubuntu 24.04 的 dig(1) 與 nc(1) 手冊頁新寫；所有指令在 Docker 的 Ubuntu 24.04（GNU coreutils 9.4、procps-ng 4.0.4、iproute2 6.1.0、systemd 255、OpenJDK 21.0.12）實際執行，課文輸出照實跑結果；排查情境（吃滿 CPU 的 Java 程式、塞滿的 tmpfs、被刪掉但還開著的日誌、忘了 close 的連線）都是自己製造的 · 收錄日期：2026-10-03 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看懂 <code>ls -l</code>、<code>top</code>、<code>ps</code>、<code>free</code>、<code>df</code>、<code>ss</code> 每一欄在說什麼，從輸出判斷下一步該下什麼指令</li><li>用 grep、awk、管線與重導向從日誌撈出要的東西，分清 <code>&gt; file 2&gt;&amp;1</code> 與 <code>2&gt;&amp;1 &gt; file</code></li><li>說出 SIGTERM 與 SIGKILL 的差別、為什麼 Java 服務被 systemd 停掉會顯示 failed，並用 journalctl 查服務日誌</li><li>照步驟排查三種線上狀況：CPU 飆高（top → top -H → jstack）、磁碟滿（du、inode、已刪除但還開著的檔案）、連線數爆（ss -s、TIME_WAIT 與 CLOSE_WAIT）</li></ul></div>
+
+<section>
+<p class="era">先看全貌，再縮小範圍</p>
+<h3 class="head">排查的起手式：uptime 與 top 的頭五行</h3>
+<p>線上出事時最常聽到的三句話是「服務變慢了」「CPU 飆高了」「磁碟滿了」。這課的指令都在 Docker 裡的 Ubuntu 24.04 實際跑過，每個排查情境也都是自己製造出來的：寫一個吃滿 CPU 的 Java 程式、塞滿一塊記憶體檔案系統（tmpfs，只存在記憶體裡、可以設大小上限的檔案系統）、開著一個已經被刪掉的日誌、寫一個忘了關連線的服務。行程、檔案描述子、虛擬記憶體這些作業系統概念在〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉，這課講的是怎麼用指令把它們看出來。</p>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="線上排查的起手式：先用 uptime、top 看整體，再依症狀分三條路。CPU 高看 top 的 us 與 sy，接著 top -H 找執行緒、jstack 對堆疊；磁碟滿看 df，接著 du 找大檔，對不上時用 lsof +L1 找已刪除但還開著的檔案，df -i 看 inode；連線問題看 ss -s，接著 ss 依狀態篩選 TIME_WAIT 與 CLOSE_WAIT">
+<defs><marker id="lx-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+<rect x="270" y="16" width="220" height="48" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380" y="38" font-size="13.5" text-anchor="middle">先看整體</text><text x="380" y="56" font-size="12" text-anchor="middle" class="mono">uptime、top 頭五行</text>
+<path d="M330 66 L130 106" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M380 66 L380 106" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M430 66 L630 106" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/>
+<rect x="30" y="110" width="200" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="130" y="135" font-size="13.5" text-anchor="middle">CPU 高：us 或 sy 很高</text>
+<rect x="280" y="110" width="200" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="380" y="135" font-size="13.5" text-anchor="middle">磁碟滿：df 看 Use%</text>
+<rect x="530" y="110" width="200" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="630" y="135" font-size="13.5" text-anchor="middle">連線問題：ss -s</text>
+<rect x="30" y="170" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="130" y="195" font-size="12.5" text-anchor="middle" class="mono">top -H -p PID</text>
+<rect x="30" y="230" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="130" y="255" font-size="12.5" text-anchor="middle" class="mono">jstack PID → 對執行緒</text>
+<rect x="280" y="170" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380" y="195" font-size="12.5" text-anchor="middle" class="mono">du 找大檔；df -i</text>
+<rect x="280" y="230" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="380" y="255" font-size="12.5" text-anchor="middle" class="mono">對不上：lsof +L1</text>
+<rect x="530" y="170" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="630" y="195" font-size="12.5" text-anchor="middle" class="mono">ss -tan state …</text>
+<rect x="530" y="230" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="630" y="255" font-size="12.5" text-anchor="middle">誰在 TIME_WAIT／CLOSE_WAIT</text>
+<path d="M130 152 L130 166" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M130 212 L130 226" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M380 152 L380 166" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M380 212 L380 226" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M630 152 L630 166" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M630 212 L630 226" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/>
+<text x="30" y="292" font-size="12" opacity=".6">每一格都是「看到什麼 → 下一個指令」；後面各段用實跑輸出把每一步走一次</text>
+</svg>
+<figcaption>排查的順序：先看整體再縮小。三種常見症狀各有一條「下一個指令」的路。</figcaption>
+</figure>
+<p>第一個指令通常是 <code>uptime</code> 或 <code>top</code>。下面是後面「CPU 飆高」那段實驗跑起來之後的畫面（<code>-b</code> 是批次模式、可以存成文字；<code>-n 2 -d 1</code> 表示每秒更新、取第二輪，第一輪的 CPU 百分比還沒有比較的基準）：</p>
+<pre><code>$ uptime
+ 21:00:20 up 3 days, 14:28,  0 user,  load average: 2.33, 2.11, 1.32
+$ top -b -n 2 -d 1 -o %CPU（取第二輪畫面，前 10 行）
+top - 21:00:22 up 3 days, 14:28,  0 user,  load average: 2.33, 2.11, 1.32
+Tasks:  15 total,   1 running,  14 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 13.8 us,  1.2 sy,  0.0 ni, 83.4 id,  0.1 wa,  0.0 hi,  1.5 si,  0.0 st 
+MiB Mem :   7934.1 total,    849.0 free,   4778.0 used,   2595.3 buff/cache     
+MiB Swap:   1024.0 total,    103.8 free,    920.2 used.   3156.1 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   1698 root      20   0 5089112  43944  22052 S 100.0   0.5   0:09.21 java
+      1 root      20   0   20884  10192   7556 S   0.0   0.1   0:01.46 systemd
+     23 root      19  -1   41956  13836  12824 S   0.0   0.2   0:00.30 systemd+</code></pre>
+<p>頭五行先看三樣：</p>
+<ul class="plainlist">
+<li><strong>load average 三個數字</strong>是過去 1、5、15 分鐘的平均。uptime(1)：系統負載平均是「處於可執行或不可中斷狀態的行程平均數量」，可執行是「正在用 CPU 或在等 CPU」，不可中斷是「在等某種 I/O」（System load averages is the average number of processes that are either in a runnable or uninterruptible state.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/uptime.1.html" target="_blank" rel="noopener">出處</a> 要跟 CPU 數比：這台 <code>nproc</code> 是 10，負載 2.33 代表大部分 CPU 還閒著。負載長期大於 CPU 數，表示有人在排隊。</li>
+<li><strong><code>%Cpu(s)</code> 那一行</strong>：top(1) 的定義是 us「跑一般使用者行程的時間」、sy「跑核心的時間」、id「閒置」、wa「等 I/O 完成的時間」（us : time running un-niced user processes … wa : time waiting for I/O completion）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/top.1.html" target="_blank" rel="noopener">出處</a> us 高是程式自己在算；wa 高是 CPU 在等磁碟，該查的是 I/O 而不是程式。</li>
+<li><strong>行程那一行的 %CPU 是 100.0</strong>：top(1) 寫多執行緒的行程在不是執行緒模式時，%CPU「可能超過 100%」（if a process is multi-threaded and top is not operating in Threads mode, amounts greater than 100% may be reported）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/top.1.html" target="_blank" rel="noopener">出處</a> 100% 大約是吃滿一顆 CPU，要知道是哪條執行緒，就得切到執行緒模式（後面講）。</li>
+</ul>
+<p class="formula">先看整體：負載跟 CPU 數比、us 對 wa 分清是在算還是在等，再決定往 CPU、磁碟還是網路查</p>
+
+<div class="drill">
+  <p class="dq">一台 4 核心的機器，<code>uptime</code> 顯示 <code>load average: 11.80, 9.95, 6.10</code>。這三個數字說明什麼？</p>
+  <ul class="dopts"><li data-ok>負載一直比 CPU 數高，而且越來越重</li><li>只有 1 分鐘那個數字有意義，其他是舊資料</li><li>CPU 使用率是 11.8%，很閒</li><li>系統開機 11.8 小時了</li></ul>
+  <p class="dexp">三個數字是 1、5、15 分鐘的平均，從 6.10 升到 11.80 表示越來越重。平均有約 12 個行程在跑或在排隊（或在等 I/O），4 核心只能同時跑 4 個，其餘都在等。它不是百分比，也不是開機時間。</p>
+</div>
+<div class="drill">
+  <p class="dq">top 的 CPU 那一行是 <code>%Cpu(s):  3.0 us,  2.1 sy,  0.0 ni, 14.2 id, 80.5 wa</code>。下一步該往哪個方向查？</p>
+  <ul class="dopts"><li data-ok>查磁碟 I/O：誰在大量讀寫</li><li>找哪個 Java 執行緒在跑無窮迴圈</li><li>加 CPU，因為 CPU 已經不夠用</li><li>重開機，讓負載先降下來再說</li></ul>
+  <p class="dexp">wa 是 CPU 閒著在等 I/O 完成的時間，80.5% 表示大部分時間在等磁碟，us 才 3%，程式本身沒在算。加 CPU 沒用；無窮迴圈會讓 us 很高，不是 wa。</p>
+</div>
+<div class="drill">
+  <p class="dq">top 裡某個 java 行程的 %CPU 顯示 <code>385.0</code>。怎麼解讀？</p>
+  <ul class="dopts"><li>顯示錯誤，%CPU 最多 100</li><li>這個行程占了整台機器 385 倍的 CPU</li><li>它已經用掉 385 秒的 CPU 時間</li><li data-ok>它的多條執行緒合起來大約吃了快四顆 CPU</li></ul>
+  <p class="dexp">非執行緒模式下，top 把一個行程所有執行緒的 CPU 加起來，所以會超過 100%。385% 約等於三到四顆 CPU 跑滿。累計用掉多少 CPU 時間看的是 TIME+ 欄位。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼實驗用 <code>top -b -n 2 -d 1</code> 取「第二輪」畫面，而不是 <code>-n 1</code>？</p>
+  <ul class="dopts"><li>第一輪一定會當掉，要丟掉重來</li><li>-n 1 不支援批次模式，畫面會亂</li><li data-ok>第一輪沒有上一次可比，%CPU 不準</li><li>第二輪才會顯示 load average 那一行</li></ul>
+  <p class="dexp">top(1) 定義 %CPU 是「自上次畫面更新以來」占用的比例。第一輪沒有上一次，數字不準；隔一秒的第二輪才是那一秒的真實比例。</p>
+</div>
+</section>
+
+<section>
+<p class="era">日誌是排查的第一手資料</p>
+<h3 class="head">檔案與文字：ls、grep、awk、find、tail 與管線</h3>
+<p>先在 <code>/var/log/bank</code> 放一份模擬的交易日誌（10 行，每行是時間、等級、來源 IP、方法、路徑、狀態碼、耗時）和兩個舊的壓縮檔。<code>ls -l</code> 每一行從左到右是：權限、硬連結數、擁有者、群組、大小、修改時間、檔名；<code>-h</code> 把大小換成 K、M。</p>
+<pre><code>$ ls -l /var/log/bank
+total 4108
+-rw-r--r-- 1 root root 3000000 Sep 20 03:00 app-2026-09-20.log.gz
+-rw-r--r-- 1 root root 1200000 Sep 28 03:00 app-2026-09-28.log.gz
+-rw-r----- 1 root root     682 Oct  2 16:16 app.log</code></pre>
+<figure>
+<svg viewBox="0 0 760 170" role="img" aria-label="ls -l 一行的欄位：-rw-r----- 是檔案類型與權限，1 是硬連結數，root root 是擁有者與群組，682 是位元組數，Oct 2 16:16 是修改時間，app.log 是檔名">
+<text x="20" y="70" font-size="16" class="mono">-rw-r-----  1  root  root   682  Oct  2 16:16  app.log</text>
+<line x1="24" y1="80" x2="120" y2="80" stroke="var(--gold)" stroke-width="2"/><line x1="146" y1="80" x2="156" y2="80" stroke="var(--slate)" stroke-width="2"/><line x1="176" y1="80" x2="218" y2="80" stroke="var(--gold)" stroke-width="2"/><line x1="238" y1="80" x2="280" y2="80" stroke="var(--slate)" stroke-width="2"/><line x1="308" y1="80" x2="340" y2="80" stroke="var(--gold)" stroke-width="2"/><line x1="360" y1="80" x2="490" y2="80" stroke="var(--slate)" stroke-width="2"/><line x1="510" y1="80" x2="580" y2="80" stroke="var(--gold)" stroke-width="2"/>
+<text x="24" y="104" font-size="12">類型＋權限</text><text x="140" y="124" font-size="12">連結數</text><text x="176" y="104" font-size="12">擁有者</text><text x="238" y="124" font-size="12">群組</text><text x="300" y="104" font-size="12">位元組</text><text x="380" y="124" font-size="12">修改時間</text><text x="510" y="104" font-size="12">檔名</text>
+<text x="20" y="34" font-size="12.5" fill="var(--gold-deep)">第 1 個字元是類型（- 一般檔、d 目錄、l 符號連結），後面 9 個字元三個一組：擁有者、群組、其他人</text>
+<text x="20" y="158" font-size="12" opacity=".6">rw- = 可讀可寫、r-- = 唯讀、--- = 什麼都不行</text>
+</svg>
+<figcaption>ls -l 一行七欄；權限那一欄後面「權限」一段會換成數字講。</figcaption>
+</figure>
+
+<h4>grep：找出符合的行</h4>
+<p>grep(1) 幾個最常用的選項：<code>-c</code>「不印內容，改印符合的行數」、<code>-i</code>「忽略大小寫」、<code>-v</code>「反過來，選出不符合的行」、<code>-n</code>「每行前面加上行號」、<code>-E</code> 用延伸正規表示式（可以寫 <code>A|B</code>）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/grep.1.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ grep ERROR app.log
+2026-10-03 09:00:03 ERROR 10.0.0.9 POST /api/transfer 500 1203ms core timeout
+2026-10-03 09:00:05 ERROR 10.0.0.9 POST /api/transfer 500 1187ms core timeout
+2026-10-03 09:00:09 ERROR 10.0.0.9 POST /api/transfer 500 1199ms core timeout
+$ grep -c ERROR app.log
+3
+$ grep -ci error app.log
+4
+$ grep -n " 500 " app.log
+4:2026-10-03 09:00:03 ERROR 10.0.0.9 POST /api/transfer 500 1203ms core timeout
+6:2026-10-03 09:00:05 ERROR 10.0.0.9 POST /api/transfer 500 1187ms core timeout
+10:2026-10-03 09:00:09 ERROR 10.0.0.9 POST /api/transfer 500 1199ms core timeout
+$ grep -v INFO app.log
+2026-10-03 09:00:02 WARN  10.0.0.5 POST /api/transfer 200 950ms slow
+2026-10-03 09:00:03 ERROR 10.0.0.9 POST /api/transfer 500 1203ms core timeout
+2026-10-03 09:00:05 ERROR 10.0.0.9 POST /api/transfer 500 1187ms core timeout
+2026-10-03 09:00:07 error 10.0.0.7 GET /api/balance 503 2ms circuit open
+2026-10-03 09:00:09 ERROR 10.0.0.9 POST /api/transfer 500 1199ms core timeout
+$ grep -E "WARN|ERROR" app.log | wc -l
+4</code></pre>
+<p>注意 <code>grep -c ERROR</code> 是 3、<code>grep -ci error</code> 是 4：第 8 行寫成小寫的 <code>error</code>，只有忽略大小寫才抓得到。<code>grep -E "WARN|ERROR" | wc -l</code> 是 4 而不是 5，同樣是因為大小寫。</p>
+
+<h4>awk：一行處理一筆、按欄位拿資料</h4>
+<p>awk 預設用空白把每行切成欄位：gawk(1)：「輸入記錄的每個欄位可以用位置參照：$1、$2……$0 是整筆記錄」，<code>NR</code> 是「目前讀到第幾筆」；程式是一串「條件 { 動作 }」（An AWK program consists of a sequence of optional directives, pattern-action statements, and optional function definitions.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/gawk.1.html" target="_blank" rel="noopener">出處</a> 這份日誌 $4 是 IP、$7 是狀態碼、$8 是耗時：</p>
+<pre><code>$ awk '{print $4}' app.log | sort | uniq -c | sort -rn
+      4 10.0.0.5
+      3 10.0.0.9
+      2 10.0.0.8
+      1 10.0.0.7
+$ awk '$7 &gt;= 500 {print $2, $4, $6, $8}' app.log
+09:00:03 10.0.0.9 /api/transfer 1203ms
+09:00:05 10.0.0.9 /api/transfer 1187ms
+09:00:07 10.0.0.7 /api/balance 2ms
+09:00:09 10.0.0.9 /api/transfer 1199ms
+$ awk '{sub("ms","",$8); s+=$8; n++} END {print n, s/n}' app.log
+10 481.1</code></pre>
+<p>第一行是線上最常用的組合：取出一欄、<code>sort</code> 排好、<code>uniq -c</code> 數相鄰重複的次數、再 <code>sort -rn</code> 依次數由大到小。<code>uniq</code> 只合併「相鄰」的重複，所以前面一定要先 <code>sort</code>。</p>
+<p class="muted">管線（<code>|</code>）：bash(1)：「command1 的標準輸出經由管線接到 command2 的標準輸入」（The standard output of command1 is connected via a pipe to the standard input of command2.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/bash.1.html" target="_blank" rel="noopener">出處</a> 每一格只做一件事，串起來就是一支小程式。</p>
+
+<h4>find：依名字、時間、大小找檔案</h4>
+<p>find(1)：<code>-mtime n</code> 是「檔案內容上次修改在 n×24 小時之前」，寫 <code>+7</code> 表示超過 7 天；<code>-size n</code> 是「用掉的空間小於、大於或剛好 n 個單位」（File uses less than, more than or exactly n units of space, rounding up.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/find.1.html" target="_blank" rel="noopener">出處</a> 實驗機的時間是 10 月 2 日下午：</p>
+<pre><code>$ find /var/log/bank -name "*.gz" -mtime +7
+/var/log/bank/app-2026-09-20.log.gz
+$ find /var/log/bank -size +2M
+/var/log/bank/app-2026-09-20.log.gz</code></pre>
+<p>9 月 20 日的檔超過 7 天、9 月 28 日的還沒，所以只找到一個；大於 2 MB 的也只有 2.9 MB 那一個。清舊日誌前先用 <code>find</code> 列出來看清楚，確認了再加 <code>-delete</code>。</p>
+
+<h4>重導向：標準輸出與標準錯誤</h4>
+<p>每個行程一開始有三個檔案描述子：0 標準輸入、1 標準輸出、2 標準錯誤（〈作業系統怎麼跑程式〉的檔案描述子一段）。<code>&gt;</code> 把 1 導到檔案、<code>&gt;&gt;</code> 改成附加在後面、<code>2&gt;&amp;1</code> 表示「讓 2 指到 1 現在指的地方」。bash(1) 特別提醒：「重導向的順序很重要」，<code>ls &gt; dirlist 2&gt;&amp;1</code> 把兩個都寫進檔案，<code>ls 2&gt;&amp;1 &gt; dirlist</code> 只有標準輸出進檔案（The order of redirections is significant.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/bash.1.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ ls /var/log/bank/app.log /nope &gt; list.txt
+ls: cannot access '/nope': No such file or directory
+（結束碼 2）
+$ cat list.txt
+/var/log/bank/app.log
+$ ls /var/log/bank/app.log /nope &gt; all.txt 2&gt;&amp;1
+$ cat all.txt
+ls: cannot access '/nope': No such file or directory
+/var/log/bank/app.log
+$ ls /var/log/bank/app.log /nope 2&gt;&amp;1 &gt; order.txt
+ls: cannot access '/nope': No such file or directory
+$ cat order.txt
+/var/log/bank/app.log
+$ echo first &gt; note.txt; echo second &gt; note.txt; cat note.txt
+second
+$ echo first &gt; note.txt; echo second &gt;&gt; note.txt; cat note.txt
+first
+second</code></pre>
+<p>第二種寫法裡，<code>2&gt;&amp;1</code> 先執行，那時 1 還指著螢幕，所以 2 也指到螢幕；接著 <code>&gt; order.txt</code> 才把 1 改到檔案。錯誤訊息還是印在畫面上，檔案裡只有正常輸出。</p>
+
+<h4>tail -f 與 less：看正在長大的檔案</h4>
+<p>coreutils 手冊：<code>tail -f</code>「一直重複讀取檔案結尾新增的內容」；但預設是跟著檔案描述子走，「日誌如果會輪替（被刪掉或改名再重開），就沒用了」，這時要用 <code>--follow=name</code>，也就是 <code>-F</code>（-F … is the same as --follow=name --retry）。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/tail-invocation.html" target="_blank" rel="noopener">出處</a> 實驗：另一個行程每秒附加一行 ERROR，<code>tail -f</code> 就一行一行跟著印出來（用 <code>timeout 5</code> 讓它 5 秒後結束）：</p>
+<pre><code>$ timeout 5 tail -n 2 -f /var/log/bank/app.log
+2026-10-03 09:00:08 INFO  10.0.0.5 GET /api/balance 200 36ms
+2026-10-03 09:00:09 ERROR 10.0.0.9 POST /api/transfer 500 1199ms core timeout
+2026-10-03 09:01:01 ERROR 10.0.0.9 POST /api/transfer 500 1210ms core timeout
+2026-10-03 09:01:02 ERROR 10.0.0.9 POST /api/transfer 500 1210ms core timeout
+2026-10-03 09:01:03 ERROR 10.0.0.9 POST /api/transfer 500 1210ms core timeout
+（timeout 在 5 秒後結束它，結束碼 124）</code></pre>
+<p><code>less</code> 適合翻大檔：<code>/關鍵字</code> 往下搜、<code>n</code> 找下一個、<code>G</code> 跳到最後；按 <code>F</code> 則像 tail -f，less(1)：「捲到底並持續嘗試讀取，用來監看一個正在長大的檔案結尾」（It is a way to monitor the tail of a file which is growing while it is being viewed.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/less.1.html" target="_blank" rel="noopener">出處</a> 不要用 <code>cat</code> 或 <code>vi</code> 開好幾 GB 的日誌：前者洗掉整個畫面，後者可能把整個檔案讀進記憶體。</p>
+<p class="formula">grep 找行、awk 拿欄位、sort | uniq -c | sort -rn 排名、find 找檔；&gt; file 2&gt;&amp;1 兩個都進檔案，順序反過來錯誤還在螢幕；日誌會輪替就用 tail -F</p>
+
+<div class="drill">
+  <p class="dq">日誌裡的錯誤有的寫 <code>ERROR</code>、有的寫 <code>error</code>。要數出全部錯誤的行數，下面哪一個指令最合適？</p>
+  <ul class="dopts"><li><code>grep -c ERROR app.log</code></li><li><code>grep -v ERROR app.log | wc -l</code></li><li><code>grep -n error app.log</code></li><li data-ok><code>grep -ci error app.log</code></li></ul>
+  <p class="dexp">-i 忽略大小寫、-c 只印行數。實驗裡 grep -c ERROR 是 3，grep -ci error 是 4，差的那一行就是小寫的 error。-v 是反過來選「不含」的行；-n 只是加行號。</p>
+</div>
+<div class="drill">
+  <p class="dq">想知道哪個 IP（第 4 欄）打最多次，指令 <code>awk '{print $4}' app.log | uniq -c | sort -rn</code> 結果怪怪的，同一個 IP 出現好幾行。少了什麼？</p>
+  <ul class="dopts"><li>awk 的欄位要從 $0 開始算才對</li><li data-ok>uniq 前面少了 sort</li><li>uniq -c 要換成 wc -l 才數得準</li><li>要先加 grep -v INFO 把雜訊去掉</li></ul>
+  <p class="dexp">uniq 只會把「連在一起」的相同行併成一行，同一個 IP 散在不同位置就會被數成好幾段。先 sort 把相同的排在一起，uniq -c 才數得準。$0 是整行，欄位從 $1 開始。</p>
+</div>
+<div class="drill">
+  <p class="dq">這份日誌的第 7 欄是 HTTP 狀態碼。下面哪一個指令只印出「狀態碼 500 以上」的那幾行的時間與路徑？</p>
+  <ul class="dopts"><li><code>grep 500 app.log</code></li><li><code>awk '{print $2, $6}' app.log | grep 500</code></li><li><code>awk '{if ($7 = 500) print $2, $6}' app.log</code></li><li data-ok><code>awk '$7 &gt;= 500 {print $2, $6}' app.log</code></li></ul>
+  <p class="dexp">awk 的「條件 { 動作 }」只對條件成立的行做動作，$7 &gt;= 500 也會抓到 503。grep 500 會連耗時 1500ms 這種字串一起抓；先 print 再 grep 時狀態碼已經不在輸出裡了；= 是指定不是比較，條件永遠成立。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面這行執行後，螢幕上看到什麼？（<code>/nope</code> 不存在）</p>
+<pre><code>ls /etc/hostname /nope 2&gt;&amp;1 &gt; out.txt</code></pre>
+  <ul class="dopts"><li>什麼都沒有，兩個都寫進 out.txt</li><li>只有 /etc/hostname</li><li data-ok>只有 /nope 的錯誤訊息</li><li>兩行都有，out.txt 是空的</li></ul>
+  <p class="dexp">重導向由左到右處理：2&gt;&amp;1 時 1 還指著螢幕，所以 2 指到螢幕；接著 1 才改到 out.txt。正常輸出進檔案、錯誤留在螢幕。要兩個都進檔案得寫成 &gt; out.txt 2&gt;&amp;1，實驗的 order.txt 那段就是這樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">日誌每天凌晨會被改名成 <code>app.log.1</code>，再開一個新的 <code>app.log</code>。值班時想一直盯著最新的日誌，該用哪一個？</p>
+  <ul class="dopts"><li data-ok><code>tail -F app.log</code></li><li><code>tail -f app.log</code>，它會自動換到新檔</li><li><code>cat app.log</code>，每分鐘按一次</li><li><code>less app.log</code>，按 G 跳到最後</li></ul>
+  <p class="dexp">tail -f 預設跟著檔案描述子走，檔案改名後它還盯著舊的那個（現在叫 app.log.1）。-F 等於 --follow=name --retry，會照檔名重新開，輪替後換到新檔。less 按 G 只是跳到當下的結尾，不會自己往下長。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>echo first &gt; note.txt; echo second &gt; note.txt; cat note.txt</code> 印出什麼？</p>
+  <ul class="dopts"><li>first 與 second 兩行</li><li data-ok>只有 second</li><li>只有 first</li><li>錯誤：檔案已經存在</li></ul>
+  <p class="dexp">&gt; 每次都會先把檔案清空再寫，第二次把 first 蓋掉了。要附加在後面得用 &gt;&gt;，實驗裡那樣寫就印出兩行。</p>
+</div>
+<div class="drill">
+  <p class="dq">想刪掉 <code>/var/log/bank</code> 裡超過 30 天的 <code>.gz</code> 檔，最穩當的第一步是？</p>
+  <ul class="dopts"><li>直接 <code>rm -rf /var/log/bank/*.gz</code></li><li>先跑 <code>find /var/log/bank -mtime -30 -delete</code></li><li>用 ls -l 一個一個看日期，看完手動刪</li><li data-ok>先只跑 <code>find … -name "*.gz" -mtime +30</code> 列清單</li></ul>
+  <p class="dexp">先列清單、確認後再加 -delete。-mtime -30 是「30 天以內」，方向反了，會刪掉新的檔；rm -rf *.gz 會連新的一起刪。</p>
+</div>
+</section>
+
+<section>
+<p class="era">誰能讀、誰能寫、誰能執行</p>
+<h3 class="head">權限：chmod 數字、chown 與 sudo</h3>
+<p>權限三個一組（擁有者、群組、其他人），每組的讀、寫、執行換成數字是 4、2、1，加起來就是一位數。coreutils 手冊的例子：「數字模式 664 對應符號模式 ug=rw,o=r」（numeric mode ‘664’ corresponds to symbolic mode ‘ug=rw,o=r’）。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/Numeric-Modes.html" target="_blank" rel="noopener">出處</a> 所以 640 是 rw-r-----、750 是 rwxr-x---、600 是 rw-------。實驗：開一個帳號 <code>teller</code>，看它讀不讀得到日誌：</p>
+<pre><code>$ ls -l app.log
+-rw-r----- 1 root root 916 Oct  2 16:16 app.log
+$ sudo -u teller cat app.log | head -1
+cat: app.log: Permission denied
+$ chown root:bank app.log; usermod -aG bank teller
+$ ls -l app.log
+-rw-r----- 1 root bank 916 Oct  2 16:16 app.log
+$ sudo -u teller head -1 app.log
+2026-10-03 09:00:01 INFO  10.0.0.5 GET /api/balance 200 35ms
+$ chmod 600 app.log; ls -l app.log
+-rw------- 1 root bank 916 Oct  2 16:16 app.log
+$ sudo -u teller head -1 app.log
+head: cannot open 'app.log' for reading: Permission denied
+$ chmod 640 app.log; stat -c "%a %A %U:%G %n" app.log
+640 -rw-r----- root:bank app.log
+$ chmod 750 /opt/bank/deploy.sh; ls -l /opt/bank/deploy.sh
+-rwxr-x--- 1 root root 25 Oct  2 16:16 /opt/bank/deploy.sh
+$ chmod u=rwx,g=rx,o= /opt/bank/deploy.sh; stat -c "%a" /opt/bank/deploy.sh
+750
+$ sudo -u teller /opt/bank/deploy.sh
+sudo: unable to execute /opt/bank/deploy.sh: Permission denied
+$ sudo -u teller sudo -l
+Matching Defaults entries for teller on lab:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
+
+User teller may run the following commands on lab:
+    (root) NOPASSWD: /usr/bin/journalctl
+$ sudo -u teller sudo -n cat /etc/shadow
+sudo: a password is required</code></pre>
+<p>逐段看：</p>
+<ul class="plainlist">
+<li>640、群組是 root：teller 不是擁有者也不在 root 群組，落到「其他人」那組 <code>---</code>，讀不到。</li>
+<li>改成群組 bank、把 teller 加進 bank：落到群組那組 <code>r--</code>，可以讀。</li>
+<li>改成 600：群組那組變 <code>---</code>，又讀不到了。</li>
+<li><code>deploy.sh</code> 是 750：其他人沒有 x，teller 不能執行。</li>
+<li>sudo(8)：sudo「讓被允許的使用者，依照安全政策，以超級使用者或其他使用者的身分執行指令」（allows a permitted user to execute a command as the superuser or another user, as specified by the security policy.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man8/sudo.8.html" target="_blank" rel="noopener">出處</a> 這裡只給 teller 免密碼跑 <code>journalctl</code>，<code>sudo -l</code> 列得出來；想跑別的（讀 <code>/etc/shadow</code>）就被要求密碼。只開需要的指令，就是最小權限。</li>
+</ul>
+<p class="muted">實務上不要用 <code>chmod 777</code> 解決「權限不足」：那等於讓任何帳號都能改、能執行，問題只是被藏起來。該做的是像上面這樣，調整擁有者或群組。</p>
+<p class="formula">r=4、w=2、x=1，三組加起來：640 = rw-r-----；先看你落在擁有者、群組還是其他人；sudo 只開需要的指令</p>
+
+<div class="drill">
+  <p class="dq"><code>chmod 640 app.log</code> 之後，<code>ls -l</code> 的權限欄是什麼？</p>
+  <ul class="dopts"><li>-rwxr-x---</li><li data-ok>-rw-r-----</li><li>-rw-rw-r--</li><li>-r--r-----</li></ul>
+  <p class="dexp">6 = 4+2 = rw-、4 = r--、0 = ---。rwxr-x--- 是 750，rw-rw-r-- 是 664，r--r----- 是 440。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>-rw-r----- 1 root bank 916 … app.log</code>。帳號 <code>teller</code> 不在 bank 群組，它執行 <code>cat app.log</code> 會怎樣？</p>
+  <ul class="dopts"><li data-ok>Permission denied</li><li>讀得到，因為權限欄裡有出現 r</li><li>讀得到，但只能看前幾行</li><li>要看 teller 是不是在 root 群組裡</li></ul>
+  <p class="dexp">檢查順序是先看是不是擁有者（root），再看是不是群組（bank），都不是就用最後三個字元。最後三個是 ---，所以讀不到。實驗裡把 teller 加進 bank 之後才讀得到。</p>
+</div>
+<div class="drill">
+  <p class="dq">部署腳本要讓擁有者能讀寫執行、同群組的人能讀和執行、其他人什麼都不行。數字是？</p>
+  <ul class="dopts"><li>755</li><li>770</li><li data-ok>750</li><li>705</li></ul>
+  <p class="dexp">擁有者 rwx = 7、群組 r-x = 5、其他人 --- = 0。755 會讓其他人也能讀和執行；770 讓群組也能寫。實驗的 chmod u=rwx,g=rx,o= 算出來也是 750。</p>
+</div>
+<div class="drill">
+  <p class="dq">某服務啟動時報「Permission denied」讀不到設定檔。同事建議 <code>chmod 777</code> 一下就好。比較好的做法是？</p>
+  <ul class="dopts"><li>照做，777 讓誰都能讀，最保險</li><li>改成 666，只開讀寫、不開執行</li><li>把服務改用 root 跑，一次解決</li><li data-ok>查服務的執行帳號，調擁有者或群組</li></ul>
+  <p class="dexp">777 讓所有帳號都能改這個設定檔，等於開了一扇門。先看服務的執行帳號（例如 systemd 單元的 User=），用 chown 或群組給它讀權限就好。改用 root 跑一樣是把權限放太大。</p>
+</div>
+<div class="drill">
+  <p class="dq">實驗裡 <code>sudo -l</code> 對 teller 印出 <code>(root) NOPASSWD: /usr/bin/journalctl</code>。teller 執行 <code>sudo -n cat /etc/shadow</code> 會怎樣？</p>
+  <ul class="dopts"><li data-ok>不行，這條只放了 journalctl</li><li>讀得到，因為 teller 有 sudo 權限</li><li>讀得到，但密碼欄會被遮掉</li><li>帳號會被鎖住，要等管理員解鎖</li></ul>
+  <p class="dexp">sudo 照政策逐條放行。這條政策只放了 journalctl，其他指令要密碼；-n 是不互動，需要密碼就直接報錯，實跑印出 a password is required。</p>
+</div>
+</section>
+
+<section>
+<p class="era">誰在跑、怎麼請它停</p>
+<h3 class="head">行程與訊號：ps 的狀態欄、SIGTERM 對 SIGKILL</h3>
+<p><code>ps</code> 印的是「當下的快照」。常用寫法是 <code>ps -eo</code> 自己挑欄位、<code>--sort</code> 排序：</p>
+<pre><code>$ ps -eo pid,user,stat,%cpu,%mem,rss,etime,comm --sort=-rss | head -5
+    PID USER     STAT %CPU %MEM   RSS     ELAPSED COMMAND
+    313 root     Sl    3.0  0.5 44996       00:03 java
+     23 root     S&lt;s   0.1  0.1 11912       00:22 systemd-journal
+      1 root     Ss    0.3  0.1 11320       00:22 systemd
+    332 root     R     0.0  0.0  3828       00:00 ps</code></pre>
+<p>RSS 是實際占用的實體記憶體（KB），VSZ 是虛擬位址空間的大小，Java 的 VSZ 通常很大但 RSS 小，差別見〈作業系統怎麼跑程式〉的虛擬記憶體一段。<strong>STAT 欄</strong>的第一個字母，ps(1) 的定義：「D 不可中斷的睡眠（通常是 I/O）、R 正在執行或可執行（在執行佇列上）、S 可中斷的睡眠（等一個事件完成）、T 被停止、Z 已經結束、但還沒被父行程收回（zombie）」（Z defunct (“zombie”) process, terminated but not reaped by its parent）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/ps.1.html" target="_blank" rel="noopener">出處</a> 後面跟的小寫 l 是多執行緒、s 是工作階段的領頭行程。做一個殭屍行程來看：</p>
+<pre><code>$ ps -eo pid,ppid,stat,cmd | grep -E "PID|sleep"
+    PID    PPID STAT CMD
+    307     237 S    sleep 20
+    309     307 Z    [sleep] &lt;defunct&gt;</code></pre>
+<p>父行程 307（<code>sleep 20</code>）不收回它的子行程，子行程結束後就停在 Z。ps(1)：這種行程是「因為父行程沒有好好收掉而留下來的」，父行程結束後會由 init 收掉。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/ps.1.html" target="_blank" rel="noopener">出處</a> 殭屍不吃 CPU 和記憶體，對它下 kill 也沒用；要處理的是那個不收屍的父行程。</p>
+
+<h4>SIGTERM 與 SIGKILL</h4>
+<p>kill(1)：「沒指定訊號時送 TERM」，而且應該優先用 TERM 而不是 KILL（9 號），「因為行程可以替 TERM 裝處理程式，在結束前做清理」（since a process may install a handler for the TERM signal in order to perform clean-up steps before terminating in an orderly fashion.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/kill.1.html" target="_blank" rel="noopener">出處</a> signal(7)：「SIGKILL 與 SIGSTOP 不能被攔截、阻擋或忽略」（The signals SIGKILL and SIGSTOP cannot be caught, blocked, or ignored.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/signal.7.html" target="_blank" rel="noopener">出處</a> 用一個裝了關機掛鉤（shutdown hook，JVM 收到結束訊號時會執行的程式）的 Java 服務試：</p>
+<pre><code>public class Teller {
+    public static void main(String[] args) throws Exception {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -&gt;
+            System.out.println("收到關機訊號：把手上的交易做完、關閉連線，再離開")));
+        System.out.println("Teller 啟動，PID " + ProcessHandle.current().pid());
+        Thread.sleep(Long.MAX_VALUE);
+    }
+}</code></pre>
+<pre><code>--- SIGTERM
+Teller 啟動，PID 267
+$ kill 267        # 沒寫訊號，預設送 SIGTERM
+收到關機訊號：把手上的交易做完、關閉連線，再離開
+結束碼 143
+--- SIGKILL
+Teller 啟動，PID 288
+$ kill -9 288
+/root/s4.sh: line 9:   288 Killed                  java -Dstdout.encoding=UTF-8 -cp /opt/app Teller
+結束碼 137</code></pre>
+<p>SIGTERM 時掛鉤跑了，結束碼 143；SIGKILL 時掛鉤沒機會跑，結束碼 137。這兩個數字是 shell 的慣例「128 加訊號編號」：143 = 128 + 15（TERM）、137 = 128 + 9（KILL）。看到服務以 137 結束，第一個要懷疑的是被強制殺掉（例如手動 kill -9，或容器超過記憶體上限被系統砍掉）。</p>
+<p class="formula">STAT：R 在跑、S 在睡、D 等 I/O、Z 殭屍；先 kill（TERM）給它收尾，不走才 kill -9；143 = 被 TERM、137 = 被 KILL</p>
+
+<div class="drill">
+  <p class="dq"><code>ps</code> 看到某個 Java 行程的 STAT 一直是 <code>D</code>，而且 <code>kill -9</code> 也殺不掉。最可能的狀況是？</p>
+  <ul class="dopts"><li data-ok>卡在不可中斷的 I/O 等待</li><li>它是殭屍，父行程還沒收回它</li><li>它在跑無窮迴圈，CPU 卡住了</li><li>它被暫停了，要先送 SIGCONT</li></ul>
+  <p class="dexp">D 是不可中斷的睡眠，通常在等 I/O，這時訊號要等 I/O 回來才處理得到。殭屍是 Z、在跑是 R、被暫停是 T。要查的是它在等的那個儲存裝置。</p>
+</div>
+<div class="drill">
+  <p class="dq">實驗裡 <code>ps</code> 印出 <code>309  307 Z  [sleep] &lt;defunct&gt;</code>。要讓它消失，該對誰動手？</p>
+  <ul class="dopts"><li>對 309 下 kill -9，強制清掉</li><li data-ok>處理父行程 307</li><li>只能重開機，殭屍殺不掉</li><li>不用管，殭屍會自己在幾分鐘後消失</li></ul>
+  <p class="dexp">殭屍已經結束了，kill 對它沒有作用。要嘛讓父行程收回它，要嘛結束父行程，殭屍會被 init 接手收掉。單一殭屍幾乎不占資源，但大量殭屍會占滿行程編號。</p>
+</div>
+<div class="drill">
+  <p class="dq">要停掉一個正在處理轉帳的 Java 服務，下面哪個順序最好？</p>
+  <ul class="dopts"><li>直接 kill -9，最快也最乾淨</li><li>先 kill -9，沒反應再換 kill</li><li>kill -STOP，讓它停在原地等人處理</li><li data-ok>先 kill，等一下不走再 kill -9</li></ul>
+  <p class="dexp">SIGTERM 讓 JVM 跑關機掛鉤，有機會把手上的交易做完、關連線；SIGKILL 不能被攔截，掛鉤不會跑。kill(1) 也建議先用 TERM，不走才用 KILL。-STOP 只是暫停。</p>
+</div>
+<div class="drill">
+  <p class="dq">某服務的日誌最後一行沒有任何關機訊息，結束碼是 137。最可能發生了什麼？</p>
+  <ul class="dopts"><li>正常結束，137 代表成功</li><li data-ok>被 SIGKILL 強制結束</li><li>收到 SIGTERM，正常跑完關機流程</li><li>程式丟出例外，JVM 以錯誤碼結束</li></ul>
+  <p class="dexp">137 = 128 + 9，是被 SIGKILL 結束；SIGKILL 不給程式收尾，所以沒有關機訊息。被 SIGTERM 結束是 143，實驗裡那次有印出關機掛鉤的訊息。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>ps -eo pid,stat,rss,comm --sort=-rss | head -5</code> 這個指令在做什麼？</p>
+  <ul class="dopts"><li>列出 CPU 用最多的 5 個行程</li><li data-ok>依記憶體（RSS）由大到小列前幾個</li><li>列出最早啟動的 5 個行程</li><li>列出所有殭屍行程與它們的父行程</li></ul>
+  <p class="dexp">--sort=-rss 依 RSS 由大到小排，head -5 取前 5 行（包含標題，所以是前 4 個行程）。依 CPU 排要寫 --sort=-%cpu。</p>
+</div>
+</section>
+
+<section>
+<p class="era">讓服務開機自己起來、掛了自己重啟</p>
+<h3 class="head">systemd 與 journalctl</h3>
+<p>正式機上的服務通常交給 systemd 管理。寫一個單元檔（unit file）<code>/etc/systemd/system/bank-api.service</code>，跑上面的 Teller：</p>
+<pre><code>[Unit]
+Description=Bank API (demo)
+After=network.target
+
+[Service]
+User=teller
+Environment=LANG=C.UTF-8
+ExecStart=/usr/bin/java -Dstdout.encoding=UTF-8 -cp /opt/app Teller
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+<p>systemd.service(5)：<code>Restart=on-failure</code> 時，「行程以非 0 結束碼離開、被訊號結束（不含 SIGHUP、SIGINT、SIGTERM、SIGPIPE 這四個）……就自動重啟」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/systemd.service.5.html" target="_blank" rel="noopener">出處</a> 啟動、看狀態：</p>
+<pre><code>$ systemctl daemon-reload &amp;&amp; systemctl enable --now bank-api
+Created symlink /etc/systemd/system/multi-user.target.wants/bank-api.service → /etc/systemd/system/bank-api.service.
+$ systemctl status bank-api --no-pager
+● bank-api.service - Bank API (demo)
+     Loaded: loaded (/etc/systemd/system/bank-api.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-10-02 20:58:47 UTC; 4s ago
+   Main PID: 1367 (java)
+      Tasks: 18 (limit: 9563)
+     Memory: 14.1M (peak: 15.5M)
+        CPU: 113ms
+     CGroup: /docker/e1514326e89cd29bb758f8c7050c1cfa28bbc40cb451ada9ae5c3fbd06023945/system.slice/bank-api.service
+             └─1367 /usr/bin/java -Dstdout.encoding=UTF-8 -cp /opt/app Teller
+
+Oct 02 20:58:47 lab systemd[1]: Started bank-api.service - Bank API (demo).
+Oct 02 20:58:48 lab java[1367]: Teller 啟動，PID 1367</code></pre>
+<p><code>systemctl status</code>「顯示一或多個單元的執行狀態，後面附上日誌裡最近的紀錄」（Show runtime status information about the whole system or about one or more units followed by most recent log data from the journal.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/systemctl.1.html" target="_blank" rel="noopener">出處</a> 模擬服務當掉，再用 <code>journalctl -u</code> 只看這個服務的日誌：</p>
+<pre><code>$ kill -9 1367      # 模擬服務當掉
+$ systemctl status bank-api --no-pager | head -6
+● bank-api.service - Bank API (demo)
+     Loaded: loaded (/etc/systemd/system/bank-api.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-10-02 20:58:54 UTC; 1s ago
+   Main PID: 1390 (java)
+      Tasks: 18 (limit: 9563)
+     Memory: 22.1M (peak: 23.5M)
+$ journalctl -u bank-api --no-pager -o short-iso
+2026-10-02T20:58:47+00:00 lab systemd[1]: Started bank-api.service - Bank API (demo).
+2026-10-02T20:58:48+00:00 lab java[1367]: Teller 啟動，PID 1367
+2026-10-02T20:58:51+00:00 lab systemd[1]: bank-api.service: Main process exited, code=killed, status=9/KILL
+2026-10-02T20:58:51+00:00 lab systemd[1]: bank-api.service: Failed with result 'signal'.
+2026-10-02T20:58:54+00:00 lab systemd[1]: bank-api.service: Scheduled restart job, restart counter is at 1.
+2026-10-02T20:58:54+00:00 lab systemd[1]: Started bank-api.service - Bank API (demo).
+2026-10-02T20:58:54+00:00 lab java[1390]: Teller 啟動，PID 1390
+$ systemctl show bank-api -p KillSignal -p TimeoutStopUSec -p Restart -p NRestarts
+Restart=on-failure
+TimeoutStopUSec=1min 30s
+NRestarts=1
+KillSignal=15</code></pre>
+<p>被 SIGKILL 結束（status=9/KILL）算失敗，2 秒後自動重啟，PID 從 1367 換成 1390。<code>KillSignal=15</code> 與 <code>TimeoutStopUSec=1min 30s</code> 是停止時的預設：systemd.kill(5)：停止時先送的訊號「預設是 SIGTERM」，之後通常接 SIGKILL<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/systemd.kill.5.html" target="_blank" rel="noopener">出處</a>；systemd.service(5)：服務在 TimeoutStopSec 內沒結束，「會被 SIGKILL 強制結束」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/systemd.service.5.html" target="_blank" rel="noopener">出處</a> 接著正常停掉它：</p>
+<pre><code>$ systemctl stop bank-api
+$ journalctl -u bank-api --no-pager -n 4 -o short-iso
+2026-10-02T20:58:55+00:00 lab java[1390]: 收到關機訊號：把手上的交易做完、關閉連線，再離開
+2026-10-02T20:58:55+00:00 lab systemd[1]: bank-api.service: Main process exited, code=exited, status=143/n/a
+2026-10-02T20:58:55+00:00 lab systemd[1]: bank-api.service: Failed with result 'exit-code'.
+2026-10-02T20:58:55+00:00 lab systemd[1]: Stopped bank-api.service - Bank API (demo).
+$ systemctl is-active bank-api
+failed</code></pre>
+<p>關機掛鉤跑了，但 systemd 說 <code>Failed with result 'exit-code'</code>，狀態是 failed。原因在結束碼：systemd 把「被 SIGTERM 結束」當成功，但 JVM 是自己處理完 SIGTERM 後<strong>以結束碼 143 離開</strong>，不是被訊號殺死，所以 systemd 看到的是非 0 結束碼。修法是在 <code>[Service]</code> 加 <code>SuccessExitStatus=143</code>（「列出主行程回傳時要當成成功的結束狀態」，SuccessExitStatus= Takes a list of exit status definitions that, when returned by the main service process, will be considered successful termination）<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/systemd.service.5.html" target="_blank" rel="noopener">出處</a>，重載後再停一次：</p>
+<pre><code>$ systemctl stop bank-api
+$ journalctl -u bank-api --no-pager -n 3 -o short-iso
+2026-10-02T20:59:09+00:00 lab java[1444]: 收到關機訊號：把手上的交易做完、關閉連線，再離開
+2026-10-02T20:59:09+00:00 lab systemd[1]: bank-api.service: Deactivated successfully.
+2026-10-02T20:59:09+00:00 lab systemd[1]: Stopped bank-api.service - Bank API (demo).
+$ systemctl is-active bank-api
+inactive
+$ journalctl -u bank-api --since "-2min" -p warning --no-pager -o short-iso
+2026-10-02T20:58:51+00:00 lab systemd[1]: bank-api.service: Main process exited, code=killed, status=9/KILL
+2026-10-02T20:58:51+00:00 lab systemd[1]: bank-api.service: Failed with result 'signal'.
+2026-10-02T20:58:55+00:00 lab systemd[1]: bank-api.service: Failed with result 'exit-code'.</code></pre>
+<p>這次是 <code>Deactivated successfully</code>、狀態 inactive。最後一個指令是查問題時最常用的組合：<code>-u</code> 指定服務、<code>--since</code>「顯示這個時間之後的紀錄」、<code>-p</code>「依訊息等級過濾」（這裡 warning 以上），再加 <code>-f</code> 就是「持續印出新的紀錄」，相當於 tail -f。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/journalctl.1.html" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">systemctl status 看狀態加最近日誌；journalctl -u 服務 --since … -p warning -f；停止先送 SIGTERM、90 秒後 SIGKILL；Java 服務記得 SuccessExitStatus=143</p>
+
+<div class="drill">
+  <p class="dq">實驗的 <code>systemctl stop bank-api</code> 之後，<code>systemctl is-active</code> 回 <code>failed</code>，但日誌明明有印出關機掛鉤的訊息。為什麼？</p>
+  <ul class="dopts"><li>關機掛鉤執行到一半失敗了</li><li>systemd 等不到 90 秒就用 SIGKILL 殺了它</li><li data-ok>JVM 以 143 結束，被當成失敗</li><li>User=teller 沒有權限停止這個服務</li></ul>
+  <p class="dexp">日誌寫 status=143/n/a、Failed with result 'exit-code'：是結束碼，不是被訊號殺掉。systemd 只把「被 SIGTERM 殺掉」算成功，JVM 自己 exit(143) 不算。加 SuccessExitStatus=143 之後就變成 Deactivated successfully。</p>
+</div>
+<div class="drill">
+  <p class="dq">單元檔設 <code>Restart=on-failure</code>。下面哪一種情況<strong>不會</strong>被自動重啟？</p>
+  <ul class="dopts"><li>程式丟例外，以結束碼 1 離開</li><li>被 kill -9 殺掉</li><li>程式自己 crash，產生 core dump</li><li data-ok>被 SIGTERM 結束，而且沒有被當成失敗</li></ul>
+  <p class="dexp">文件：on-failure 在非 0 結束碼、被訊號結束（不含 SIGHUP、SIGINT、SIGTERM、SIGPIPE）時重啟。SIGTERM 是「被要求停止」，不算失敗。實驗裡 kill -9 之後 2 秒就重啟了。</p>
+</div>
+<div class="drill">
+  <p class="dq">半夜 3 點 bank-api 出過錯，現在想看那段時間它的警告與錯誤。下面哪個指令最合適？</p>
+  <ul class="dopts"><li><code>journalctl -u bank-api -f</code>，從現在開始盯著看</li><li><code>systemctl status bank-api --no-pager -n 50</code></li><li data-ok><code>journalctl -u bank-api --since "03:00" -p warning</code></li><li><code>grep -ri error /var/log/ | grep bank-api</code></li></ul>
+  <p class="dexp">-u 限定服務、--since／--until 限定時間、-p warning 只留 warning 以上的等級。journalctl -f 只看接下來的新紀錄；systemctl status 只附最近幾行；systemd 管的服務日誌在 journal 裡，不一定有 /var/log 的檔案。</p>
+</div>
+<div class="drill">
+  <p class="dq">Java 服務收到 SIGTERM 後要花 2 分鐘把佇列裡的交易做完。單元檔沒有設 <code>TimeoutStopSec</code>，<code>systemctl stop</code> 時會發生什麼事？</p>
+  <ul class="dopts"><li>systemd 會一直等到它自己結束</li><li data-ok>約 90 秒後被 SIGKILL</li><li>systemd 不送訊號，只把它標成停止</li><li>立刻送 SIGKILL，不給它收尾的時間</li></ul>
+  <p class="dexp">實驗的 systemctl show 印出 TimeoutStopUSec=1min 30s。文件：在這段時間內沒結束就被 SIGKILL 強制結束。需要更久就要把 TimeoutStopSec 調大，或讓程式在時間內收尾。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>systemctl status</code> 顯示 <code>Main process exited, code=killed, status=9/KILL</code>，接著是 <code>Scheduled restart job, restart counter is at 1</code>。發生了什麼？</p>
+  <ul class="dopts"><li>有人手動執行了 systemctl restart</li><li>服務正常結束後依排程被重新啟動</li><li data-ok>被 SIGKILL 殺掉，依 Restart= 重啟</li><li>systemd 自己送 SIGKILL，再把它重啟</li></ul>
+  <p class="dexp">code=killed, status=9/KILL 表示被 9 號訊號殺掉，這是實驗裡手動 kill -9 的結果。被訊號殺掉屬於失敗，Restart=on-failure 就安排重啟，計數器加到 1。</p>
+</div>
+</section>
+
+<section>
+<p class="era">滿了，可是找不到是誰</p>
+<h3 class="head">記憶體與磁碟：free、df、du、inode 與被刪掉的檔案</h3>
+<h4>free：看 available，不要看 free</h4>
+<pre><code>$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:           7.7Gi       3.4Gi       1.9Gi        59Mi       2.7Gi       4.4Gi
+Swap:          1.0Gi       950Mi        73Mi</code></pre>
+<p>free(1)：free 是「完全沒用到的記憶體」，available 是「不需要用到 swap 就能給新程式用的記憶體估計值」，而且它把頁快取算進去了（Estimation of how much memory is available for starting new applications, without swapping.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/free.1.html" target="_blank" rel="noopener">出處</a> Linux 會拿閒著的記憶體當檔案快取（buff/cache），需要時再還回來，所以 free 很小是正常的；要擔心的是 available 很小、swap 一直在增加。這台實驗機的 swap 幾乎用滿，是因為同一台 Docker 主機上還跑著別的容器。</p>
+
+<h4>df 與 du：磁碟滿了，是誰</h4>
+<p>coreutils 手冊：df「回報檔案系統用了多少、還剩多少空間」，du「回報一組檔案需要的空間」，<code>du -s</code> 每個參數只印一個總數、<code>-h</code> 用 K、M、G 表示。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html" target="_blank" rel="noopener">出處</a> 實驗用一塊 50 MB、最多 2000 個 inode 的 tmpfs 掛在 <code>/data</code>，塞 30 MB 日誌與 18 MB 報表後再寫：</p>
+<pre><code>$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            50M     0   50M   0% /data
+$ df -i /data
+Filesystem     Inodes IUsed IFree IUse% Mounted on
+tmpfs            2000     3  1997    1% /data
+$ dd if=/dev/zero of=/data/batch/more.bin bs=1M count=10 status=none
+dd: error writing '/data/batch/more.bin': No space left on device
+（結束碼 1）
+$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            50M   50M     0 100% /data
+$ du -sh /data/*
+20M	/data/batch
+30M	/data/logs
+$ du -ah /data | sort -rh | head -5
+50M	/data
+30M	/data/logs/app.log
+30M	/data/logs
+20M	/data/batch
+15M	/data/batch/report-0930.csv</code></pre>
+<p>查的順序：<code>df -h</code> 看哪個檔案系統滿了 → <code>du -sh /掛載點/*</code> 看哪個目錄大 → <code>du -ah … | sort -rh | head</code> 找出最大的檔案。<code>sort -h</code> 認得 K、M、G，<code>-r</code> 由大到小。</p>
+
+<h4>已刪除但還開著的檔案：df 與 du 對不上</h4>
+<p>最常見的情況：日誌太大，有人直接 <code>rm</code> 掉，結果 df 沒有降。用一個開著日誌不關的 Java 程式（<code>LogKeeper</code>，用附加模式開檔後一直睡）重現：</p>
+<pre><code>（LogKeeper 啟動，PID 386）
+$ rm /data/logs/app.log
+$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            50M   49M  2.0M  97% /data
+$ du -sh /data
+18M	/data
+$ lsof +L1 /data
+COMMAND PID USER   FD   TYPE DEVICE SIZE/OFF NLINK NODE NAME
+java    386 root    4w   REG  0,130 31457288     0    4 /data/logs/app.log (deleted)
+$ ls -l /proc/386/fd | grep deleted
+l-wx------ 1 root root 64 Oct  2 16:16 4 -&gt; /data/logs/app.log (deleted)
+$ : &gt; /proc/386/fd/4     # 把它截成 0，不必重啟行程
+$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            50M   18M   32M  36% /data</code></pre>
+<p>rm 之後 df 還是 97%，du 卻只算到 18M：du 照目錄裡看得到的檔案加總，df 看的是檔案系統實際被占用的區塊，差的 30 MB 就是那個「沒有名字、但還被開著」的檔案。unlink(2)：「名字是這個檔案最後一個連結，但還有行程開著它時，檔案會一直存在，直到最後一個指向它的檔案描述子被關閉」（the file will remain in existence until the last file descriptor referring to it is closed.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/unlink.2.html" target="_blank" rel="noopener">出處</a> lsof(8)：<code>+L1</code>「選出已經被 unlink（連結數小於 1）但還開著的檔案」（A specification of the form ``+L1'' will select open files that have been unlinked.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man8/lsof.8.html" target="_blank" rel="noopener">出處</a> NLINK 是 0、名字後面標著 (deleted)、FD 欄 <code>4w</code> 表示第 4 號描述子、開來寫。</p>
+<figure>
+<svg viewBox="0 0 760 236" role="img" aria-label="已刪除但還開著的檔案：rm 只拿掉目錄裡的名字，Java 行程的第 4 號檔案描述子還指著那個 inode 與 30 MB 的資料區塊，所以 du 看不到、df 還算著；把描述子截成 0 或結束行程後，空間才釋放">
+<defs><marker id="lx-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+<rect x="30" y="40" width="200" height="70" rx="8" fill="none" stroke="currentColor" stroke-dasharray="5 4" stroke-opacity=".5"/><text x="130" y="68" font-size="13" text-anchor="middle">目錄 /data/logs</text><text x="130" y="92" font-size="12.5" text-anchor="middle" class="mono" opacity=".6">app.log（已 rm）</text>
+<rect x="30" y="140" width="200" height="60" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="130" y="166" font-size="13" text-anchor="middle">Java 行程 386</text><text x="130" y="186" font-size="12.5" text-anchor="middle" class="mono">fd 4（開來寫）</text>
+<rect x="320" y="90" width="180" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="410" y="118" font-size="13" text-anchor="middle">inode 4</text><text x="410" y="142" font-size="12.5" text-anchor="middle" class="mono">NLINK 0</text>
+<rect x="580" y="90" width="150" height="70" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="655" y="118" font-size="13" text-anchor="middle">資料區塊</text><text x="655" y="142" font-size="12.5" text-anchor="middle" class="mono">30 MB</text>
+<path d="M232 76 L316 112" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="5 4"/><text x="270" y="78" font-size="12" opacity=".6">名字沒了</text>
+<path d="M232 170 L316 140" stroke="var(--gold-deep)" stroke-width="1.5" marker-end="url(#lx-m2)"/>
+<path d="M502 125 L576 125" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m2)"/>
+<text x="30" y="226" font-size="12" opacity=".6">du 從目錄走，看不到它；df 看區塊占用，還算著它。關掉 fd（截斷或重啟行程）才釋放</text>
+</svg>
+<figcaption>rm 只刪掉名字；只要還有行程的檔案描述子指著，inode 和資料都還在，空間就不會回來。</figcaption>
+</figure>
+<p>解法兩種：重啟那個行程（描述子關了，空間就回來），或像上面那樣把 <code>/proc/PID/fd/4</code> 截成 0 位元組，不必重啟。截之前一定要先用 lsof 或 <code>ls -l /proc/PID/fd</code> 確認號碼：實驗時我一度照抄成第 3 號，Java 行程的第 3 號是 JDK 自己的 <code>lib/modules</code> 檔（後面「網路」那段的 <code>ls -l /proc/920/fd</code> 看得到），結果把它截成 0，這個容器裡的 java 從此一啟動就報 <code>NoClassDefFoundError: java/lang/Object</code>，只能把容器重建。下次清日誌，對還在寫的檔案用 <code>: &gt; app.log</code> 先截斷，不要直接刪。</p>
+
+<h4>inode 用光：空間還有，卻說滿了</h4>
+<p>每個檔案要占一個 inode。coreutils 手冊：<code>df -i</code>「列出 inode 的使用量，而不是區塊」，inode「存著檔案的擁有者、權限、時間戳記與它在檔案系統上的位置」。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html" target="_blank" rel="noopener">出處</a> 同一塊 tmpfs 重新掛上，一直建小檔案（例如沒清的工作階段檔）：</p>
+<pre><code>$ for i in $(seq 1 3000); do echo x &gt; /data/sessions/s$i || break; done
+/root/s5.sh: line 31: /data/sessions/s1999: No space left on device
+（停在第 1999 個）
+$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            50M  7.9M   43M  16% /data
+$ df -i /data
+Filesystem     Inodes IUsed IFree IUse% Mounted on
+tmpfs            2000  2000     0  100% /data
+$ ls /data/sessions | wc -l
+1998</code></pre>
+<p>錯誤一樣是 <code>No space left on device</code>，但 <code>df -h</code> 只用了 16%；<code>df -i</code> 的 IUse% 是 100%，才看出是 inode 用完。目錄本身也占 inode，所以只建了 1998 個檔案。解法是清掉大量小檔，或改程式不要每個工作階段一個檔。</p>
+<p class="formula">記憶體看 available；df 看哪裡滿 → du 找誰大；df 和 du 對不上 → lsof +L1；空間有卻說滿 → df -i</p>
+
+<div class="drill">
+  <p class="dq"><code>free -h</code> 顯示 <code>free 210Mi</code>、<code>buff/cache 5.1Gi</code>、<code>available 5.0Gi</code>（總共 8Gi）。記憶體夠不夠？</p>
+  <ul class="dopts"><li>不夠，free 只剩 210Mi</li><li>不夠，buff/cache 占太多，要手動清掉</li><li>無法判斷，還要再看 swap 用了多少</li><li data-ok>夠，看 available</li></ul>
+  <p class="dexp">free 是完全沒碰過的記憶體；Linux 會把閒著的記憶體拿去當檔案快取，需要時再還。available 已經把可回收的快取算進去，5Gi 表示還很夠。快取不需要手動清。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>df -h</code> 顯示 <code>/data</code> 是 100%。下一個指令最該下的是？</p>
+  <ul class="dopts"><li><code>free -h</code></li><li><code>rm -rf /data/*</code></li><li data-ok><code>du -sh /data/*</code></li><li><code>df -i /data</code></li></ul>
+  <p class="dexp">df 告訴你哪個檔案系統滿了，du 才告訴你是哪個目錄。找到大的目錄再往下 du -ah 找檔案。df -i 是空間沒滿卻寫不進去時才查；直接 rm -rf 可能刪掉重要資料。</p>
+</div>
+<div class="drill">
+  <p class="dq">有人 <code>rm</code> 了 30 MB 的 <code>app.log</code>，可是 <code>df -h</code> 還是 97%，<code>du -sh</code> 卻只有 18M。下一步？</p>
+  <ul class="dopts"><li data-ok><code>lsof +L1 /data</code></li><li>再執行一次 rm，第一次沒刪乾淨</li><li>執行 sync，讓還沒寫回的資料寫回磁碟</li><li>等幾分鐘，df 的數字會自己更新</li></ul>
+  <p class="dexp">df 與 du 對不上，最常見的原因是檔案被刪了但還有行程開著。lsof +L1 列出連結數 0 但還開著的檔案，實驗裡找到 java 386 的第 4 號描述子。等不會好，要關掉那個描述子才釋放。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>lsof +L1</code> 印出 <code>java  386 root  4w  REG … 31457288  0  4 /data/logs/app.log (deleted)</code>。不想重啟服務，要把空間還回來該怎麼做？</p>
+  <ul class="dopts"><li><code>rm /proc/386/fd/4</code></li><li><code>: &gt; /proc/386/fd/3</code></li><li data-ok><code>: &gt; /proc/386/fd/4</code></li><li><code>kill -STOP 386</code></li></ul>
+  <p class="dexp">FD 欄寫 4w，就是第 4 號描述子。對 /proc/386/fd/4 截斷，檔案內容歸零，空間馬上回來，行程照常寫。照抄成 3 會截到別的檔案（Java 的第 3 號是 JDK 的 lib/modules），實驗裡就因此把 JDK 弄壞；對 /proc 底下的項目下 rm 會得到 Operation not permitted（實跑）。</p>
+</div>
+<div class="drill">
+  <p class="dq">寫檔時出現 <code>No space left on device</code>，但 <code>df -h</code> 顯示只用了 16%。下一步？</p>
+  <ul class="dopts"><li data-ok><code>df -i /data</code>，看 inode</li><li>磁碟壞了，要先換一顆</li><li><code>du -sh</code>，先找出大檔</li><li><code>free -h</code>，看是不是記憶體不夠</li></ul>
+  <p class="dexp">每個檔案要占一個 inode，大量小檔會先把 inode 用光，空間卻還很多。實驗裡 df -h 16%、df -i 100%，就是這種情況。找大檔解決不了，要清掉大量小檔。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼 <code>du -ah /data | sort -rh | head -5</code> 要用 <code>sort -h</code> 而不是 <code>sort -n</code>？</p>
+  <ul class="dopts"><li>-n 只能排整數，遇到小數會錯</li><li data-ok>-h 看得懂 K、M、G 單位</li><li>-h 排得比較快，檔案多時差很多</li><li>-n 不能和 -r 一起用</li></ul>
+  <p class="dexp">sort -n 只看前面的數字，會把 900K 排在 30M 前面。sort -h 認得人類可讀的單位，配 du -h 一起用。</p>
+</div>
+<div class="drill">
+  <p class="dq">清理大日誌時，下面哪個做法最不會造成「刪了空間卻沒回來」？</p>
+  <ul class="dopts"><li data-ok>先 <code>: &gt; app.log</code> 截斷</li><li>直接 rm app.log</li><li>mv app.log /tmp/，之後再處理</li><li>chmod 000 app.log，讓它寫不進去</li></ul>
+  <p class="dexp">截斷是把同一個檔案的內容清空，開著它的行程繼續寫也沒問題，空間馬上回來。rm 只刪掉名字，mv 搬走後原本的檔案若還被開著，空間一樣不會釋放；chmod 不改大小。</p>
+</div>
+</section>
+
+<section>
+<p class="era">連得上嗎、連了幾條、卡在哪</p>
+<h3 class="head">網路：ss、curl、nc、dig 與連線狀態</h3>
+<p>在實驗機上用 JDK 內建的 <code>jwebserver</code> 開一個簡單的網頁伺服器（8000 埠），再跑一個故意不關連線的 Java 服務（9090 埠）。ss(8)：<code>-t</code> TCP、<code>-l</code>「只顯示在監聽的」、<code>-n</code>「不把埠號換成服務名稱」、<code>-p</code>「顯示用這個 socket 的行程」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man8/ss.8.html" target="_blank" rel="noopener">出處</a> curl 的 <code>-v</code>「印出過程的詳細資訊」，<code>&gt;</code> 開頭是送出的標頭、<code>&lt;</code> 開頭是收到的。<a class="fixsrc" href="https://curl.se/docs/manpage.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ ss -tlnp
+State  Recv-Q Send-Q      Local Address:Port Peer Address:PortProcess                             
+LISTEN 0      50     [::ffff:127.0.0.1]:8000            *:*    users:(("jwebserver",pid=458,fd=5))
+LISTEN 0      50                      *:9090            *:*    users:(("java",pid=920,fd=5))      
+$ curl -sv http://127.0.0.1:8000/balance.json
+*   Trying 127.0.0.1:8000...
+* Connected to 127.0.0.1 (127.0.0.1) port 8000
+&gt; GET /balance.json HTTP/1.1
+&gt; Host: 127.0.0.1:8000
+&gt; User-Agent: curl/8.5.0
+&gt; Accept: */*
+&gt; 
+&lt; HTTP/1.1 200 OK
+&lt; Date: Fri, 02 Oct 2026 20:58:28 GMT
+&lt; Last-modified: Fri, 2 Oct 2026 20:58:23 GMT
+&lt; Content-type: application/json
+&lt; Content-length: 17
+&lt; 
+{ [17 bytes data]
+* Connection #0 to host 127.0.0.1 left intact
+{"balance":1000}</code></pre>
+<p><code>ss -tlnp</code> 回答「這個埠有沒有人在聽、是哪個行程」；<code>[::ffff:127.0.0.1]:8000</code> 是用 IPv6 格式寫的 127.0.0.1，只有本機連得到；<code>*:9090</code> 則是所有介面。curl -v 一行一行看得到連線、送出的請求、收到的狀態與標頭。</p>
+<pre><code>$ curl -sS -o /dev/null -w "%{http_code} %{time_connect} %{time_total}\n" http://127.0.0.1:8000/balance.json
+200 0.000066 0.000489
+$ curl -sS http://127.0.0.1:8001/
+curl: (7) Failed to connect to 127.0.0.1 port 8001 after 0 ms: Couldn't connect to server
+$ nc -zv 127.0.0.1 8000
+Connection to 127.0.0.1 8000 port [tcp/*] succeeded!
+$ nc -zv -w 2 127.0.0.1 8001
+nc: connect to 127.0.0.1 port 8001 (tcp) failed: Connection refused</code></pre>
+<p><code>-w</code>「傳完之後在標準輸出印出指定的資訊」<a class="fixsrc" href="https://curl.se/docs/manpage.html" target="_blank" rel="noopener">出處</a>，拿來量連線花多久、總共花多久。nc(1) 的 <code>-z</code> 是「只掃描有沒有在監聽，不送資料」（Only scan for listening daemons, without sending any data to them.）。<a class="fixsrc" href="https://manpages.ubuntu.com/manpages/noble/man1/nc_openbsd.1.html" target="_blank" rel="noopener">出處</a> <code>Connection refused</code> 表示那台機器有回應、但那個埠沒人聽；如果是一直等到逾時，比較可能是被防火牆擋掉或路由不通。</p>
+<pre><code>$ dig +short example.com
+172.66.147.243
+104.20.23.154
+$ dig example.com | sed -n "/ANSWER SECTION/,/^$/p"
+;; ANSWER SECTION:
+example.com.		62	IN	A	172.66.147.243
+example.com.		62	IN	A	104.20.23.154
+
+$ dig no-such-host.invalid | grep status:
+;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: NXDOMAIN, id: 13389</code></pre>
+<p>dig「是查詢 DNS 名稱伺服器的工具」（dig is a flexible tool for interrogating DNS name servers.），<code>+short</code> 只印簡短答案。<a class="fixsrc" href="https://manpages.ubuntu.com/manpages/noble/man1/dig.1.html" target="_blank" rel="noopener">出處</a> ANSWER SECTION 的第二欄是 TTL（這筆紀錄還可以快取幾秒）；查不到時看 HEADER 的 <code>status: NXDOMAIN</code>（名字不存在）。「連不到某個服務」時，先 dig 確認名字解析對、再 nc -z 確認埠開著、最後 curl -v 看應用層回什麼，一層一層排除。</p>
+
+<h4>連線數爆：TIME_WAIT 與 CLOSE_WAIT</h4>
+<p>這兩個狀態的成因在〈TCP、UDP 與 TLS 握手〉的四向揮手一段，這裡只看怎麼從指令看出來。對 8000 埠連續打 300 次 curl（每次開新連線、用完就關）：</p>
+<pre><code>$ ss -s
+Total: 23
+TCP:   580 (estab 0, closed 578, orphaned 0, timewait 304)
+
+Transport Total     IP        IPv6
+RAW	  0         0         0        
+UDP	  0         0         0        
+TCP	  2         0         2        
+INET	  2         0         2        
+FRAG	  0         0         0        
+
+$ ss -tan state time-wait | head -4
+Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+0      0          127.0.0.1:35418    127.0.0.1:8000       
+0      0          127.0.0.1:35426    127.0.0.1:8000       
+0      0          127.0.0.1:35432    127.0.0.1:8000       
+$ ss -tan state time-wait | wc -l
+305</code></pre>
+<p><code>ss -s</code> 一眼看出 timewait 304（ss(8)：summary「印出統計摘要」，連線多到逐條列很痛苦時特別好用）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man8/ss.8.html" target="_blank" rel="noopener">出處</a> 用 <code>state time-wait</code> 篩選，Local Address 是 127.0.0.1 的隨機埠、Peer 是 :8000，表示 TIME_WAIT 停在<strong>發起連線並先關閉</strong>的 curl 這一端。<code>wc -l</code> 是 305，因為標題那一行也被數進去了。</p>
+<p>再用 nc 連 5 次那個不關連線的服務，連完 nc 就關掉自己那一端：</p>
+<pre><code>$ ss -tanp state close-wait
+Recv-Q Send-Q      Local Address:Port       Peer Address:Port Process                        
+0      0      [::ffff:127.0.0.1]:9090 [::ffff:127.0.0.1]:42848 users:(("java",pid=920,fd=7)) 
+0      0      [::ffff:127.0.0.1]:9090 [::ffff:127.0.0.1]:57382 users:(("java",pid=920,fd=10))
+0      0      [::ffff:127.0.0.1]:9090 [::ffff:127.0.0.1]:42844 users:(("java",pid=920,fd=6)) 
+0      0      [::ffff:127.0.0.1]:9090 [::ffff:127.0.0.1]:57374 users:(("java",pid=920,fd=8)) 
+0      0      [::ffff:127.0.0.1]:9090 [::ffff:127.0.0.1]:57376 users:(("java",pid=920,fd=9)) 
+$ ss -tan | awk "NR&gt;1 {print \$1}" | sort | uniq -c
+      5 CLOSE-WAIT
+      5 FIN-WAIT-2
+      2 LISTEN
+    304 TIME-WAIT
+$ ls -l /proc/920/fd | head -6
+total 0
+lr-x------ 1 root root 64 Oct  2 20:58 0 -&gt; /dev/null
+l-wx------ 1 root root 64 Oct  2 20:58 1 -&gt; /dev/null
+lrwx------ 1 root root 64 Oct  2 20:58 10 -&gt; socket:[15204601]
+l-wx------ 1 root root 64 Oct  2 20:58 2 -&gt; /dev/null
+lr-x------ 1 root root 64 Oct  2 20:58 3 -&gt; /usr/lib/jvm/java-21-openjdk-arm64/lib/modules
+$ ls /proc/920/fd | wc -l
+11</code></pre>
+<p>9090 這一端停在 CLOSE-WAIT，對面（nc）停在 FIN-WAIT-2：對方已經說要關了，這邊的程式卻一直沒呼叫 close。CLOSE_WAIT 一直增加，幾乎都是程式的錯（連線、串流沒關），重開只是暫時清掉；配合 <code>ss -p</code> 的 pid 與 fd 號碼，就知道是哪個行程、哪幾個描述子。檔案描述子用光時的 <code>Too many open files</code> 見〈作業系統怎麼跑程式〉。</p>
+<p class="formula">ss -tlnp 看誰在聽；ss -s 看總數；ss -tan state … 依狀態篩；TIME_WAIT 在先關的那端、CLOSE_WAIT 是自己忘了 close；dig → nc -z → curl -v 一層一層查</p>
+
+<div class="drill">
+  <p class="dq">服務啟動失敗，日誌寫 <code>Address already in use</code>（8080）。下一個指令？</p>
+  <ul class="dopts"><li><code>ss -s</code></li><li><code>dig localhost</code></li><li data-ok><code>ss -tlnp | grep 8080</code></li><li><code>curl -v http://localhost:8080</code></li></ul>
+  <p class="dexp">-l 只看在監聽的、-p 顯示是哪個行程，就知道 8080 被誰占了。ss -s 只有總數；curl 只能知道有人在回應，看不到是哪個行程；dig 是查 DNS。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>nc -zv 10.0.3.15 5432</code> 回 <code>Connection refused</code>。最可能是哪種情況？</p>
+  <ul class="dopts"><li>DNS 查不到這台機器的名字</li><li>防火牆把封包靜靜丟掉了</li><li>帳號或密碼錯誤，被資料庫拒絕</li><li data-ok>主機有回應，但那個埠沒人聽</li></ul>
+  <p class="dexp">refused 是對方主動回絕，代表網路通、主機在，只是那個埠沒人聽（例如資料庫沒起來或聽在別的介面）。被防火牆丟掉通常是一直等到逾時；這裡用的是 IP，跟 DNS 無關；nc -z 根本不送帳密。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>ss -tlnp</code> 顯示 <code>LISTEN … 127.0.0.1:8000 … users:(("jwebserver",…))</code>。從另一台機器 curl 這台的 8000 埠會怎樣？</p>
+  <ul class="dopts"><li>正常連上</li><li data-ok>連不上，它只綁在本機回送位址</li><li>會被導到 80 埠</li><li>要看 jwebserver 的版本</li></ul>
+  <p class="dexp">綁在 127.0.0.1 只接受本機自己的連線。要讓外面連，得綁 0.0.0.0（ss 顯示為 *）或那台機器的對外 IP，就像 9090 那行的 *:9090。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>ss -s</code> 顯示 <code>timewait 30512</code>，<code>ss -tan state time-wait</code> 的 Peer 幾乎都是資料庫的 3306。這台應用伺服器最可能的問題是？</p>
+  <ul class="dopts"><li>資料庫太慢，查詢一直逾時</li><li data-ok>沒用連線池，連線一直開開關關</li><li>資料庫那邊忘了 close 連線</li><li>防火牆擋住了 3306</li></ul>
+  <p class="dexp">TIME_WAIT 停在先關閉的那一端。這台是主動連資料庫、主動關掉的那方，大量 TIME_WAIT 表示連線一直開開關關。用連線池重用連線，關的次數就少了。資料庫忘了 close 會讓「資料庫那邊」出現 CLOSE_WAIT。</p>
+</div>
+<div class="drill">
+  <p class="dq">服務的 CLOSE-WAIT 每小時增加幾百條，重啟後歸零、隔天又長回來。根本原因最可能是？</p>
+  <ul class="dopts"><li>對方主動關得太快</li><li>網路品質太差，封包一直重送</li><li>TCP 的 TIME_WAIT 時間設太長</li><li data-ok>程式在對方關閉後沒 close</li></ul>
+  <p class="dexp">CLOSE_WAIT 是「對方已經關了，自己還沒 close」。實驗的 LeakyServer 讀到 -1 卻不 close，5 條就停在 CLOSE-WAIT。重啟只是把描述子全部關掉，程式的洩漏還在。</p>
+</div>
+<div class="drill">
+  <p class="dq">使用者回報「打不開 api.bank.example」。下面哪個順序最能一層一層縮小範圍？</p>
+  <ul class="dopts"><li data-ok>dig → nc -z → curl -v</li><li>curl -v → 重啟服務 → dig</li><li>ss -s → free -h → df -h</li><li>先重開伺服器，再看還會不會發生</li></ul>
+  <p class="dexp">先確認名字解析到對的 IP，再確認那個埠連得上，最後看應用程式回了什麼狀態碼與標頭。每一步排除一層，比一開始就重啟可靠。ss、free、df 是看本機資源，不是查「連不到」。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>curl -sS -o /dev/null -w "%{http_code} %{time_connect} %{time_total}\n" URL</code> 印出 <code>200 0.002 4.870</code>。慢在哪？</p>
+  <ul class="dopts"><li>建立 TCP 連線很慢</li><li>DNS 查詢很慢</li><li data-ok>連線之後才慢：處理或傳輸</li><li>回應是錯誤，所以拖很久</li></ul>
+  <p class="dexp">time_connect 是 TCP 連上的時間點，0.002 秒；time_total 4.87 秒，所以時間花在連上之後：伺服器處理、或回應很大。200 表示成功。</p>
+</div>
+</section>
+
+<section>
+<p class="era">哪一條執行緒、卡在哪一行</p>
+<h3 class="head">排查實戰：Java 服務 CPU 飆高</h3>
+<p>用一個模擬「利率試算」的程式重現：一條叫 <code>rate-calc</code> 的執行緒卡在少了結束條件的迴圈裡，另外三條在睡。</p>
+<pre><code>public class RateCalc {
+    static volatile double sink;
+
+    static double compound(double rate) {
+        double x = 1.0;
+        while (true) {                       // 少了結束條件的迴圈
+            x = x * (1 + rate) % 1_000_000;
+            sink = x;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        Thread hot = new Thread(() -&gt; compound(0.0125), "rate-calc");
+        hot.start();
+        for (int i = 1; i &lt;= 3; i++) {
+            Thread idle = new Thread(() -&gt; {
+                try { Thread.sleep(Long.MAX_VALUE); } catch (InterruptedException e) { }
+            }, "idle-worker-" + i);
+            idle.start();
+        }
+        hot.join();
+    }
+}</code></pre>
+<p>第一步已經在本課開頭的 top 畫面看過：PID 1698 的 java 吃 100%。第二步切到執行緒模式：top(1)：「這個開關打開時，每條執行緒會各自顯示，否則 top 顯示的是每個行程所有執行緒的總和」（When this toggle is On, individual threads will be displayed for all processes in all visible task windows.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/top.1.html" target="_blank" rel="noopener">出處</a> 命令列加 <code>-H</code>，<code>-p</code> 只看這個行程：</p>
+<pre><code>$ top -b -n 2 -d 1 -H -p 1698（取第二輪畫面）
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   1717 root      20   0 5089112  43944  22052 R  99.9   0.5   0:10.37 rate-ca+
+   1698 root      20   0 5089112  43944  22052 S   0.0   0.5   0:00.00 java
+   1700 root      20   0 5089112  43944  22052 S   0.0   0.5   0:00.02 java
+   1701 root      20   0 5089112  43944  22052 S   0.0   0.5   0:00.00 GC Thre+
+   1702 root      20   0 5089112  43944  22052 S   0.0   0.5   0:00.00 G1 Main+
+   1703 root      20   0 5089112  43944  22052 S   0.0   0.5   0:00.00 G1 Conc+
+   1704 root      20   0 5089112  43944  22052 S   0.0   0.5   0:00.00 G1 Refi+
+$ jstack 1698 | grep -A 4 'nid=1717 '
+"rate-calc" #20 [1717] prio=5 os_prio=0 cpu=11771.89ms elapsed=11.78s tid=0x0000ffffa41517b0 nid=1717 runnable  [0x0000ffff7cb72000]
+   java.lang.Thread.State: RUNNABLE
+	at RateCalc.compound(RateCalc.java:9)
+	at RateCalc.lambda$main$0(RateCalc.java:14)
+	at RateCalc$$Lambda/0x0000007801000a08.run(Unknown Source)
+$ ps -L -o tid,pcpu,comm -p 1698 | sort -k2 -rn | head -4
+   1717 99.8 rate-calc
+   1700  0.1 java
+   1752  0.0 Attach Listener
+   1720  0.0 idle-worker-3</code></pre>
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="CPU 飆高的三步：top 找到吃 CPU 的行程 1698；top -H -p 1698 找到吃 CPU 的執行緒 1717，名字是 rate-calc；jstack 1698 裡找 nid=1717 那一段，看到它卡在 RateCalc.compound 第 9 行">
+<defs><marker id="lx-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+<rect x="20" y="40" width="210" height="80" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="125" y="66" font-size="13" text-anchor="middle" class="mono">top</text><text x="125" y="88" font-size="12.5" text-anchor="middle">行程 1698：100%</text><text x="125" y="108" font-size="12" text-anchor="middle" opacity=".7">找到是哪個行程</text>
+<rect x="275" y="40" width="210" height="80" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="380" y="66" font-size="13" text-anchor="middle" class="mono">top -H -p 1698</text><text x="380" y="88" font-size="12.5" text-anchor="middle">執行緒 1717：99.9%</text><text x="380" y="108" font-size="12" text-anchor="middle" opacity=".7">找到是哪條執行緒</text>
+<rect x="530" y="40" width="210" height="80" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="635" y="66" font-size="13" text-anchor="middle" class="mono">jstack 1698</text><text x="635" y="88" font-size="12.5" text-anchor="middle" class="mono">nid=1717 → 第 9 行</text><text x="635" y="108" font-size="12" text-anchor="middle" opacity=".7">找到卡在哪一行</text>
+<path d="M232 80 L271 80" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m3)"/><path d="M487 80 L526 80" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m3)"/>
+<text x="20" y="160" font-size="12.5" fill="var(--gold-deep)">top -H 的 PID 欄其實是執行緒 ID；jstack 的 nid 就是同一個號碼</text>
+<text x="20" y="184" font-size="12" opacity=".6">JDK 21 的 nid 印十進位（nid=1717）；JDK 17、11 印十六進位（nid=0x…），要先 printf '%x' 換算</text>
+</svg>
+<figcaption>行程 → 執行緒 → 程式行：每一步都把範圍縮小一層。</figcaption>
+</figure>
+<p>執行緒模式下 PID 欄放的是執行緒 ID：1717 吃了 99.9%，名字被截成 <code>rate-ca+</code>。第三步用 JDK 的 <code>jstack</code> 印出所有執行緒的堆疊，找這條執行緒：</p>
+<pre><code>$ jstack 1698 | grep -A 4 'nid=1717 '
+"rate-calc" #20 [1717] prio=5 os_prio=0 cpu=11771.89ms elapsed=11.78s tid=0x0000ffffa41517b0 nid=1717 runnable  [0x0000ffff7cb72000]
+   java.lang.Thread.State: RUNNABLE
+	at RateCalc.compound(RateCalc.java:9)
+	at RateCalc.lambda$main$0(RateCalc.java:14)
+	at RateCalc$$Lambda/0x0000007801000a08.run(Unknown Source)</code></pre>
+<p>堆疊直接指到 <code>RateCalc.java:9</code>，也就是那個迴圈。很多網路文章教「先用 <code>printf '%x'</code> 把執行緒 ID 換成十六進位，再到 jstack 裡找 nid=0x…」，那是舊版 JDK 的格式。同一支程式在 JDK 17 實跑印的是十六進位：</p>
+<pre><code>"rate-calc" #14 prio=5 os_prio=0 cpu=3153.52ms elapsed=3.15s tid=0x0000ffffac38a180 nid=0x34 runnable  [0x0000ffff81ffe000]
+openjdk version "17.0.20.1" 2026-08-18</code></pre>
+<p>JDK 21 實跑則直接印十進位（<code>nid=1717</code>，前面方括號裡也是同一個號碼），不用換算。所以先看一眼 jstack 印的格式再搜。<code>jstack</code> 與官方建議的替代品 <code>jcmd PID Thread.print</code>，以及 jcmd 其他子命令，見〈JVM 記憶體與垃圾回收〉。不想裝 top 時，<code>ps -L -o tid,pcpu,comm -p PID</code> 也列得出每條執行緒的 CPU。</p>
+<p class="muted">如果 top -H 看到吃 CPU 的是好幾條 <code>GC Thread</code> 或 <code>G1 …</code>，就不是程式邏輯在算，而是垃圾回收停不下來，通常是堆快滿了，要往記憶體方向查（同樣見〈JVM 記憶體與垃圾回收〉）。</p>
+<p class="formula">CPU 飆高：top 找行程 → top -H -p 找執行緒 → jstack 對 nid 找程式行；JDK 21 的 nid 是十進位，舊版才要換成十六進位</p>
+
+<div class="drill">
+  <p class="dq">top 看到 PID 4021 的 java 吃 100% CPU。下一個指令？</p>
+  <ul class="dopts"><li data-ok><code>top -H -p 4021</code></li><li><code>kill -9 4021</code></li><li><code>jstack 4021 | head</code></li><li><code>free -h</code></li></ul>
+  <p class="dexp">先切到執行緒模式找出是哪條執行緒，才知道要在 jstack 裡找哪一段；直接 jstack 會印出幾十條執行緒，不知道看哪條。kill -9 會把現場一起毀掉，根本原因就查不到了。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>top -H -p 1698</code> 第一行是 <code>1717 root … R 99.9 … rate-ca+</code>。這個 1717 是什麼？</p>
+  <ul class="dopts"><li>另一個行程的 PID</li><li data-ok>行程 1698 裡一條執行緒的 ID</li><li>這條執行緒用了 1717 毫秒的 CPU</li><li>jstack 裡的 #編號</li></ul>
+  <p class="dexp">執行緒模式下 PID 欄放的是執行緒 ID，它屬於行程 1698。jstack 裡的 #20 是 JVM 內部的執行緒編號，對應的是 nid（還有方括號裡的 [1717]）。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 JDK 21 跑的服務，top -H 找到吃 CPU 的執行緒 ID 是 1717。在 jstack 輸出裡該搜什麼？</p>
+  <ul class="dopts"><li><code>nid=0x6b5</code></li><li data-ok><code>nid=1717</code></li><li><code>#1717</code></li><li><code>tid=1717</code></li></ul>
+  <p class="dexp">實跑 JDK 21 的 jstack 印的是 nid=1717（十進位）。nid=0x6b5 是十六進位的寫法，JDK 17、11 才是這樣印；#20 是 JVM 自己的編號；tid= 後面是記憶體位址。</p>
+</div>
+<div class="drill">
+  <p class="dq">jstack 裡吃 CPU 的那條執行緒停在 <code>at RateCalc.compound(RateCalc.java:9)</code>，狀態 RUNNABLE。代表什麼？</p>
+  <ul class="dopts"><li>它在等鎖，被別的執行緒擋住</li><li>它在等網路回應</li><li data-ok>一直在跑第 9 行附近的迴圈</li><li>它已經結束了，只是還沒被清掉</li></ul>
+  <p class="dexp">RUNNABLE 加上 99.9% CPU、每次 jstack 都停在同一行，就是那段程式一直在算。等鎖會是 BLOCKED 或 WAITING；結束的執行緒不會出現在 jstack 裡。</p>
+</div>
+<div class="drill">
+  <p class="dq">top -H 看到吃 CPU 的是十幾條名字叫 <code>GC Thread#…</code> 的執行緒。下一步該往哪查？</p>
+  <ul class="dopts"><li data-ok>看堆用量與 GC 狀況</li><li>找業務程式裡的無窮迴圈</li><li>把 GC 執行緒 kill 掉</li><li>加更多 CPU，讓 GC 跑快一點</li></ul>
+  <p class="dexp">吃 CPU 的是垃圾回收，不是業務邏輯。通常是堆快滿、回收不完，GC 一輪接一輪。要看的是堆用量與回收紀錄（jstat、GC 日誌），工具見〈JVM 記憶體與垃圾回收〉。GC 執行緒不能單獨殺。</p>
+</div>
+</section>
+
+<section>
+<p class="era">症狀對指令</p>
+<h3 class="head">一張表帶走</h3>
+<div class="tablewrap"><table><thead><tr><th>症狀</th><th>先下</th><th>看到這個</th><th>再下</th></tr></thead><tbody>
+<tr><td>整台慢</td><td><code>uptime</code>、<code>top</code></td><td>負載高於 CPU 數；us 高或 wa 高</td><td>us 高往 CPU 查，wa 高往磁碟 I/O 查</td></tr>
+<tr><td>Java CPU 飆高</td><td><code>top</code></td><td>某個 java 行程 100% 以上</td><td><code>top -H -p PID</code> → <code>jstack PID</code> 對 nid</td></tr>
+<tr><td>寫檔失敗 No space</td><td><code>df -h</code></td><td>Use% 100%</td><td><code>du -sh 目錄/*</code>、<code>du -ah | sort -rh | head</code></td></tr>
+<tr><td>刪了檔空間沒回來</td><td><code>df -h</code> 與 <code>du -sh</code></td><td>兩個數字對不上</td><td><code>lsof +L1</code>，截斷 <code>/proc/PID/fd/N</code> 或重啟</td></tr>
+<tr><td>空間有卻說滿</td><td><code>df -i</code></td><td>IUse% 100%</td><td>找出大量小檔的目錄清掉</td></tr>
+<tr><td>連不到服務</td><td><code>dig</code></td><td>解析的 IP 對不對</td><td><code>nc -zv</code> 試埠 → <code>curl -v</code> 看回應</td></tr>
+<tr><td>埠被占用</td><td><code>ss -tlnp</code></td><td>誰在聽那個埠</td><td>決定停掉它或換埠</td></tr>
+<tr><td>連線數爆</td><td><code>ss -s</code></td><td>timewait 或 close-wait 很多</td><td><code>ss -tanp state …</code> 看是哪個行程、對誰</td></tr>
+<tr><td>服務一直重啟</td><td><code>systemctl status</code></td><td>restart counter 一直加</td><td><code>journalctl -u 服務 --since … -p warning</code></td></tr>
+</tbody></table></div>
+<p class="muted">這些指令大多要在那台機器上執行。容器裡通常沒有裝 top、ss、lsof，可以在宿主機上看那個容器的行程（容器裡的程式就是宿主機上的普通行程，見〈作業系統怎麼跑程式〉的容器一段）。</p>
+
+<div class="drill">
+  <p class="dq">服務一直被 systemd 重啟，<code>systemctl status</code> 的 restart counter 已經到 37。下一個指令？</p>
+  <ul class="dopts"><li><code>systemctl restart</code> 再試一次</li><li><code>top</code>，看是不是 CPU 不夠</li><li><code>df -i</code>，看 inode 是不是滿了</li><li data-ok><code>journalctl -u 服務名 -n 100</code></li></ul>
+  <p class="dexp">一直重啟代表每次都很快結束，原因在它最後印的日誌與結束狀態（例如 status=1、status=9/KILL）。再 restart 只是多一次；top、df -i 要等看了日誌知道方向再用。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一組「症狀 → 第一個指令」最<strong>不</strong>合適？</p>
+  <ul class="dopts"><li>寫檔報 No space left → df -h</li><li>埠被占用 → ss -tlnp</li><li>整台很慢 → uptime</li><li data-ok>連不到外部 API → free -h</li></ul>
+  <p class="dexp">連不到外部服務要從網路查：dig、nc -z、curl -v。free 是看本機記憶體，跟連不連得到無關。其他三組都是對應的第一步。</p>
+</div>
+</section>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>先看整體：load average 跟 CPU 數比；us 高是在算、wa 高是在等 I/O；top 取第二輪的 %CPU 才準，多執行緒行程可以超過 100%。</li><li>日誌：grep -c／-i／-v／-n，awk 依欄位加條件，sort | uniq -c | sort -rn 排名；&gt; file 2&gt;&amp;1 兩個都進檔案、反過來錯誤留在螢幕；會輪替的日誌用 tail -F。</li><li>權限 r=4、w=2、x=1：640 = rw-r-----；先判斷自己落在擁有者、群組還是其他人；不要 chmod 777，調擁有者或群組；sudo 只開需要的指令。</li><li>ps 的 STAT：R 在跑、S 睡、D 等 I/O、Z 殭屍（處理父行程）；先送 SIGTERM 讓程式收尾，不走才 SIGKILL；結束碼 143 = TERM、137 = KILL。</li><li>systemd：status 看狀態加最近日誌，journalctl -u … --since … -p warning -f 查日誌；停止先 SIGTERM、預設 90 秒後 SIGKILL；Java 服務加 SuccessExitStatus=143。</li><li>記憶體看 available；磁碟 df 看哪裡滿、du 找誰大；df 與 du 對不上用 lsof +L1，先確認 fd 號碼再截斷；空間有卻說滿看 df -i。</li><li>網路：ss -tlnp 看誰在聽、ss -s 看總數、ss -tan state 篩狀態；TIME_WAIT 在先關的一端（用連線池），CLOSE_WAIT 是自己忘了 close；連不到就 dig → nc -z → curl -v。</li><li>CPU 飆高：top → top -H -p PID → jstack 對 nid；JDK 21 的 nid 是十進位，JDK 17、11 是十六進位；吃 CPU 的是 GC 執行緒就往記憶體查。</li></ul></div>
