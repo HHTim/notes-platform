@@ -12,7 +12,7 @@
 <li><strong>結構上的下限</strong>（structural）：先找出「任何解都至少要這麼多」的下限，再證明貪婪剛好達到。後面的會議室題就是這種。</li>
 <li><strong>交換論證</strong>（exchange argument）：「把任何一個解一步一步換成貪婪找到的解，而且品質不變差」（Gradually transform any solution to the one found by the greedy algorithm without hurting its quality.）。後面的「最多不重疊區間」用的就是這個。</li>
 </ul>
-<p>面試時不必寫完整證明，但要能用一句話講出直覺，並且<strong>先想反例</strong>：試幾組小資料，看貪婪會不會輸給暴力解。這課每一個貪婪都用暴力解或動態規劃，拿隨機資料比對過。你已經看過的貪婪：〈圖：BFS、DFS 與拓樸排序〉的 Dijkstra 每次拿目前最近的頂點；algs4 說它介紹的最小生成樹演算法（Prim、Kruskal）都是「貪婪演算法的特例」（they are special cases of the greedy algorithm）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/43mst/" target="_blank" rel="noopener">出處</a></p>
+<p>面試時不必寫完整證明，但要能用一句話講出直覺，並且<strong>先想反例</strong>：試幾組小資料，看貪婪會不會輸給暴力解。這課每一個貪婪都用暴力解或動態規劃比對過（找零逐一比對每個金額，其他用隨機資料）。你已經看過的貪婪：〈圖：BFS、DFS 與拓樸排序〉的 Dijkstra 每次拿目前最近的頂點；algs4 說它介紹的最小生成樹演算法（Prim、Kruskal）都是「貪婪演算法的特例」（they are special cases of the greedy algorithm）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/43mst/" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">下面哪一句最能描述貪婪演算法？</p>
@@ -49,7 +49,7 @@
 <section>
 <p class="era">收銀員的做法什麼時候對</p>
 <h3 class="head">找零：新臺幣面額可以貪婪，怪面額不行</h3>
-<p>Wayne 的講義先問「收銀員的做法對任何一組面額都是最佳嗎？」，答案是「不是」（Q. Is cashier's algorithm optimal for any set of denominations? A. No.），舉了兩個反例：美國郵票面額 1、10、21、34、70、100……湊 140 分，貪婪拿 100 + 34 + 六個 1 共 8 張，最佳是 70 + 70 兩張；面額 7、8、9 湊 15，貪婪先拿 9 之後就湊不出來了，但 7 + 8 可以。同一份講義也證明了「收銀員的做法對美國硬幣 1、5、10、25、100 是最佳的」（Theorem. Cashier's algorithm is optimal for U.S. coins { 1, 5, 10, 25, 100 }.）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a> 所以「貪婪對不對」看的是<strong>面額組合</strong>，不是演算法本身。</p>
+<p>Wayne 的講義先問「收銀員的做法對任何一組面額都是最佳嗎？」，答案是「不是」（Q. Is cashier's algorithm optimal for any set of denominations? A. No.），舉了兩個反例：美國郵票面額 1、10、21、34、70、100……湊 140 分，貪婪拿 100 + 34 + 六個 1 共 8 枚，最佳是 70 + 70 兩枚；面額 7、8、9 湊 15，貪婪先拿 9 之後就湊不出來了，但 7 + 8 可以。同一份講義也證明了「收銀員的做法對美國硬幣 1、5、10、25、100 是最佳的」（Theorem. Cashier's algorithm is optimal for U.S. coins { 1, 5, 10, 25, 100 }.）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a> 所以「貪婪對不對」看的是<strong>面額組合</strong>，不是演算法本身。</p>
 <p>新臺幣呢？中央銀行說流通使用的鈔票有 100、200、500、1,000、2,000 元，「經常使用的硬幣則有 1 元、5 元、10 元、20 元及 50 元等 5 種」。<a class="fixsrc" href="https://knowledge.cbc.gov.tw/child/money02.html" target="_blank" rel="noopener">出處</a> 用〈動態規劃入門〉的最小硬幣數當標準答案，一個金額一個金額比對：</p>
 <pre><code>import java.util.Arrays;
 
@@ -103,7 +103,7 @@ public class Coins {
 美國郵票 1、10、21、34、70、100：1～300 分裡貪婪跟最佳解不同的有 157 個，第一個是 30 分（貪婪 10 枚，最少 3 枚）
 郵票湊 140 分：貪婪 8 枚，最少 2 枚（70 + 70）
 面額 7、8、9 湊 15 元：貪婪 -1，最少 2 枚</code></pre>
-<p>新臺幣 1～10,000 元每一個金額，貪婪都跟最佳解一樣多枚；面額 1、3、4 在 100 元以內有 24 個金額會輸；郵票的例子 30 分就錯（21 + 九個 1 共 10 張，10 + 10 + 10 只要 3 張），140 分正是講義的例子。面額 7、8、9 湊 15 元，貪婪連解都找不到（回傳 -1）。只比對到 10,000 元，怎麼知道更大的金額也對？Kozen 與 Zaks 的論文證明：面額由小到大是 c<sub>1</sub>＝1、c<sub>2</sub>、…、c<sub>m</sub>，如果貪婪會出錯，最小的出錯金額一定落在 c<sub>3</sub> + 1 &lt; x &lt; c<sub>m</sub> + c<sub>m−1</sub> 這個範圍（In this paper we show that if a counterexample exists, then the smallest one lies in the range c3 + 1 &lt; x &lt; cm + cm−1）。<a class="fixsrc" href="https://www.cs.cornell.edu/~kozen/Papers/change.pdf" target="_blank" rel="noopener">出處</a> 新臺幣最大兩種是 2,000 和 1,000，上界是 3,000 元；3,000 元以內都沒有出錯的金額，就不會有任何出錯的金額。所以「新臺幣面額貪婪找零一定最少枚」是實算加上這個上界得到的結論。換一組面額，就要重新算一次；面試時說「這組面額我驗證過」比「貪婪就是對的」站得住。題目給的面額是任意的時候，一律用動態規劃。</p>
+<p>新臺幣 1～10,000 元每一個金額，貪婪都跟最佳解一樣多枚；面額 1、3、4 在 100 元以內有 24 個金額會輸；郵票的例子 30 分就錯（21 + 九個 1 共 10 枚，10 + 10 + 10 只要 3 枚），140 分正是講義的例子。面額 7、8、9 湊 15 元，貪婪連解都找不到（回傳 -1）。只比對到 10,000 元，怎麼知道更大的金額也對？Kozen 與 Zaks 的論文證明：面額由小到大是 c<sub>1</sub>＝1、c<sub>2</sub>、…、c<sub>m</sub>，如果貪婪會出錯，最小的出錯金額一定落在 c<sub>3</sub> + 1 &lt; x &lt; c<sub>m</sub> + c<sub>m−1</sub> 這個範圍（In this paper we show that if a counterexample exists, then the smallest one lies in the range c3 + 1 &lt; x &lt; cm + cm−1）。<a class="fixsrc" href="https://www.cs.cornell.edu/~kozen/Papers/change.pdf" target="_blank" rel="noopener">出處</a> 新臺幣最大兩種是 2,000 和 1,000，上界是 3,000 元；3,000 元以內都沒有出錯的金額，就不會有任何出錯的金額。所以「新臺幣面額貪婪找零一定最少枚」是實算加上這個上界得到的結論。換一組面額，就要重新算一次；面試時說「這組面額我驗證過」比「貪婪就是對的」站得住。題目給的面額是任意的時候，一律用動態規劃。</p>
 <figure>
 <svg viewBox="0 0 760 210" role="img" aria-label="同樣是貪婪找零：新臺幣面額湊 67 元拿 50、10、5、1、1 共 5 枚，跟最佳解一樣；面額 1、3、4 湊 6 元，貪婪拿 4、1、1 共 3 枚，最佳是 3、3 兩枚">
   <text x="20" y="34" font-size="13" font-weight="700">新臺幣湊 67 元</text>
@@ -310,7 +310,7 @@ public class Coins {
 </figure>
 <p>為什麼對？用交換論證的直覺：任何一個最佳排法，把它的第一場換成「最早結束的那場」，不會撞到後面的場次（因為它結束得最早），場數也不變；再對剩下的時段重複同樣的論證。講義的證明就是這樣：取貪婪與最佳解第一個不同的位置，問「為什麼不把最佳解的那一場換成貪婪的那一場？」（why not replace job jr+1 with job ir+1?），換完「仍然可行、仍然最佳」（solution still feasible and optimal）。<a class="fixsrc" href="https://www.cs.princeton.edu/~wayne/kleinberg-tardos/pdf/04GreedyAlgorithmsI.pdf" target="_blank" rel="noopener">出處</a> 實跑也比對了 1,000 組隨機資料，跟「試遍所有子集合」的答案全部一樣。</p>
 <p>另外兩種排法的反例都在實跑裡：依開始時間只排得進 3 場（一開始就選到很長的 [0, 6)）；依長度，<code>[1,5) [4,7) [6,10)</code> 會先選最短的 [4,7)，把兩邊都擋掉，只得 1 場，依結束時間是 2 場。</p>
-<p>同一招的變形：LeetCode 435「最少刪幾個才不重疊」就是 n 減去最多能留幾個；452「最少幾支箭射破所有氣球」也是依結束位置排序，一支箭射在第一個結束點上；但 452 的氣球兩端都算，相接的兩顆一支箭就射得到，所以比較要從 <code>cur[0] &gt;= lastEnd</code> 改成 <code>cur[0] &gt; lastEnd</code>（照原樣寫，[1,2]、[2,3] 會算出 2 支，正解是 1 支）。時間都是排序的 O(n log n)。</p>
+<p>同一招的變形：LeetCode 435「最少刪幾個才不重疊」就是 n 減去最多能留幾個；452「最少幾支箭射破所有氣球」也是依結束位置排序，一支箭射在第一個結束點上；但 452 的氣球兩端都算，相接的兩顆一支箭就射得到，所以比較要從 <code>cur[0] &gt;= lastEnd</code> 改成 <code>cur[0] &gt; lastEnd</code>（照原樣寫，[1,2]、[2,3] 會算出 2 支，正解是 1 支）。起始值也要跟著改：452 的座標可以小到 <code>Integer.MIN_VALUE</code>，這時 <code>MIN_VALUE &gt; MIN_VALUE</code> 不成立，第一顆氣球會被漏掉；把 <code>lastEnd</code> 改用 long 存、初值 <code>Long.MIN_VALUE</code>，或先把第一顆算一支再從第二顆開始比。時間都是排序的 O(n log n)。</p>
 
 <div class="drill">
   <p class="dq">要排進最多場不撞期的會議，該依什麼排序？</p>
@@ -694,11 +694,11 @@ public class Rooms {
 <div class="drill">
   <p class="dq">判斷一題能不能用貪婪，下面哪個做法最實在？</p>
   <ul class="dopts"><li>看題目有沒有「最多」兩個字</li><li data-ok>找小例子跟暴力解比</li><li>看輸入資料有沒有排序</li><li>看答案是不是整數</li></ul>
-  <p class="dexp">「最多、最少」的題目貪婪和動態規劃都可能，關鍵在有沒有反例。這課的每個貪婪都用隨機資料跟暴力解或動態規劃比對過。</p>
+  <p class="dexp">「最多、最少」的題目貪婪和動態規劃都可能，關鍵在有沒有反例。這課的每個貪婪都跟暴力解或動態規劃比對過（找零逐一比對每個金額，其他用隨機資料）。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一題<strong>不適合</strong>用貪婪？</p>
-  <ul class="dopts"><li>新臺幣面額找零最少張數</li><li>一間會議室最多排幾場</li><li>能不能跳到最後一格</li><li data-ok>任意面額找零最少枚數</li></ul>
+  <ul class="dopts"><li>新臺幣面額找零最少枚數</li><li>一間會議室最多排幾場</li><li>能不能跳到最後一格</li><li data-ok>任意面額找零最少枚數</li></ul>
   <p class="dexp">任意面額可能出現 1、3、4 或 7、8、9 這種貪婪會錯的組合，要用動態規劃。其他三題都有可靠的貪婪規則。</p>
 </div>
 </section>
