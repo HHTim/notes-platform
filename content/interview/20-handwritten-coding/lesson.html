@@ -1,4 +1,4 @@
-<!-- 來源：依 Java SE 25 API 文件（LinkedHashMap、Object.wait／notifyAll、Condition、BlockingQueue、ArrayBlockingQueue）、Java 語言規格 SE 25 第 8.9、12.4.1、17.2.1、17.4.5 節、普林斯頓《Algorithms》1.3 節新寫；程式碼全部自編，以 Java 21 編譯執行，多執行緒的正確版與錯誤版都實跑過 · 收錄日期：2026-10-03 -->
+<!-- 來源：依 Java SE 25 API 文件（LinkedHashMap、Object.wait／notifyAll、Condition、BlockingQueue、ArrayBlockingQueue）、Java 語言規格 SE 25 第 8.9、12.4.1、12.4.2、17.2.1、17.4.5 節、普林斯頓《Algorithms》1.3 節新寫；程式碼全部自編，以 Java 21 編譯執行，多執行緒的正確版與錯誤版都實跑過 · 收錄日期：2026-10-03 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>手寫兩種 LRU 快取：<code>LinkedHashMap</code> 存取順序版，與雜湊表加雙向鏈結串列版</li><li>手寫有界阻塞佇列的 <code>synchronized</code> 版與 <code>ReentrantLock</code> 加兩個 <code>Condition</code> 版，說得出 <code>while</code> 為什麼不能寫成 <code>if</code></li><li>寫出三種執行緒安全的單例、用 <code>BlockingQueue</code> 寫生產者消費者、寫一個令牌桶限流器</li><li>暖身題反轉串列與兩數之和寫得出來，也認得出常見的寫錯版本</li></ul></div>
 <section>
     <p class="era">先講規則</p>
@@ -259,7 +259,7 @@ public class LockBuffer&lt;E&gt; {
 ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p><strong>為什麼 while 不能寫成 if：</strong>醒來不代表條件成立，有兩個原因。</p>
     <ul class="plainlist">
-      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，生產者各放 20,000 個、消費者各取 20,000 次，跑 10 次都壞：每次有 1〜29 次 <code>take</code> 丟 <code>NoSuchElementException</code>；生產者也不再檢查容量，容量 1 的佇列曾經塞到一萬多到五萬多個（10 次裡最少 13,594、最多 52,061）。</li>
+      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，生產者各放 20,000 個、消費者各取 20,000 次，跑 10 次都壞：每次有 1〜29 次 <code>take</code> 丟 <code>NoSuchElementException</code>；生產者也不再檢查容量，容量 1 的佇列曾經塞到幾千到五萬多個（這次 10 次裡最少 13,594、最多 52,061；數字隨機器不同，另一台跑出 4,261〜45,648）。</li>
       <li><b>虛假喚醒（規格的說法，沒有重現）。</b><code>Object.wait</code> 的文件：執行緒可能「沒被叫醒、沒被中斷、也沒逾時就醒來，這叫 spurious wakeup」，雖然實務上很少發生，應用程式「必須測試應該讓它醒來的條件，不成立就繼續等」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#wait(long,int)" target="_blank" rel="noopener">出處</a> JLS 17.2.1 也說這條規定讓 Java 的寫法必須「只在迴圈裡用 wait」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.2.1" target="_blank" rel="noopener">出處</a> 這種情況沒辦法刻意製造，本機也沒跑出來。</li>
     </ul>
     <p><strong>另一個常見寫錯：版本一用 notify。</strong>把 <code>notifyAll</code> 換成 <code>notify</code>，同一個等待集合裡有生產者也有消費者，只叫醒一個，可能叫到同一種角色，大家就一起睡著。容量 1、4 對 4、各 100,000 個，跑五次全部卡住：3 秒後只取走 3〜9 個，8 條執行緒都停在 WAITING。版本二可以用 <code>signal</code>，因為兩種角色分開等，叫醒的一定是對的那種。</p>
@@ -324,7 +324,7 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p><strong>寫法一：雙重檢查加 volatile。</strong></p>
     <pre><code>public final class DclConfig {
     private static volatile DclConfig instance;      // volatile 不能省
-    private String region;                           // 建構子寫入的普通欄位
+    private String region;                           // 建構子寫入的普通欄位（不加 final：final 欄位另有 JLS 17.5 的保證）
 
     private DclConfig() { region = "TW"; }
 
@@ -547,7 +547,7 @@ public class TokenBucket {
       <li><b>改用固定視窗卻沒講邊界問題。</b>同樣用假時鐘寫一個「每分鐘 100 個」的固定視窗，第 59.9 秒打 100 個、第 60.0 秒再打 100 個，0.1 秒內放進 200 個。</li>
       <li><b>直接呼叫 System.nanoTime()、不能換時鐘。</b>正確性沒問題，但測試只能真的等時間過去，跑得慢，結果也容易受機器快慢影響；本課的建議是時鐘做成可以換的。</li>
     </ul>
-    <p><strong>追問：</strong>多台伺服器怎麼辦？狀態搬到 Redis。令牌桶要存「還剩幾個代幣、上次補的時間」，用一支 Lua 腳本把讀出、補代幣、扣一個、寫回一次做完；「加一、設過期、判斷」是固定視窗的做法。兩種都見〈系統設計：秒殺與限流〉。</p>
+    <p><strong>追問：</strong>多台伺服器怎麼辦？狀態搬到 Redis。令牌桶要存「還剩幾個代幣、上次補的時間」，用一支 Lua 腳本把讀出、補代幣、扣一個、寫回一次做完；「加一、設過期、判斷」是固定視窗的做法，固定視窗的 Lua 寫法見〈系統設計：秒殺與限流〉；令牌桶的現成做法可以看 Spring Cloud Gateway 的 Redis 限流腳本，它就是存剩餘代幣與時間戳兩個值。<a class="fixsrc" href="https://github.com/spring-cloud/spring-cloud-gateway/blob/main/spring-cloud-gateway-server-webflux/src/main/resources/META-INF/scripts/request_rate_limiter.lua" target="_blank" rel="noopener">出處</a></p>
 <div class="drill">
   <p class="dq">令牌桶容量 5、每秒補 2 個，第 0 秒連打 8 次，結果？</p>
   <ul class="dopts"><li>8 次全部放行</li><li>前 2 次放行，後 6 次擋下</li><li>8 次全部擋下</li><li data-ok>前 5 次放行，後 3 次擋下</li></ul>
