@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "在 MySQL 8.4 的預存函式裡要用參數 N 取第 N 高，OFFSET 該怎麼寫？",
+   "opts": [
+    "先 SET N = N - 1，再寫 OFFSET N",
+    "直接寫 OFFSET N - 1",
+    "寫 OFFSET (N - 1)，加括號就可以",
+    "OFFSET 不能用在函式裡，要改用迴圈"
+   ],
+   "exp": "手冊：LIMIT 的參數要是整數常數，預存程式裡可以用參數或區域變數，但不接受運算式。OFFSET N - 1 實跑是 ERROR 1064。"
+  },
+  {
+   "q": "每部門「前三種薪資」的人都要列出，同分都算。排名函式該用哪個？",
+   "opts": [
+    "DENSE_RANK",
+    "ROW_NUMBER",
+    "RANK",
+    "NTILE(3)"
+   ],
+   "exp": "DENSE_RANK 同分同名次、不跳號，篩前 3 名就是前三種薪資。ROW_NUMBER 同分硬排，會把同分後面的人擠掉；RANK 同分後會跳號，第三種薪資可能被排到第 4、5 名。"
+  },
+  {
+   "q": "牌告匯率週末沒有資料。用 LAG(rate) OVER (ORDER BY rate_date) 判斷「比前一天高」，週一那列會跟哪一天比？",
+   "opts": [
+    "上週五",
+    "上週日",
+    "前一天，沒資料就是 NULL",
+    "下一個營業日"
+   ],
+   "exp": "LAG 拿的是前一列，不是日曆上的前一天。週一的前一列是週五；要比日曆前一天就用日期自我連接，或再檢查日期差是 1。"
+  },
+  {
+   "q": "刪除重複 email 只留 id 最小的，寫 DELETE FROM t WHERE id NOT IN (SELECT MIN(id) FROM t GROUP BY email)，會怎樣？",
+   "opts": [
+    "ERROR 1093，讀了要刪的表",
+    "正常刪除所有重複的列",
+    "整張表的列全部被刪掉",
+    "只刪掉 email 是 NULL 的列"
+   ],
+   "exp": "手冊：不能從一張表刪除，又在子查詢裡讀同一張表。改用多表 DELETE 自我連接，或把子查詢再包一層有 GROUP BY 的衍生資料表。"
+  },
+  {
+   "q": "每日資料中間缺了一天。要算「近 7 日」加總，框架該怎麼寫？",
+   "opts": [
+    "RANGE，位移寫 INTERVAL 6 DAY",
+    "ROWS，位移寫成 6 PRECEDING 即可",
+    "ROWS，位移寫成 7 PRECEDING 才夠",
+    "不寫框架，只寫 ORDER BY d 就好"
+   ],
+   "exp": "ROWS 數的是列，缺一天時 7 列會橫跨 8 個日曆天；RANGE 看的是日期值的範圍，手冊說位移可以寫成 INTERVAL。不寫框架、只有 ORDER BY 時是從頭累計，不是近 7 日。"
+  },
+  {
+   "q": "「同比」指的是跟哪一期比較？",
+   "opts": [
+    "去年同一期",
+    "上一期",
+    "本年第一期",
+    "過去所有期的平均"
+   ],
+   "exp": "同比是跟去年同期比（year-over-year），用來抵消季節性；跟上一期比叫環比（month-over-month）。"
+  },
+  {
+   "q": "月份資料缺了一個月。用 LAG(amount, 12) OVER (ORDER BY ym) 當去年同月，結果會怎樣？",
+   "opts": [
+    "往前數 12 列，會拿到錯的月份",
+    "一樣正確，LAG 會自動跳過缺的月份",
+    "回傳 NULL",
+    "報錯，LAG 的位移不能超過 10"
+   ],
+   "exp": "LAG 數的是列，少一列就多數一個月。用日期自我連接（ym − INTERVAL 1 YEAR）才保證是去年同月。"
+  },
+  {
+   "q": "列轉欄時，要數每個分行 Q2 有幾筆，哪個寫法對？",
+   "opts": [
+    "COUNT(CASE WHEN quarter = 'Q2' THEN 1 END)",
+    "COUNT(CASE WHEN quarter = 'Q2' THEN 1 ELSE 0 END)",
+    "SUM(CASE WHEN quarter = 'Q2' THEN fee END)",
+    "MAX(CASE WHEN quarter = 'Q2' THEN 1 ELSE 0 END)"
+   ],
+   "exp": "不寫 ELSE 時不符合的列是 NULL，COUNT 不數 NULL。寫 ELSE 0 時每列都有值，COUNT 會把全部列都數進去；SUM fee 算的是金額；MAX 只能看有沒有。"
+  },
+  {
+   "q": "「八月有交易、九月沒有」的帳戶，用 EXCEPT 寫。八月有三筆交易的帳戶在結果裡出現幾次？",
+   "opts": [
+    "1 次",
+    "3 次",
+    "0 次",
+    "看九月有幾筆"
+   ],
+   "exp": "手冊：集合運算預設會移除重複的列，要保留才寫 EXCEPT ALL。"
+  },
+  {
+   "q": "同一帳戶有兩筆時間相同的最新交易，題目要求剛好回一筆，哪個做法最可靠？",
+   "opts": [
+    "ROW_NUMBER 依時間與編號排，取第 1",
+    "JOIN 每個帳戶的 MAX(tx_time) 比對",
+    "WHERE tx_time 等於子查詢的最大時間",
+    "GROUP BY account_id 後直接選 tx_id"
+   ],
+   "exp": "比對最大時間的兩種寫法，兩筆都等於最大值就都留下；GROUP BY 後直接選 tx_id 會被 ONLY_FULL_GROUP_BY 擋下。ROW_NUMBER 加第二排序鍵才保證每帳戶一筆。"
+  }
+ ]
+}

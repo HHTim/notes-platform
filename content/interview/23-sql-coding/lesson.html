@@ -1,0 +1,681 @@
+<!-- 來源：依 MySQL 8.4 參考手冊新寫（SELECT 的 LIMIT、Stored Program Binary Logging、DELETE、Optimizing Derived Tables、Out-of-Range and Overflow Handling、Window Function Descriptions 與 Frame Specification、Flow Control Functions、Server SQL Modes、EXCEPT、Semijoin 與 Antijoin、GROUP BY Optimization） https://dev.mysql.com/doc/refman/8.4/en/ ；題目對應 LeetCode 176、177、180、184、185、196、197、1179、1321、183 只列題號、題名與連結；資料表與測資全部自編，以 Docker 映像 mysql:8.4（MySQL 8.4.11，預設 sql_mode）實際執行，輸出為實跑結果的節錄（錯誤訊息省略腳本行號） · 收錄日期：2026-10-06 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>現場寫出第 N 高、每組前 N 名（含同分）、連續出現、比前一天高、刪重複只留一筆這幾題，並說得出每題最常見的寫錯版本錯在哪</li><li>分清 ROWS 與 RANGE：算移動平均、同比與環比時，缺資料的日子或月份會讓「前幾列」不等於「前幾天」</li><li>把列轉成欄（CASE WHEN 加聚合）、用 EXCEPT、NOT EXISTS、LEFT JOIN 求差集，知道 MySQL 會把 NOT EXISTS 改寫成反連接</li><li>寫出「每個帳戶最新一筆交易」與「每日餘額」，並回答索引怎麼建、資料量大怎麼辦</li></ul></div>
+<p class="muted">本課是手寫題的答法與寫錯示範。JOIN、子查詢、GROUP BY 與視窗函式的基本規則，以及第二高、每組前兩名、連續登入、累計餘額、去重保留最新、NOT IN 遇 NULL 這幾題的完整講解，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉；EXPLAIN 與複合索引見〈索引是怎麼運作的〉，索引失效寫法的速查見〈資料庫面試題：索引、交易隔離與鎖〉。這裡不重講，只補那課沒有的題目與陷阱。</p>
+
+<section>
+<p class="era">先講好怎麼答</p>
+<h3 class="head">手寫 SQL 的四個步驟</h3>
+<p>面試的 SQL 手寫題通常給你一兩張表、一句需求，要你在白板或線上編輯器寫出來。建議每題都照這個順序：</p>
+<ul>
+<li><strong>先問邊界</strong>：同分怎麼算？沒有資料時回空結果還是 NULL？「前一天」是日曆上的前一天，還是前一筆資料？</li>
+<li><strong>先寫最直接的版本</strong>，確定答案對了再談效能。</li>
+<li><strong>自己舉一個會出錯的例子</strong>：同分、缺號、缺日期、NULL，帶進去走一遍。</li>
+<li><strong>主動補追問</strong>：要建什麼索引、資料量大到幾千萬列時怎麼改。</li>
+</ul>
+<p>下面每題都用自編的資料在 MySQL 8.4.11 實跑，預設 <code>sql_mode</code>（含 <code>ONLY_FULL_GROUP_BY</code> 與嚴格模式）。題號是 LeetCode 上相同題型的題目，題目文字不同。</p>
+</section>
+
+<section>
+<p class="era">第一題</p>
+<h3 class="head">第 N 高的薪資（LeetCode 177）</h3>
+<p class="q">面試官：寫一個函式，傳入 N，回傳第 N 高的薪資；不存在就回 NULL。</p>
+<p>測資是三個部門十個行員，授信部有兩人同為 85,000：</p>
+<pre><code>CREATE TABLE dept (id INT PRIMARY KEY, name VARCHAR(10) NOT NULL);
+CREATE TABLE emp (
+  id      INT PRIMARY KEY,
+  name    VARCHAR(10) NOT NULL,
+  dept_id INT NOT NULL,
+  salary  INT NOT NULL
+);
+INSERT INTO dept VALUES (1, '授信部'), (2, '存匯部'), (3, '資訊部');
+INSERT INTO emp VALUES
+  (1, '王大明', 1, 90000), (2, '陳小美', 1, 85000), (3, '林志強', 1, 85000),
+  (4, '張雅婷', 1, 70000), (5, '李建國', 1, 60000),
+  (6, '黃淑芬', 2, 80000), (7, '吳家豪', 2, 75000), (8, '蔡宜君', 2, 50000),
+  (9, '鄭文傑', 3, 120000), (10, '劉佳穎', 3, 95000);</code></pre>
+<p>第二高怎麼寫（包成純量子查詢，也就是只回一個值的子查詢，才會在沒有時回 NULL），〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉講過。第 N 高的難處在於 N 是變數。最直覺的寫法是把 <code>N - 1</code> 直接寫進 OFFSET：</p>
+<pre><code>CREATE FUNCTION bad_nth(N INT) RETURNS INT DETERMINISTIC
+  RETURN (SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET N - 1);
+
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '- 1)' at line 2</code></pre>
+<p>LIMIT 不接受運算式。手冊：LIMIT 的參數「必須是非負的整數常數」，例外是預備陳述式可以用 <code>?</code>，以及「在預存程式裡，可以用整數型別的參數或區域變數」（Within stored programs, LIMIT parameters can be specified using integer-valued routine parameters or local variables.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a> 所以先用 <code>SET N = N - 1</code> 算好，再把變數放進 OFFSET。第二個坑是函式的特性宣告：</p>
+<pre><code>DELIMITER //
+CREATE FUNCTION nth_nochar(N INT) RETURNS INT
+BEGIN
+  SET N = N - 1;
+  RETURN (SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET N);
+END//
+
+ERROR 1418 (HY000): This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA in its declaration and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)</code></pre>
+<p>MySQL 8.4 預設開著二進位日誌（binlog，複寫與還原用的變更紀錄）。手冊：建立預存函式時，「必須宣告它是確定性的，或它不修改資料，否則可能對資料還原或複寫不安全」（you must declare either that it is deterministic or that it does not modify data. Otherwise, it may be unsafe for data recovery or replication.），預設至少要寫 DETERMINISTIC、NO SQL、READS SQL DATA 其中一個（確定性是指同樣的輸入一定得到同樣的結果）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/stored-programs-logging.html" target="_blank" rel="noopener">出處</a> 這個函式只讀資料，寫 <code>READS SQL DATA</code>：</p>
+<pre><code>DELIMITER //
+CREATE FUNCTION getNthHighestSalary(N INT) RETURNS INT
+READS SQL DATA
+BEGIN
+  SET N = N - 1;
+  RETURN (SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET N);
+END//
+DELIMITER ;
+
+SELECT getNthHighestSalary(1) AS n1, getNthHighestSalary(4) AS n4, getNthHighestSalary(10) AS n10;
++--------+-------+------+
+| n1     | n4    | n10  |
++--------+-------+------+
+| 120000 | 85000 | NULL |
++--------+-------+------+</code></pre>
+<p>不同的薪資只有九種，第 10 高不存在：<code>RETURN</code> 後面的純量子查詢沒有列，值就是 NULL。<code>DISTINCT</code> 不能省，少了它，同分會佔掉名次：</p>
+<pre><code>SELECT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 4;           -- 85000（兩個 85000 佔了第 4、5 名）
+SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 4;  -- 80000（第 5 高）</code></pre>
+<p>不寫函式時，也可以用 DENSE_RANK（同分同名次、不跳號）篩 <code>dr = N</code>，實跑第 4 高一樣是 85000。</p>
+<p><strong>追問：索引。</strong>在 <code>salary</code> 上建索引，ORDER BY salary DESC 可以倒著讀索引、讀到第 N 個不同值就停，不必整張表排序；EXPLAIN 怎麼看「有沒有另外排序」見〈索引是怎麼運作的〉。</p>
+
+<div class="drill">
+  <p class="dq">在 MySQL 8.4 寫 <code>… LIMIT 1 OFFSET N - 1</code>（N 是函式參數），會怎樣？</p>
+  <ul class="dopts"><li data-ok>報錯：LIMIT 不接受運算式</li><li>正常執行，回傳第 N 高的薪資</li><li>正常執行，但回傳第 N − 1 高</li><li>只有 N 大於 1 的時候才報錯</li></ul>
+  <p class="dexp">實跑 ERROR 1064。手冊：LIMIT 的參數要是整數常數，預存程式裡可以用參數或區域變數，但不能是運算式；所以先 SET N = N - 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">函式沒寫 DETERMINISTIC、NO SQL、READS SQL DATA 任何一個，在預設開著二進位日誌的 MySQL 8.4 建立時會怎樣？</p>
+  <ul class="dopts"><li>自動當成 DETERMINISTIC</li><li>可以建立，但執行時報錯</li><li data-ok>建立時就報 ERROR 1418</li><li>只會出現警告，照常建立</li></ul>
+  <p class="dexp">手冊：建立預存函式時必須宣告它是確定性的或不修改資料，否則對還原與複寫不安全。實跑 ERROR 1418；這個函式只讀資料，寫 READS SQL DATA。</p>
+</div>
+<div class="drill">
+  <p class="dq">薪資由高到低是 120000、95000、90000、85000、85000、80000……。<code>SELECT salary … ORDER BY salary DESC LIMIT 1 OFFSET 4</code>（沒有 DISTINCT）回傳什麼？</p>
+  <ul class="dopts"><li>80000</li><li>90000</li><li>75000</li><li data-ok>85000</li></ul>
+  <p class="dexp">不去重時跳過的是 4 列：120000、95000、90000、85000，第 5 列還是 85000。要第 5 高（80000）就加 DISTINCT。</p>
+</div>
+<div class="drill">
+  <p class="dq">不同的薪資只有 9 種，<code>getNthHighestSalary(10)</code> 回傳什麼？</p>
+  <ul class="dopts"><li data-ok>NULL</li><li>最低的薪資 50000</li><li>報錯：沒有第 10 列</li><li>0</li></ul>
+  <p class="dexp">RETURN 後面是純量子查詢，子查詢沒有列，值就是 NULL，題目要求的正是這個。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第二題</p>
+<h3 class="head">每部門前三高，同分都要列（LeetCode 184、185）</h3>
+<p class="q">面試官：列出每個部門薪資前三高的人；「前三高」指前三種薪資，同分的都要列出來。</p>
+<p>「每組前 N 名」的基本骨架（子查詢裡排名、外層篩）〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉講過。這題的考點是同分：授信部的薪資是 90000、85000、85000、70000、60000，前三種薪資是 90000、85000、70000，所以要列出 4 個人。</p>
+<pre><code>SELECT d.name AS dept, e.name, e.salary
+FROM (SELECT e.*, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS dr FROM emp e) e
+JOIN dept d ON d.id = e.dept_id
+WHERE e.dr &lt;= 3
+ORDER BY d.id, e.salary DESC, e.id;
++-----------+-----------+--------+
+| dept      | name      | salary |
++-----------+-----------+--------+
+| 授信部    | 王大明    |  90000 |
+| 授信部    | 陳小美    |  85000 |
+| 授信部    | 林志強    |  85000 |
+| 授信部    | 張雅婷    |  70000 |
+| 存匯部    | 黃淑芬    |  80000 |
+| 存匯部    | 吳家豪    |  75000 |
+| 存匯部    | 蔡宜君    |  50000 |
+| 資訊部    | 鄭文傑    | 120000 |
+| 資訊部    | 劉佳穎    |  95000 |
++-----------+-----------+--------+
+9 rows in set</code></pre>
+<p>把 DENSE_RANK 換成 ROW_NUMBER，實跑只剩 8 列：兩個 85000 拿了 2、3 號，張雅婷的 70000 排到第 4 號被篩掉。資訊部只有兩個人，就只列兩個，不會補空列。</p>
+<p>沒有視窗函式時的經典寫法是相關子查詢（子查詢裡用到外層那一列的欄位，外層每一列都重算一次）：「同部門裡，薪資比我高的<strong>不同薪資</strong>少於 3 種」：</p>
+<pre><code>SELECT d.name AS dept, e1.name, e1.salary
+FROM emp e1 JOIN dept d ON d.id = e1.dept_id
+WHERE (SELECT COUNT(DISTINCT e2.salary) FROM emp e2
+       WHERE e2.dept_id = e1.dept_id AND e2.salary &gt; e1.salary) &lt; 3
+ORDER BY d.id, e1.salary DESC, e1.id;</code></pre>
+<p>實跑結果跟 DENSE_RANK 版完全相同（9 列）。把 <code>COUNT(DISTINCT e2.salary)</code> 寫成 <code>COUNT(*)</code> 是最常見的寫錯：張雅婷上面有 3 個人（90000、85000、85000），COUNT(*) 是 3、不小於 3，她就被篩掉，實跑同樣只剩 8 列。</p>
+<p>只要每部門最高（184）時，可以用「部門、最高薪資」整組比對，同分的會一起留下：</p>
+<pre><code>SELECT d.name AS dept, e.name, e.salary
+FROM emp e JOIN dept d ON d.id = e.dept_id
+WHERE (e.dept_id, e.salary) IN (SELECT dept_id, MAX(salary) FROM emp GROUP BY dept_id)
+ORDER BY d.id;
++-----------+-----------+--------+
+| dept      | name      | salary |
++-----------+-----------+--------+
+| 授信部    | 王大明    |  90000 |
+| 存匯部    | 黃淑芬    |  80000 |
+| 資訊部    | 鄭文傑    | 120000 |
++-----------+-----------+--------+</code></pre>
+<p><strong>追問：索引。</strong>兩種寫法都是「每個部門內依薪資由高到低」，複合索引 <code>(dept_id, salary)</code> 讓同一部門的薪資在索引裡已經排好；相關子查詢那種寫法，每一列都要對同部門再數一次，部門人數一多就很慢，資料量大時優先用視窗函式版。</p>
+
+<div class="drill">
+  <p class="dq">授信部薪資 90000、85000、85000、70000、60000。用 <code>DENSE_RANK() … &lt;= 3</code>，授信部列出幾個人？</p>
+  <ul class="dopts"><li>3</li><li data-ok>4</li><li>5</li><li>2</li></ul>
+  <p class="dexp">DENSE_RANK 給 90000 第 1、兩個 85000 第 2、70000 第 3，共 4 人。題目要的是「前三種薪資」，同分都列。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一題改用 <code>ROW_NUMBER() … &lt;= 3</code>，授信部少了誰？</p>
+  <ul class="dopts"><li>王大明</li><li>陳小美或林志強其中一個</li><li data-ok>張雅婷</li><li>沒有少，一樣 4 人</li></ul>
+  <p class="dexp">ROW_NUMBER 同分也硬排：90000 是 1、兩個 85000 是 2 和 3，70000 變成 4 號被篩掉。實跑全表 8 列，少的就是張雅婷。</p>
+</div>
+<div class="drill">
+  <p class="dq">相關子查詢寫成 <code>(SELECT COUNT(*) FROM emp e2 WHERE e2.dept_id = e1.dept_id AND e2.salary &gt; e1.salary) &lt; 3</code>，錯在哪？</p>
+  <ul class="dopts"><li>相關子查詢在 MySQL 不能用</li><li>比較條件應該改成 &lt;= 3</li><li>應該改比 e2.salary &lt; e1.salary</li><li data-ok>同分重複算，要數不同薪資</li></ul>
+  <p class="dexp">題目要的是比我高的「不同薪資」有幾種。COUNT(*) 把兩個 85000 算成兩個，張雅婷上面變成 3、被篩掉。</p>
+</div>
+<div class="drill">
+  <p class="dq">每部門最高薪資，兩個人同為最高時，<code>WHERE (dept_id, salary) IN (SELECT dept_id, MAX(salary) … GROUP BY dept_id)</code> 會列出幾個人？</p>
+  <ul class="dopts"><li data-ok>兩個都列</li><li>只列 id 小的那個</li><li>隨機列一個</li><li>報錯：IN 不能比兩欄</li></ul>
+  <p class="dexp">比對的是「部門、薪資」這一組值，兩個人的值都等於該部門最高，所以都會留下。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第三題</p>
+<h3 class="head">連續出現至少三次（LeetCode 180）</h3>
+<p class="q">面試官：日誌表依 id 排序，找出連續出現至少三次的數字。</p>
+<pre><code>CREATE TABLE logs (id INT PRIMARY KEY, num INT NOT NULL);
+INSERT INTO logs VALUES (1,1),(2,1),(3,1),(4,2),(5,1),(6,2),(7,2),(8,3),(9,3),(10,2);</code></pre>
+<p>最常見的寫錯是只數總次數：<code>GROUP BY num HAVING COUNT(*) &gt;= 3</code> 實跑回 1 和 2。但 2 出現在第 4、6、7、10 列，從沒連續三次。正解有兩種：</p>
+<pre><code>-- 自我連接：自己、下一號、下下一號都相同
+SELECT DISTINCT l1.num AS ConsecutiveNums
+FROM logs l1
+JOIN logs l2 ON l2.id = l1.id + 1 AND l2.num = l1.num
+JOIN logs l3 ON l3.id = l1.id + 2 AND l3.num = l1.num;
+
+-- LAG／LEAD：跟前一列、後一列比
+SELECT DISTINCT num AS ConsecutiveNums
+FROM (SELECT num, LAG(num) OVER (ORDER BY id) AS prev, LEAD(num) OVER (ORDER BY id) AS nxt FROM logs) t
+WHERE num = prev AND num = nxt;</code></pre>
+<p>兩種實跑都只回 1。差別在 id 有缺號時。手冊對 LAG 的定義是「同一分組裡，往前第 N <strong>列</strong>的值」（the row that lags (precedes) the current row by N rows within its partition）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a> 自我連接比的是 id 數字。另一張表 <code>logs2</code> 是 (1,7)、(2,7)、(4,7)、(5,8)，第 3 號被刪掉了：自我連接實跑是 Empty set（找不到 id 3），LAG／LEAD 版回 7。哪個對，要先問清楚「連續」是指日誌裡一筆接一筆，還是 id 數字相連。</p>
+<p>題目改成「至少連續 N 次、列出起訖」，用〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉連續登入那招的變形：兩個列號相減。整體列號是一筆接一筆編，分組內列號只在同一個數字裡編；同一段連續的值，兩者一起往前走，差值固定。</p>
+<pre><code>SELECT num, COUNT(*) AS times
+FROM (SELECT num, ROW_NUMBER() OVER (ORDER BY id)
+                  - ROW_NUMBER() OVER (PARTITION BY num ORDER BY id) AS grp FROM logs2) t
+GROUP BY num, grp;
++-----+-------+
+| num | times |
++-----+-------+
+|   7 |     3 |
+|   8 |     1 |
++-----+-------+</code></pre>
+<p>如果改用 <code>id - ROW_NUMBER() OVER (PARTITION BY num ORDER BY id)</code>，缺號會被當成斷開：實跑 7 被分成「2 次」與「1 次」兩段。另一個坑是型別：ROW_NUMBER 回傳的是不帶正負號的整數，相減結果是負數時會直接報錯。實跑 <code>0 - ROW_NUMBER() OVER (…)</code> 得到 <code>ERROR 1690 (22003): BIGINT UNSIGNED value is out of range</code>。手冊：「整數相減時只要有一方是 UNSIGNED，結果預設也是 UNSIGNED，如果結果原本會是負數，就會出錯」（Subtraction between integer values, where one is of type UNSIGNED, produces an unsigned result by default. If the result would otherwise have been negative, an error results）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/out-of-range-and-overflow.html" target="_blank" rel="noopener">出處</a> 讓大的減小的（整體列號一定不小於分組內列號），或先 <code>CAST(… AS SIGNED)</code>。</p>
+
+<div class="drill">
+  <p class="dq"><code>SELECT num FROM logs GROUP BY num HAVING COUNT(*) &gt;= 3</code> 為什麼不是「連續三次」的正解？</p>
+  <ul class="dopts"><li data-ok>它數的是總次數，不管有沒有相連</li><li>GROUP BY 不能配 HAVING</li><li>COUNT(*) 會把 NULL 也算進去</li><li>它只會回傳一個數字</li></ul>
+  <p class="dexp">2 出現了 4 次但從沒連續三次，這個寫法照樣把它列出來。連續要比前後列，或用列號相減分段。</p>
+</div>
+<div class="drill">
+  <p class="dq">id 是 1、2、4（num 都是 7），3 號被刪掉了。自我連接 <code>l2.id = l1.id + 1 AND l3.id = l1.id + 2</code> 找得到 7 嗎？</p>
+  <ul class="dopts"><li>找得到，因為還是三筆 7</li><li data-ok>找不到，沒有 id 3 可以接</li><li>報錯，id 不連續不能自我連接</li><li>找得到，但會重複出現兩次</li></ul>
+  <p class="dexp">自我連接比的是 id 的數字，缺號就接不上，實跑 Empty set；LAG／LEAD 比的是前後列，實跑回 7。先問清楚「連續」的定義。</p>
+</div>
+<div class="drill">
+  <p class="dq">「整體列號 − 分組內列號」為什麼能把連續的同一個值分成一組？</p>
+  <ul class="dopts"><li data-ok>同值連續時兩個列號同步加一</li><li>因為兩個列號在每一列都相等</li><li>因為 ROW_NUMBER 會自動跳過缺號</li><li>因為相減之後結果一定是 0</li></ul>
+  <p class="dexp">同一段連續的 7，整體列號與 7 自己的列號同步往前；中間插進別的數字，整體列號多走幾步，差值就變成新的一組。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>0 - ROW_NUMBER() OVER (ORDER BY x)</code> 在 MySQL 8.4 會怎樣？</p>
+  <ul class="dopts"><li>回傳 −1、−2 這樣的負數</li><li>回傳 0，負數一律當成 0</li><li data-ok>ERROR 1690，超出範圍</li><li>自動轉成帶正負號的整數再算</li></ul>
+  <p class="dexp">ROW_NUMBER 是不帶正負號的整數；手冊說有一方是 UNSIGNED 時相減結果也是 UNSIGNED，結果為負就出錯。讓大的減小的，或先 CAST(… AS SIGNED)。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第四題</p>
+<h3 class="head">比前一天高（LeetCode 197）</h3>
+<p class="q">面試官：牌告匯率表每天一筆，列出「美元匯率比前一天高」的日子。</p>
+<pre><code>CREATE TABLE fx (id INT PRIMARY KEY, rate_date DATE NOT NULL, usd_rate DECIMAL(6,3) NOT NULL);
+INSERT INTO fx VALUES
+  (1, '2026-09-01', 30.100), (2, '2026-09-02', 30.250), (3, '2026-09-03', 30.200),
+  (5, '2026-09-04', 30.180), (4, '2026-09-07', 30.300), (6, '2026-09-08', 30.420);</code></pre>
+<p>兩個刻意的細節：9/5、9/6 是週末沒有牌告；id 不照日期順序（補登過）。照日曆的「前一天」，用日期自我連接：</p>
+<pre><code>SELECT today.rate_date, today.usd_rate
+FROM fx today
+JOIN fx yest ON yest.rate_date = today.rate_date - INTERVAL 1 DAY
+WHERE today.usd_rate &gt; yest.usd_rate
+ORDER BY today.rate_date;
++------------+----------+
+| rate_date  | usd_rate |
++------------+----------+
+| 2026-09-02 |   30.250 |
+| 2026-09-08 |   30.420 |
++------------+----------+</code></pre>
+<p>9/7 沒有「前一天」（9/6 沒資料），不列。兩種常見寫法會多出 9/7：</p>
+<ul>
+<li><strong>用 id 當前一天</strong>（<code>yest.id = today.id - 1</code>）：9/7 的 id 是 4，接到 id 3 的 9/3，30.300 &gt; 30.200 就被列出來。id 只是流水號，不保證跟日期同順序。</li>
+<li><strong>用 LAG</strong>（<code>LAG(usd_rate) OVER (ORDER BY rate_date)</code>）：LAG 拿的是前一<strong>列</strong>，9/7 的前一列是 9/4，30.300 &gt; 30.180，也被列出來。要用 LAG，就連日期一起拿出來檢查 <code>DATEDIFF(rate_date, prev_date) = 1</code>，實跑結果跟自我連接相同。</li>
+</ul>
+<p>反過來，如果需求其實是「跟前一個營業日比」，9/7 就該列，這時直接用 LAG 才對。這正是開頭說的「先問邊界」。</p>
+<p><strong>追問：索引與資料量。</strong><code>rate_date</code> 建唯一索引，自我連接每一列都是一次等號查找；LAG 版只要依日期排序掃一次，資料量大時通常比較省。</p>
+
+<div class="drill">
+  <p class="dq">9/5、9/6 沒有資料。照「日曆上的前一天」，9/7 應不應該列出來？</p>
+  <ul class="dopts"><li>應該，它比 9/4 的匯率高</li><li>應該，它比 9/3 的匯率高</li><li>要看 id 是不是連號才知道</li><li data-ok>不應該，沒有前一天可比</li></ul>
+  <p class="dexp">9/7 的前一天是 9/6，沒有牌告，就沒得比。實跑日期自我連接只回 9/2、9/8。</p>
+</div>
+<div class="drill">
+  <p class="dq">用 <code>yest.id = today.id - 1</code> 找前一天，這份資料為什麼會錯？</p>
+  <ul class="dopts"><li>id 是主鍵，不能拿來運算</li><li data-ok>id 是流水號，跟日期順序不一致</li><li>DECIMAL 不能比大小</li><li>自我連接一定要用 LEFT JOIN</li></ul>
+  <p class="dexp">9/7 的 id 是 4，接到 id 3 的 9/3，於是 30.300 &gt; 30.200 被列出來。比日期就用日期。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>LAG(usd_rate) OVER (ORDER BY rate_date)</code> 在 9/7 那列拿到的是哪一天的匯率？</p>
+  <ul class="dopts"><li>9/6</li><li>NULL，因為 9/6 沒資料</li><li>9/8</li><li data-ok>9/4</li></ul>
+  <p class="dexp">LAG 拿的是前一列，不是前一天；9/7 的前一列是 9/4。所以 LAG 版會多列出 9/7，要再檢查日期差是 1。</p>
+</div>
+<div class="drill">
+  <p class="dq">面試官說「其實是跟前一個營業日比」。哪個寫法最直接？</p>
+  <ul class="dopts"><li data-ok>LAG 拿前一列，直接比</li><li>日期自我連接減 1 天</li><li>id 自我連接減 1</li><li>GROUP BY 日期再比 MAX</li></ul>
+  <p class="dexp">資料只有營業日，前一列就是前一個營業日，LAG 正好符合。需求一變，正解就跟著變。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第五題</p>
+<h3 class="head">刪掉重複的資料，只留 id 最小的（LeetCode 196）</h3>
+<p class="q">面試官：聯絡人表的 email 有重複，刪到每個 email 只剩 id 最小的那一筆。</p>
+<pre><code>CREATE TABLE contact (id INT PRIMARY KEY, email VARCHAR(50) NOT NULL);
+INSERT INTO contact VALUES
+  (1, 'ming@example.com'), (2, 'mei@example.com'), (3, 'ming@example.com'),
+  (4, 'hua@example.com'),  (5, 'mei@example.com'), (6, 'ming@example.com');
+
+-- 先 SELECT 看要刪的範圍
+SELECT email, COUNT(*) AS n, MIN(id) AS keep_id
+FROM contact GROUP BY email HAVING COUNT(*) &gt; 1 ORDER BY email;
++------------------+---+---------+
+| email            | n | keep_id |
++------------------+---+---------+
+| mei@example.com  | 2 |       2 |
+| ming@example.com | 3 |       1 |
++------------------+---+---------+</code></pre>
+<p>最直覺的寫法是「刪掉不在『每組最小 id』裡的」：</p>
+<pre><code>DELETE FROM contact WHERE id NOT IN (SELECT MIN(id) FROM contact GROUP BY email);
+
+ERROR 1093 (HY000): You can't specify target table 'contact' for update in FROM clause</code></pre>
+<p>手冊寫得很直接：「不能從一張表刪除，又在子查詢裡從同一張表讀取」（You cannot delete from a table and select from the same table in a subquery.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/delete.html" target="_blank" rel="noopener">出處</a> 兩種改法：</p>
+<pre><code>-- 改法一：多表 DELETE，自己接自己，刪掉「有更小 id 的同一個 email」
+DELETE c1 FROM contact c1
+JOIN contact c2 ON c1.email = c2.email AND c1.id &gt; c2.id;
+Query OK, 3 rows affected
+
+-- 改法二：子查詢再包一層衍生資料表
+DELETE FROM contact
+WHERE id NOT IN (SELECT keep_id FROM (SELECT MIN(id) AS keep_id FROM contact GROUP BY email) AS k);
+Query OK, 3 rows affected</code></pre>
+<p>兩種實跑都刪了 3 筆，剩下 1、2、4。改法二能跑，是因為內層有 GROUP BY 與 MIN，MySQL 不會把它合併進外層，而是先算出結果存成暫存表。手冊列出「會阻止合併」的寫法，包括聚合函式、DISTINCT、GROUP BY、LIMIT 等（Constructs that prevent merging are the same for derived tables, common table expressions, and view references: Aggregate functions or window functions … GROUP BY …），並說關掉合併可以「避免 ER_UPDATE_TABLE_USED 錯誤」（Disabling the flag prevents merging and avoids ER_UPDATE_TABLE_USED errors.），那就是 1093 這個錯。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/derived-table-optimization.html" target="_blank" rel="noopener">出處</a> 改成保留「最新一筆」的版本用 ROW_NUMBER，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉去重那段。</p>
+<p><strong>追問：之後怎麼不再重複、表很大怎麼刪。</strong>清完加唯一索引 <code>ALTER TABLE contact ADD UNIQUE KEY uk_email (email)</code>，再插入重複的 email 實跑是 <code>ERROR 1062 (23000): Duplicate entry 'ming@example.com' for key 'contact.uk_email'</code>。幾千萬列的表不要一次刪，會長時間鎖住大量的列，要分批；但手冊說「多表 DELETE 不能用 ORDER BY 或 LIMIT」（You cannot use ORDER BY or LIMIT in a multiple-table DELETE.）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/delete.html" target="_blank" rel="noopener">出處</a>，所以分批通常是依主鍵範圍一段一段刪（例如每次 <code>id BETWEEN 1 AND 10000</code>）。</p>
+
+<div class="drill">
+  <p class="dq"><code>DELETE FROM contact WHERE id NOT IN (SELECT MIN(id) FROM contact GROUP BY email)</code> 在 MySQL 8.4 會怎樣？</p>
+  <ul class="dopts"><li>正常執行，刪掉 3 筆重複</li><li data-ok>ERROR 1093，讀了要刪的表</li><li>把整張表的資料全部刪光</li><li>只刪掉 email 是 NULL 的列</li></ul>
+  <p class="dexp">手冊：不能從一張表刪除，又在子查詢裡從同一張表讀取。改用多表 DELETE 自我連接，或把子查詢再包一層衍生資料表（放在 FROM 裡、有名字的子查詢結果）。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>DELETE c1 FROM contact c1 JOIN contact c2 ON c1.email = c2.email AND c1.id &gt; c2.id</code> 刪掉的是哪些列？</p>
+  <ul class="dopts"><li>每個 email 裡 id 最小的那一筆</li><li data-ok>還有更小 id 的同 email 列</li><li>所有 email 有重複的列都刪</li><li>只刪掉每組 id 最大的那一筆</li></ul>
+  <p class="dexp">c1.id &gt; c2.id 的意思是「c1 前面還有同 email 的更小 id」，這些都刪；每組 id 最小的那筆找不到更小的，留下。實跑刪 3 筆，剩 1、2、4。</p>
+</div>
+<div class="drill">
+  <p class="dq">把子查詢再包一層 <code>(SELECT keep_id FROM (SELECT MIN(id) … GROUP BY email) AS k)</code> 就不報 1093 了。主要原因是？</p>
+  <ul class="dopts"><li>衍生資料表一定要取別名</li><li>MIN 會自動加鎖</li><li data-ok>GROUP BY 讓它先算成暫存表，不會合併回外層</li><li>NOT IN 遇到衍生資料表會自動改成 NOT EXISTS</li></ul>
+  <p class="dexp">手冊列出聚合函式、GROUP BY 等寫法會阻止衍生資料表合併；不合併就先算好存成暫存表，等於不是在讀正要刪的那張表，所以避開了 ER_UPDATE_TABLE_USED（1093）。</p>
+</div>
+<div class="drill">
+  <p class="dq">幾千萬列的表要分批刪重複資料，為什麼不能直接在多表 DELETE 後面加 <code>LIMIT 10000</code>？</p>
+  <ul class="dopts"><li data-ok>多表 DELETE 不能用 LIMIT</li><li>LIMIT 會讓刪除變得很慢</li><li>LIMIT 只能用在 SELECT 裡</li><li>InnoDB 不支援分批刪除資料</li></ul>
+  <p class="dexp">手冊原句：You cannot use ORDER BY or LIMIT in a multiple-table DELETE。單表 DELETE 可以用 LIMIT；多表版通常改成依主鍵範圍一段一段刪。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第六題</p>
+<h3 class="head">七日移動平均（LeetCode 1321）</h3>
+<p class="q">面試官：ATM 每日提款總額，算每天的「近 7 日」平均。</p>
+<pre><code>CREATE TABLE atm_daily (d DATE PRIMARY KEY, amount INT NOT NULL);
+INSERT INTO atm_daily VALUES
+  ('2026-09-01', 100), ('2026-09-02', 120), ('2026-09-03', 80), ('2026-09-04', 140),
+  ('2026-09-05', 60),  ('2026-09-06', 90),  ('2026-09-07', 110),
+  ('2026-09-09', 150), ('2026-09-10', 130);   -- 9/8 機台維修，沒有資料</code></pre>
+<p>累計（從頭加到目前這列）〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉講過；移動平均是「只看最近幾天」，要自己寫框架（frame，算這一列時要納入哪幾列）。關鍵是 ROWS 與 RANGE 的差別。手冊：ROWS 的框架「由起訖的列位置定義，位移是列號的差」；RANGE 的框架「由一個值的範圍內的列定義，位移是列值的差」（RANGE: The frame is defined by rows within a value range. Offsets are differences in row values from the current row value.），而且 RANGE 的位移可以寫成時間區間 <code>INTERVAL val unit</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-frames.html" target="_blank" rel="noopener">出處</a> 先用「近 3 日」看差別：</p>
+<pre><code>SELECT d, amount,
+       SUM(amount) OVER (ORDER BY d ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)                 AS sum_3rows,
+       SUM(amount) OVER (ORDER BY d RANGE BETWEEN INTERVAL 2 DAY PRECEDING AND CURRENT ROW)   AS sum_3days,
+       COUNT(*)    OVER (ORDER BY d RANGE BETWEEN INTERVAL 2 DAY PRECEDING AND CURRENT ROW)   AS days_in
+FROM atm_daily ORDER BY d;
++------------+--------+-----------+-----------+---------+
+| d          | amount | sum_3rows | sum_3days | days_in |
++------------+--------+-----------+-----------+---------+
+| 2026-09-01 |    100 |       100 |       100 |       1 |
+| 2026-09-02 |    120 |       220 |       220 |       2 |
+| 2026-09-03 |     80 |       300 |       300 |       3 |
+| 2026-09-04 |    140 |       340 |       340 |       3 |
+| 2026-09-05 |     60 |       280 |       280 |       3 |
+| 2026-09-06 |     90 |       290 |       290 |       3 |
+| 2026-09-07 |    110 |       260 |       260 |       3 |
+| 2026-09-09 |    150 |       350 |       260 |       2 |
+| 2026-09-10 |    130 |       390 |       280 |       2 |
++------------+--------+-----------+-----------+---------+</code></pre>
+<p>9/8 沒資料之前兩者一樣。到了 9/9，ROWS 拿的是「前兩列」9/6、9/7，其實橫跨了 4 天；RANGE 拿的是「前兩天以內」9/7、9/9 兩筆（9/8 本來就沒有）。「近 N 日」要用 RANGE。七日版本，只列滿 7 天的日子：</p>
+<pre><code>SELECT d, sum_7d, ROUND(sum_7d / 7, 2) AS avg_7d
+FROM (SELECT d,
+             SUM(amount) OVER (ORDER BY d RANGE BETWEEN INTERVAL 6 DAY PRECEDING AND CURRENT ROW) AS sum_7d
+      FROM atm_daily) t
+WHERE d &gt;= (SELECT MIN(d) FROM atm_daily) + INTERVAL 6 DAY
+ORDER BY d;
++------------+--------+--------+
+| d          | sum_7d | avg_7d |
++------------+--------+--------+
+| 2026-09-07 |    700 | 100.00 |
+| 2026-09-09 |    630 |  90.00 |
+| 2026-09-10 |    680 |  97.14 |
++------------+--------+--------+</code></pre>
+<p>這裡用 <code>sum_7d / 7</code>，是把沒資料的 9/8 當成 0；如果寫 <code>AVG(amount) OVER (…)</code>，9/9 會除以 6 筆，得到 105。哪個對又是需求問題：維修沒營業算 0，還是不列入？另外，結果裡沒有 9/8 這一列，要列出來就先用遞迴 CTE 產生日期序列再 LEFT JOIN，做法見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉。</p>
+
+<div class="drill">
+  <p class="dq">9/8 沒有資料。<code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> 在 9/9 那列加總了哪幾天？</p>
+  <ul class="dopts"><li>9/7、9/8、9/9</li><li>只有 9/9</li><li data-ok>9/6、9/7、9/9</li><li>9/7、9/9</li></ul>
+  <p class="dexp">ROWS 數的是列：9/9 的前兩列是 9/6、9/7。實跑 sum_3rows = 90 + 110 + 150 = 350，其實橫跨 4 天。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一列改用 <code>RANGE BETWEEN INTERVAL 2 DAY PRECEDING AND CURRENT ROW</code>，加總是多少？</p>
+  <ul class="dopts"><li>350</li><li data-ok>260</li><li>150</li><li>390</li></ul>
+  <p class="dexp">RANGE 看的是值的範圍：9/7 到 9/9 之間有資料的是 9/7（110）與 9/9（150），共 260，實跑 days_in = 2。</p>
+</div>
+<div class="drill">
+  <p class="dq">「近 7 日平均」在 9/9 這天，<code>SUM(…) / 7</code> 得 90、<code>AVG(…)</code> 得 105。差在哪？</p>
+  <ul class="dopts"><li>AVG 會自動四捨五入到整數</li><li>SUM 用的是 ROWS，AVG 用的是 RANGE</li><li data-ok>前者把 9/8 當 0，後者除以 6</li><li>AVG 會把沒資料的日子當成 0</li></ul>
+  <p class="dexp">9/3 到 9/9 有資料的是 6 天，加總 630；除以 7 是 90，除以 6 是 105。要哪一個，先問需求。</p>
+</div>
+<div class="drill">
+  <p class="dq">MySQL 8.4 的 RANGE 框架，位移可以怎麼寫？</p>
+  <ul class="dopts"><li>只能寫列數，例如 6 PRECEDING</li><li>只能寫 UNBOUNDED PRECEDING</li><li>只能用在數字型別的欄位</li><li data-ok>可以寫 INTERVAL 6 DAY</li></ul>
+  <p class="dexp">手冊：位移可以是非負數字或 INTERVAL val unit 形式的時間區間；RANGE 要配數字或時間型別的 ORDER BY。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第七題</p>
+<h3 class="head">同比與環比</h3>
+<p class="q">面試官：每月新增存款，算出每個月的環比與同比成長率。</p>
+<p>先講名詞。<strong>環比</strong>是跟「上一個月」比（month-over-month，前後相鄰的兩期）；<strong>同比</strong>是跟「去年同一個月」比（year-over-year，抵消季節性，例如年終獎金月份）。成長率＝（本期 − 比較期）÷ 比較期 × 100%。</p>
+<pre><code>CREATE TABLE monthly_deposit (ym DATE PRIMARY KEY, amount INT NOT NULL);   -- ym 存每月 1 日，單位：萬元
+INSERT INTO monthly_deposit VALUES
+  ('2025-01-01', 500), ('2025-02-01', 480), ('2025-03-01', 520), ('2025-04-01', 510),
+  ('2025-05-01', 530), ('2025-06-01', 0),   ('2025-07-01', 560), ('2025-08-01', 540),
+  ('2025-09-01', 580), ('2025-10-01', 600), ('2025-11-01', 590), ('2025-12-01', 640),
+  ('2026-01-01', 600), ('2026-03-01', 650), ('2026-04-01', 660), ('2026-05-01', 630),
+  ('2026-06-01', 700);</code></pre>
+<p>兩個刻意的細節：2025 年 6 月這項產品暫停，新增為 0；2026 年 2 月資料還沒進來，整列不存在。最穩的寫法是用日期找「上個月」與「去年同月」：</p>
+<pre><code>SELECT cur.ym, cur.amount,
+       prev_m.amount AS last_month,
+       ROUND((cur.amount - prev_m.amount) / NULLIF(prev_m.amount, 0) * 100, 1) AS mom_pct,
+       prev_y.amount AS last_year,
+       ROUND((cur.amount - prev_y.amount) / NULLIF(prev_y.amount, 0) * 100, 1) AS yoy_pct
+FROM monthly_deposit cur
+LEFT JOIN monthly_deposit prev_m ON prev_m.ym = cur.ym - INTERVAL 1 MONTH
+LEFT JOIN monthly_deposit prev_y ON prev_y.ym = cur.ym - INTERVAL 1 YEAR
+WHERE cur.ym &gt;= '2026-01-01'
+ORDER BY cur.ym;
++------------+--------+------------+---------+-----------+---------+
+| ym         | amount | last_month | mom_pct | last_year | yoy_pct |
++------------+--------+------------+---------+-----------+---------+
+| 2026-01-01 |    600 |        640 |    -6.3 |       500 |    20.0 |
+| 2026-03-01 |    650 |       NULL |    NULL |       520 |    25.0 |
+| 2026-04-01 |    660 |        650 |     1.5 |       510 |    29.4 |
+| 2026-05-01 |    630 |        660 |    -4.5 |       530 |    18.9 |
+| 2026-06-01 |    700 |        630 |    11.1 |         0 |    NULL |
++------------+--------+------------+---------+-----------+---------+</code></pre>
+<p>自己驗算一列：2026 年 4 月環比 (660 − 650) ÷ 650 ≈ 1.54%，同比 (660 − 510) ÷ 510 ≈ 29.41%。3 月沒有上個月，環比是 NULL，而不是拿 1 月硬比。用 LEFT JOIN 是為了缺比較期時本期照樣列出。</p>
+<p>常見的寫錯是用 <code>LAG(amount, 12)</code> 當去年同月。LAG 數的是列，2 月缺了一列，實跑 2026 年 6 月的 <code>LAG(ym, 12)</code> 指到的是 2025-05-01，同比就比錯月份了；<code>LAG(amount, 1)</code> 在 3 月拿到的也是 1 月。月份齊全時 LAG 可以用，但答題時要講出這個前提。</p>
+<p>分母是 0 時（2025 年 6 月），<code>NULLIF(prev_y.amount, 0)</code> 把 0 換成 NULL，除出來就是 NULL。不加的話，手冊說「SELECT 裡除以零回傳 NULL」（For SELECT, division by zero returns NULL.），預設開著的 <code>ERROR_FOR_DIVISION_BY_ZERO</code> 還會多一個警告；實跑 <code>SELECT 700 / 0</code> 是 NULL 加 <code>Warning 1365 Division by 0</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html" target="_blank" rel="noopener">出處</a> 結果一樣是 NULL，但用 NULLIF 寫明意圖，也不會在報表程式裡留下一堆警告。</p>
+
+<div class="drill">
+  <p class="dq">「環比」是跟哪一期比？</p>
+  <ul class="dopts"><li>去年同一個月</li><li data-ok>上一個月</li><li>今年第一個月</li><li>過去 12 個月的平均</li></ul>
+  <p class="dexp">環比是相鄰的前一期（month-over-month）；跟去年同月比叫同比（year-over-year），用來抵消季節性。</p>
+</div>
+<div class="drill">
+  <p class="dq">2026 年 4 月 660、3 月 650。環比成長率約多少？</p>
+  <ul class="dopts"><li>10%</li><li>15.4%</li><li>−1.5%</li><li data-ok>1.5%</li></ul>
+  <p class="dexp">(660 − 650) ÷ 650 ≈ 1.54%，實跑 ROUND 到一位是 1.5。分母是比較期（3 月），不是本期。</p>
+</div>
+<div class="drill">
+  <p class="dq">2026 年 2 月整列不存在。用 <code>LAG(amount, 12) OVER (ORDER BY ym)</code> 當 2026 年 6 月的同比基準，會拿到哪個月？</p>
+  <ul class="dopts"><li>2025 年 6 月</li><li>NULL</li><li data-ok>2025 年 5 月</li><li>2025 年 7 月</li></ul>
+  <p class="dexp">LAG 往前數 12 列，少了 2 月那一列，就多數到 2025 年 5 月，實跑 lag12_month = 2025-05-01。用日期自我連接（ym − INTERVAL 1 YEAR）才不會錯。</p>
+</div>
+<div class="drill">
+  <p class="dq">去年同月是 0，<code>(本期 − 0) / NULLIF(0, 0)</code> 的結果是？</p>
+  <ul class="dopts"><li data-ok>NULL</li><li>0</li><li>無限大</li><li>報錯，查詢中止</li></ul>
+  <p class="dexp">NULLIF 把 0 換成 NULL，除以 NULL 就是 NULL。不加 NULLIF 時，SELECT 裡除以零一樣回 NULL，但會多一個 1365 警告。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第八題</p>
+<h3 class="head">列轉欄：CASE WHEN 加聚合（LeetCode 1179）</h3>
+<p class="q">面試官：手續費收入表一列是「分行、季、金額」，改成一個分行一列、四季各一欄。</p>
+<p>台灣的「列」是橫的一筆（row）、「欄」是直的一欄（column），這題就是把「每季一列」轉成「每季一欄」，常見的中文資料把它叫「行轉列」，指的是同一件事。</p>
+<pre><code>CREATE TABLE branch_fee (branch VARCHAR(10) NOT NULL, quarter CHAR(2) NOT NULL, fee INT NOT NULL,
+                         PRIMARY KEY (branch, quarter));
+INSERT INTO branch_fee VALUES
+  ('台北', 'Q1', 120), ('台北', 'Q2', 135), ('台北', 'Q3', 150), ('台北', 'Q4', 160),
+  ('新竹', 'Q1', 80),  ('新竹', 'Q3', 95),
+  ('高雄', 'Q2', 70),  ('高雄', 'Q4', 88);
+
+SELECT branch,
+       SUM(CASE WHEN quarter = 'Q1' THEN fee END) AS q1,
+       SUM(CASE WHEN quarter = 'Q2' THEN fee END) AS q2,
+       SUM(CASE WHEN quarter = 'Q3' THEN fee END) AS q3,
+       SUM(CASE WHEN quarter = 'Q4' THEN fee END) AS q4,
+       SUM(fee) AS total
+FROM branch_fee
+GROUP BY branch
+ORDER BY total DESC;
++--------+------+------+------+------+-------+
+| branch | q1   | q2   | q3   | q4   | total |
++--------+------+------+------+------+-------+
+| 台北   |  120 |  135 |  150 |  160 |   565 |
+| 新竹   |   80 | NULL |   95 | NULL |   175 |
+| 高雄   | NULL |   70 | NULL |   88 |   158 |
++--------+------+------+------+------+-------+</code></pre>
+<p>原理：每一列先用 CASE 決定它屬於哪一欄，不屬於的那幾欄是 NULL，手冊說沒有條件成立、又沒有 ELSE 時結果就是 NULL（or NULL if there is no ELSE part）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/flow-control-functions.html" target="_blank" rel="noopener">出處</a>；再 GROUP BY 分行，用 SUM 把同一欄的值收成一個，NULL 不算。兩種寫錯：</p>
+<ul>
+<li><strong>有 GROUP BY 卻沒有聚合</strong>：<code>CASE WHEN quarter = 'Q1' THEN fee END</code> 直接放在 SELECT，實跑 ERROR 1055（quarter 不在 GROUP BY、也沒有聚合），規則見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉GROUP BY 那段。</li>
+<li><strong>沒有 GROUP BY</strong>：每一列各自一列，台北實跑 4 列、每列只有一格有值，沒有「轉」成功。</li>
+</ul>
+<p>還有一個細節：寫 <code>ELSE 0</code> 時，新竹的 Q2 會顯示 0 而不是 NULL，要看題目是要「0」還是「沒有資料」。數筆數時更危險：<code>COUNT(CASE WHEN quarter = 'Q2' THEN fee ELSE 0 END)</code> 實跑台北是 4、新竹是 2，因為 0 也是一個值，COUNT 照數；不寫 ELSE 才是正確的 1 和 0。</p>
+
+<div class="drill">
+  <p class="dq">新竹沒有 Q2 的資料，<code>SUM(CASE WHEN quarter = 'Q2' THEN fee END)</code> 回傳什麼？</p>
+  <ul class="dopts"><li>0</li><li data-ok>NULL</li><li>報錯</li><li>新竹整列不出現</li></ul>
+  <p class="dexp">沒有 ELSE 時不符合的列是 NULL，SUM 全是 NULL 的一組結果是 NULL。要顯示 0 就寫 ELSE 0 或外面包 COALESCE。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>COUNT(CASE WHEN quarter = 'Q2' THEN fee ELSE 0 END)</code> 在台北（四季都有）的結果是？</p>
+  <ul class="dopts"><li>1</li><li>0</li><li>135</li><li data-ok>4</li></ul>
+  <p class="dexp">ELSE 0 讓每一列都有值，COUNT 數的是「非 NULL 的值有幾個」，四列都算。數筆數時不要寫 ELSE 0。</p>
+</div>
+<div class="drill">
+  <p class="dq">列轉欄寫成 <code>SELECT branch, CASE WHEN quarter = 'Q1' THEN fee END AS q1 … GROUP BY branch</code>（沒有 SUM），在預設設定下會怎樣？</p>
+  <ul class="dopts"><li data-ok>ERROR 1055，quarter 沒聚合</li><li>每個分行回一列，值是第一筆</li><li>每個分行回一列，值全是 NULL</li><li>每一筆資料各自一列</li></ul>
+  <p class="dexp">預設的 ONLY_FULL_GROUP_BY 擋下沒聚合的欄位，實跑 ERROR 1055。CASE 外面要包聚合函式。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第九題</p>
+<h3 class="head">兩個集合的差：EXCEPT、NOT EXISTS、LEFT JOIN</h3>
+<p class="q">面試官：找出八月有交易、九月沒有交易的帳戶。</p>
+<p>這題跟〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉的「從沒當過轉帳對象」同一類（差集），那課已經講清楚 NOT IN 遇到 NULL 為什麼一列都不回；這裡補兩件事：MySQL 8.4 可以直接寫 EXCEPT，以及 NOT EXISTS 在執行計畫裡長什麼樣。交易表：</p>
+<pre><code>CREATE TABLE txn (
+  tx_id      INT PRIMARY KEY,
+  account_id INT NOT NULL,
+  tx_time    DATETIME NOT NULL,
+  amount     INT NOT NULL,
+  ref_acct   INT NULL          -- 轉帳對方帳號；存提款是 NULL
+);
+INSERT INTO txn VALUES
+  (1, 201, '2026-08-28 10:00',  3000, NULL), (2, 202, '2026-08-30 09:00',  5000, NULL),
+  (3, 203, '2026-08-31 15:00',  2000, NULL), (4, 201, '2026-09-01 09:30', -1000, 202),
+  (5, 202, '2026-09-01 09:30',  1000, 201),  (6, 201, '2026-09-03 12:00',  -500, NULL),
+  (7, 202, '2026-09-03 18:00', -2000, NULL), (8, 204, '2026-09-04 11:00',  4000, NULL),
+  (9, 202, '2026-09-04 11:00',   300, NULL), (10, 202, '2026-09-04 11:00', -100, NULL);</code></pre>
+<pre><code>SELECT account_id FROM txn WHERE tx_time &gt;= '2026-08-01' AND tx_time &lt; '2026-09-01'
+EXCEPT
+SELECT account_id FROM txn WHERE tx_time &gt;= '2026-09-01' AND tx_time &lt; '2026-10-01';
++------------+
+| account_id |
++------------+
+|        203 |
++------------+</code></pre>
+<p>手冊：EXCEPT「把第一個查詢的結果限制在第二個查詢裡找不到的那些列」（EXCEPT limits the result from the first query block to those rows which are (also) not found in the second.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/except.html" target="_blank" rel="noopener">出處</a> 沒寫 ALL 時結果會去重：手冊說集合運算「預設會移除重複的列」（By default, duplicate rows are removed from results of set operations.），寫 ALL 才保留。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/set-operations.html" target="_blank" rel="noopener">出處</a> 實跑 a 表 (1)、(1)、(2) EXCEPT b 表 (2)，得到一列 1；改 EXCEPT ALL 是兩列 1。NOT EXISTS 與 LEFT JOIN … IS NULL 的版本實跑結果相同（都要加 DISTINCT，因為同一帳戶八月可能有好幾筆），可以在任何資料庫跑，面試寫這兩種最保險。</p>
+<p>效能方面，手冊說從 8.0.17 起，NOT IN 與 NOT EXISTS 子查詢會被改寫成反連接（antijoin），也就是「只回傳找不到相符列的那些列」的運算（An antijoin is an operation that returns only rows for which there is no match.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/semijoins.html" target="_blank" rel="noopener">出處</a> 實跑「哪些帳戶從沒當過轉帳對象」的 EXPLAIN：</p>
+<pre><code>EXPLAIN FORMAT=TREE
+SELECT account_id FROM acct a WHERE NOT EXISTS (SELECT 1 FROM txn t WHERE t.ref_acct = a.account_id);
+
+-&gt; Nested loop antijoin  (cost=6.25 rows=50)
+    -&gt; Covering index scan on a using PRIMARY  (cost=0.75 rows=5)
+    -&gt; Single-row index lookup on &lt;subquery2&gt; using &lt;auto_distinct_key&gt; (ref_acct=a.account_id)  (cost=2.31..2.31 rows=1)
+        -&gt; Materialize with deduplication  (cost=2.25..2.25 rows=10)
+            -&gt; Filter: (t.ref_acct is not null)  (cost=1.25 rows=10)
+                -&gt; Table scan on t  (cost=1.25 rows=10)</code></pre>
+<p>（<code>acct</code> 是 201〜205 五個帳戶。）第一行就是 <code>Nested loop antijoin</code>：MySQL 自己把子查詢去重、建一個臨時的查找鍵，再逐一檢查每個帳戶「找不找得到」。同一題用 NOT IN 寫，因為 <code>ref_acct</code> 有 NULL，實跑一樣是 Empty set，原因見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉。</p>
+<p><strong>追問：索引。</strong>計畫裡的 <code>Table scan on t</code> 是因為 <code>ref_acct</code> 沒有索引，小表無所謂；交易表很大時，替 <code>ref_acct</code>（或八月九月那題的 <code>(account_id, tx_time)</code>）建索引，子查詢就能直接查找、不必整表掃。</p>
+
+<div class="drill">
+  <p class="dq">八月有交易的帳戶是 201、202、203，九月有交易的是 201、202、204。EXCEPT 的結果是？</p>
+  <ul class="dopts"><li>204</li><li>201、202</li><li data-ok>203</li><li>203、204</li></ul>
+  <p class="dexp">EXCEPT 留下「第一組有、第二組沒有」的：只有 203。204 是九月才出現，不在第一組。</p>
+</div>
+<div class="drill">
+  <p class="dq">八月有兩筆交易的 201，如果九月也沒交易，在 <code>… EXCEPT …</code>（沒寫 ALL）的結果裡出現幾次？</p>
+  <ul class="dopts"><li data-ok>1 次</li><li>2 次</li><li>0 次</li><li>要看執行計畫而定</li></ul>
+  <p class="dexp">EXCEPT 預設是 DISTINCT，結果會去重。要保留重複才寫 EXCEPT ALL。</p>
+</div>
+<div class="drill">
+  <p class="dq">EXPLAIN 第一行出現 <code>Nested loop antijoin</code>，意思是？</p>
+  <ul class="dopts"><li>查詢有語法錯誤</li><li>MySQL 把 NOT EXISTS 改成了 INNER JOIN</li><li data-ok>只回傳在子查詢裡找不到相符列的那些列</li><li>結果一定是空的</li></ul>
+  <p class="dexp">手冊：antijoin 是只回傳找不到相符列的運算；8.0.17 起 NOT IN 與 NOT EXISTS 子查詢會被改寫成反連接。</p>
+</div>
+<div class="drill">
+  <p class="dq">同一題用 <code>WHERE account_id NOT IN (SELECT ref_acct FROM txn)</code>，而 <code>ref_acct</code> 有 NULL。實跑結果是？</p>
+  <ul class="dopts"><li>203、204、205</li><li>201、202</li><li data-ok>Empty set</li><li>報錯</li></ul>
+  <p class="dexp">清單裡有 NULL，NOT IN 對找不到的帳戶算出 NULL 而不是 TRUE，全部被濾掉；NOT EXISTS 版實跑回 203、204、205。細節見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉。</p>
+</div>
+</section>
+
+<section>
+<p class="era">第十題</p>
+<h3 class="head">銀行情境：每個帳戶最新一筆交易、每日餘額</h3>
+<p class="q">面試官：用同一張交易表，列出每個帳戶最新的一筆交易。</p>
+<p>注意帳戶 202 在 9/4 11:00 有兩筆（tx 9 與 tx 10），時間完全相同。先看「JOIN 每組最大時間」的寫法：</p>
+<pre><code>SELECT t.account_id, t.tx_id, t.tx_time, t.amount
+FROM txn t
+JOIN (SELECT account_id, MAX(tx_time) AS last_time FROM txn GROUP BY account_id) m
+  ON m.account_id = t.account_id AND m.last_time = t.tx_time
+ORDER BY t.account_id, t.tx_id;
++------------+-------+---------------------+--------+
+| account_id | tx_id | tx_time             | amount |
++------------+-------+---------------------+--------+
+|        201 |     6 | 2026-09-03 12:00:00 |   -500 |
+|        202 |     9 | 2026-09-04 11:00:00 |    300 |
+|        202 |    10 | 2026-09-04 11:00:00 |   -100 |
+|        203 |     3 | 2026-08-31 15:00:00 |   2000 |
+|        204 |     8 | 2026-09-04 11:00:00 |   4000 |
++------------+-------+---------------------+--------+</code></pre>
+<p>202 出現兩次：兩筆都等於最大時間。題目若要「剛好一筆」，就用 ROW_NUMBER 並加第二排序鍵：</p>
+<pre><code>SELECT account_id, tx_id, tx_time, amount
+FROM (SELECT t.*, ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY tx_time DESC, tx_id DESC) AS rn
+      FROM txn t) x
+WHERE rn = 1
+ORDER BY account_id;
++------------+-------+---------------------+--------+
+| account_id | tx_id | tx_time             | amount |
++------------+-------+---------------------+--------+
+|        201 |     6 | 2026-09-03 12:00:00 |   -500 |
+|        202 |    10 | 2026-09-04 11:00:00 |   -100 |
+|        203 |     3 | 2026-08-31 15:00:00 |   2000 |
+|        204 |     8 | 2026-09-04 11:00:00 |   4000 |
++------------+-------+---------------------+--------+</code></pre>
+<p>「時間相同時交易編號大的算最新」是一個要講出來的假設；同一秒的兩筆，真正的先後要看系統怎麼產生編號。</p>
+<p><strong>追問：索引。</strong>建 <code>(account_id, tx_time, tx_id)</code> 複合索引後，「每個帳戶的最大時間」實跑的執行計畫是：</p>
+<pre><code>EXPLAIN FORMAT=TREE SELECT account_id, MAX(tx_time) FROM txn GROUP BY account_id;
+-&gt; Covering index skip scan for grouping on txn using idx_acct_time  (cost=1.5 rows=5)</code></pre>
+<p>這是手冊說的 Loose Index Scan：分組欄位在索引裡已經排好，MySQL 每個帳戶只要跳到它那一段的最後一筆（The most efficient way to process GROUP BY is when an index is used to directly retrieve the grouping columns.），不必讀完每個帳戶的所有交易。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-optimization.html" target="_blank" rel="noopener">出處</a> 帳戶有幾百萬、每戶交易很多時，這比整表算 ROW_NUMBER 省得多；正式系統也常直接在帳戶表維護一個「最後交易時間」欄位。</p>
+<p class="q">面試官：列出帳戶 201、202 在 9/1 到 9/4 每天的日終餘額，沒交易的日子也要有一列。</p>
+<p>只用交易表做累計是常見的寫錯：沒有交易的日子根本沒有列，實跑 201 只有 8/28、9/1、9/3 三列，9/2 與 9/4 不見了，8/28 也跑進來。正解是「日期序列 × 帳戶」先排好每一格，再把當天淨額接上去，用 SUM OVER 往下累計，最後加上期初餘額：</p>
+<pre><code>WITH RECURSIVE days AS (
+    SELECT DATE '2026-09-01' AS d
+    UNION ALL
+    SELECT d + INTERVAL 1 DAY FROM days WHERE d &lt; '2026-09-04'
+),
+opening AS (                                  -- 9/1 以前的餘額
+    SELECT account_id, SUM(amount) AS bal FROM txn WHERE tx_time &lt; '2026-09-01' GROUP BY account_id
+),
+daily AS (                                    -- 每天的淨額
+    SELECT account_id, DATE(tx_time) AS d, SUM(amount) AS net
+    FROM txn WHERE tx_time &gt;= '2026-09-01' AND tx_time &lt; '2026-09-05'
+    GROUP BY account_id, DATE(tx_time)
+),
+accts AS (SELECT DISTINCT account_id FROM txn)
+SELECT a.account_id, days.d,
+       COALESCE(o.bal, 0) + SUM(COALESCE(dl.net, 0)) OVER (PARTITION BY a.account_id ORDER BY days.d) AS closing
+FROM accts a
+CROSS JOIN days
+LEFT JOIN daily dl ON dl.account_id = a.account_id AND dl.d = days.d
+LEFT JOIN opening o ON o.account_id = a.account_id
+WHERE a.account_id IN (201, 202)
+ORDER BY a.account_id, days.d;
++------------+------------+---------+
+| account_id | d          | closing |
++------------+------------+---------+
+|        201 | 2026-09-01 |    2000 |
+|        201 | 2026-09-02 |    2000 |
+|        201 | 2026-09-03 |    1500 |
+|        201 | 2026-09-04 |    1500 |
+|        202 | 2026-09-01 |    6000 |
+|        202 | 2026-09-02 |    6000 |
+|        202 | 2026-09-03 |    4000 |
+|        202 | 2026-09-04 |    4200 |
++------------+------------+---------+</code></pre>
+<p>驗算 202：期初 5000，9/1 轉入 1000 是 6000，9/2 沒交易照舊，9/3 提款 2000 剩 4000，9/4 兩筆 +300、−100 是 4200。遞迴 CTE 產生日期序列的寫法與停止條件見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉。</p>
+<p><strong>追問：資料量大怎麼辦。</strong>每天從頭加一年份的交易太慢。正式的帳務系統會在日終批次把每個帳戶的餘額存成一張「日終餘額表」，查詢時直接讀；要補算某段期間，也只需要從上一個日終快照往後加。</p>
+
+<div class="drill">
+  <p class="dq">帳戶 202 有兩筆同時間的最新交易。「JOIN 每組最大時間」的寫法會回傳 202 幾列？</p>
+  <ul class="dopts"><li>1</li><li>0</li><li>3</li><li data-ok>2</li></ul>
+  <p class="dexp">兩筆的 tx_time 都等於 MAX(tx_time)，都配得上，實跑 tx 9 與 tx 10 都出現。要剛好一筆就改用 ROW_NUMBER 加第二排序鍵。</p>
+</div>
+<div class="drill">
+  <p class="dq"><code>ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY tx_time DESC, tx_id DESC)</code> 對 202 選了哪一筆？</p>
+  <ul class="dopts"><li data-ok>tx 10</li><li>tx 9</li><li>tx 7</li><li>不一定，每次不同</li></ul>
+  <p class="dexp">時間相同時再比 tx_id，由大到小，tx 10 拿到 rn = 1。有了第二排序鍵，結果就固定。</p>
+</div>
+<div class="drill">
+  <p class="dq">建 <code>(account_id, tx_time, tx_id)</code> 索引後，<code>SELECT account_id, MAX(tx_time) … GROUP BY account_id</code> 的計畫是 <code>Covering index skip scan for grouping</code>。這代表？</p>
+  <ul class="dopts"><li>索引沒用上，還是全表掃描</li><li>先把資料排序再分組</li><li data-ok>每組直接跳到該段最後一筆</li><li>每個帳戶都要讀完所有交易</li></ul>
+  <p class="dexp">這是 Loose Index Scan：分組欄位在索引裡排好，每組只取需要的那筆，資料量大時省很多。</p>
+</div>
+<div class="drill">
+  <p class="dq">只用交易表 <code>GROUP BY account_id, DATE(tx_time)</code> 再累計，為什麼算不出「每日餘額」？</p>
+  <ul class="dopts"><li>SUM OVER 不能配 GROUP BY</li><li>DATE() 會讓索引完全失效</li><li>累計一定要改用 ROWS 框架</li><li data-ok>沒交易的日子沒有列可算</li></ul>
+  <p class="dexp">實跑 201 只有 8/28、9/1、9/3 三列，9/2、9/4 不見。要先用日期序列 × 帳戶排好每一格，再接當天淨額。</p>
+</div>
+<div class="drill">
+  <p class="dq">每日餘額查詢裡，帳戶 202 在 9/2（沒有交易）那列的值是？</p>
+  <ul class="dopts"><li>0</li><li>NULL</li><li>5000</li><li data-ok>6000</li></ul>
+  <p class="dexp">當天淨額 COALESCE 成 0，累計沿用前一天：期初 5000 加 9/1 的 1000，是 6000。</p>
+</div>
+</section>
+
+<section>
+<p class="era">刷題清單</p>
+<h3 class="head">動手練</h3>
+<div class="tablewrap"><table><thead><tr><th>題號＋題名</th><th>對應本課</th><th>難度</th></tr></thead><tbody>
+<tr><td><a href="https://leetcode.com/problems/second-highest-salary/" target="_blank" rel="noopener">176. Second Highest Salary</a></td><td>第一題的 N＝2</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/nth-highest-salary/" target="_blank" rel="noopener">177. Nth Highest Salary</a></td><td>第一題：函式、LIMIT 變數</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/department-highest-salary/" target="_blank" rel="noopener">184. Department Highest Salary</a></td><td>第二題：每部門最高、同分都列</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/department-top-three-salaries/" target="_blank" rel="noopener">185. Department Top Three Salaries</a></td><td>第二題：前三種薪資</td><td>Hard</td></tr>
+<tr><td><a href="https://leetcode.com/problems/consecutive-numbers/" target="_blank" rel="noopener">180. Consecutive Numbers</a></td><td>第三題</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/rising-temperature/" target="_blank" rel="noopener">197. Rising Temperature</a></td><td>第四題</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/delete-duplicate-emails/" target="_blank" rel="noopener">196. Delete Duplicate Emails</a></td><td>第五題</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/restaurant-growth/" target="_blank" rel="noopener">1321. Restaurant Growth</a></td><td>第六題：七日移動平均</td><td>Medium</td></tr>
+<tr><td><a href="https://leetcode.com/problems/reformat-department-table/" target="_blank" rel="noopener">1179. Reformat Department Table</a></td><td>第八題：列轉欄</td><td>Easy</td></tr>
+<tr><td><a href="https://leetcode.com/problems/customers-who-never-order/" target="_blank" rel="noopener">183. Customers Who Never Order</a></td><td>第九題：差集</td><td>Easy</td></tr>
+</tbody></table></div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>手寫題先問邊界：同分怎麼算、沒有時回空還是 NULL、「前一天」是日曆還是前一筆；寫完自己帶同分、缺號、缺日期、NULL 走一遍，再主動補索引與資料量。</li><li>第 N 高：LIMIT 不接受運算式，函式裡先 SET N = N - 1；要宣告 READS SQL DATA 等特性，否則 ERROR 1418；DISTINCT 不能省；純量子查詢沒有列就是 NULL。</li><li>每組前 N 種薪資用 DENSE_RANK，ROW_NUMBER 會砍掉同分後的人；相關子查詢要數 COUNT(DISTINCT 薪資)。</li><li>LAG 拿前一列、不是前一天：缺日期時會比錯，自我連接用日期 − INTERVAL 1 DAY；連續分段用「整體列號 − 分組內列號」，ROW_NUMBER 是 UNSIGNED，相減為負會報 1690。</li><li>刪重複：DELETE 的子查詢不能讀同一張表（1093），用多表 DELETE 自我連接或包一層有 GROUP BY 的衍生資料表；清完加唯一索引；多表 DELETE 不能 LIMIT，大表依主鍵範圍分批。</li><li>移動平均用 RANGE … INTERVAL n DAY，ROWS 數的是列；同比是跟去年同月、環比是跟上個月，用日期自我連接找比較期，LAG(…, 12) 在缺月份時會錯；分母用 NULLIF 防 0。</li><li>列轉欄＝CASE WHEN 加聚合再 GROUP BY，計數不要寫 ELSE 0；差集可用 EXCEPT、NOT EXISTS、LEFT JOIN，NOT EXISTS 會被改寫成 antijoin；最新一筆要防同時間、加第二排序鍵，(account_id, tx_time, tx_id) 索引讓分組取最大值變 Loose Index Scan；每日餘額要先排日期 × 帳戶再累計。</li></ul></div>
