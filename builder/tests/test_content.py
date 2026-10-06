@@ -54,6 +54,18 @@ class TestContent(unittest.TestCase):
                             self.assertIsNone(re.search(r'<[a-zA-Z/?]', s),
                                               '角括號要寫成 &lt; &gt;')
 
+    def test_pre_wraps_code(self):
+        """程式碼的淺色字與字型掛在 pre code 上；只寫 <pre> 會變成深底深字、看不見。"""
+        import re
+        _, mods = load_modules()
+        for mod in mods:
+            for L in mod['lessons']:
+                lf = CONTENT / mod['id'] / L['dir'] / 'lesson.html'
+                html = lf.read_text(encoding='utf-8')
+                for m in re.finditer(r'<pre(?:\s[^>]*)?>\s*(?!<code)', html):
+                    with self.subTest(lesson=str(lf), at=m.start()):
+                        self.fail('<pre> 裡要包 <code>')
+
     def test_quiz_format(self):
         _, mods = load_modules()
         for mod in mods:
