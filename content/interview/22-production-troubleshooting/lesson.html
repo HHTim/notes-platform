@@ -61,7 +61,7 @@
 <div class="drill">
   <p class="dq">「四個黃金訊號」是哪四個？</p>
   <ul class="dopts"><li>CPU、記憶體、磁碟、網路</li><li data-ok>延遲、流量、錯誤、飽和</li><li>日誌、指標、追蹤、告警</li><li>可用率、吞吐量、成本、安全</li></ul>
-  <p class="dexp">SRE 書第 6 章的四個黃金訊號是延遲、流量、錯誤與飽和；日誌、指標、追蹤是可觀測性的三種訊號。</p>
+  <p class="dexp">SRE 書第 6 章的四個黃金訊號是延遲、流量、錯誤與飽和；日誌、指標、追蹤是可觀測性的三種訊號。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
 </div>
 </section>
 
@@ -71,7 +71,7 @@
 <p class="q">面試官：線上某台機器的 Java 服務 CPU 一直 100%，你怎麼查？</p>
 <p>標準三步〈Linux 常用指令與線上排查〉已經實跑過：<code>top</code> 找到行程 → <code>top -H -p &lt;pid&gt;</code> 找到最吃 CPU 的執行緒 → 用執行緒 ID 到 <code>jstack</code>（或 <code>jcmd &lt;pid&gt; Thread.print</code>）裡找 <code>nid</code>，看到程式行。那一課也實測了：JDK 21 起 <code>nid</code> 直接印十進位，跟 <code>top -H</code> 的 ID 一樣；JDK 17、11 才要先用 <code>printf '%x'</code> 換成十六進位。面試時把這三步講完，再補一句「先看清楚吃 CPU 的是哪一種執行緒」，就比只背指令多一層。</p>
 <p>因為吃 CPU 的不一定是業務程式。下面的程式模擬一個「快取抓著快塞滿堆的資料、同時還在不停配置短命物件」的服務，在限 2 顆 CPU 的容器裡用 <code>-Xmx256m</code> 跑：</p>
-<pre>public class GcBurn {
+<pre><code>public class GcBurn {
     static final List&lt;byte[]&gt; CACHE = new ArrayList&lt;&gt;();   // 活物件：快把堆塞滿
     static volatile byte[] sink;
 
@@ -87,9 +87,9 @@
     }
 }
 // docker run --cpus=2 … java -Xmx256m -Xlog:gc:file=/w/gc.log GcBurn
-// CACHE 抓著 231 MB，堆上限 256 MB</pre>
+// CACHE 抓著 231 MB，堆上限 256 MB</code></pre>
 <p>先照標準步驟看：</p>
-<pre>$ top -b -n 2 -d 2 -p 26（取第二輪畫面）
+<pre><code>$ top -b -n 2 -d 2 -p 26（取第二輪畫面）
     PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
      26 root      20   0 3135512 342680  21112 S 110.0   4.2   0:51.44 java
 
@@ -106,10 +106,10 @@ $ jcmd 26 Thread.print | grep -E '^"(main|GC Thread#[01]|VM Thread|G1 Conc#0)"'
 "GC Thread#1" os_prio=0 cpu=8793.78ms elapsed=53.04s tid=0x0000ffff6c006050 nid=44 runnable
 "VM Thread" os_prio=0 cpu=13140.34ms elapsed=53.05s tid=0x0000ffffac1d9730 nid=34 runnable
 "G1 Conc#0" os_prio=0 cpu=12211.69ms elapsed=53.06s tid=0x0000ffffac153720 nid=30 runnable
-"GC Thread#0" os_prio=0 cpu=8767.84ms elapsed=53.06s tid=0x0000ffffac14f300 nid=28 runnable</pre>
+"GC Thread#0" os_prio=0 cpu=8767.84ms elapsed=53.06s tid=0x0000ffffac14f300 nid=28 runnable</code></pre>
 <p>最吃 CPU 的五條裡，只有 <code>main</code>（nid 27）是業務程式；其他四條都是 JVM 自己的執行緒。OpenJDK 的 HotSpot 執行期概觀說，VM Thread「負責執行 VM 操作」（responsible for executing VM operations），最為人熟知的 VM 操作就是垃圾回收裡「停住整個世界」的那一段（the “stop-the-world” phase of garbage collection）；GC 執行緒則「支援平行與並行的垃圾回收」（support parallel and concurrent garbage collection）。<a class="fixsrc" href="https://openjdk.org/groups/hotspot/docs/RuntimeOverview.html" target="_blank" rel="noopener">出處</a> 這時候再對 <code>main</code> 印堆疊，只會看到它在 <code>new byte[]</code>，找不到「哪個迴圈寫錯」。</p>
 <p>要往記憶體方向查。<code>jstat -gcutil</code> 每秒取樣一次（各欄意思見〈JVM 記憶體與垃圾回收〉）：</p>
-<pre>$ jstat -gcutil 26 1000 4
+<pre><code>$ jstat -gcutil 26 1000 4
   S0     S1     E      O      M     CCS    YGC     YGCT     FGC    FGCT     CGC    CGCT       GCT
      -   6.25  91.83  95.96  51.73   8.43 108700    26.339     0     0.000 20186     2.228    28.566
      -   6.25   0.00  95.96  51.73   8.43 110960    26.866     0     0.000 20592     2.271    29.137
@@ -119,7 +119,7 @@ $ jcmd 26 Thread.print | grep -E '^"(main|GC Thread#[01]|VM Thread|G1 Conc#0)"'
 $ tail -3 gc.log
 [53.122s][info][gc] GC(126526) Pause Young (Normal) (G1 Evacuation Pause) 244M-&gt;232M(256M) 0.245ms
 [53.122s][info][gc] GC(126527) Pause Young (Normal) (G1 Evacuation Pause) 244M-&gt;232M(256M) 0.220ms
-[53.122s][info][gc] GC(126528) Pause Young (Normal) (G1 Evacuation Pause) 244M-&gt;232M(256M) 0.211ms</pre>
+[53.122s][info][gc] GC(126528) Pause Young (Normal) (G1 Evacuation Pause) 244M-&gt;232M(256M) 0.211ms</code></pre>
 <p>三個數字就夠下判斷：老年代（O）一直是 96%；年輕代回收（YGC）每秒多 2,300 次左右；回收累計時間（GCT）每過 1 秒就多 0.57 秒，等於一半以上的時間在回收。GC 日誌（<code>-Xlog:gc:檔名</code>，java 手冊的寫法<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a>）每一行都是 244M 回收到 232M：每次只騰出 12 MB，因為其他都是活的。每次停頓只有 0.2 毫秒，但次數多到把 CPU 吃掉。</p>
 <div class="tablewrap"><table><thead><tr><th>top -H 看到吃 CPU 的是</th><th>代表</th><th>下一步</th></tr></thead><tbody>
 <tr><th>業務執行緒（名字像 http-nio-…、自己取的名字）</th><td>程式本身在算，例如迴圈少了結束條件、一次處理太多資料</td><td>對 nid 看堆疊，連看兩三次，固定停在同一行就是它</td></tr>
@@ -166,20 +166,26 @@ $ tail -3 gc.log
 <li><code>-XX:HeapDumpPath=路徑</code>：寫到哪裡。沒設時寫在目前目錄，檔名 <code>java_pid&lt;pid&gt;.hprof</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
 <li><code>-XX:+Exit<wbr>On<wbr>Out<wbr>Of<wbr>Memory<wbr>Error</code>：JDK 8u92 加入，「第一次發生記憶體不足錯誤時 JVM 就結束」，說明寫著適合「寧可重啟 JVM 實體、也不想在程式裡處理記憶體不足」的情況。<a class="fixsrc" href="https://www.oracle.com/java/technologies/javase/8u92-relnotes.html" target="_blank" rel="noopener">出處</a> 不加的話，OutOfMemoryError 只會結束丟出它的那條執行緒，行程可能還活著（下面實跑）。</li>
 </ul>
-<pre>// 只有 worker 執行緒在配置記憶體，main 等它結束
+<pre><code>// 只有 worker 執行緒在配置記憶體，main 等它結束
 Thread worker = new Thread(() -&gt; {
     List&lt;byte[]&gt; keep = new ArrayList&lt;&gt;();
     while (true) keep.add(new byte[1024 * 1024]);
 }, "worker");
 worker.start();
 worker.join();
-System.out.println("worker 已結束（" + worker.getState() + "），main 還在跑");
+for (int i = 1; i &lt;= 3; i++) {
+    System.out.println("worker 已結束（" + worker.getState() + "），main 還在跑：第 " + i + " 秒");
+    Thread.sleep(1000);
+}
 // java -Xmx64m Survive.java
 // Exception in thread "worker" java.lang.OutOfMemoryError: Java heap space
-// worker 已結束（TERMINATED），main 還在跑（之後每秒印一次，行程結束碼 0）</pre>
+// worker 已結束（TERMINATED），main 還在跑：第 1 秒
+// worker 已結束（TERMINATED），main 還在跑：第 2 秒
+// worker 已結束（TERMINATED），main 還在跑：第 3 秒
+// 印三次後正常結束，結束碼 0</code></pre>
 <p>正式服務裡，那條死掉的執行緒可能是處理請求或消費佇列的那一條，行程看起來還活著，事情卻沒人做。所以寧可讓它結束、交給重啟政策重開。</p>
 <p>下面的程式模擬一個常見的銀行情境：用 Map 記住處理過的冪等鍵（idempotency key，同一個請求重送時用來認出「這筆做過了」的編號），卻忘了設過期，Map 只進不出：</p>
-<pre>public class IdemCache {
+<pre><code>public class IdemCache {
     record Result(String key, int status, byte[] body) {}
 
     // 記住處理過的冪等鍵與回應，避免重送時重複轉帳；但忘了設過期
@@ -199,9 +205,9 @@ System.out.println("worker 已結束（" + worker.getState() + "），main 還�
             }
         }
     }
-}</pre>
+}</code></pre>
 <p>用 Docker 的重啟政策模擬「掛了就自動重開」：<code>--restart=<wbr>on-<wbr>failure:2</code>，文件說 on-failure 是「容器因錯誤結束（結束碼不是 0）時重啟」，冒號後面限制最多重試幾次。<a class="fixsrc" href="https://docs.docker.com/engine/containers/start-containers-automatically/" target="_blank" rel="noopener">出處</a> 第一次照常見寫法，把 dump 寫進一個固定的資料夾：</p>
-<pre>$ docker run --restart=on-failure:2 -v $PWD:/w -w /w eclipse-temurin:21 \
+<pre><code>$ docker run --restart=on-failure:2 -v $PWD:/w -w /w eclipse-temurin:21 \
     java -Xmx64m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/w/dumps -XX:+ExitOnOutOfMemoryError IdemCache
 java.lang.OutOfMemoryError: Java heap space
 Dumping heap to /w/dumps/java_pid1.hprof ...
@@ -213,20 +219,20 @@ Unable to create /w/dumps/java_pid1.hprof: File exists
 Terminating due to java.lang.OutOfMemoryError: Java heap space
 （第三次同上）
 $ docker inspect … --format '{{.RestartCount}} {{.State.ExitCode}}'
-2 3</pre>
-<p>第二次、第三次的 dump 都<strong>沒有寫出來</strong>：容器裡的 JVM 每次都是 1 號行程，預設檔名每次都是 <code>java_pid1.hprof</code>，檔案已經存在就不寫。正式環境的後果是：第一次出事留下的那份還在，之後每次出事都沒有新檔案。手冊裡的 <code>%p</code>（代入行程 ID）在容器裡也幫不上忙，因為每次都是 1。實跑改成由啟動指令在每次啟動時產生不同的檔名：</p>
-<pre>$ docker run --restart=on-failure:2 … eclipse-temurin:21 bash -c \
+2 3</code></pre>
+<p>第二次、第三次的 dump 都<strong>沒有寫出來</strong>：容器裡的 JVM 每次都是 1 號行程，預設檔名每次都是 <code>java_pid1.hprof</code>，檔案已經存在就不寫。正式環境的後果是：第一次出事留下的那份還在，之後每次出事都沒有新檔案。手冊說 <code>%p</code> 代表行程 ID，但它也幫不上忙：Java 21 實測 <code>%p</code> 不會被代換，檔名就是字面上的 <code>heap-%p.hprof</code>；Java 25 會代換成行程 ID，但容器裡每次都是 1，一樣撞名。實跑改成由啟動指令在每次啟動時產生不同的檔名：</p>
+<pre><code>$ docker run --restart=on-failure:2 … eclipse-temurin:21 bash -c \
     'exec java -Xmx64m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/w/dumps2/heap-$(date +%s%N).hprof -XX:+ExitOnOutOfMemoryError IdemCache'
 Dumping heap to /w/dumps2/heap-1791270741648331378.hprof ...
 Heap dump file created [70318632 bytes in 0.060 secs]
 Dumping heap to /w/dumps2/heap-1791270742066077128.hprof ...
 Heap dump file created [70300757 bytes in 0.059 secs]
 Dumping heap to /w/dumps2/heap-1791270742570162295.hprof ...
-Heap dump file created [70296322 bytes in 0.051 secs]</pre>
+Heap dump file created [70296322 bytes in 0.051 secs]</code></pre>
 <p>三次都留下來了。只用秒當檔名不夠：實跑時重啟太快，兩次落在同一秒，第二份一樣寫不出來。另外兩件事一起講：實跑 64 MB 的堆寫出 70 MB 的 dump，大小跟堆用量同一個量級，正式環境 4 GB 的堆就是好幾 GB 的檔案，要寫到空間夠、而且容器重啟後還在的地方（掛載的磁碟），不然它會變成下一個「磁碟滿了」；結束碼 3 是這次實跑看到的值，非 0 所以 Docker 的 on-failure 會重開。</p>
 
 <p><strong>分析 dump。</strong>用 Eclipse Memory Analyzer（MAT，Eclipse 基金會的 heap dump 分析工具）。它也能不開視窗、用批次模式跑出報告，文件的寫法是 <code>ParseHeapDump.sh myheapdump.hprof org.<wbr>eclipse.<wbr>mat.<wbr>api:suspects</code>。<a class="fixsrc" href="https://help.eclipse.org/latest/topic/org.eclipse.mat.ui.help/tasks/batch.html" target="_blank" rel="noopener">出處</a> 「嫌疑報告」（Leak Suspects）的做法是從支配樹（dominator tree，「拿掉這個物件，有哪些物件會跟著變成垃圾」排成的樹）最上層的大物件看起，一個物件留住的記憶體超過一定比例（預設 10%）就列為嫌疑。<a class="fixsrc" href="https://help.eclipse.org/latest/topic/org.eclipse.mat.ui.help/tasks/runningleaksuspectreport.html" target="_blank" rel="noopener">出處</a> 對第一份 dump 實跑 MAT 1.17.0（節錄）：</p>
-<pre>$ ./ParseHeapDump.sh heap.hprof org.eclipse.mat.api:suspects
+<pre><code>$ ./ParseHeapDump.sh heap.hprof org.eclipse.mat.api:suspects
 Problem Suspect 1
 One instance of java.util.concurrent.ConcurrentHashMap$Node[] loaded by &lt;system class loader&gt;
 occupies 65,407,952 (98.39%) bytes. The top consumers of its minimum retained heap are
@@ -234,12 +240,12 @@ byte[] (59,884 instances totaling 62,750,432), java.util.concurrent.ConcurrentHa
 (29,942 instances totaling 958,144), and java.lang.String (29,942 instances totaling 718,608).
 The instance is referenced by java.lang.Thread @ 0xfd0dba38 main
 Significant stack frames and local variables
-java.util.concurrent.ConcurrentHashMap.computeIfAbsent(…) (ConcurrentHashMap.java:1708)</pre>
+java.util.concurrent.ConcurrentHashMap.computeIfAbsent(…) (ConcurrentHashMap.java:1708)</code></pre>
 <p>讀法：一個 ConcurrentHashMap 內部的陣列留住了 98% 的堆，裡面是將近 3 萬個節點，各帶一個 byte[]。這裡的「留住」是 MAT 的保留大小（retained heap，這個物件被回收時會跟著一起被回收的總量）。<a class="fixsrc" href="https://help.eclipse.org/latest/topic/org.eclipse.mat.ui.help/concepts/shallowretainedheap.html" target="_blank" rel="noopener">出處</a> 但報告說它「被 main 執行緒參考」，是因為 OOM 發生的當下，<code>computeIfAbsent</code> 正好把那個陣列放在區域變數裡；真正讓它一直活著的是誰，要再往上追。MAT 的「Path to GC Roots」查詢就是「找出是誰讓這個物件活著」（Find out who is keeping alive a single object）。<a class="fixsrc" href="https://help.eclipse.org/latest/topic/org.eclipse.mat.ui.help/reference/inspections/path_to_gc_roots.html" target="_blank" rel="noopener">出處</a> 對那個 Map 本身跑一次：</p>
-<pre>$ ./ParseHeapDump.sh heap.hprof "-command=path2gc 0xfd1e6040" org.eclipse.mat.api:query
+<pre><code>$ ./ParseHeapDump.sh heap.hprof "-command=path2gc 0xfd1e6040" org.eclipse.mat.api:query
 java.util.concurrent.ConcurrentHashMap @ 0xfd1e6040
 + &lt;Java Local&gt; java.lang.Thread @ 0xfd0dba38 main Thread
-+ SEEN class IdemCache @ 0xfd1e6338</pre>
++ SEEN class IdemCache @ 0xfd1e6338</code></pre>
 <p>第二條路徑就是答案：類別 IdemCache 的靜態欄位 SEEN。靜態欄位跟著類別一直活著，所以 Map 裡的東西永遠不會變成垃圾（為什麼見〈JVM 記憶體與垃圾回收〉的「記憶體洩漏的常見來源」）。修法是讓冪等鍵有上限與過期時間，或改放在 Redis 這類可以設存活時間的地方；只加大 <code>-Xmx</code> 只會讓它晚一點爆。</p>
 <p>銀行特別要注意：heap dump 是整個堆的內容，帳號、金額、權杖都在裡面。MAT 的匯出功能可以另存一份遮蔽過的 dump，文件說 BASIC 選項會遮掉 char、byte 陣列等資料，「降低密碼或其他敏感資料被分析者讀到的風險」（to reduce the risk of passwords or other sensitive data being read by anyone analyzing the newly generated HPROF file）。<a class="fixsrc" href="https://help.eclipse.org/latest/topic/org.eclipse.mat.ui.help/tasks/exportdump.html" target="_blank" rel="noopener">出處</a> 面試時提一句「dump 檔照客戶資料的規格保管」，是加分的細節。</p>
 <p class="formula">事先開自動 dump、檔名每次不同、寫到夠大且留得住的地方；MAT 先看嫌疑報告，再對嫌疑物件追 GC Root</p>
@@ -252,7 +258,7 @@ java.util.concurrent.ConcurrentHashMap @ 0xfd1e6040
 <div class="drill">
   <p class="dq">為了讓每次的 dump 檔名不同，下面哪個做法在容器裡<strong>沒有</strong>用？</p>
   <ul class="dopts"><li>啟動指令用 $(date +%s%N) 組檔名</li><li data-ok>在 HeapDumpPath 裡用 %p</li><li>每次啟動前把舊的 dump 搬走</li><li>檔名加上容器的主機名稱與奈秒時間</li></ul>
-  <p class="dexp">%p 代入行程 ID，但容器裡每次都是 1，檔名還是一樣。用秒也可能撞名：實跑重啟太快，兩次落在同一秒。</p>
+  <p class="dexp">Java 21 實測 %p 不會被代換，檔名就是字面上的 %p；Java 25 會代換成行程 ID，但容器裡每次都是 1，檔名還是一樣。用秒也可能撞名：實跑重啟太快，兩次落在同一秒。</p>
 </div>
 <div class="drill">
   <p class="dq">K8s 上 Pod 狀態顯示 reason: OOMKilled、結束碼 137。下面哪個說法對？</p>
@@ -287,7 +293,7 @@ java.util.concurrent.ConcurrentHashMap @ 0xfd1e6040
 <p class="q">面試官：查餘額 API 的 P99 從 50 毫秒變成 2 秒，偶爾還有 500。你怎麼查？</p>
 <p>P99 是第 99 百分位：把一段時間內的請求從快到慢排好，第 99% 那個請求花的時間。它變慢代表最慢的那一批人等很久，平均值可能看不出來。回答順序：先看是全部 API 都慢、還是只有某幾支；再看飽和度（執行緒池、連線池、CPU）；最後才看某條 SQL。</p>
 <p>實跑重現：Spring Boot 4.1.1 的查帳服務，兩支 API 共用一個 HikariCP（Java 的資料庫連線池套件）連線池，最多 5 條連線、借連線最多等 2 秒。查餘額是主鍵查詢，很快；對帳單要在 400 萬列的交易表裡找某個帳號，而 <code>account_id</code> 沒有索引：</p>
-<pre>@GetMapping("/balance/{id}")              // 查餘額：主鍵查詢，很快
+<pre><code>@GetMapping("/balance/{id}")              // 查餘額：主鍵查詢，很快
 BigDecimal balance(@PathVariable int id) {
     return jdbc.queryForObject("SELECT balance FROM account WHERE id = ?", BigDecimal.class, id);
 }
@@ -301,17 +307,17 @@ Map&lt;String, Object&gt; statement(@PathVariable int id) {
 # application.properties
 spring.datasource.hikari.maximum-pool-size=5
 spring.datasource.hikari.connection-timeout=2000
-management.metrics.distribution.percentiles.http.server.requests=0.5,0.99</pre>
+management.metrics.distribution.percentiles.http.server.requests=0.5,0.99</code></pre>
 <p>用一支自己寫的壓測程式，每條執行緒送完一個請求休息 20 毫秒再送下一個。平常只有 10 條執行緒查餘額；出事時另外有 35 條執行緒在拉對帳單（例如月初大家都在看帳單）：</p>
-<pre>== 平常（15 秒）
+<pre><code>== 平常（15 秒）
 /balance   請求  6291，失敗    0，p50     0 ms，p99     4 ms，最慢    44 ms
 == 出事（20 秒）
 /balance   請求   116，失敗   28，p50  1861 ms，p99  2010 ms，最慢  2063 ms
-/statement 請求   355，失敗   31，p50  2078 ms，p99  2347 ms，最慢  2379 ms</pre>
+/statement 請求   355，失敗   31，p50  2078 ms，p99  2347 ms，最慢  2379 ms</code></pre>
 <p>查餘額自己的 SQL 沒變，P99 卻從 4 毫秒變成 2 秒，還有 28 次失敗。服務日誌裡的例外：</p>
-<pre>java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 2000ms (total=5, active=5, idle=0, waiting=39)
+<pre><code>java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 2000ms (total=5, active=5, idle=0, waiting=39)
 	at com.zaxxer.hikari.pool.HikariPool.createTimeoutException(HikariPool.java:714) ~[HikariCP-7.0.2.jar!/:na]
-	at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:184) ~[HikariCP-7.0.2.jar!/:na]</pre>
+	at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:184) ~[HikariCP-7.0.2.jar!/:na]</code></pre>
 <p>括號裡就是連線池當下的狀態：5 條全部借出去（active=5）、沒有空的（idle=0）、39 個執行緒在排隊（waiting=39）。HikariCP 文件：<code>connectionTimeout</code> 是「客戶端等連線池給連線的最長毫秒數，超過還沒有可用的連線就丟 SQLException」，預設 30000（30 秒）。<a class="fixsrc" href="https://github.com/brettwooldridge/HikariCP/blob/HikariCP-7.0.2/README.md" target="_blank" rel="noopener">出處</a> 這次設成 2 秒，所以 P99 剛好卡在 2 秒附近；用預設值的話，使用者會等到 30 秒才看到錯誤。</p>
 
 <figure>
@@ -343,29 +349,29 @@ management.metrics.distribution.percentiles.http.server.requests=0.5,0.99</pre>
 </figure>
 
 <p><strong>指標怎麼看。</strong>Spring Boot 文件：HikariCP 專屬的指標以 <code>hikaricp</code> 開頭，依連線池名稱加標籤；<code>management.<wbr>metrics.<wbr>distribution.<wbr>percentiles</code> 是「發佈在應用程式裡算好的百分位數」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a> 出事期間從 Actuator 取樣：</p>
-<pre>GET /actuator/metrics/hikaricp.connections.active   → 5.0
+<pre><code>GET /actuator/metrics/hikaricp.connections.active   → 5.0
 GET /actuator/metrics/hikaricp.connections.idle     → 0.0
 GET /actuator/metrics/hikaricp.connections.pending  → 40.0
-GET /actuator/metrics/http.server.requests.percentile?tag=uri:/balance/{id}&amp;tag=phi:0.99 → 1.95（秒）</pre>
+GET /actuator/metrics/http.server.requests.percentile?tag=uri:/balance/{id}&amp;tag=phi:0.99 → 1.95（秒）</code></pre>
 <p>pending 是排隊等連線的執行緒數（指標說明寫 Pending threads），平常應該接近 0。在應用程式裡算好的百分位數不能跨多台機器加總：同一頁文件把「適合算出可彙總百分位數近似值」的直方圖另外列成 <code>percentiles-<wbr>histogram</code>，多台要看整體 P99 用的是它，做法見〈可觀測性：Micrometer、Prometheus 與 OpenTelemetry〉。</p>
 <p><strong>再往下找是哪條 SQL。</strong>MySQL 的慢查詢日誌記錄「執行超過 long_query_time 秒」的 SQL；每筆紀錄的 Rows_examined 是「伺服器層檢查過的列數」。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/slow-query-log.html" target="_blank" rel="noopener">出處</a> 實驗把 long_query_time 設成 0.2 秒：</p>
-<pre># Query_time: 0.325116  Lock_time: 0.000000 Rows_sent: 1  Rows_examined: 4000000
+<pre><code># Query_time: 0.325116  Lock_time: 0.000000 Rows_sent: 1  Rows_examined: 4000000
 SELECT COUNT(*) AS n, SUM(amount) AS total FROM txn WHERE account_id = 10 AND created_at &gt;= '2026-09-01';
 
 mysql&gt; EXPLAIN SELECT … FROM txn WHERE account_id = 4242 AND created_at &gt;= '2026-09-01';
-type: ALL   possible_keys: NULL   rows: 3989118</pre>
+type: ALL   possible_keys: NULL   rows: 3989118</code></pre>
 <p>注意數字：每條對帳單的 SQL 只花 0.3 秒，但 API 等了 2 秒。慢查詢日誌只會告訴你「哪條 SQL 吃資源」，使用者感受到的另外 1.7 秒是在連線池前面排隊。只看慢查詢日誌會以為「0.3 秒還好」，只看 API 延遲會以為「資料庫很慢」，兩邊對起來才看得出是 0.3 秒的查詢把 5 條連線佔滿了。EXPLAIN 的 type: ALL 是全表掃描（見〈索引是怎麼運作的〉）。</p>
 <p><strong>止血與修正。</strong>止血可以先限流對帳單（見〈韌性模式：Resilience4j 的斷路器、重試與限流〉），讓查餘額先恢復。根因是缺索引：</p>
-<pre>mysql&gt; CREATE INDEX idx_txn_account_created ON txn (account_id, created_at);
+<pre><code>mysql&gt; CREATE INDEX idx_txn_account_created ON txn (account_id, created_at);
 mysql&gt; EXPLAIN …   → type: range   key: idx_txn_account_created   rows: 400
 
 == 加索引後，同樣 10＋35 條執行緒（20 秒）
 /balance   請求  8675，失敗    0，p50     0 ms，p99     4 ms，最慢    75 ms
-/statement 請求 29634，失敗    0，p50     1 ms，p99     5 ms，最慢    73 ms</pre>
+/statement 請求 29634，失敗    0，p50     1 ms，p99     5 ms，最慢    73 ms</code></pre>
 <p>常見的錯誤答案是「把連線池開大」。HikariCP 的連線池大小說明頁有一條原則：「你要的是一個小的連線池，讓其他執行緒在池子前面排隊」（You want a small pool, saturated with threads waiting for connections），並給出起點公式 <code>connections = ((core_count * 2) + effective_<wbr>spindle_<wbr>count)</code>，要用自己的負載測過再調。<a class="fixsrc" href="https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing" target="_blank" rel="noopener">出處</a> 池子開大，資料庫同時跑更多條全表掃描，只是把排隊從應用程式搬到資料庫裡。</p>
 
 <p><strong>另一種借光：連線借了沒還。</strong>同一個服務加一支「匯出」API，自己跟 DataSource 拿連線，卻忘了關：</p>
-<pre>@GetMapping("/export/{id}")               // 匯出：自己拿連線，卻忘了關
+<pre><code>@GetMapping("/export/{id}")               // 匯出：自己拿連線，卻忘了關
 String export(@PathVariable int id) throws Exception {
     Connection c = ds.getConnection();
     PreparedStatement ps = c.prepareStatement("SELECT balance FROM account WHERE id = ?");
@@ -374,16 +380,16 @@ String export(@PathVariable int id) throws Exception {
     rs.next();
     return rs.getString(1);
 }
-# 加上 spring.datasource.hikari.leak-detection-threshold=2000</pre>
+# 加上 spring.datasource.hikari.leak-detection-threshold=2000</code></pre>
 <p>呼叫 5 次匯出之後，再查一次餘額，沒有任何其他流量：</p>
-<pre>$ curl localhost:18322/balance/1   → HTTP 500，2.02 秒
+<pre><code>$ curl localhost:18322/balance/1   → HTTP 500，2.02 秒
 GET /actuator/metrics/hikaricp.connections.active   → 5.0
 GET /actuator/metrics/hikaricp.connections.pending  → 0.0
 WARN … ProxyLeakTask : Connection leak detection triggered for com.mysql.cj.jdbc.ConnectionImpl@f0a1bb2 on thread http-nio-18322-exec-2, stack trace follows
 java.lang.Exception: Apparent connection leak detected
 	at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:127) ~[HikariCP-7.0.2.jar!/:na]
 	at demo.TellerApp.export(TellerApp.java:38) ~[!/:1.0]
-java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 2006ms (total=5, active=5, idle=0, waiting=0)</pre>
+java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available, request timed out after 2006ms (total=5, active=5, idle=0, waiting=0)</code></pre>
 <p>HikariCP 文件：<code>leak<wbr>Detection<wbr>Threshold</code> 是「一條連線離開連線池多久之後，記一筆可能洩漏的訊息」，0 表示關閉（預設），最小可設 2000 毫秒。<a class="fixsrc" href="https://github.com/brettwooldridge/HikariCP/blob/HikariCP-7.0.2/README.md" target="_blank" rel="noopener">出處</a> 警告裡的堆疊直接指到 <code>TellerApp.java:38</code>，就是拿連線的那一行。修法是用 try-<wbr>with-<wbr>resources 把連線關掉，或交給 JdbcTemplate 管。兩種借光的分法：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>慢查詢佔住連線</th><th>連線借了沒還</th></tr></thead><tbody>
 <tr><th>active／idle</th><td>5／0</td><td>5／0</td></tr>
@@ -440,7 +446,7 @@ java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not avail
 <h3 class="head">磁碟滿了：先騰出空間，再找是誰寫的</h3>
 <p class="q">面試官：告警說某台機器磁碟 100%，服務開始寫入失敗。怎麼處理？</p>
 <p>止血是先騰出空間，讓服務能寫：清掉舊的日誌壓縮檔或舊的 heap dump。找元兇的指令（<code>df -h</code> 看哪個掛載點滿了、<code>du</code> 找大檔案、用 <code>lsof +L1</code> 找「已刪除但還開著」的檔案，以及為什麼刪了檔案空間卻沒回來）〈Linux 常用指令與線上排查〉都實跑過。這裡補 Java 這一側看到的樣子：用一個只有 8 MB 的 tmpfs（放在記憶體裡、可以限定大小的檔案系統）當日誌磁碟，程式一直寫稽核日誌：</p>
-<pre>try (PrintWriter out = new PrintWriter(new FileWriter("/logs/audit.log", true))) {
+<pre><code>try (PrintWriter out = new PrintWriter(new FileWriter("/logs/audit.log", true))) {
     for (long n = 1; ; n++) {
         out.println("2026-10-06T10:00:00 transfer id=" + n + " from=0012345678 to=0098765432 amount=1200.00 status=OK");
         if (out.checkError()) {                         // PrintWriter 不丟例外，要自己問
@@ -460,7 +466,7 @@ try (FileWriter w = new FileWriter("/logs/audit.log", true)) {   // 換成 FileW
 // java.io.IOException: No space left on device
 // $ df -h /logs
 // Filesystem      Size  Used Avail Use% Mounted on
-// tmpfs           8.0M  8.0M     0 100% /logs</pre>
+// tmpfs           8.0M  8.0M     0 100% /logs</code></pre>
 <p>兩個值得在面試講的細節。第一，<code>PrintWriter</code> 的文件寫著「這個類別的方法從不丟 I/O 例外」，要呼叫 <code>checkError()</code> 才知道有沒有出錯。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/PrintWriter.html" target="_blank" rel="noopener">出處</a> 程式如果沒檢查，磁碟滿了之後稽核紀錄會靜靜地掉，服務看起來一切正常；對銀行來說，稽核紀錄掉了比服務停了更麻煩。第二，預防靠日誌輪替：Spring Boot 預設「只輸出到主控台、不寫日誌檔」，設了 <code>logging.file.name</code> 才寫檔；寫檔時用 <code>logging.<wbr>logback.<wbr>rollingpolicy.<wbr>max-<wbr>file-<wbr>size</code>（單檔多大就封存）與 <code>total-size-cap</code>（封存檔總共最多多大，超過就刪）設上限。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/logging.html" target="_blank" rel="noopener">出處</a> 再加上前一段的 heap dump，磁碟告警建議設在還有時間處理的位置（例如 80%），不要等到 100%。</p>
 
 <div class="drill">
