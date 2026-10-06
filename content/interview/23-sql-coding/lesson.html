@@ -335,7 +335,7 @@ ORDER BY id LIMIT 2;          -- 實跑第一次刪 2 筆，第二次刪 1 筆�
 <div class="drill">
   <p class="dq">幾千萬列的表要分批刪重複資料，為什麼不能直接在多表 DELETE 後面加 <code>LIMIT 10000</code>？</p>
   <ul class="dopts"><li data-ok>多表 DELETE 不能用 LIMIT</li><li>LIMIT 會讓刪除變得很慢</li><li>LIMIT 只能用在 SELECT 裡</li><li>InnoDB 不支援分批刪除資料</li></ul>
-  <p class="dexp">手冊原句：You cannot use ORDER BY or LIMIT in a multiple-table DELETE。單表 DELETE 可以用 LIMIT；多表版通常改成依主鍵範圍一段一段刪。</p>
+  <p class="dexp">手冊原句：You cannot use ORDER BY or LIMIT in a multiple-table DELETE。單表 DELETE 可以用 LIMIT；多表版通常改成依主鍵範圍一段一段刪，或改用單表寫法加 LIMIT。</p>
 </div>
 </section>
 
@@ -408,7 +408,7 @@ ORDER BY d;
 <section>
 <p class="era">第七題</p>
 <h3 class="head">年增率與月增率</h3>
-<p class="q">面試官：每月新增存款，算出每個月的月增率與年增率成長率。</p>
+<p class="q">面試官：每月新增存款，算出每個月的月增率與年增率。</p>
 <p>先講名詞。<strong>月增率</strong>是跟「上一個月」比（month-over-month，前後相鄰的兩期）；<strong>年增率</strong>是跟「去年同一個月」比（year-over-year，抵消季節性，例如年終獎金月份）。中國大陸的面試題把這兩個叫「環比」與「同比」。成長率＝（本期 − 比較期）÷ 比較期 × 100%。</p>
 <pre><code>CREATE TABLE monthly_deposit (ym DATE PRIMARY KEY, amount INT NOT NULL);   -- ym 存每月 1 日，單位：萬元
 INSERT INTO monthly_deposit VALUES
@@ -447,7 +447,7 @@ ORDER BY cur.ym;
   <p class="dexp">月增率是相鄰的前一期（month-over-month）；跟去年同月比叫年增率（year-over-year），用來抵消季節性。</p>
 </div>
 <div class="drill">
-  <p class="dq">2026 年 4 月 660、3 月 650。月增率成長率約多少？</p>
+  <p class="dq">2026 年 4 月 660、3 月 650。月增率約多少？</p>
   <ul class="dopts"><li>10%</li><li>15.4%</li><li>−1.5%</li><li data-ok>1.5%</li></ul>
   <p class="dexp">(660 − 650) ÷ 650 ≈ 1.54%，實跑 ROUND 到一位是 1.5。分母是比較期（3 月），不是本期。</p>
 </div>
@@ -698,4 +698,4 @@ ORDER BY a.account_id, days.d;
 </tbody></table></div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>手寫題先問邊界：同分怎麼算、沒有時回空還是 NULL、「前一天」是日曆還是前一筆；寫完自己帶同分、缺號、缺日期、NULL 走一遍，再主動補索引與資料量。</li><li>第 N 高：LIMIT 不接受運算式，函式裡先 SET N = N - 1；要宣告 READS SQL DATA 等特性，否則 ERROR 1418；DISTINCT 不能省；純量子查詢沒有列就是 NULL。</li><li>每組前 N 種薪資用 DENSE_RANK，ROW_NUMBER 會砍掉同分後的人；相關子查詢要數 COUNT(DISTINCT 薪資)。</li><li>LAG 拿前一列、不是前一天：缺日期時會比錯，自我連接用日期 − INTERVAL 1 DAY；連續分段用「整體列號 − 分組內列號」，ROW_NUMBER 是 UNSIGNED，相減為負會報 1690。</li><li>刪重複：DELETE 的子查詢不能讀同一張表（1093），用多表 DELETE 自我連接或包一層有 GROUP BY 的衍生資料表；清完加唯一索引；多表 DELETE 不能 LIMIT，大表依主鍵範圍分批。</li><li>移動平均用 RANGE … INTERVAL n DAY，ROWS 數的是列；年增率是跟去年同月、月增率是跟上個月，用日期自我連接找比較期，LAG(…, 12) 在缺月份時會錯；分母用 NULLIF 防 0。</li><li>列轉欄＝CASE WHEN 加聚合再 GROUP BY，計數不要寫 ELSE 0；差集可用 EXCEPT、NOT EXISTS、LEFT JOIN，NOT EXISTS 會被改寫成 antijoin；最新一筆要防同時間、加第二排序鍵，(account_id, tx_time, tx_id) 索引讓分組取最大值變 Loose Index Scan；每日餘額要先排日期 × 帳戶再累計。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>手寫題先問邊界：同分怎麼算、沒有時回空還是 NULL、「前一天」是日曆還是前一筆；寫完自己帶同分、缺號、缺日期、NULL 走一遍，再主動補索引與資料量。</li><li>第 N 高：LIMIT 不接受運算式，函式裡先 SET N = N - 1；要宣告 READS SQL DATA 等特性，否則 ERROR 1418；DISTINCT 不能省；純量子查詢沒有列就是 NULL。</li><li>每組前 N 種薪資用 DENSE_RANK，ROW_NUMBER 會砍掉同分後的人；相關子查詢要數 COUNT(DISTINCT 薪資)。</li><li>LAG 拿前一列、不是前一天：缺日期時會比錯，自我連接用日期 − INTERVAL 1 DAY；連續分段用「整體列號 − 分組內列號」，ROW_NUMBER 是 UNSIGNED，相減為負會報 1690。</li><li>刪重複：DELETE 的子查詢不能讀同一張表（1093），用多表 DELETE 自我連接或包一層衍生資料表（MySQL 先算成暫存表）；清完加唯一索引；多表 DELETE 不能 LIMIT，大表改用單表寫法加 LIMIT 重複執行，或依主鍵範圍分批。</li><li>移動平均用 RANGE … INTERVAL n DAY，ROWS 數的是列；年增率是跟去年同月、月增率是跟上個月，用日期自我連接找比較期，LAG(…, 12) 在缺月份時會錯；分母用 NULLIF 防 0。</li><li>列轉欄＝CASE WHEN 加聚合再 GROUP BY，計數不要寫 ELSE 0；差集可用 EXCEPT、NOT EXISTS、LEFT JOIN，NOT EXISTS 會被改寫成 antijoin；最新一筆要防同時間、加第二排序鍵，(account_id, tx_time, tx_id) 索引讓分組取最大值變 Loose Index Scan；每日餘額要先排日期 × 帳戶再累計。</li></ul></div>
