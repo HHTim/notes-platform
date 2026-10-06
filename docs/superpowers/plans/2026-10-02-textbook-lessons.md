@@ -49,7 +49,7 @@
 | `algo/15-greedy-intervals` | 貪婪演算法與區間題 | ✅ `b54abe2`（47 題、4 圖；暴力比對驗證） | ✅ 10-03 審完：一處解析錯、452 與 2406 端點規則相反、補比對、採用 Kozen–Zaks 證明；清單 `.superpowers/audit/algo/findings-15.md`；修正交回 `fix-algo-1112` | 修正 `7e52eb8`（11 條全改，端點比較與合併插入各 20000 組隨機比對 0 錯）；範圍複審 ✅（新增 452 起始值、張→枚、比對方式三處，主控直接改） | ✅ 10-06 上線 | |
 | `english/21-english-interview` | 英文面試：自我介紹、講專案與常見問答 | ✅ `d98b6ad`（45 題、1 圖、40 網址；STAR 比例跟行為面試課統一照 MIT `f832433`） | ✅ 10-03 審完：無錯誤級；範例時態與主詞、三個字的念法、缺點範例換掉；清單 `.superpowers/audit/english/findings-21.md`；修正交回 `write-algo-a` | 修正 `91f57d1`（14 條全改）；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 | `interview/20-handwritten-coding` | 手寫程式題：LRU 快取、阻塞佇列、執行緒安全單例與生產者消費者 | ✅ `d6a001d` | 待審（`review-algo-d` 10-03 週用量用完，未開始） | | |
-| `interview/21-system-design-method` | 系統設計面試怎麼答：釐清需求、粗估容量、畫架構與講取捨 | ✅ `671ef86`（42 題、3 圖、21 出處；示範題銀行交易通知服務） | 審查中（`review-algo-a`） | | |
+| `interview/21-system-design-method` | 系統設計面試怎麼答：釐清需求、粗估容量、畫架構與講取捨 | ✅ `671ef86`（42 題、3 圖、21 出處；示範題銀行交易通知服務） | ✅ 10-06 審完：無錯誤級；FCM 配額每專案共用要給交易留份、拿掉「分散到多個專案」、避開整刻的時段算錯；清單 `.superpowers/audit/interview/findings-21.md`；修正交回 `write-algo-b` | | |
 | `interview/22-production-troubleshooting` | 線上問題排查面試題：CPU 飆高、記憶體不足、API 變慢與連線用盡 | 撰寫中（`write-algo-c`） | | | |
 | `spring/19-resilience` | 韌性模式：Resilience4j 的斷路器、重試與限流 | ✅ `a81d59d`（49 題、4 圖、40 出處；Boot 4.1.1、resilience4j 2.4.0） | ✅ 10-03 審完：手機撐到 653px、一題解析數字對不上、選項長度；清單 `.superpowers/audit/spring/findings-19.md`；修正交回 `fix-algo-0708` | 修正 `9b96d95`＋`9b5c116`；範圍複審 ✅ | ✅ 10-03 上線 | | | |
 
