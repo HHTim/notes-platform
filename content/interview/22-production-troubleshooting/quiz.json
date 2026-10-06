@@ -1,0 +1,104 @@
+{
+ "questions": [
+  {
+   "q": "轉帳服務剛上版五分鐘，錯誤率暴增。照 SRE 書的建議，第一優先是？",
+   "opts": [
+    "先止血，例如退回上一版",
+    "先找出根因再決定怎麼做",
+    "先把錯誤日誌整理成報告",
+    "先擴大日誌等級收集更多資訊"
+   ],
+   "exp": "SRE 書：止血是第一優先；系統在你找根因時死掉，並沒有幫到使用者。剛上版就出事，退回最快。"
+  },
+  {
+   "q": "top -H 顯示最吃 CPU 的是 VM Thread、G1 Conc#0 與兩條 GC Thread，業務執行緒只佔一小部分。下一步最合理的是？",
+   "opts": [
+    "用 jstat 往記憶體方向查",
+    "對業務執行緒連印三次堆疊，找出迴圈",
+    "先把容器的 CPU 核心數加倍",
+    "檢查資料庫連線池的設定"
+   ],
+   "exp": "那幾條是 JVM 做垃圾回收的執行緒；實跑時 jstat 的老年代一直 96%、每秒 0.57 秒花在回收，問題在堆被活物件塞滿。"
+  },
+  {
+   "q": "JDK 21 的服務，top -H 看到吃 CPU 的執行緒 ID 是 1717。在 jstack 輸出裡怎麼找它？",
+   "opts": [
+    "搜 nid=1717",
+    "先換成十六進位，搜 nid=0x6b5",
+    "搜 tid=1717",
+    "jstack 看不到作業系統的執行緒 ID"
+   ],
+   "exp": "JDK 21 起 nid 印十進位，跟 top -H 的 ID 相同；換十六進位是 JDK 17、11 的做法。"
+  },
+  {
+   "q": "容器裡的服務設了 -XX:+HeapDumpOnOutOfMemoryError 與 -XX:HeapDumpPath=/dumps，OOM 重啟三次後只有一份 dump。原因是？",
+   "opts": [
+    "每次都是 1 號行程，java_pid1.hprof 已存在就不寫",
+    "HeapDumpOnOutOfMemoryError 只對第一次 OOM 生效",
+    "dump 只在行程正常結束時才寫",
+    "/dumps 必須是空資料夾才能寫"
+   ],
+   "exp": "實跑第二次印出 Unable to create … java_pid1.hprof: File exists；檔名要每次不同，%p 在容器裡也一樣是 1。"
+  },
+  {
+   "q": "沒有加 -XX:+ExitOnOutOfMemoryError，某條處理佇列的執行緒丟出 OutOfMemoryError。可能的結果是？",
+   "opts": [
+    "那條執行緒結束，行程還活著",
+    "JVM 一定會立刻結束並重啟",
+    "JVM 會自動把堆加大後繼續",
+    "所有執行緒都會一起丟出同一個例外"
+   ],
+   "exp": "實跑 worker 執行緒 OOM 後狀態是 TERMINATED，main 繼續跑、結束碼 0；佇列沒人處理，行程看起來卻還活著。ExitOnOutOfMemoryError 讓 JVM 在第一次 OOM 就結束。"
+  },
+  {
+   "q": "MAT 嫌疑報告說一個 ConcurrentHashMap 的內部陣列佔了 98% 的堆，「被 main 執行緒參考」。怎麼找出真正抓著它的？",
+   "opts": [
+    "對那個 Map 跑 Path to GC Roots",
+    "看 main 執行緒用了多少 CPU 時間",
+    "把 dump 裡的 byte[] 全部印出來比對",
+    "重跑一次，並把 -Xmx 加倍再看"
+   ],
+   "exp": "OOM 當下陣列剛好是區域變數；Path to GC Roots 列出第二條路徑：IdemCache 的靜態欄位 SEEN。"
+  },
+  {
+   "q": "錯誤訊息 Connection is not available, request timed out after 2000ms (total=5, active=5, idle=0, waiting=39)，慢查詢日誌裡有一條 Rows_examined: 4000000 的對帳單 SQL。根因最可能是？",
+   "opts": [
+    "對帳單缺索引，全表掃描佔住連線",
+    "連線池太小，開到 100 條就好",
+    "資料庫的帳號或密碼設錯了",
+    "connectionTimeout 設得太短"
+   ],
+   "exp": "waiting=39 代表在排隊；只回 1 列卻看 400 萬列是全表掃描。實跑加索引後 P99 回到 4 毫秒，池子大小沒動。"
+  },
+  {
+   "q": "半夜沒什麼流量，查餘額卻 2 秒後失敗，訊息是 (total=5, active=5, idle=0, waiting=0)。要確認原因，先開哪個設定？",
+   "opts": [
+    "HikariCP 的 leakDetectionThreshold",
+    "MySQL 慢查詢日誌的 long_query_time",
+    "Logback 的 total-size-cap",
+    "JVM 的 HeapDumpOnOutOfMemoryError"
+   ],
+   "exp": "沒人排隊卻 5 條都借出，多半是借了沒還；leakDetectionThreshold 會印出拿走連線的那一行堆疊。"
+  },
+  {
+   "q": "程式用 PrintWriter 寫稽核日誌、沒有呼叫 checkError()，磁碟滿了。結果是？",
+   "opts": [
+    "寫入靜靜失敗，程式繼續跑，紀錄掉了",
+    "println 丟出 IOException，交易跟著失敗",
+    "JVM 暫停，等磁碟有空間再繼續",
+    "PrintWriter 自動切換到另一個檔案"
+   ],
+   "exp": "文件：PrintWriter 的方法從不丟 I/O 例外，要用 checkError() 自己問；換成 FileWriter 才看到 No space left on device。"
+  },
+  {
+   "q": "寫事後檢討時，下面哪一項最符合 SRE 書的做法？",
+   "opts": [
+    "列影響、時間線、根因、改善，不究責",
+    "寫出是誰操作失誤，讓大家引以為戒",
+    "服務恢復了就好，根因不用另外寫",
+    "只列解決方式，時間線留在聊天紀錄裡"
+   ],
+   "exp": "SRE 書：事後檢討記錄事故、影響、採取的行動、根因與後續行動，而且要專注在原因，不指責個人或團隊。"
+  }
+ ]
+}
