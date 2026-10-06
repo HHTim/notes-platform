@@ -84,7 +84,7 @@ $ grep -v INFO app.log
 2026-10-03 09:00:05 ERROR 10.0.0.9 POST /api/transfer 500 1187ms core timeout
 2026-10-03 09:00:07 error 10.0.0.7 GET /api/balance 503 2ms circuit open
 2026-10-03 09:00:09 ERROR 10.0.0.9 POST /api/transfer 500 1199ms core timeout</code></pre>
-<p>注意 <code>grep -c ERROR</code> 是 3、<code>grep -ci error</code> 是 4：第 8 行寫成小寫的 <code>error</code>，只有忽略大小寫才抓得到。</p>
+<p>注意 <code>grep -c ERROR</code> 是 3、<code>grep -ci error</code> 是 4：有一行寫成小寫的 <code>error</code>，只有忽略大小寫才抓得到。</p>
 
 <h4>awk：一行處理一筆、按欄位拿資料</h4>
 <p>awk 預設用空白把每行切成欄位：gawk(1)：「輸入記錄的每個欄位可以用位置參照：$1、$2……$0 是整筆記錄」，<code>NR</code> 是「目前讀到第幾筆」；程式是一串「條件 { 動作 }」（An AWK program consists of a sequence of optional directives, pattern-action statements, and optional function definitions.）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man1/gawk.1.html" target="_blank" rel="noopener">出處</a> 這份日誌 $4 是 IP、$7 是狀態碼、$8 是耗時：</p>
@@ -210,7 +210,7 @@ sudo: a password is required</code></pre>
 <div class="drill">
   <p class="dq">部署腳本要讓擁有者能讀寫執行、同群組的人能讀和執行、其他人什麼都不行。數字是？</p>
   <ul class="dopts"><li>755</li><li>770</li><li data-ok>750</li><li>705</li></ul>
-  <p class="dexp">擁有者 rwx = 7、群組 r-x = 5、其他人 --- = 0。755 會讓其他人也能讀和執行；770 讓群組也能寫。實驗的 chmod u=rwx,g=rx,o= 算出來也是 750。</p>
+  <p class="dexp">擁有者 rwx = 7、群組 r-x = 5、其他人 --- = 0。755 會讓其他人也能讀和執行；770 讓群組也能寫。寫成符號模式 u=rwx,g=rx,o= 也是 750。</p>
 </div>
 <div class="drill">
   <p class="dq">某服務啟動時報「Permission denied」讀不到設定檔。同事建議 <code>chmod 777</code> 一下就好。比較好的做法是？</p>
@@ -398,7 +398,7 @@ $ cat /sys/fs/cgroup/memory.max
 <p>free 照樣顯示 7.7Gi，容器真正的上限要看 cgroup 的 <code>memory.max</code>（268435456 位元組，就是 256 MiB）。容器裡判斷記憶體夠不夠要看這個；JVM 自己會讀容器的上限來決定堆的大小，見〈部署策略與探針〉。</p>
 
 <h4>df 與 du：磁碟滿了，是誰</h4>
-<p>coreutils 手冊：df「回報檔案系統用了多少、還剩多少空間」，du「回報一組檔案需要的空間」，<code>du -s</code> 每個參數只印一個總數、<code>-h</code> 用 K、M、G 表示。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html" target="_blank" rel="noopener">出處</a> 實驗用一塊 50 MB、最多 2000 個 inode 的 tmpfs 掛在 <code>/data</code>，塞 30 MB 日誌與 18 MB 報表後再寫：</p>
+<p>coreutils 手冊：df「回報檔案系統用了多少、還剩多少空間」，du「回報一組檔案需要的空間」，<code>du -s</code> 每個參數只印一個總數、<code>-h</code> 用 K、M、G 表示。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html" target="_blank" rel="noopener">出處</a> 實驗用一塊 50 MB、最多 2000 個 inode（每個檔案一筆的檔案資料紀錄，下面會說明）的 tmpfs 掛在 <code>/data</code>，塞 30 MB 日誌與 18 MB 報表後再寫：</p>
 <pre><code>$ df -h /data
 Filesystem      Size  Used Avail Use% Mounted on
 tmpfs            50M     0   50M   0% /data
@@ -467,7 +467,7 @@ $ ls -l plain.log append.log
 $ du -k plain.log append.log
 4	plain.log
 4	append.log</code></pre>
-<p>兩個都只占 4 KB，df 都降下來了，但一般模式那個 ls 還是 30 MB 多。用 log4j、logback 這類日誌框架寫檔，預設是附加模式；不確定時，截斷後用 <code>ls -l</code> 加 <code>du</code> 對照一次。</p>
+<p>兩個都只占 4 KB，df 都降下來了，但一般模式那個 ls 還是 30 MB 多。Logback 的 FileAppender 預設是附加模式（The append option is set to true by default.）<a class="fixsrc" href="https://logback.qos.ch/manual/appenders-console-file.html" target="_blank" rel="noopener">出處</a>，Log4j2 的 File appender 也是（If true, the log file will be opened in APPEND mode.）<a class="fixsrc" href="https://logging.apache.org/log4j/2.x/manual/appenders/file.html" target="_blank" rel="noopener">出處</a>；但 Log4j2 的 RandomAccessFile appender 不是附加模式，截斷後一樣會變成前面是空洞的檔案。不確定時，截斷後用 <code>ls -l</code> 加 <code>du</code> 對照一次。</p>
 
 <h4>inode 用光：空間還有，卻說滿了</h4>
 <p>每個檔案要占一個 inode。coreutils 手冊：<code>df -i</code>「列出 inode 的使用量，而不是區塊」，inode「存著檔案的擁有者、權限、時間戳記與它在檔案系統上的位置」。<a class="fixsrc" href="https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html" target="_blank" rel="noopener">出處</a> 同一塊 tmpfs 重新掛上，一直建小檔案（例如沒清的工作階段檔）：</p>
@@ -513,7 +513,7 @@ $ ls /data/sessions | wc -l
 <div class="drill">
   <p class="dq">清理大日誌時，下面哪個做法最不會造成「刪了空間卻沒回來」？</p>
   <ul class="dopts"><li data-ok>先 <code>: &gt; app.log</code> 截斷</li><li>直接 rm app.log</li><li>mv app.log /tmp/，之後再處理</li><li>chmod 000 app.log，讓它寫不進去</li></ul>
-  <p class="dexp">截斷是把同一個檔案的內容清空，空間馬上回來；行程若是附加模式開檔（Java 日誌框架預設如此），之後就從 0 開始寫。rm 只刪掉名字，mv 搬走後原本的檔案若還被開著，空間一樣不會釋放；chmod 不改大小。</p>
+  <p class="dexp">截斷是把同一個檔案的內容清空，空間馬上回來；行程若是附加模式開檔（Logback 與 Log4j2 File appender 的預設），之後就從 0 開始寫。rm 只刪掉名字，mv 搬走後原本的檔案若還被開著，空間一樣不會釋放；chmod 不改大小。</p>
 </div>
 </section>
 
@@ -731,4 +731,4 @@ openjdk version "17.0.20.1" 2026-08-18</code></pre>
   <p class="dexp">一直重啟代表每次都很快結束，原因在它最後印的日誌與結束狀態（例如 status=1、status=9/KILL）。再 restart 只是多一次；top、df -i 要等看了日誌知道方向再用。</p>
 </div>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>先看整體：load average 跟 CPU 數比；us 高是在算、wa 高是在等 I/O；top 取第二輪的 %CPU 才準，多執行緒行程可以超過 100%。</li><li>日誌：grep -c／-i／-v／-n，awk 依欄位加條件，sort | uniq -c | sort -rn 排名；&gt; file 2&gt;&amp;1 兩個都進檔案、反過來錯誤留在螢幕；會輪替的日誌用 tail -F。</li><li>權限 r=4、w=2、x=1：640 = rw-r-----；先判斷自己落在擁有者、群組還是其他人；不要 chmod 777，調擁有者或群組；sudo 只開需要的指令。</li><li>ps 的 STAT：R 在跑、S 睡、D 等 I/O、Z 殭屍（處理父行程）；先送 SIGTERM 讓程式收尾，不走才 SIGKILL；結束碼 143 = TERM、137 = KILL。</li><li>systemd：status 看狀態加最近日誌，journalctl -u … --since … -p warning -f 查日誌；停止先 SIGTERM、預設 90 秒後 SIGKILL；Java 服務加 SuccessExitStatus=143。</li><li>記憶體看 available；磁碟 df 看哪裡滿、du 找誰大；df 與 du 對不上用 lsof +L1，先確認 fd 號碼再截斷；空間有卻說滿看 df -i。</li><li>網路：ss -tlnp 看誰在聽、ss -s 看總數、ss -tan state 篩狀態；TIME_WAIT 在先關的一端（用連線池），CLOSE_WAIT 是自己忘了 close；連不到就 dig → nc -z → curl -v。</li><li>CPU 飆高：top → top -H -p PID → jstack 對 nid；JDK 21 的 nid 是十進位，JDK 17、11 是十六進位；吃 CPU 的是 GC 執行緒就往記憶體查。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>先看整體：load average 跟 CPU 數比；us 高是在算、wa 高是在等 I/O；top 取第二輪的 %CPU 才準，多執行緒行程可以超過 100%。</li><li>日誌：grep -c／-i／-v／-n，awk 依欄位加條件，sort | uniq -c | sort -rn 排名；&gt; file 2&gt;&amp;1 兩個都進檔案、反過來錯誤留在螢幕；會輪替的日誌用 tail -F。</li><li>權限 r=4、w=2、x=1：640 = rw-r-----；先判斷自己落在擁有者、群組還是其他人；不要 chmod 777，調擁有者或群組；sudo 只開需要的指令。</li><li>ps 的 STAT：R 在跑、S 睡、D 等 I/O、Z 殭屍（處理父行程）；先送 SIGTERM 讓程式收尾，不走才 SIGKILL；結束碼 143 = TERM、137 = KILL。</li><li>systemd：status 看狀態加最近日誌，journalctl -u … --since … -p warning -f 查日誌；停止先 SIGTERM、預設 90 秒後 SIGKILL；Java 服務加 SuccessExitStatus=143。</li><li>記憶體看 available；磁碟 df 看哪裡滿、du 找誰大；df 與 du 對不上用 lsof +L1，先確認 fd 號碼再截斷；空間有卻說滿看 df -i。</li><li>網路：ss -tlnp 看誰在聽、ss -s 看總數、ss -tan state 篩狀態；TIME_WAIT 在先關的一端（用連線池），CLOSE_WAIT 是自己忘了 close；連不到就 dig → nc -z → curl -v。</li><li>CPU 飆高：top → top -H -p PID → jstack 對 nid；JDK 21 起（25 也一樣）nid 是十進位，JDK 17、11 是十六進位；吃 CPU 的是 GC 執行緒就往記憶體查。</li></ul></div>
