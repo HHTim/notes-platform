@@ -383,7 +383,7 @@
 <p class="q">面試官：簡訊比推播可靠，為什麼不全部用簡訊？</p>
 <p>成本與體驗的取捨。簡訊按則計費，例如 AWS SNS 的簡訊按則計價，價格「依國家、地區而不同，有時同一國家裡還依電信商而不同」（The price for sending SMS messages varies between countries, regions, and in some cases, between carriers）<a class="fixsrc" href="https://aws.amazon.com/sns/sms-pricing/" target="_blank" rel="noopener">出處</a>；FCM 在 Firebase 的價格表上列為免費（Cloud Messaging (FCM) No-cost）<a class="fixsrc" href="https://firebase.google.com/pricing" target="_blank" rel="noopener">出處</a>。每天 600 萬則交易通知全改簡訊，費用直接乘上 600 萬。所以預設推播、客戶主動選了才送簡訊、推播多次失敗才改簡訊。這就是「延遲與可靠度對成本」的取捨落到實際題目上。</p>
 <h4>五、收尾（約 3 分鐘）</h4>
-<p>講瓶頸與監控：推播配額是第一個上限。要提高可以申請：FCM 的條件是用量經常達到配額的 80% 以上、每天至少連續 5 分鐘（Your usage is regularly ≥ 80% of quota for at least 5 consecutive minutes per day），符合條件最多可申請提高 25%（up to +25%）；為大型活動臨時加量要透過 Firebase Support，至少提前 15 天（at least 15 days in advance）。<a class="fixsrc" href="https://firebase.google.com/docs/cloud-messaging/throttling-and-quotas" target="_blank" rel="noopener">出處</a> 另外監控交易佇列的堆積量與「從交易到送出」的延遲，超過 5 秒就告警；死信佇列有東西就要有人處理。最後用三句話回顧：兩條佇列分開延遲需求、Outbox 確保交易通知不漏、唯一索引確保不重複。</p>
+<p>講瓶頸與監控：推播配額是第一個上限。要提高可以申請：FCM 列了三個條件，其中之一是用量經常達到配額的 80% 以上、每天至少連續 5 分鐘（Your usage is regularly ≥ 80% of quota for at least 5 consecutive minutes per day），另外兩個是用戶端錯誤比例低於 5%、遵守大量發送的建議做法；符合條件最多可申請提高 25%（up to +25%）；為大型活動臨時加量要透過 Firebase Support，至少提前 15 天（at least 15 days in advance）。<a class="fixsrc" href="https://firebase.google.com/docs/cloud-messaging/throttling-and-quotas" target="_blank" rel="noopener">出處</a> 另外監控交易佇列的堆積量與「從交易到送出」的延遲，超過 5 秒就告警；死信佇列有東西就要有人處理。最後用三句話回顧：兩條佇列分開延遲需求、Outbox 確保交易通知不漏、唯一索引確保不重複。</p>
 
 <div class="drill">
   <p class="dq">示範題假設每日 600 萬則交易通知。平均每秒大約幾則？</p>
@@ -392,7 +392,7 @@
 </div>
 <div class="drill">
   <p class="dq">FCM 預設每分鐘 60 萬則、整個專案共用。行銷限速在每秒 9,000 則（留每秒 1,000 則給交易通知），發給 500 萬人大約要多久？</p>
-  <ul class="dopts"><li>約 56 秒</li><li data-ok>約 9 分鐘</li><li>約 1.5 小時</li><li>約 93 分鐘</li></ul>
+  <ul class="dopts"><li>約 56 秒</li><li data-ok>約 9 分鐘</li><li>約 30 分鐘</li><li>約 93 分鐘</li></ul>
   <p class="dexp">500 萬 ÷ 9,000 ≈ 556 秒，約 9.3 分鐘。93 分鐘是把每秒 9,000 誤當成每秒 900。限速是為了不讓行銷把共用的配額用光、連交易通知也被拒。</p>
 </div>
 <div class="drill">
