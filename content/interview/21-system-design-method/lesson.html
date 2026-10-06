@@ -1,4 +1,4 @@
-<!-- 來源：依公開資料新寫。Jeff Dean〈Designs, Lessons and Advice from Building Large Distributed Systems〉LADIS 2009 投影片第 24、27 頁 https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf · Peter Norvig〈Teach Yourself Programming in Ten Years〉 https://norvig.com/21-days.html · Google《Site Reliability Engineering》〈Embracing Risk〉 https://sre.google/sre-book/embracing-risk/ · 《The Site Reliability Workbook》〈Non-Abstract Large System Design〉 https://sre.google/workbook/non-abstract-design/ · Alex Xu《System Design Interview》〈A Framework For System Design Interviews〉 https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews 與〈Back-of-the-envelope Estimation〉 https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation · Firebase Cloud Messaging〈Throttling and quotas〉〈Scale FCM〉 https://firebase.google.com/docs/cloud-messaging/ 與 Firebase 價格表 https://firebase.google.com/pricing · AWS SNS 簡訊價格 https://aws.amazon.com/sns/sms-pricing/ · Apache Hadoop hdfs-default.xml https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml · Azure 架構中心 Publisher-Subscriber、Queue-Based Load Leveling 模式 https://learn.microsoft.com/en-us/azure/architecture/patterns/ ；書第 10 章也有通知系統題；本課題目設定與數字自編，示範題「銀行交易通知服務」與其中所有數字為自編假設，計算皆自行驗算 · 收錄日期：2026-10-06 -->
+<!-- 來源：依公開資料新寫。Jeff Dean〈Designs, Lessons and Advice from Building Large Distributed Systems〉LADIS 2009 投影片第 24、27 頁 https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf · Peter Norvig「Teach Yourself Programming in Ten Years」 https://norvig.com/21-days.html · Google《Site Reliability Engineering》「Embracing Risk」 https://sre.google/sre-book/embracing-risk/ · 《The Site Reliability Workbook》〈Non-Abstract Large System Design〉 https://sre.google/workbook/non-abstract-design/ · Alex Xu《System Design Interview》〈A Framework For System Design Interviews〉 https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews 與〈Back-of-the-envelope Estimation〉 https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation · Firebase Cloud Messaging〈Throttling and quotas〉〈Scale FCM〉 https://firebase.google.com/docs/cloud-messaging/ 與 Firebase 價格表 https://firebase.google.com/pricing · AWS SNS 簡訊價格 https://aws.amazon.com/sns/sms-pricing/ · Apache Hadoop hdfs-default.xml https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml · Azure 架構中心 Publisher-Subscriber、Queue-Based Load Leveling 模式 https://learn.microsoft.com/en-us/azure/architecture/patterns/ ；書第 10 章也有通知系統題；本課題目設定與數字自編，示範題「銀行交易通知服務」與其中所有數字為自編假設，計算皆自行驗算 · 收錄日期：2026-10-06 -->
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把一場 45 分鐘的系統設計面試切成四段，知道每段大約花多久、要交出什麼</li><li>開場先問對問題：功能需求與非功能需求各問哪些，問不到答案時怎麼寫下假設</li><li>從每日活躍使用者一路算到平均與尖峰每秒請求數、儲存量與頻寬，並背得出幾個出處可查的基準數字</li><li>先畫最簡單能動的架構，說清楚「哪個數字逼我加快取、佇列、分片、複寫」並用一句話講取捨，再用「銀行交易通知服務」把整套流程走一遍、避開常見的扣分行為</li></ul></div>
 <p class="muted">本課講「怎麼答」的流程，不重講各元件的細節：發號與多層快取見〈系統設計：短網址的高併發〉，限流、Little 定律與四個黃金訊號見〈系統設計：秒殺與限流〉，快取讀寫模式見〈系統設計：快取一致性與熱點〉，送達保證、Outbox 與死信見〈系統設計：訊息佇列與最終一致性〉，冪等鍵與答題順序的完整示範見〈系統設計：銀行轉帳系統〉，CAP 見〈資料庫面試題：複寫、分片與 CAP〉。</p>
 
@@ -128,7 +128,7 @@
 <tr><th>99.9% 可用</th><td>每年約 8.76 小時、每天約 86 秒可以停</td><td>525,600 × 0.001 ＝ 525.6 分鐘；86,400 × 0.001 ＝ 86.4 秒</td></tr>
 <tr><th>99.99% 可用</th><td>每年約 52.56 分鐘、每天約 8.6 秒可以停</td><td>SRE 書的例子，見下段</td></tr>
 </tbody></table></div>
-<p>Google SRE 書的〈Embracing Risk〉一章用一年的時間算過：「可用性目標 99.99% 的系統，一年最多可以停機 52.56 分鐘」（a system with an availability target of 99.99% can be down for up to 52.56 minutes in a year）。<a class="fixsrc" href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener">出處</a> 自己驗算：525,600 × 0.0001 ＝ 52.56。</p>
+<p>Google SRE 書的「Embracing Risk」一章用一年的時間算過：「可用性目標 99.99% 的系統，一年最多可以停機 52.56 分鐘」（a system with an availability target of 99.99% can be down for up to 52.56 minutes in a year）。<a class="fixsrc" href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener">出處</a> 自己驗算：525,600 × 0.0001 ＝ 52.56。</p>
 <p>延遲的數量級，最常被引用的是 Jeff Dean 同一場演講的「每個人都該知道的數字」（Numbers Everyone Should Know），下表節錄：<a class="fixsrc" href="https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf#page=24" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>操作</th><th>投影片的數字</th><th>換成好記的單位</th></tr></thead><tbody>
 <tr><td>L1 快取讀取（L1 cache reference）</td><td>0.5 ns</td><td>不到 1 奈秒</td></tr>
@@ -139,7 +139,7 @@
 <tr><td>從磁碟依序讀 1 MB</td><td>20,000,000 ns</td><td>20 毫秒</td></tr>
 <tr><td>封包從加州到荷蘭再回來</td><td>150,000,000 ns</td><td>150 毫秒</td></tr>
 </tbody></table></div>
-<p>這些是 2009 年的硬體，現在的記憶體與網路更快，固態硬碟沒有要移動的磁頭，也就沒有這段等待，絕對值不要死背。要記的是它們之間的<strong>數量級</strong>：記憶體比同機房網路快幾千倍，同機房網路又比跨洲網路快幾百倍。Peter Norvig 的〈Teach Yourself Programming in Ten Years〉附錄也有一張相近的表（例如主記憶體 100 奈秒、美國到歐洲來回 150 毫秒），兩份數字大致吻合。<a class="fixsrc" href="https://norvig.com/21-days.html" target="_blank" rel="noopener">出處</a> 這也解釋了快取為什麼有用：把資料從磁碟或遠端服務搬到記憶體，差的是好幾個數量級。</p>
+<p>這些是 2009 年的硬體，現在的記憶體與網路更快，固態硬碟沒有要移動的磁頭，也就沒有這段等待，絕對值不要死背。要記的是它們之間的<strong>數量級</strong>：記憶體比同機房網路快幾千倍，同機房網路又比跨洲網路快幾百倍。Peter Norvig 的「Teach Yourself Programming in Ten Years」附錄也有一張相近的表（例如主記憶體 100 奈秒、美國到歐洲來回 150 毫秒），兩份數字大致吻合。<a class="fixsrc" href="https://norvig.com/21-days.html" target="_blank" rel="noopener">出處</a> 這也解釋了快取為什麼有用：把資料從磁碟或遠端服務搬到記憶體，差的是好幾個數量級。</p>
 <p>算的時候，書裡給了三個建議：用整數與近似值（「99987 / 9.1」就當「100,000 / 10」），把假設寫下來，每個數字都標單位（Label your units），以免分不清 5 是 KB 還是 MB。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">每日請求 ÷ 10⁵ ≈ 平均每秒；乘上尖峰倍數；儲存 ＝ 筆數 × 大小 × 天數 × 副本；頻寬 ＝ 每秒 × 大小 × 8；數字都標單位</p>
 
@@ -171,7 +171,7 @@
 <div class="drill">
   <p class="dq">可用性目標 99.99%，一年最多可以停機多久？</p>
   <ul class="dopts"><li>約 8.76 小時</li><li data-ok>約 52.56 分鐘</li><li>約 5.26 分鐘</li><li>約 3.65 天</li></ul>
-  <p class="dexp">525,600 分鐘 × 0.0001 ＝ 52.56 分鐘，SRE 書〈Embracing Risk〉的例子。8.76 小時是 99.9%，5.26 分鐘是 99.999%，3.65 天是 99%。</p>
+  <p class="dexp">525,600 分鐘 × 0.0001 ＝ 52.56 分鐘，SRE 書「Embracing Risk」的例子。8.76 小時是 99.9%，5.26 分鐘是 99.999%，3.65 天是 99%。</p>
 </div>
 <div class="drill">
   <p class="dq">依 Jeff Dean 的表，「同一個資料中心內來回一趟」大約是「主記憶體讀取」的幾倍？</p>
