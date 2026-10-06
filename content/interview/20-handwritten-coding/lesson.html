@@ -3,7 +3,7 @@
 <section>
     <p class="era">先講規則</p>
     <h3 class="head">手寫題，面試官在看什麼</h3>
-    <p>白板或線上編輯器手寫，面試官看三件事：題目先問清楚再動手、程式寫得出來而且邊界對、寫完自己拿小例子跑一遍。這就是〈面試解題流程與題型對照〉那六步（問清楚、暴力解、找瓶頸、寫程式、自己跑、講複雜度），這課不重講，只把一面常見的六題寫完。</p>
+    <p>白板或線上編輯器手寫，面試官看三件事：題目先問清楚再動手、程式寫得出來而且邊界對、寫完自己拿小例子跑一遍。這就是〈面試解題流程與題型對照〉那六步（問清楚、暴力解、找瓶頸、寫程式、自己跑、講複雜度），這課不重講，只把第一輪面試常見的六題寫完。</p>
     <p>每題的形狀一樣：題目、面試官要看什麼、完整程式（Java 21 實際編譯執行，輸出照貼）、常見寫錯的版本與實跑出來的現象、追問。多執行緒的錯誤版本，能用測試重現的都重現了；重現不了的會寫明「這是規格的說法」。</p>
     <p class="formula">先問清楚 → 寫正確版 → 自己跑邊界 → 說出寫錯會怎樣</p>
 </section>
@@ -259,7 +259,7 @@ public class LockBuffer&lt;E&gt; {
 ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p><strong>為什麼 while 不能寫成 if：</strong>醒來不代表條件成立，有兩個原因。</p>
     <ul class="plainlist">
-      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，跑三次都壞：消費者丟 <code>NoSuchElementException</code>（每次 20〜53 次），生產者也不再檢查容量，容量 1 的佇列曾經塞到 9,490〜29,841 個。</li>
+      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，生產者各放 20,000 個、消費者各取 20,000 次，跑 10 次都壞：每次有 1〜29 次 <code>take</code> 丟 <code>NoSuchElementException</code>；生產者也不再檢查容量，容量 1 的佇列曾經塞到一萬多到五萬多個（10 次裡最少 13,594、最多 52,061）。</li>
       <li><b>虛假喚醒（規格的說法，沒有重現）。</b><code>Object.wait</code> 的文件：執行緒可能「沒被叫醒、沒被中斷、也沒逾時就醒來，這叫 spurious wakeup」，雖然實務上很少發生，應用程式「必須測試應該讓它醒來的條件，不成立就繼續等」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#wait(long,int)" target="_blank" rel="noopener">出處</a> JLS 17.2.1 也說這條規定讓 Java 的寫法必須「只在迴圈裡用 wait」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.2.1" target="_blank" rel="noopener">出處</a> 這種情況沒辦法刻意製造，本機也沒跑出來。</li>
     </ul>
     <p><strong>另一個常見寫錯：版本一用 notify。</strong>把 <code>notifyAll</code> 換成 <code>notify</code>，同一個等待集合裡有生產者也有消費者，只叫醒一個，可能叫到同一種角色，大家就一起睡著。容量 1、4 對 4、各 100,000 個，跑五次全部卡住：3 秒後只取走 3〜9 個，8 條執行緒都停在 WAITING。版本二可以用 <code>signal</code>，因為兩種角色分開等，叫醒的一定是對的那種。</p>
@@ -324,7 +324,9 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p><strong>寫法一：雙重檢查加 volatile。</strong></p>
     <pre><code>public final class DclConfig {
     private static volatile DclConfig instance;      // volatile 不能省
-    private DclConfig() { }
+    private String region;                           // 建構子寫入的普通欄位
+
+    private DclConfig() { region = "TW"; }
 
     public static DclConfig getInstance() {
         if (instance == null) {                      // 第一次檢查：建好之後就不必搶鎖
@@ -336,9 +338,11 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
         }
         return instance;
     }
+
+    public String region() { return region; }
 }</code></pre>
-    <p>沒有 <code>volatile</code>，寫入與另一條執行緒的讀取之間沒有 happens-before，JLS 17.4.5 列的規則裡有一條「對 volatile 欄位的寫入 happens-before 之後每一次對該欄位的讀取」（A write to a volatile field happens-before every subsequent read of that field），少了它，別的執行緒可能拿到參考、卻看不到建構子寫完的內容。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.4.5" target="_blank" rel="noopener">出處</a> 這是規格層面的問題，本機拿掉 <code>volatile</code> 跑不出半成品，所以沒辦法用測試證明，只能照規格寫。</p>
-    <p><strong>寫法二：靜態內部類別。</strong>JLS 12.4.1：類別在「它宣告的靜態欄位被使用」之前一刻才初始化，所以第一次呼叫 <code>getInstance()</code> 才會建；12.4.2 又規定初始化前要先取得這個類別的初始化鎖，所以不必自己寫同步。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-12.html#jls-12.4.1" target="_blank" rel="noopener">出處</a></p>
+    <p>沒有 <code>volatile</code>，寫入與另一條執行緒的讀取之間沒有 happens-before，JLS 17.4.5 列的規則裡有一條「對 volatile 欄位的寫入 happens-before 之後每一次對該欄位的讀取」（A write to a volatile field happens-before every subsequent read of that field），少了它，別的執行緒可能拿到參考、卻看不到建構子寫進 <code>region</code> 的值。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.4.5" target="_blank" rel="noopener">出處</a> 這是規格層面的問題，本機拿掉 <code>volatile</code> 跑不出半成品，所以沒辦法用測試證明，只能照規格寫。</p>
+    <p><strong>寫法二：靜態內部類別。</strong>JLS 12.4.1：類別在「它宣告的靜態欄位被使用」之前一刻才初始化，所以第一次呼叫 <code>getInstance()</code> 才會建；<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-12.html#jls-12.4.1" target="_blank" rel="noopener">出處</a> 12.4.2 又規定每個類別有唯一的初始化鎖，初始化的第一步就是取得它（For each class or interface C, there is a unique initialization lock LC … Synchronize on the initialization lock, LC, for C.），所以不必自己寫同步。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-12.html#jls-12.4.2" target="_blank" rel="noopener">出處</a></p>
     <pre><code>public final class HolderConfig {
     private HolderConfig() { }
 
@@ -361,7 +365,7 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p><strong>常見寫錯：</strong>延遲建立卻沒有同步（只有 <code>if (instance == null) instance = new …</code>）。建構子裡睡 10 毫秒放大時間差，8 條執行緒同時呼叫，實跑拿到 8 個不同實體。另一個錯是把 <code>synchronized</code> 加在整個 <code>getInstance</code> 上：正確，但建好之後每次讀都要搶鎖，這正是雙重檢查想省掉的。</p>
     <p><strong>追問：</strong></p>
     <ul class="plainlist">
-      <li><b>哪個最好？</b>不需要延遲就直接用 <code>static final</code> 欄位；要延遲用靜態內部類別；要擋反射與序列化用 enum。但〈設計模式〉的提醒要講：單例會藏起相依關係，能用依賴注入就用。</li>
+      <li><b>哪個最好？</b>建立成本低、又一定會用到，就直接用 <code>static final</code> 欄位，不必延遲；要延遲用靜態內部類別；要擋反射與序列化用 enum。但〈設計模式〉的提醒要講：單例會藏起相依關係，能用依賴注入就用。</li>
       <li><b>「只有一個」的範圍？</b>一個類別載入器底下一個，不是整個分散式系統唯一。</li>
     </ul>
 <div class="drill">
@@ -454,9 +458,9 @@ public class Pipeline {
     <ul class="plainlist">
       <li><b>三個消費者只放一個結束物件。</b>實跑：1 秒後還有 2 個消費者活著，狀態都是 WAITING，卡在 <code>take()</code> 上，程式結束不了。</li>
       <li><b>結束物件寫成字面值 "__END__"、用 equals 比。</b>資料裡剛好有這個字串就會提早收工；用 <code>new</code> 出來的獨一物件、用 <code>==</code> 比，理由在〈Java 並行快答：執行緒池、鎖與並行集合〉有寫。</li>
-      <li><b>用 <code>poll()</code> 加迴圈空轉。</b><code>poll()</code> 空的時候立刻回傳 null，迴圈會一直吃 CPU；要等就用 <code>take()</code>。</li>
+      <li><b>用 <code>poll()</code> 加迴圈空轉。</b><code>poll()</code> 空的時候立刻回 null（文件表格把它放在「回傳特殊值」那一欄），迴圈會一直吃 CPU；要等就用 <code>take()</code>。</li>
     </ul>
-    <p><strong>追問：</strong>為什麼不必加 <code>volatile</code>？文件寫：放進 <code>BlockingQueue</code> 之前的動作，happens-before 另一條執行緒取出之後的動作。同一頁也寫它可以安全地給多個生產者、多個消費者共用。</p>
+    <p><strong>追問：</strong>為什麼不必加 <code>volatile</code>？文件寫：放進 <code>BlockingQueue</code> 之前的動作，happens-before 另一條執行緒取出之後的動作（actions in a thread prior to placing an object into a BlockingQueue happen-before actions subsequent to the access or removal of that element from the BlockingQueue in another thread）。同一頁也寫它「可以安全地給多個生產者、多個消費者共用」（a BlockingQueue can safely be used with multiple producers and multiple consumers）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/BlockingQueue.html" target="_blank" rel="noopener">出處</a></p>
 <div class="drill">
   <p class="dq">3 個消費者，生產者只放 1 個結束物件，實跑結果？</p>
   <ul class="dopts"><li>消費者丟出 NoSuchElementException</li><li>有一筆資料會被處理兩次</li><li data-ok>2 個消費者卡在 take，程式結束不了</li><li>3 個消費者都正常結束</li></ul>
@@ -470,7 +474,7 @@ public class Pipeline {
 <div class="drill">
   <p class="dq">消費者改用 <code>poll()</code>（不帶時間）寫成迴圈，問題是？</p>
   <ul class="dopts"><li>空的時候丟出 NoSuchElementException</li><li>空的時候消費者自動收工</li><li>空的時候會永遠阻塞下去</li><li data-ok>空了立刻回 null，空轉吃 CPU</li></ul>
-  <p class="dexp">poll() 屬於回傳特殊值那一組；要等就用 take()。</p>
+  <p class="dexp">poll() 空的時候立刻回 null（文件表格把它放在「回傳特殊值」那一欄）；要等就用 take()。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼用有界的 <code>ArrayBlockingQueue(10)</code>？</p>
@@ -539,11 +543,11 @@ public class TokenBucket {
     <p>閒置 9 秒最多也只累積到 5 個，因為補代幣時跟容量取 <code>Math.min</code>。</p>
     <p><strong>常見寫錯：</strong></p>
     <ul class="plainlist">
-      <li><b>tryAcquire 沒加 synchronized。</b>「檢查還有沒有、再減一」是兩步，8 條執行緒同時搶 100 個代幣，實跑三輪放行 101、103、102 個。</li>
+      <li><b>tryAcquire 沒加 synchronized。</b>「檢查還有沒有、再減一」是兩步，8 條執行緒同時搶 100 個代幣，跑 80 輪：73 輪剛好 100，7 輪超發（101〜210）。不加鎖不保證每次出錯，但一出錯就是放行超過代幣數，而且測試不一定抓得到。</li>
       <li><b>改用固定視窗卻沒講邊界問題。</b>同樣用假時鐘寫一個「每分鐘 100 個」的固定視窗，第 59.9 秒打 100 個、第 60.0 秒再打 100 個，0.1 秒內放進 200 個。</li>
-      <li><b>直接呼叫 System.nanoTime()、不能換時鐘。</b>正確性沒問題，但測試只能真的等，又慢又不穩。</li>
+      <li><b>直接呼叫 System.nanoTime()、不能換時鐘。</b>正確性沒問題，但測試只能真的等時間過去，跑得慢，結果也容易受機器快慢影響；本課的建議是時鐘做成可以換的。</li>
     </ul>
-    <p><strong>追問：</strong>多台伺服器怎麼辦？計數器放 Redis，用 Lua 腳本讓「加一、設過期、判斷」原子完成，見〈系統設計：秒殺與限流〉。</p>
+    <p><strong>追問：</strong>多台伺服器怎麼辦？狀態搬到 Redis。令牌桶要存「還剩幾個代幣、上次補的時間」，用一支 Lua 腳本把讀出、補代幣、扣一個、寫回一次做完；「加一、設過期、判斷」是固定視窗的做法。兩種都見〈系統設計：秒殺與限流〉。</p>
 <div class="drill">
   <p class="dq">令牌桶容量 5、每秒補 2 個，第 0 秒連打 8 次，結果？</p>
   <ul class="dopts"><li>8 次全部放行</li><li>前 2 次放行，後 6 次擋下</li><li>8 次全部擋下</li><li data-ok>前 5 次放行，後 3 次擋下</li></ul>
@@ -555,9 +559,9 @@ public class TokenBucket {
   <p class="dexp">補代幣時跟容量取 Math.min，閒置再久也只累積到 5 個。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>tryAcquire</code> 沒加 <code>synchronized</code>，8 條執行緒搶 100 個代幣，實跑結果？</p>
-  <ul class="dopts"><li>剛好放行 100 個</li><li data-ok>放行超過 100 個</li><li>放行少於 100 個</li><li>程式死結</li></ul>
-  <p class="dexp">檢查與減一是兩步，兩條執行緒可能都看到還有 1 個。三輪實跑放行 101、103、102 個。</p>
+  <p class="dq"><code>tryAcquire</code> 沒加 <code>synchronized</code>，8 條執行緒搶 100 個代幣，可能出現什麼錯？</p>
+  <ul class="dopts"><li>放行少於 100 個</li><li data-ok>放行超過 100 個</li><li>程式死結，誰都拿不到</li><li>丟出 ConcurrentModificationException</li></ul>
+  <p class="dexp">檢查與減一是兩步，兩條執行緒可能都看到還有 1 個。跑 80 輪，73 輪剛好 100、7 輪超發；不保證每次出錯，但出錯就是超發。</p>
 </div>
 <div class="drill">
   <p class="dq">令牌桶的時間來源寫成 <code>LongSupplier</code>，主要理由是？</p>
