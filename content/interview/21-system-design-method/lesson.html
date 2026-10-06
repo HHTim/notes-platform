@@ -1,0 +1,476 @@
+<!-- 來源：依公開資料新寫。Jeff Dean〈Designs, Lessons and Advice from Building Large Distributed Systems〉LADIS 2009 投影片第 24、27 頁 https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf · Peter Norvig〈Teach Yourself Programming in Ten Years〉 https://norvig.com/21-days.html · Google《Site Reliability Engineering》〈Embracing Risk〉 https://sre.google/sre-book/embracing-risk/ · 《The Site Reliability Workbook》〈Non-Abstract Large System Design〉 https://sre.google/workbook/non-abstract-design/ · Alex Xu《System Design Interview》第 3 章〈A Framework For System Design Interviews〉 https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews · Firebase Cloud Messaging〈Throttling and quotas〉〈Scale FCM〉 https://firebase.google.com/docs/cloud-messaging/ · Azure 架構中心 Publisher-Subscriber、Queue-Based Load Leveling 模式 https://learn.microsoft.com/en-us/azure/architecture/patterns/ ；示範題「銀行交易通知服務」與其中所有數字為自編假設，計算皆自行驗算 · 收錄日期：2026-10-06 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把一場 45 分鐘的系統設計面試切成四段，知道每段大約花多久、要交出什麼</li><li>開場先問對問題：功能需求與非功能需求各問哪些，問不到答案時怎麼寫下假設</li><li>從每日活躍用戶一路算到平均與尖峰每秒請求數、儲存量與頻寬，並背得出幾個出處可查的基準數字</li><li>先畫最簡單能動的架構，再說清楚「哪個數字逼我加快取、佇列、分片、複寫」，用一句話講出每個取捨</li><li>用「銀行交易通知服務」把整套流程從頭走一遍，並避開最常見的扣分行為</li></ul></div>
+<p class="muted">本課講「怎麼答」的流程，不重講各元件的細節：發號與多層快取見〈系統設計：短網址的高併發〉，限流、Little 定律與四個黃金訊號見〈系統設計：秒殺與限流〉，快取讀寫模式見〈系統設計：快取一致性與熱點〉，送達保證、Outbox 與死信見〈系統設計：訊息佇列與最終一致性〉，冪等鍵與答題順序的完整示範見〈系統設計：銀行轉帳系統〉，CAP 見〈資料庫面試題：複寫、分片與 CAP〉。</p>
+
+<section>
+<p class="era">先知道面試官在看什麼</p>
+<h3 class="head">一場 45 分鐘，切成四段</h3>
+<p class="q">面試官：請設計一個……（題目通常只有一句話）。</p>
+<p>系統設計題故意給得很模糊，因為它考的不是「背出正確架構」。Alex Xu 的《System Design Interview》把它形容成兩個同事一起解一個模糊的問題：「最後的設計，沒有你在設計過程中付出的功夫重要」（The final design is less important compared to the work you put in the design process.）；面試官同時在看你能不能合作、能不能在壓力下工作、能不能把模糊的地方問清楚。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener">出處</a></p>
+<p>同一章給了一份 45 分鐘的時間分配，作者自己強調「這是很粗略的估計」（this is a rough estimate），實際依題目與面試官而定：</p>
+<div class="tablewrap"><table><thead><tr><th>段落</th><th>建議時間</th><th>這段要交出什麼</th></tr></thead><tbody>
+<tr><th>一、理解問題、確定範圍</th><td>3〜10 分鐘</td><td>功能清單、規模與非功能需求、寫在白板上的假設</td></tr>
+<tr><th>二、提出整體設計並取得同意</th><td>10〜15 分鐘</td><td>方框圖（用戶端、API、伺服器、資料庫、快取、佇列）、粗估確認撐得住</td></tr>
+<tr><th>三、深入設計</th><td>10〜25 分鐘</td><td>跟面試官一起挑兩三個關鍵元件往下挖</td></tr>
+<tr><th>四、收尾</th><td>3〜5 分鐘</td><td>瓶頸與改進方向、錯誤情境、監控與上線方式、重點回顧</td></tr>
+</tbody></table></div>
+<p class="muted">時間分配出自上面那一章（Understand the problem and establish design scope: 3 - 10 minutes … Wrap: 3 - 5 minutes）。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener">出處</a></p>
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="45 分鐘系統設計面試的時間軸：理解問題 3 到 10 分鐘，整體設計 10 到 15 分鐘，深入設計 10 到 25 分鐘，收尾 3 到 5 分鐘。下方標示每段要交出的東西：假設清單、方框圖加粗估、兩三個關鍵元件、瓶頸與回顧">
+  <defs><marker id="sd-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="40" width="120" height="50" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="80" y="62" font-size="13" text-anchor="middle" font-weight="700">理解問題</text>
+  <text x="80" y="80" font-size="11.5" text-anchor="middle" opacity=".8">3〜10 分</text>
+  <rect x="150" y="40" width="170" height="50" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="235" y="62" font-size="13" text-anchor="middle" font-weight="700">整體設計</text>
+  <text x="235" y="80" font-size="11.5" text-anchor="middle" opacity=".8">10〜15 分</text>
+  <rect x="330" y="40" width="300" height="50" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="480" y="62" font-size="13" text-anchor="middle" font-weight="700">深入設計</text>
+  <text x="480" y="80" font-size="11.5" text-anchor="middle" opacity=".8">10〜25 分</text>
+  <rect x="640" y="40" width="100" height="50" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="690" y="62" font-size="13" text-anchor="middle" font-weight="700">收尾</text>
+  <text x="690" y="80" font-size="11.5" text-anchor="middle" opacity=".8">3〜5 分</text>
+  <line x1="20" y1="112" x2="738" y2="112" stroke="currentColor" stroke-opacity=".5" marker-end="url(#sd-flow-arrow)"/>
+  <text x="80" y="140" font-size="12" text-anchor="middle">假設寫在白板上</text>
+  <text x="235" y="140" font-size="12" text-anchor="middle">方框圖＋粗估</text>
+  <text x="480" y="140" font-size="12" text-anchor="middle">挑兩三個關鍵元件往下挖</text>
+  <text x="690" y="140" font-size="12" text-anchor="middle">瓶頸與回顧</text>
+  <text x="380" y="186" font-size="12" text-anchor="middle" fill="var(--slate-deep)">每一段結束前問一句「這樣的方向可以嗎？」，取得同意再往下</text>
+</svg>
+<figcaption>四段的長度是粗略建議；比例的重點是「理解問題」別省、「深入設計」留最多。</figcaption>
+</figure>
+<p>站上五課系統設計題，都是這四段的完整示範：開場先問語意與流量（短網址、秒殺、轉帳三課都從「先問」開始），中間畫圖並深入一兩個難點，最後補瓶頸與監控。〈系統設計：銀行轉帳系統〉最後那張「答題順序」表，就是把第三段要挖的主幹排出優先順序。</p>
+
+<div class="drill">
+  <p class="dq">依《System Design Interview》那一章，系統設計面試最看重的是什麼？</p>
+  <ul class="dopts"><li>畫出跟大公司一模一樣的架構</li><li data-ok>設計過程中的思考與溝通</li><li>能說出最多種資料庫產品的名字</li><li>在 10 分鐘內給出完整答案</li></ul>
+  <p class="dexp">原句：The final design is less important compared to the work you put in the design process。面試官看的是你怎麼問、怎麼取捨、怎麼回應回饋。</p>
+</div>
+<div class="drill">
+  <p class="dq">45 分鐘的面試，哪一段建議留最多時間？</p>
+  <ul class="dopts"><li>理解問題、確定範圍</li><li>提出整體設計</li><li>收尾與回顧</li><li data-ok>深入設計</li></ul>
+  <p class="dexp">建議是 10〜25 分鐘，是四段裡上限最長的。理解問題 3〜10 分、整體設計 10〜15 分、收尾 3〜5 分。</p>
+</div>
+<div class="drill">
+  <p class="dq">開場聽完題目，馬上開始畫微服務架構圖。這樣做最大的風險是？</p>
+  <ul class="dopts"><li data-ok>可能解錯問題</li><li>畫圖太慢，面試一定會超時</li><li>面試官通常不喜歡看圖</li><li>白板的空間會不夠用</li></ul>
+  <p class="dexp">書裡把「沒有完全理解需求就回答」稱為很大的警訊（a huge red flag）。需求沒問清楚，畫得再漂亮也可能方向整個錯。</p>
+</div>
+<div class="drill">
+  <p class="dq">「整體設計」那一段，除了畫方框圖，還要做什麼才算完成？</p>
+  <ul class="dopts"><li>把每張資料表的欄位全部寫出來</li><li>選定每個元件要用的雲端產品型號</li><li data-ok>粗估一下，確認這張圖撐得住規模</li><li>寫出主要 API 的完整程式碼</li></ul>
+  <p class="dexp">書裡第二步明寫要做 back-of-the-envelope calculations（粗估），確認藍圖符合規模限制，並先跟面試官取得同意。欄位、型號、程式碼都太細，留給深入那段視情況再談。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先問，不要先畫</p>
+<h3 class="head">功能需求與非功能需求</h3>
+<p>需求分兩種。<strong>功能需求</strong>是「系統要做什麼」：使用者能發什麼、看什麼、收到什麼。<strong>非功能需求</strong>是「做到什麼程度」：多少人用、多快、多可靠、資料能不能錯、要保存多久。面試的題目通常只給了一兩個功能，非功能需求幾乎都要你自己問出來，而它們才是決定架構的那一半。</p>
+<div class="tablewrap"><table><thead><tr><th>要問的</th><th>問法舉例</th><th>答案會改變什麼</th></tr></thead><tbody>
+<tr><th>核心功能</th><td>「最重要的兩三個功能是哪些？哪些這次先不做？」</td><td>範圍。45 分鐘只夠深入兩三件事</td></tr>
+<tr><th>使用者與規模</th><td>「每日活躍用戶多少？一年後預期成長到多少？」</td><td>要不要分散式、要幾台、要不要分片（把資料拆到多台資料庫）</td></tr>
+<tr><th>讀寫比與尖峰</th><td>「讀多還是寫多？有沒有固定的尖峰時段？」</td><td>快取放哪、要不要用佇列把尖峰攤平</td></tr>
+<tr><th>延遲</th><td>「使用者能接受多久？幾百毫秒還是幾秒？」</td><td>同步還是非同步、要不要就近部署</td></tr>
+<tr><th>一致性</th><td>「看到舊資料可以嗎？可以晚幾秒嗎？錢的部分呢？」</td><td>強一致（寫完馬上讀得到）還是最終一致（晚一點才一致），見〈資料庫面試題：複寫、分片與 CAP〉</td></tr>
+<tr><th>可用性</th><td>「掛掉幾分鐘的影響有多大？」</td><td>要不要跨可用區（同一地區裡供電與網路各自獨立的機房）複寫、要不要降級（出事時先關掉非必要功能）</td></tr>
+<tr><th>資料保存與法規</th><td>「要保存多久？有沒有個資或稽核要求？」</td><td>儲存量、冷熱分層、能不能刪改</td></tr>
+<tr><th>既有環境</th><td>「公司已經有哪些服務可以用？」</td><td>能不能直接用現成的佇列、推播或簡訊服務</td></tr>
+</tbody></table></div>
+<p>上面最後一項與「規模」「成長」兩項，書裡的問題清單也有：產品有多少使用者、預期多快成長、三個月與一年後的規模、有哪些既有服務可以用來簡化設計。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener">出處</a> 問完要把答案寫下來。面試官常會反問「你覺得呢？」，這時就自己定一個合理的數字，寫在白板上，後面的粗估都從它出發；書裡的建議是「把你的假設寫在白板或紙上，之後可能用得到」（write down your assumptions on the whiteboard or paper. You might need them later.）。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener">出處</a> 〈系統設計：短網址的高併發〉也是同樣的講法：讀寫比不要憑空斷言，先提出假設，再說明會用上線後的監控資料校正。</p>
+<p class="formula">先問功能、再問規模與非功能；問不到就自己假設，寫在白板上，後面每一步都對照它</p>
+
+<div class="drill">
+  <p class="dq">下面哪一個是<strong>非功能</strong>需求？</p>
+  <ul class="dopts"><li>使用者可以設定不接收行銷推播</li><li>使用者可以查詢過去 30 天的通知</li><li data-ok>交易通知要在 5 秒內送到手機</li><li>使用者可以選擇用簡訊或推播收通知</li></ul>
+  <p class="dexp">「5 秒內」講的是做到什麼程度（延遲），是非功能需求；另外三個都是系統要能做的事。</p>
+</div>
+<div class="drill">
+  <p class="dq">問面試官「每日活躍用戶多少」，得到的答案最直接影響什麼？</p>
+  <ul class="dopts"><li data-ok>決定要幾台、要不要分散式</li><li>API 的路徑要怎麼命名才好</li><li>要選用哪一種程式語言來寫</li><li>畫面要用哪一套顏色與字型</li></ul>
+  <p class="dexp">使用者數量是粗估的起點，算出每秒請求數與儲存量，才知道一台夠不夠、要不要分片。命名、語言與畫面跟規模無關。</p>
+</div>
+<div class="drill">
+  <p class="dq">問「流量多大」，面試官反問「你覺得呢？」。比較好的做法是？</p>
+  <ul class="dopts"><li>堅持請面試官給數字，不給就不往下</li><li>跳過粗估這一步，直接畫架構圖</li><li data-ok>自己定一個數字，寫在白板上</li><li>先假設流量無限大，全用最貴方案</li></ul>
+  <p class="dexp">書裡的建議：面試官請你自己假設時，把假設寫下來，後面會用到。假設講出來、寫下來，面試官不同意會當場修正。</p>
+</div>
+<div class="drill">
+  <p class="dq">「看到幾秒前的舊資料可以嗎？」這一問，主要在釐清哪一項需求？</p>
+  <ul class="dopts"><li>可用性</li><li>延遲</li><li>保存期限</li><li data-ok>一致性</li></ul>
+  <p class="dexp">能不能接受舊資料，決定要強一致還是最終一致，例如快取能不能用、複本能不能拿來讀。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼要問「公司已經有哪些服務可以用」？</p>
+  <ul class="dopts"><li>這樣才能批評公司現有的技術選擇</li><li>面試規定一定要問這一題才會過</li><li>為了決定要不要換掉所有舊系統</li><li data-ok>用現成元件，時間留給難點</li></ul>
+  <p class="dexp">書裡的問題清單也有 What existing services you might leverage to simplify the design。例如已經有推播服務，就不必自己設計怎麼連到手機。</p>
+</div>
+</section>
+
+<section>
+<p class="era">用整數算，數量級對就好</p>
+<h3 class="head">粗估：每日活躍用戶 → 每秒請求數 → 尖峰、儲存、頻寬</h3>
+<p>粗估（back-of-the-envelope estimation，在信封背面就算得完的估算）的目的，是在動手之前判斷「這個設計撐不撐得住、瓶頸在哪」。Jeff Dean 在 2009 年的演講裡舉過一個例子：要產生一頁有 30 張縮圖的圖片搜尋結果，如果每張圖都從磁碟依序讀、即時縮圖，是「30 次搜尋 × 10 毫秒 ＋ 30 × 256K ÷ 30 MB/s ＝ 560 毫秒」（30 seeks * 10 ms/seek + 30 * 256K / 30 MB/s = 560 ms）；改成同時發出讀取，只要「10 毫秒 ＋ 256K ÷ 30 MB/s ＝ 18 毫秒」，他補一句實際上考慮到變異大概是 30〜60 毫秒。結論是「粗估幫你找出最有希望的方案」（Back of the envelope helps identify most promising…）。<a class="fixsrc" href="https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf#page=27" target="_blank" rel="noopener">出處</a> 自己驗算一次：30 × 10 ＝ 300 毫秒；30 × 256 KB ＝ 7.68 MB，÷ 30 MB/s ＝ 256 毫秒；合計 556，投影片四捨五入寫 560。</p>
+<h4>四條公式</h4>
+<div class="tablewrap"><table><thead><tr><th>要算的</th><th>公式</th><th>白話</th></tr></thead><tbody>
+<tr><th>平均每秒請求數</th><td>每日請求數 ÷ 86,400</td><td>一天有 24 × 60 × 60 ＝ 86,400 秒，心算時當成 10⁵（十萬）</td></tr>
+<tr><th>尖峰每秒請求數</th><td>平均 × 尖峰倍數</td><td>倍數是假設，要講出來；有固定尖峰時段就按尖峰時段的量算</td></tr>
+<tr><th>儲存量</th><td>每日新增筆數 × 每筆大小 × 保存天數 × 副本數</td><td>副本數依系統而定，例如 Hadoop 分散式檔案系統的 <code>dfs.replication</code> 預設是 3（Default block replication）<a class="fixsrc" href="https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><th>頻寬</th><td>每秒請求數 × 每次傳輸大小</td><td>位元組要乘 8 才是網路常用的位元（bit）</td></tr>
+</tbody></table></div>
+<p>每秒請求數也叫 QPS（queries per second），〈系統設計：秒殺與限流〉用的就是這個詞。那課也提醒了追問時要補的一句：Google SRE 書說把容量建模成每秒請求數常常不是好指標，最後要靠壓測換算成每台機器的真數字；同時在線的連線數用 Little 定律算，這裡不重講。</p>
+<h4>可以背的數字</h4>
+<div class="tablewrap"><table><thead><tr><th>數字</th><th>值</th><th>怎麼來的</th></tr></thead><tbody>
+<tr><th>一天的秒數</th><td>86,400，約 10⁵</td><td>24 × 60 × 60</td></tr>
+<tr><th>一年的分鐘數</th><td>525,600</td><td>365 × 24 × 60</td></tr>
+<tr><th>2¹⁰、2²⁰、2³⁰、2⁴⁰</th><td>約一千、一百萬、十億、一兆</td><td>KB、MB、GB、TB 各差 1,024 倍，心算當 1,000</td></tr>
+<tr><th>1 Gbps</th><td>約 125 MB/s</td><td>10⁹ 位元 ÷ 8</td></tr>
+<tr><th>99.9% 可用</th><td>每年約 8.76 小時、每天約 86 秒可以停</td><td>525,600 × 0.001 ＝ 525.6 分鐘；86,400 × 0.001 ＝ 86.4 秒</td></tr>
+<tr><th>99.99% 可用</th><td>每年約 52.56 分鐘、每天約 8.6 秒可以停</td><td>SRE 書的例子，見下段</td></tr>
+</tbody></table></div>
+<p>Google SRE 書的〈Embracing Risk〉一章用一年的時間算過：「可用性目標 99.99% 的系統，一年最多可以停機 52.56 分鐘」（a system with an availability target of 99.99% can be down for up to 52.56 minutes in a year）。<a class="fixsrc" href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener">出處</a> 自己驗算：525,600 × 0.0001 ＝ 52.56。</p>
+<p>延遲的數量級，最常被引用的是 Jeff Dean 同一場演講的「每個人都該知道的數字」（Numbers Everyone Should Know），下表節錄：<a class="fixsrc" href="https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf#page=24" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>操作</th><th>投影片的數字</th><th>換成好記的單位</th></tr></thead><tbody>
+<tr><td>L1 快取讀取（L1 cache reference）</td><td>0.5 ns</td><td>不到 1 奈秒</td></tr>
+<tr><td>主記憶體讀取（Main memory reference）</td><td>100 ns</td><td>0.1 微秒</td></tr>
+<tr><td>從記憶體依序讀 1 MB</td><td>250,000 ns</td><td>0.25 毫秒</td></tr>
+<tr><td>同一個資料中心內來回一趟</td><td>500,000 ns</td><td>0.5 毫秒</td></tr>
+<tr><td>磁碟搜尋（Disk seek）</td><td>10,000,000 ns</td><td>10 毫秒</td></tr>
+<tr><td>從磁碟依序讀 1 MB</td><td>20,000,000 ns</td><td>20 毫秒</td></tr>
+<tr><td>封包從加州到荷蘭再回來</td><td>150,000,000 ns</td><td>150 毫秒</td></tr>
+</tbody></table></div>
+<p>這些是 2009 年的硬體，現在的記憶體與網路更快、固態硬碟也沒有機械搜尋，絕對值不要死背。要記的是它們之間的<strong>數量級</strong>：記憶體比同機房網路快幾千倍，同機房網路又比跨洲網路快幾百倍。Peter Norvig 的〈Teach Yourself Programming in Ten Years〉附錄也有一張相近的表（例如主記憶體 100 奈秒、美國到歐洲來回 150 毫秒），兩份數字大致吻合。<a class="fixsrc" href="https://norvig.com/21-days.html" target="_blank" rel="noopener">出處</a> 這也解釋了快取為什麼有用：把資料從磁碟或遠端服務搬到記憶體，差的是好幾個數量級。</p>
+<p>算的時候，書裡給了三個建議：用整數與近似值（「99987 / 9.1」就當「100,000 / 10」），把假設寫下來，每個數字都標單位（Label your units），以免分不清 5 是 KB 還是 MB。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">每日請求 ÷ 10⁵ ≈ 平均每秒；乘上尖峰倍數；儲存 ＝ 筆數 × 大小 × 天數 × 副本；頻寬 ＝ 每秒 × 大小 × 8；數字都標單位</p>
+
+<div class="drill">
+  <p class="dq">每天 864 萬次請求，平均每秒幾次？</p>
+  <ul class="dopts"><li>10</li><li data-ok>100</li><li>1,000</li><li>8,640</li></ul>
+  <p class="dexp">8,640,000 ÷ 86,400 ＝ 100。心算用 10⁵ 當一天的秒數，得到約 86，數量級一樣。</p>
+</div>
+<div class="drill">
+  <p class="dq">平均每秒 200 次，假設尖峰是平均的 3 倍。尖峰每秒幾次？</p>
+  <ul class="dopts"><li>200</li><li>400</li><li data-ok>600</li><li>6,000</li></ul>
+  <p class="dexp">200 × 3 ＝ 600。尖峰倍數是自己定的假設，要講出來，例如「發薪日中午大約是平時的三倍」。</p>
+</div>
+<div class="drill">
+  <p class="dq">每天新增 100 萬筆、每筆 1 KB、保存一年、存 3 份。大約要多少空間？</p>
+  <ul class="dopts"><li data-ok>約 1.1 TB</li><li>約 365 GB</li><li>約 3 GB</li><li>約 110 TB</li></ul>
+  <p class="dexp">100 萬 × 1 KB ＝ 1 GB／天；× 365 ＝ 365 GB；× 3 份 ＝ 1,095 GB，約 1.1 TB。365 GB 是忘了乘副本數。</p>
+</div>
+<div class="drill">
+  <p class="dq">每秒 1,000 次、每次回應 50 KB，出去的頻寬大約多少？</p>
+  <ul class="dopts"><li>50 Mbit/s</li><li>4 Mbit/s</li><li data-ok>400 Mbit/s</li><li>50 Gbit/s</li></ul>
+  <p class="dexp">1,000 × 50 KB ＝ 50 MB/s；× 8 ＝ 400 Mbit/s。50 Mbit/s 是忘了把位元組換成位元。</p>
+</div>
+<div class="drill">
+  <p class="dq">1 Gbps 的網路，理論上每秒最多傳多少位元組？</p>
+  <ul class="dopts"><li>1 GB</li><li>8 GB</li><li>1,000 KB</li><li data-ok>約 125 MB</li></ul>
+  <p class="dexp">1 Gbps 是每秒 10⁹ 位元，÷ 8 ＝ 1.25 × 10⁸ 位元組，約 125 MB。網路速率用位元、檔案大小用位元組，換算要乘除 8。</p>
+</div>
+<div class="drill">
+  <p class="dq">可用性目標 99.99%，一年最多可以停機多久？</p>
+  <ul class="dopts"><li>約 8.76 小時</li><li data-ok>約 52.56 分鐘</li><li>約 5.26 分鐘</li><li>約 3.65 天</li></ul>
+  <p class="dexp">525,600 分鐘 × 0.0001 ＝ 52.56 分鐘，SRE 書〈Embracing Risk〉的例子。8.76 小時是 99.9%，5.26 分鐘是 99.999%，3.65 天是 99%。</p>
+</div>
+<div class="drill">
+  <p class="dq">依 Jeff Dean 的表，「同一個資料中心內來回一趟」大約是「主記憶體讀取」的幾倍？</p>
+  <ul class="dopts"><li>約 5 倍</li><li>約 50 倍</li><li data-ok>約 5,000 倍</li><li>約 500 萬倍</li></ul>
+  <p class="dexp">500,000 ns ÷ 100 ns ＝ 5,000。這就是「每次都多打一趟網路」與「直接讀記憶體」的差距，也是本機快取有用的原因。</p>
+</div>
+<div class="drill">
+  <p class="dq">Jeff Dean 的縮圖例子裡，從「依序讀 30 張」改成「同時發出讀取」，時間從約 560 毫秒變成約 18 毫秒。主要省掉的是什麼？</p>
+  <ul class="dopts"><li>縮圖運算的時間變短了</li><li>網路傳輸的時間變短了</li><li data-ok>30 次搜尋改成一起等</li><li>每張圖片的檔案變小了</li></ul>
+  <p class="dexp">依序讀時 30 次 10 毫秒的搜尋要排隊加起來（300 毫秒）；同時發出時大家一起等，只花一次搜尋的時間 10 毫秒，再加讀一張圖的 8.5 毫秒。</p>
+</div>
+<div class="drill">
+  <p class="dq">Jeff Dean 那張延遲表是 2009 年的。今天在面試裡引用，正確的用法是？</p>
+  <ul class="dopts"><li data-ok>看數量級，不背絕對值</li><li>把每個數字背到小數點、當精確值</li><li>數字都過時了，面試裡完全不要提</li><li>只能用在還在用機械硬碟的系統</li></ul>
+  <p class="dexp">硬體變快了，絕對值會變，但記憶體、同機房網路、跨洲網路之間差好幾個數量級這件事沒變，粗估要的就是這個。</p>
+</div>
+<div class="drill">
+  <p class="dq">粗估時算出「5」，下一步最該補上什麼？</p>
+  <ul class="dopts"><li>把它算到小數點後兩位</li><li>換成科學記號的寫法</li><li>乘上一個安全係數 10</li><li data-ok>單位：KB、MB 還是每秒</li></ul>
+  <p class="dexp">書裡的建議 Label your units：沒寫單位，後面很容易把 KB 當 MB，差一千倍。</p>
+</div>
+</section>
+
+<section>
+<p class="era">先能動，再變大</p>
+<h3 class="head">從最簡單的架構開始，讓數字逼你加東西</h3>
+<p>Google 的《The Site Reliability Workbook》把這種做法叫 NALSD（Non-Abstract Large System Design，非抽象大型系統設計），分兩個階段。第一階段先設計「原理上行得通」的版本（a design that works in principle），問「行不行得通」「能不能更好」；第二階段才把需求放大，問「做不做得到」（Is it feasible?）：在金錢、硬體這些限制下能不能擴充、需要什麼分散式設計；以及「撐不撐得住故障」（Is it resilient?）。<a class="fixsrc" href="https://sre.google/workbook/non-abstract-design/" target="_blank" rel="noopener">出處</a> 面試也照這個順序：先畫一台伺服器加一個資料庫，確認功能都走得通，再用粗估的數字一個一個找瓶頸。</p>
+<div class="tablewrap"><table><thead><tr><th>加什麼</th><th>什麼數字或需求逼你加</th><th>代價</th><th>細節見</th></tr></thead><tbody>
+<tr><th>多台應用伺服器＋負載平衡</th><td>一台的 CPU 或連線數不夠；不能接受單台掛掉就停</td><td>伺服器要無狀態，登入狀態要外放</td><td>〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉的「無狀態行程」</td></tr>
+<tr><th>快取</th><td>讀多寫少、同一批資料被反覆讀、資料庫讀取撐不住</td><td>快取與資料庫可能不一致，要定失效策略</td><td>〈系統設計：快取一致性與熱點〉</td></tr>
+<tr><th>佇列</th><td>尖峰遠高於平均、後段處理慢或依賴外部服務、不需要同步回結果</td><td>變成最終一致，消費者要冪等（同一則處理兩次，結果跟一次一樣）</td><td>〈系統設計：訊息佇列與最終一致性〉</td></tr>
+<tr><th>讀取複本（只負責讀的資料庫拷貝）</th><td>讀取量大到一台資料庫撐不住</td><td>複寫延遲，剛寫完可能讀不到</td><td>〈資料庫面試題：複寫、分片與 CAP〉</td></tr>
+<tr><th>分片</th><td>寫入量或資料量超過一台資料庫的上限</td><td>跨片查詢與交易變難、分片鍵選錯會有熱點</td><td>〈資料庫面試題：複寫、分片與 CAP〉</td></tr>
+<tr><th>跨可用區或跨區域</th><td>可用性目標高，不能接受一個機房故障就停</td><td>成本加倍以上，跨區同步會增加延遲</td><td>本課下一段的取捨</td></tr>
+</tbody></table></div>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="架構一步步長大：第一步是用戶端、一台應用伺服器、一個資料庫；第二步加上負載平衡與多台伺服器；第三步加快取與讀取複本；第四步把慢的工作丟進佇列交給背景工作者；第五步資料庫分片並跨可用區複寫。每一步旁邊註明是哪個數字逼出來的">
+  <defs><marker id="sd-evolve-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="30" width="130" height="150" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="85" y="54" font-size="13" text-anchor="middle" font-weight="700">先能動</text>
+  <text x="85" y="84" font-size="12" text-anchor="middle">用戶端</text>
+  <text x="85" y="110" font-size="12" text-anchor="middle">一台伺服器</text>
+  <text x="85" y="136" font-size="12" text-anchor="middle">一個資料庫</text>
+  <rect x="170" y="30" width="130" height="150" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="235" y="54" font-size="13" text-anchor="middle" font-weight="700">多台＋負載平衡</text>
+  <text x="235" y="96" font-size="12" text-anchor="middle">伺服器無狀態</text>
+  <text x="235" y="122" font-size="12" text-anchor="middle">掛一台照常服務</text>
+  <rect x="320" y="30" width="130" height="150" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="385" y="54" font-size="13" text-anchor="middle" font-weight="700">快取＋讀取複本</text>
+  <text x="385" y="96" font-size="12" text-anchor="middle">讀的量</text>
+  <text x="385" y="122" font-size="12" text-anchor="middle">大到資料庫撐不住</text>
+  <rect x="470" y="30" width="130" height="150" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="535" y="54" font-size="13" text-anchor="middle" font-weight="700">佇列＋背景工作</text>
+  <text x="535" y="96" font-size="12" text-anchor="middle">尖峰遠高於平均</text>
+  <text x="535" y="122" font-size="12" text-anchor="middle">後段慢或靠外部</text>
+  <rect x="620" y="30" width="120" height="150" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="680" y="54" font-size="13" text-anchor="middle" font-weight="700">分片＋跨區</text>
+  <text x="680" y="96" font-size="12" text-anchor="middle">寫入或資料量</text>
+  <text x="680" y="122" font-size="12" text-anchor="middle">超過一台上限</text>
+  <line x1="150" y1="105" x2="168" y2="105" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-evolve-arrow)"/>
+  <line x1="300" y1="105" x2="318" y2="105" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-evolve-arrow)"/>
+  <line x1="450" y1="105" x2="468" y2="105" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-evolve-arrow)"/>
+  <line x1="600" y1="105" x2="618" y2="105" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-evolve-arrow)"/>
+  <text x="380" y="222" font-size="12.5" text-anchor="middle">每往右一步，都要說得出「是哪個數字或需求逼我加的」，以及「代價是什麼」</text>
+  <text x="380" y="248" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">粗估顯示一台就夠時，停在左邊也是正確答案</text>
+</svg>
+<figcaption>順序不是固定的：寫入是瓶頸就先分片，靠外部服務就先加佇列。重點是每一步都有理由。</figcaption>
+</figure>
+<p>反過來說，數字沒逼你，就不要加。書裡把「過度設計」（over-engineering）列為面試官會留意的警訊：沉迷設計的完美、忽略取捨，不知道過度設計的系統會累積成本。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener">出處</a> 每秒幾十次的服務，一台資料庫加一台備援往往就夠了；說「這個量不需要分片，等寫入超過單台上限再分」，比一開始就畫十個分片更有說服力。</p>
+
+<div class="drill">
+  <p class="dq">依 NALSD 的順序，設計一開始應該先做什麼？</p>
+  <ul class="dopts"><li data-ok>先設計原理上行得通的版本</li><li>先決定要部署在幾個區域</li><li>先把可用性目標訂到 99.999%</li><li>先把所有元件都換成分散式版本</li></ul>
+  <p class="dexp">NALSD 第一階段是 a design that works in principle，先問行不行得通、能不能更好；第二階段才放大需求，問做不做得到、撐不撐得住故障。</p>
+</div>
+<div class="drill">
+  <p class="dq">粗估出來每秒 30 次讀取、資料量每年 50 GB。下面哪一個說法最恰當？</p>
+  <ul class="dopts"><li>一定要先分成 16 個分片，以後不用改</li><li>一定要先加三層快取，免得撐不住</li><li>一定要改用 NoSQL，才擴充得了</li><li data-ok>一台加備援就夠，撐不住再分片</li></ul>
+  <p class="dexp">這個量一台資料庫綽綽有餘。數字沒逼你就不加，否則就是書裡說的過度設計；講出「什麼時候才需要分片」才是加分的地方。</p>
+</div>
+<div class="drill">
+  <p class="dq">什麼情況最需要在中間加一個佇列？</p>
+  <ul class="dopts"><li data-ok>尖峰遠高於平均、後段可以晚點做</li><li>每個請求都要立刻拿到處理結果</li><li>資料在每一步都一定要強一致</li><li>流量很小，而且全天都很平均</li></ul>
+  <p class="dexp">佇列把尖峰攤平，讓後段照自己的速度處理，代價是變成最終一致、消費者要冪等。要立刻拿結果、要強一致的地方不適合。</p>
+</div>
+<div class="drill">
+  <p class="dq">加了讀取複本之後，最常被追問的副作用是什麼？</p>
+  <ul class="dopts"><li>寫入的速度會變得更快</li><li data-ok>剛寫完可能讀到舊資料</li><li>從此不再需要任何備份</li><li>資料庫不能再加新的索引</li></ul>
+  <p class="dexp">複本是非同步複寫時會有延遲，〈資料庫面試題：複寫、分片與 CAP〉整理了「剛寫完讀不到」的三種解法。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼多台應用伺服器之前，要先讓伺服器「無狀態」？</p>
+  <ul class="dopts"><li>無狀態的程式碼比較短</li><li>無狀態的服務才能用 Java 寫</li><li>無狀態就可以省掉資料庫</li><li data-ok>哪一台接都一樣，掛一台沒事</li></ul>
+  <p class="dexp">登入狀態、暫存資料如果放在某一台的記憶體，負載平衡把下一個請求送到別台就找不到；把狀態外放到共用的儲存，任何一台都能接。</p>
+</div>
+</section>
+
+<section>
+<p class="era">每個決定都有代價</p>
+<h3 class="head">怎麼講取捨</h3>
+<p>面試官最想聽的是取捨，不是元件名稱。一個好用的句型是：<strong>「我選 A 不選 B，因為需求是 X；代價是 Y，我用 Z 緩解。」</strong>例如：「通知用佇列非同步送，因為交易本身不能等推播服務回應；代價是通知可能晚幾秒、可能重送，所以消費端用通知編號去重。」三個最常出現的取捨：</p>
+<ul>
+<li><strong>一致性對可用性</strong>：網路分割（機房之間斷線）時，只能二選一：拒絕服務以保證資料一致，或繼續服務但可能回舊資料。平時沒有分割時，取捨的是延遲。完整講法見〈資料庫面試題：複寫、分片與 CAP〉。答題時要講出「哪一部分需要強一致」：餘額要，通知列表、按讚數通常不用。</li>
+<li><strong>延遲對成本</strong>：每多一個 9、每快一點，都要花錢。SRE 書說：「成本不會隨可靠性線性增加，可靠性再往上提升一點，成本可能是上一次的 100 倍」（an incremental improvement in reliability may cost 100x more than the previous increment），而且使用者常常感覺不到，因為「用 99% 可靠的手機，分不出 99.99% 和 99.999% 的服務」（a user on a 99% reliable smartphone cannot tell the difference between 99.99% and 99.999% service reliability!）。<a class="fixsrc" href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener">出處</a> 所以目標要跟需求對齊，不是越高越好。</li>
+<li><strong>同步對非同步</strong>：同步簡單、使用者馬上知道結果；非同步扛得住尖峰、不怕後段慢，但要處理重送、順序與「晚一點才看到」。</li>
+</ul>
+<p class="formula">我選 A 不選 B，因為需求是 X；代價是 Y，用 Z 緩解</p>
+
+<div class="drill">
+  <p class="dq">下面哪一句最像面試官想聽的取捨？</p>
+  <ul class="dopts"><li>我用 Kafka，因為大公司都用 Kafka</li><li data-ok>佇列：交易不能等，重送就去重</li><li>我用 Redis，因為它的速度非常快</li><li>我全部用最新的技術，比較好擴充</li></ul>
+  <p class="dexp">有需求（交易不能等）、有代價（重送）、有緩解（去重），三段都有。其他三句只有結論，沒有理由與代價。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼可用性目標不是越高越好？</p>
+  <ul class="dopts"><li>因為 99.999% 在技術上做不到</li><li>因為可用性越高，延遲一定越高</li><li data-ok>成本陡增，使用者還感覺不到</li><li>因為監控系統只支援到 99.9%</li></ul>
+  <p class="dexp">SRE 書：可靠性再提升一點，成本可能是上一次的 100 倍；而用 99% 可靠手機的使用者，分不出 99.99% 和 99.999%。目標要跟需求對齊。</p>
+</div>
+<div class="drill">
+  <p class="dq">網路分割發生時，系統只能在哪兩者之間選一個？</p>
+  <ul class="dopts"><li>延遲與頻寬</li><li>讀取與寫入</li><li>成本與安全</li><li data-ok>一致性與可用性</li></ul>
+  <p class="dexp">分割時要嘛拒絕服務保住一致，要嘛繼續服務但可能回舊資料；沒有分割時取捨的是延遲。細節見〈資料庫面試題：複寫、分片與 CAP〉。</p>
+</div>
+<div class="drill">
+  <p class="dq">在一個銀行 App 裡，下面哪一項最需要強一致？</p>
+  <ul class="dopts"><li data-ok>帳戶餘額</li><li>通知列表裡的未讀數</li><li>首頁的行銷橫幅</li><li>上次登入時間的顯示</li></ul>
+  <p class="dexp">餘額錯了就是錢錯了；未讀數、橫幅、登入時間晚幾秒更新沒有實質損害，可以用最終一致換效能。</p>
+</div>
+</section>
+
+<section>
+<p class="era">從頭走一遍</p>
+<h3 class="head">示範：設計銀行的交易通知服務</h3>
+<p class="q">面試官：請設計一個通知服務。帳戶有交易時要通知客戶，行銷部門也要能發推播。</p>
+<h4>一、理解問題（約 8 分鐘）</h4>
+<p>先問，再寫下假設。下面的數字都是這場示範自己定的假設：</p>
+<div class="tablewrap"><table><thead><tr><th>問</th><th>答（假設）</th></tr></thead><tbody>
+<tr><th>通知有哪幾種？</th><td>交易通知（入帳、扣款、轉帳）與行銷推播兩種</td></tr>
+<tr><th>用什麼管道？</th><td>手機推播為主；客戶可選簡訊；行銷只用推播</td></tr>
+<tr><th>規模？</th><td>每日活躍用戶 200 萬；每人每天平均 3 則交易通知</td></tr>
+<tr><th>延遲？</th><td>交易通知希望 5 秒內送出；行銷推播 30 分鐘內送完即可</td></tr>
+<tr><th>可以漏、可以重複嗎？</th><td>交易通知不能漏；重複一則可以接受但要盡量避免</td></tr>
+<tr><th>要保存嗎？</th><td>App 裡要能查一年內的通知紀錄</td></tr>
+<tr><th>既有服務？</th><td>推播走 Firebase Cloud Messaging（FCM，Google 的推播服務）；簡訊有合作廠商</td></tr>
+</tbody></table></div>
+<h4>二、粗估</h4>
+<ul>
+<li><strong>交易通知平均</strong>：200 萬 × 3 ＝ 600 萬則／天；600 萬 ÷ 86,400 ≈ 69 則／秒（心算用 10⁵，約 60，數量級相同）。</li>
+<li><strong>交易通知尖峰</strong>：假設發薪日中午是平均的 3 倍，約 210 則／秒。</li>
+<li><strong>行銷推播</strong>：一次發給 500 萬人。FCM 的預設配額是「每分鐘 60 萬則」（The default quota of 600k messages per minute），超過會回 429 要你等下一分鐘。<a class="fixsrc" href="https://firebase.google.com/docs/cloud-messaging/throttling-and-quotas" target="_blank" rel="noopener">出處</a> 60 萬 ÷ 60 ＝ 每秒 1 萬則；500 萬 ÷ 1 萬 ＝ 500 秒，約 8 分多鐘才送得完，符合 30 分鐘的需求，但前提是交易通知不能被它卡住。</li>
+<li><strong>儲存</strong>：每則紀錄約 1 KB，600 萬 × 1 KB ＝ 6 GB／天；保存一年 6 × 365 ＝ 2,190 GB，約 2.2 TB；存 3 份約 6.6 TB。</li>
+<li><strong>頻寬</strong>：尖峰 210 則 × 1 KB ＝ 210 KB/s，約 1.7 Mbit/s；行銷每秒 1 萬則 × 1 KB ＝ 10 MB/s，即 80 Mbit/s。</li>
+</ul>
+<p>估完要講結論：<strong>頻寬與儲存都不是問題，真正的限制是外部推播服務的配額，以及行銷大量發送時不能拖慢交易通知。</strong>粗估的價值就在這裡：它告訴你深入設計該挖哪裡。</p>
+<h4>三、整體設計</h4>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="交易通知服務的整體架構：帳務系統在交易提交時把事件寫進 Outbox，送進交易通知佇列；行銷後台把一次活動拆成許多批次送進行銷佇列；通知工作者優先消化交易佇列，查使用者偏好與裝置清單，寫一筆通知紀錄後呼叫推播服務或簡訊廠商；失敗用指數退避加抖動重試，用盡進死信佇列；App 從通知紀錄查歷史">
+  <defs><marker id="sd-notify-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <rect x="20" y="30" width="140" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="90" y="54" font-size="13" text-anchor="middle" font-weight="700">帳務系統</text>
+  <text x="90" y="74" font-size="11.5" text-anchor="middle" opacity=".8">交易提交＋Outbox</text>
+  <rect x="20" y="170" width="140" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="90" y="194" font-size="13" text-anchor="middle" font-weight="700">行銷後台</text>
+  <text x="90" y="214" font-size="11.5" text-anchor="middle" opacity=".8">活動拆成批次</text>
+  <rect x="210" y="30" width="140" height="56" rx="8" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/>
+  <text x="280" y="54" font-size="13" text-anchor="middle" font-weight="700">交易通知佇列</text>
+  <text x="280" y="74" font-size="11.5" text-anchor="middle" opacity=".8">優先處理</text>
+  <rect x="210" y="170" width="140" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="280" y="194" font-size="13" text-anchor="middle" font-weight="700">行銷佇列</text>
+  <text x="280" y="214" font-size="11.5" text-anchor="middle" opacity=".8">限速、避開整點</text>
+  <line x1="160" y1="58" x2="208" y2="58" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <line x1="160" y1="198" x2="208" y2="198" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <rect x="400" y="95" width="150" height="70" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/>
+  <text x="475" y="122" font-size="13" text-anchor="middle" font-weight="700">通知工作者</text>
+  <text x="475" y="142" font-size="11.5" text-anchor="middle" opacity=".85">查偏好、去重、記紀錄</text>
+  <line x1="350" y1="58" x2="398" y2="110" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <line x1="350" y1="198" x2="398" y2="150" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <rect x="400" y="230" width="150" height="50" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="475" y="252" font-size="12.5" text-anchor="middle" font-weight="700">偏好與裝置清單</text>
+  <text x="475" y="270" font-size="11.5" text-anchor="middle" opacity=".8">＋通知紀錄（一年）</text>
+  <line x1="475" y1="165" x2="475" y2="228" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <rect x="600" y="30" width="140" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="670" y="54" font-size="13" text-anchor="middle" font-weight="700">推播服務</text>
+  <text x="670" y="74" font-size="11.5" text-anchor="middle" opacity=".8">每分鐘 60 萬則</text>
+  <rect x="600" y="110" width="140" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/>
+  <text x="670" y="134" font-size="13" text-anchor="middle" font-weight="700">簡訊廠商</text>
+  <text x="670" y="154" font-size="11.5" text-anchor="middle" opacity=".8">每則要錢</text>
+  <rect x="600" y="190" width="140" height="56" rx="8" fill="var(--surface)" stroke="currentColor" stroke-dasharray="5 4"/>
+  <text x="670" y="214" font-size="13" text-anchor="middle" font-weight="700">死信佇列</text>
+  <text x="670" y="234" font-size="11.5" text-anchor="middle" opacity=".8">重試用盡、告警</text>
+  <line x1="550" y1="112" x2="598" y2="64" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <line x1="550" y1="130" x2="598" y2="138" stroke="currentColor" stroke-width="1.6" marker-end="url(#sd-notify-arrow)"/>
+  <line x1="550" y1="150" x2="598" y2="212" stroke="currentColor" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#sd-notify-arrow)"/>
+  <text x="380" y="314" font-size="12.5" text-anchor="middle" fill="var(--slate-deep)">兩條佇列分開，行銷一次發 500 萬則也不會讓交易通知排在後面</text>
+</svg>
+<figcaption>佇列讓帳務系統不必等推播服務；兩條佇列分開，是因為兩種通知的延遲需求差了幾百倍。</figcaption>
+</figure>
+<p>三個主要決定與理由：</p>
+<ul>
+<li><strong>帳務系統不直接呼叫推播。</strong>推播服務慢或掛掉，不該讓轉帳卡住。交易提交時把「要通知」這件事一起寫進同一筆交易的寄件匣表（交易式 Outbox），再轉送進佇列；做法與為什麼不能「先寫資料庫再發訊息」，見〈系統設計：訊息佇列與最終一致性〉。這種「發送方只管丟出事件、不必知道誰收」的方式就是發布／訂閱（publish/subscribe）：Azure 架構中心的說法是讓應用程式把事件非同步地通知給多個有興趣的消費者，而不必把發送方和接收方綁在一起（without coupling the senders to the receivers）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/publisher-subscriber" target="_blank" rel="noopener">出處</a></li>
+<li><strong>交易通知與行銷分兩條佇列。</strong>行銷一次 500 萬則，若排在同一條佇列，後面進來的交易通知要等 8 分鐘以上，違反 5 秒的需求。分開之後，工作者優先消化交易佇列，行銷佇列照配額限速慢慢送。佇列把尖峰攤平、讓後段照自己的速度處理，Azure 叫它 Queue-Based Load Leveling：在任務與服務之間放一個緩衝佇列，「把可能讓服務失敗或任務逾時的間歇重負載攤平」（This approach smooths intermittent heavy loads that might cause the service to fail or the task to time out.）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/queue-based-load-leveling" target="_blank" rel="noopener">出處</a></li>
+<li><strong>工作者先寫通知紀錄、再送出。</strong>紀錄同時是 App 的通知歷史，也是去重的依據：每則通知帶一個由事件產生的編號（例如交易編號加通知類型），紀錄表對它建唯一索引，同一則通知第二次進來就跳過。佇列只保證至少送一次，消費端必須冪等；冪等鍵與唯一索引的寫法見〈系統設計：銀行轉帳系統〉。</li>
+</ul>
+<h4>四、深入設計：面試官最可能追問的三點</h4>
+<p class="q">面試官：推播服務回錯誤或逾時，怎麼辦？</p>
+<p>重試，但要指數退避（exponential backoff，每次重試的等待時間加倍）加抖動（jitter，等待時間再加一點隨機）。FCM 的文件寫得很具體：例如等 1、2、4、8 秒；再用隨機讓重試分散開，例如 0.9、2.3、4.1、8.5 秒；不這樣做的話，失敗的請求會「累積起來，疊加在原本的流量上」（they often accumulate and add to ongoing traffic load），讓壅塞更嚴重。<a class="fixsrc" href="https://firebase.google.com/docs/cloud-messaging/scale-fcm" target="_blank" rel="noopener">出處</a> 重試用盡就進死信佇列（處理不了的訊息另外存放、等人處理）並告警；交易通知若推播一直失敗、客戶又有開簡訊，改送簡訊。〈系統設計：秒殺與限流〉講的「隨機指數退避加重試預算」是同一件事。</p>
+<p class="q">面試官：行銷想在整點準時發送，可以嗎？</p>
+<p>可以發，但要知道代價。FCM 觀察到每個整點的前 30 秒到 2 分鐘，流量是平常的兩倍以上（FCM receives more than double traffic during the first 30 seconds to 2 minutes of each hour），所以建議盡量避開 :00、:15、:30、:45 前後 2 分鐘的時段。<a class="fixsrc" href="https://firebase.google.com/docs/cloud-messaging/scale-fcm" target="_blank" rel="noopener">出處</a> 跟行銷談的取捨是：「準時整點」換來的是更容易被限速、更晚送達；改成 :05 開始、用 8 分鐘平均送完，客戶感覺差不多，系統穩很多。</p>
+<p class="q">面試官：簡訊比推播可靠，為什麼不全部用簡訊？</p>
+<p>成本與體驗的取捨。簡訊按則計費，例如 AWS SNS 的簡訊價格依目的地的電信商而定、以每則計（get the exact pricing per message）<a class="fixsrc" href="https://aws.amazon.com/sns/sms-pricing/" target="_blank" rel="noopener">出處</a>；FCM 在 Firebase 的價格表上列為免費（Cloud Messaging (FCM) No-cost）<a class="fixsrc" href="https://firebase.google.com/pricing" target="_blank" rel="noopener">出處</a>。每天 600 萬則交易通知全改簡訊，費用直接乘上 600 萬。所以預設推播、客戶主動選了才送簡訊、推播多次失敗才改簡訊。這就是「延遲與可靠度對成本」的取捨落到實際題目上。</p>
+<h4>五、收尾（約 3 分鐘）</h4>
+<p>講瓶頸與監控：推播配額是第一個上限，要能申請提高或分散到多個專案；監控交易佇列的堆積量與「從交易到送出」的延遲，超過 5 秒就告警；死信佇列有東西就要有人處理。最後用三句話回顧：兩條佇列分開延遲需求、Outbox 確保交易通知不漏、唯一索引確保不重複。</p>
+
+<div class="drill">
+  <p class="dq">示範題假設每日 600 萬則交易通知。平均每秒大約幾則？</p>
+  <ul class="dopts"><li>約 7 則</li><li>約 700 則</li><li data-ok>約 69 則</li><li>約 6,000 則</li></ul>
+  <p class="dexp">6,000,000 ÷ 86,400 ≈ 69.4。用 10⁵ 心算得到約 60，數量級一樣是「每秒幾十則」。</p>
+</div>
+<div class="drill">
+  <p class="dq">FCM 預設每分鐘 60 萬則。一次發給 500 萬人，最快大約要多久？</p>
+  <ul class="dopts"><li>約 50 秒</li><li data-ok>約 8 分鐘</li><li>約 1 小時</li><li>約 83 分鐘</li></ul>
+  <p class="dexp">60 萬 ÷ 60 ＝ 每秒 1 萬則；500 萬 ÷ 1 萬 ＝ 500 秒，約 8.3 分鐘。83 分鐘是把每分鐘 60 萬誤當成每分鐘 6 萬。</p>
+</div>
+<div class="drill">
+  <p class="dq">示範題的粗估結果，最重要的結論是什麼？</p>
+  <ul class="dopts"><li data-ok>瓶頸在推播配額與兩種通知互搶</li><li>頻寬不夠用，要加一條專線</li><li>儲存量太大，要改用分散式檔案系統</li><li>每秒 69 則，一定要先分片</li></ul>
+  <p class="dexp">尖峰頻寬只有約 1.7 Mbit/s、一年約 2.2 TB，都不難；真正的限制是外部配額與兩種通知搶同一條路。粗估告訴你深入設計該挖哪裡。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼交易通知與行銷推播要分成兩條佇列？</p>
+  <ul class="dopts"><li>兩種通知的格式不同，不能放在一起</li><li data-ok>行銷大量發送會擠到交易通知</li><li>一條佇列最多只能放 100 萬則</li><li>行銷通知不需要做任何去重</li></ul>
+  <p class="dexp">交易通知要 5 秒內送出，行銷可以 30 分鐘；同一條佇列裡 500 萬則行銷排在前面，交易通知要等 8 分鐘以上。分開才能照延遲需求排優先順序。</p>
+</div>
+<div class="drill">
+  <p class="dq">帳務系統在轉帳成功後直接同步呼叫推播服務，最大的問題是？</p>
+  <ul class="dopts"><li data-ok>推播出問題，轉帳也跟著卡</li><li>推播服務不支援中文內容</li><li>這樣同一則通知一定會送兩次</li><li>同步呼叫一定比非同步快</li></ul>
+  <p class="dexp">轉帳不該依賴推播服務的狀況。用 Outbox 寫進同一筆交易、再非同步送，推播出問題只會讓通知晚一點，不會影響轉帳。</p>
+</div>
+<div class="drill">
+  <p class="dq">佇列只保證「至少送一次」，通知工作者怎麼避免客戶收到兩則一樣的通知？</p>
+  <ul class="dopts"><li>換成保證剛好一次的佇列產品就好</li><li>每則送出後等 10 秒再確認一次</li><li data-ok>事件編號建唯一索引，重複就跳過</li><li>只要伺服器夠快，就不會重複</li></ul>
+  <p class="dexp">消費端冪等才是根本解法：同一則通知的編號第二次寫入會撞唯一索引，就不再送。佇列自己做不到端到端只送一次。</p>
+</div>
+<div class="drill">
+  <p class="dq">推播服務回 429 或逾時，重試的等待時間應該怎麼安排？</p>
+  <ul class="dopts"><li>每秒固定重試一次，直到成功為止</li><li data-ok>指數退避加抖動，用盡進死信</li><li>立刻重試，越快越好，不必等待</li><li>不要重試，失敗一次就直接放棄</li></ul>
+  <p class="dexp">FCM 建議 1、2、4、8 秒這樣加倍，再加隨機分散；固定間隔或立刻重試會讓失敗的請求疊在原本的流量上，越重試越塞。</p>
+</div>
+<div class="drill">
+  <p class="dq">行銷要求「每天中午 12:00 整準時發」，比較好的回應是？</p>
+  <ul class="dopts"><li data-ok>說明整點易被限速，建議錯開分批</li><li>照做，整點發送不會有任何影響</li><li>拒絕發送所有的行銷推播</li><li>改成全部用簡訊來發送</li></ul>
+  <p class="dexp">FCM 觀察到整點前 30 秒到 2 分鐘流量是平常的兩倍以上，建議避開。講出代價、提出替代方案，就是在談取捨。</p>
+</div>
+<div class="drill">
+  <p class="dq">為什麼交易通知不全部改用簡訊？</p>
+  <ul class="dopts"><li>簡訊無法顯示交易的金額</li><li>簡訊的送達速度一定比推播慢</li><li>法規禁止用簡訊發交易通知</li><li data-ok>簡訊按則計費，量大成本高</li></ul>
+  <p class="dexp">可靠度與成本的取捨：預設推播、客戶選了才送簡訊、推播多次失敗才改簡訊。其他三個選項都不是事實。</p>
+</div>
+<div class="drill">
+  <p class="dq">收尾時，示範題最該監控的指標是？</p>
+  <ul class="dopts"><li data-ok>交易佇列堆積量與送出延遲</li><li>伺服器的 CPU 型號與核心數</li><li>行銷推播的點擊率與轉換率</li><li>資料庫裡總共有幾張表</li></ul>
+  <p class="dexp">需求是交易通知 5 秒內送出，監控就要直接看這個延遲，以及會造成延遲的佇列堆積；死信佇列有東西也要告警。</p>
+</div>
+</section>
+
+<section>
+<p class="era">避開就加分</p>
+<h3 class="head">常見的扣分行為</h3>
+<div class="tablewrap"><table><thead><tr><th>扣分行為</th><th>為什麼扣分</th><th>改成</th></tr></thead><tbody>
+<tr><th>沒問需求就開始畫</th><td>可能設計出解錯問題的系統</td><td>先花幾分鐘問功能與規模，寫下假設</td></tr>
+<tr><th>一開始就鑽進某個元件的細節</th><td>整體還沒定，細節可能白做</td><td>先畫整體、取得同意，再挑重點往下</td></tr>
+<tr><th>安靜地想很久</th><td>面試官看不到你的思路，無法給提示</td><td>邊想邊講，卡住就主動請提示</td></tr>
+<tr><th>堆滿流行元件</th><td>過度設計，說不出每個元件的理由</td><td>每加一個元件，都說出是哪個數字逼的</td></tr>
+<tr><th>只講結論、不講代價</th><td>看不出你懂取捨</td><td>用「選 A 因為 X，代價 Y，用 Z 緩解」</td></tr>
+<tr><th>說自己的設計很完美</th><td>沒有系統沒有瓶頸</td><td>主動指出瓶頸與下一步改進</td></tr>
+<tr><th>給完設計就停</th><td>面試官說結束才算結束</td><td>主動問「還有哪裡想深入？」</td></tr>
+</tbody></table></div>
+<p>表中幾項直接來自書裡的「不要做」清單：不要沒釐清需求就跳進解法、一開始不要在單一元件上鑽太深、不要安靜地想（Don't think in silence.）、給出設計不代表面試結束，以及收尾時「永遠不要說你的設計很完美、沒有可以改進的地方」（Never say your design is perfect and nothing can be improved.）。<a class="fixsrc" href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener">出處</a></p>
+
+<div class="drill">
+  <p class="dq">深入設計時卡住了，最好的做法是？</p>
+  <ul class="dopts"><li>安靜地想，想到有答案為止</li><li data-ok>說出卡在哪，請面試官提示</li><li>換一個完全不相關的話題</li><li>直接宣布這部分並不重要</li></ul>
+  <p class="dexp">書裡的建議：卡住就請提示，不要安靜地想。面試官本來就把你當隊友，看到思路才能幫你。</p>
+</div>
+<div class="drill">
+  <p class="dq">收尾時面試官問「你的設計還有什麼問題？」，最好的回答是？</p>
+  <ul class="dopts"><li>沒有問題，這個設計已經很完美</li><li>說時間不夠，所以那部分沒想</li><li>把整個設計推翻，從頭重來</li><li data-ok>指出最先會遇到的瓶頸與改法</li></ul>
+  <p class="dexp">書裡明講 Never say your design is perfect。主動指出瓶頸（例如推播配額）與改進方向，才看得出你的判斷力。</p>
+</div>
+<div class="drill">
+  <p class="dq">開場就把每張資料表的欄位、索引全部寫出來，最大的問題是？</p>
+  <ul class="dopts"><li data-ok>還沒定整體就鑽細節，會講不完</li><li>資料表本來就不該在面試裡出現</li><li>欄位多寫幾個，就一定會寫錯</li><li>面試官通常看不懂資料表的設計</li></ul>
+  <p class="dexp">書裡的不要做清單：一開始不要在單一元件上鑽太深，先給整體設計再往下。45 分鐘很短，順序錯了就講不完主幹。</p>
+</div>
+<div class="drill">
+  <p class="dq">下面哪一個做法最容易被看成「過度設計」？</p>
+  <ul class="dopts"><li>粗估後說「這個量一台資料庫夠用」</li><li>先畫最簡單的架構，再逐步往上加</li><li>每加一個元件都說出它的理由</li><li data-ok>每秒幾十次就畫十個分片</li></ul>
+  <p class="dexp">數字沒逼你就加的元件，只會增加成本與複雜度。另外三個都是在對齊需求與規模。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul><li>45 分鐘切四段（粗略建議）：理解問題 3〜10 分、整體設計 10〜15 分、深入設計 10〜25 分、收尾 3〜5 分；面試看的是過程與溝通，不是背出標準答案。</li><li>先問功能、再問規模與非功能需求（延遲、一致性、可用性、保存、既有服務）；問不到就自己假設，寫在白板上。</li><li>粗估：每日請求 ÷ 86,400（約 10⁵）＝平均每秒，乘尖峰倍數；儲存＝筆數 × 大小 × 天數 × 副本；頻寬＝每秒 × 大小 × 8。99.99% 一年約 52.56 分鐘；Jeff Dean 的延遲表看數量級：記憶體 100 奈秒、同機房來回 0.5 毫秒、跨洲來回 150 毫秒。</li><li>先畫原理上行得通的最簡單架構，再讓數字逼你加：伺服器撐不住加多台、讀太多加快取與複本、尖峰與外部依賴加佇列、寫入或資料量超過一台才分片；數字沒逼你就不加。</li><li>取捨用一句話講：選 A 因為 X，代價 Y，用 Z 緩解。三個常見取捨：一致性對可用性、延遲與可靠度對成本、同步對非同步。</li><li>示範題通知服務：粗估顯示瓶頸是推播配額（每分鐘 60 萬則）與行銷擠壓交易通知；所以 Outbox 進佇列、兩條佇列分開、唯一索引去重、指數退避加抖動重試、避開整點。</li><li>扣分行為：沒問就畫、太早鑽細節、安靜地想、堆元件、只講結論、說設計完美、給完就停。</li></ul></div>
