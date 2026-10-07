@@ -64,7 +64,7 @@ public class Downstream {
 <div class="drill">
   <p class="dq">在 Spring Boot 4 用 Resilience4j 的註解，下面哪一個相依套件不加也可以？</p>
   <ul class="dopts"><li>spring-<wbr>boot-<wbr>starter-<wbr>aspectj</li><li>spring-<wbr>boot-<wbr>starter-<wbr>actuator</li><li>resilience4j-<wbr>spring-<wbr>boot4</li><li data-ok>micrometer-<wbr>registry-<wbr>prometheus</li></ul>
-  <p class="dexp">使用指南寫這個模組預期執行時已經有 actuator 與 aop 兩個 starter，aop 那個在 Spring Boot 4 叫 spring-<wbr>boot-<wbr>starter-<wbr>aspectj。Prometheus 那個只有要從 /actuator/prometheus 拿指標時才需要。</p>
+  <p class="dexp">這個模組執行時要有 actuator 與 aop 兩個 starter，aop 那個在 Spring Boot 4 叫 spring-<wbr>boot-<wbr>starter-<wbr>aspectj。Prometheus 那個只有要從 /actuator/prometheus 拿指標時才需要。</p>
 </div>
 <div class="drill">
   <p class="dq">實驗裡的下游回 HTTP 400。<code>RestClient</code> 的 <code>retrieve()</code> 會丟出哪一類例外？</p>
@@ -716,7 +716,7 @@ resilience4j_circuitbreaker_state{name="core",state="metrics_only"} 0.0
 resilience4j_circuitbreaker_state{name="core",state="open"} 1.0</code></pre>
 <p>幾個要看懂的地方：</p>
 <ul class="plainlist">
-<li><strong>health 還是 UP。</strong>使用指南說 OPEN 會讓狀態變 DOWN，但 2.4.0 實跑是 <code>CIRCUIT_OPEN</code>、整個應用程式仍是 UP。OPEN 時，允許健康檢查失敗才給 DOWN，否則給 <code>CIRCUIT_OPEN</code>（<code>allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail ? Health.down() : Health<wbr>.status<wbr>("CIRCUIT<wbr>_<wbr>OPEN")</code>）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/src/main/java/io/github/resilience4j/springboot/circuitbreaker/monitoring/health/CircuitBreakersHealthIndicator.java#L92" target="_blank" rel="noopener">出處</a>；預設情況下，斷路器的健康檢查永遠不會進入不健康的狀態。<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-framework-common/src/main/java/io/github/resilience4j/common/circuitbreaker/configuration/CommonCircuitBreakerConfigurationProperties.java#L548" target="_blank" rel="noopener">出處</a></li>
+<li><strong>health 還是 UP。</strong>文件寫 OPEN 會讓狀態變 DOWN，但 2.4.0 實跑是 <code>CIRCUIT_OPEN</code>、整個應用程式仍是 UP。OPEN 時，允許健康檢查失敗才給 DOWN，否則給 <code>CIRCUIT_OPEN</code>（<code>allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail ? Health.down() : Health<wbr>.status<wbr>("CIRCUIT<wbr>_<wbr>OPEN")</code>）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/src/main/java/io/github/resilience4j/springboot/circuitbreaker/monitoring/health/CircuitBreakersHealthIndicator.java#L92" target="_blank" rel="noopener">出處</a>；預設情況下，斷路器的健康檢查永遠不會進入不健康的狀態。<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-framework-common/src/main/java/io/github/resilience4j/common/circuitbreaker/configuration/CommonCircuitBreakerConfigurationProperties.java#L548" target="_blank" rel="noopener">出處</a></li>
 <li><strong>calls 這個指標的 COUNT 是 5</strong>，它只算真的執行過的呼叫（成功、失敗、忽略三種 kind）；被擋的 2 次另外記在 <code>not_permitted_calls</code>。</li>
 <li><strong>state 指標</strong>是每種狀態一條、當下那種是 1，告警規則寫「<code>state="open"</code> 等於 1 超過幾分鐘」就好。</li>
 </ul>
@@ -731,7 +731,7 @@ GET /actuator/health/readiness → 200 {"status":"UP"}</code></pre>
 <div class="drill">
   <p class="dq">用 resilience4j-<wbr>spring-<wbr>boot4 2.4.0、開了 <code>health<wbr>.circuitbreakers<wbr>.enabled</code>，沒設 <code>allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail</code>。斷路器 OPEN 時，<code>/actuator/health</code> 最上層的 status 是？</p>
   <ul class="dopts"><li>DOWN，因為有斷路器跳開</li><li>CIRCUIT_OPEN，直接沿用斷路器的狀態</li><li>OUT_OF_SERVICE，整個實例暫停收流量</li><li data-ok>UP，斷路器那項顯示 CIRCUIT_OPEN</li></ul>
-  <p class="dexp">實跑結果：core 是 CIRCUIT_OPEN、circuitBreakers 這一組是 UNKNOWN，最上層還是 UP，HTTP 200。原始碼只有 allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail 為 true 時才給 DOWN。使用指南說 OPEN 時狀態是 DOWN，跟這版的行為不同。</p>
+  <p class="dexp">實跑結果：core 是 CIRCUIT_OPEN、circuitBreakers 這一組是 UNKNOWN，最上層還是 UP，HTTP 200。原始碼只有 allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail 為 true 時才給 DOWN。文件寫 OPEN 時是 DOWN，跟這版的實際行為不同。</p>
 </div>
 <div class="drill">
   <p class="dq">打開 <code>allow<wbr>Health<wbr>Indicator<wbr>To<wbr>Fail</code> 之後，斷路器 OPEN 時有人把 <code>/actuator/health</code> 接進 Kubernetes 的存活探針。下游核心帳務一掛，會發生什麼事？</p>

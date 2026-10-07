@@ -196,7 +196,7 @@ jobs:
 <li>失敗時做事（例如通知）：那一步寫 <code>if: ${{ failure() }}</code>。<code>failure()</code> 在 job 裡任何前面的 step 失敗時為 true。</li>
 <li>step 寫 <code>continue-on-error: true</code>：這一步失敗時，job 還是算通過。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p class="muted">job 也有時間上限：<code>timeout-minutes</code> 是「GitHub 自動取消這個 job 前，最多讓它跑幾分鐘」，預設 360（Default: 360）。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a> 卡住的測試會白白跑六小時，實務上通常設短一點。</p>
+<p class="muted">job 也有時間上限：<code>timeout-minutes</code> 是 GitHub 自動取消這個 job 前最多讓它跑的分鐘數，預設 360。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a> 卡住的測試會白白跑六小時，實務上通常設短一點。</p>
 <p class="formula">workflow 裝 job、job 裝 step；job 預設同時跑、各用一台 runner；needs 排先後，上游失敗下游略過（always() 例外）</p>
 
 <div class="drill">
@@ -747,7 +747,7 @@ jobs:
 <h3 class="head">銀行情境：變更審核、人工核准、稽核紀錄</h3>
 <p>金融業的上線通常有三個要求：<strong>程式碼的變更要有人審</strong>、<strong>上正式環境要有人核准</strong>、<strong>事後查得到紀錄</strong>。用 GitHub 的功能對應：</p>
 <div class="tablewrap"><table><thead><tr><th>要求</th><th>GitHub 的做法</th></tr></thead><tbody>
-<tr><td>程式碼變更要審</td><td>保護 main 分支：要求 PR 審查與狀態檢查通過，再開「Do not allow bypassing the above settings」（不允許繞過上述設定）<a class="fixsrc" href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches" target="_blank" rel="noopener">出處</a>；CI 的 job 就是那個「狀態檢查」。各項設定與 PR 流程見〈Git 分支與協作〉</td></tr>
+<tr><td>程式碼變更要審</td><td>保護 main 分支：要求 PR 審查與狀態檢查通過，再開 <code>Do not allow bypassing the above settings</code>（不允許繞過上述設定）<a class="fixsrc" href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches" target="_blank" rel="noopener">出處</a>；CI 的 job 就是那個「狀態檢查」。各項設定與 PR 流程見〈Git 分支與協作〉</td></tr>
 <tr><td>正式環境要核准</td><td>production 環境設指定核准人、禁止自己核准、只允許 main 部署；正式環境的密碼放環境 secrets，核准前拿不到</td></tr>
 <tr><td>管理員不能偷跑</td><td>環境預設管理員可以繞過保護規則，要另外設定成不允許繞過<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><td>稽核紀錄</td><td>repo 的 Deployments 頁列出各環境的完整部署歷史、觸發部署的 commit、對應的 workflow 日誌、來源 PR 與分支<a class="fixsrc" href="https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/view-deployment-history" target="_blank" rel="noopener">出處</a>；核准時可以留言</td></tr>

@@ -684,9 +684,9 @@ try (ExecutorService vt = Executors.newVirtualThreadPerTaskExecutor()) {
 </tbody></table></div>
 
 <div class="drill">
-  <p class="dq">用虛擬執行緒呼叫一個最多只能同時接 10 個請求的外部服務，依 Java 21 指南，該怎麼限量？</p>
+  <p class="dq">用虛擬執行緒呼叫一個最多只能同時接 10 個請求的外部服務，該怎麼限量？</p>
   <ul class="dopts"><li>建一個 10 條虛擬執行緒的池</li><li>用 newFixedThreadPool(10) 包起來</li><li data-ok>每個任務一條，用 Semaphore(10)</li><li>不用限量，虛擬執行緒會自動排隊</li></ul>
-  <p class="dexp">指南：虛擬執行緒不稀有，永遠不該池化；限制並行要用專門的 Semaphore。用固定池限量只是池子的副作用。</p>
+  <p class="dexp">虛擬執行緒不稀有，永遠不該池化；限制並行要用專門的 Semaphore。用固定池限量只是池子的副作用。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的實驗，一萬個「各等 100 毫秒」的任務，100 條平台執行緒的池為什麼要 10 秒左右？</p>
@@ -699,9 +699,9 @@ try (ExecutorService vt = Executors.newVirtualThreadPerTaskExecutor()) {
   <p class="dexp">虛擬執行緒適合大部分時間在等的工作，不適合長時間 CPU 密集的運算。核心都在忙時，多開的執行緒只是排隊。</p>
 </div>
 <div class="drill">
-  <p class="dq">為什麼指南說虛擬執行緒「永遠不要池化」？</p>
+  <p class="dq">為什麼虛擬執行緒永遠不該放進執行緒池？</p>
   <ul class="dopts"><li>因為虛擬執行緒不能放進集合</li><li>因為池化會讓虛擬執行緒變成平台執行緒</li><li>因為 Java 不允許 ThreadPoolExecutor 用虛擬執行緒</li><li data-ok>因為池是為了共用稀有資源而設計的，虛擬執行緒並不稀有</li></ul>
-  <p class="dexp">指南原意：池化是為了重複使用昂貴的平台執行緒；虛擬執行緒便宜，每個任務一條就好。技術上做得到池化，但沒有好處，還會讓 ThreadLocal 這類狀態在任務之間殘留。</p>
+  <p class="dexp">池化是為了重複使用昂貴的平台執行緒；虛擬執行緒便宜，每個任務一條就好。技術上做得到池化，但沒有好處，還會讓 ThreadLocal 這類狀態在任務之間殘留。</p>
 </div>
 </section>
 

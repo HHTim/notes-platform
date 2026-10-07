@@ -110,7 +110,7 @@ public void runLoop() {
         // 執行工作
     }
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記在「加上 `volatile` 後的效果」那段的程式碼註解寫「count++; // 立即刷新到主記憶體」「System.out.println(count); // 強制從主記憶體讀取最新值」，這跟同一份筆記小結裡「不能解決 ❌ 原子性問題」自相矛盾，查證後更正：volatile 不會讓 count++ 變成不可分割的動作"><code>volatile int count</code> 的 <code>count++</code> <strong>仍然</strong>是讀取、計算、寫回三步，照樣會遺失更新——官方教學的原句是「像 c++ 這樣的遞增運算式並不是一個原子動作」</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/atomic.html" target="_blank" rel="noopener">出處</a>。要原子遞增請用同步區段或 <code>AtomicInteger</code>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記在「加上 `volatile` 後的效果」那段的程式碼註解寫「count++; // 立即刷新到主記憶體」「System.out.println(count); // 強制從主記憶體讀取最新值」，這跟同一份筆記小結裡「不能解決 ❌ 原子性問題」自相矛盾，查證後更正：volatile 不會讓 count++ 變成不可分割的動作"><code>volatile int count</code> 的 <code>count++</code> <strong>仍然</strong>是讀取、計算、寫回三步，照樣會遺失更新——<code>c++</code> 這樣的遞增運算式不是一個原子動作</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/atomic.html" target="_blank" rel="noopener">出處</a>。要原子遞增請用同步區段或 <code>AtomicInteger</code>。</p>
 <p class="muted">常見的解釋是「volatile 會立即寫入主記憶體、讓其他 CPU 的快取失效」。當直覺可以，但嚴格講，Java 記憶體模型是用<strong>先行發生關係</strong>（happens-before）來定義的，並沒有規定實作一定要去刷快取；同步、volatile 與各種並行工具的作用，是建立這種關係，讓跨執行緒的可見性與順序有明確保證。</p>
 <p><strong>指令重排序</strong>（instruction reordering）是編譯器與處理器在不破壞單執行緒語意的前提下調整執行順序。舉個例子：<code>a</code> 跟 <code>b</code> 沒有依賴關係，順序換一下結果一樣，但可能跑得比較快。問題是這種「單執行緒看起來沒差」的最佳化，在多執行緒下就看得出來了。</p>
 </section>

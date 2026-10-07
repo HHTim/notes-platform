@@ -79,7 +79,7 @@ $ redis-cli GET rate:USD
 <div class="drill">
   <p class="dq">白皮書對「本地快取＋遠端快取」兩層合用的態度是？</p>
   <ul class="dopts"><li>所有系統一開始就該做兩層</li><li data-ok>會增加複雜度，需要時才用</li><li>兩層一定比只用一層還慢</li><li>只有資料庫內建的快取才能做兩層</li></ul>
-  <p class="dexp">白皮書原句：it’s typically used only when needed because of the complexity it adds。多一層就多一個要失效的地方。</p>
+  <p class="dexp">它會增加複雜度，所以通常只在需要時才用。多一層就多一個要失效的地方。</p>
 </div>
 </section>
 
@@ -391,7 +391,7 @@ Sampled 2 keys in the keyspace!
 hot key found with counter: 18	keyname: "rate:EUR"
 hot key found with counter: 5	keyname: "rate:JPY"</code></pre>
 <p><code>summary</code> 底下依計數由大到小列出，排第一的 <code>rate:EUR</code> 就是最熱的。</p>
-<p>拆熱 key 有兩個方向。第一個是不讓讀取跑到 Redis：在應用程式記憶體放一份本地快取，大部分讀取在本機就解決，代價是各台短暫不一致。第二個是讓讀取不要擠在同一個節點：同一份值存成好幾把名字不同的 key。叢集規格寫明 key 落在哪個槽是用名字算的（<code>HASH_SLOT = CRC16(key) mod 16384</code>，把 key 名字算成一個數字再除以 16384 取餘數），名字不同，算出來的槽多半就不同。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a> 用一台開了叢集模式的 Redis 8.10.2 算十把 key 的槽號（<code>CLUSTER KEYSLOT</code> 只算、不存資料）：</p>
+<p>拆熱 key 有兩個方向。第一個是不讓讀取跑到 Redis：在應用程式記憶體放一份本地快取，大部分讀取在本機就解決，代價是各台短暫不一致。第二個是讓讀取不要擠在同一個節點：同一份值存成好幾把名字不同的 key。key 落在哪個槽是用名字算的（<code>HASH_SLOT = CRC16(key) mod 16384</code>，把 key 名字算成一個數字再除以 16384 取餘數），名字不同，算出來的槽多半就不同。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a> 用一台開了叢集模式的 Redis 8.10.2 算十把 key 的槽號（<code>CLUSTER KEYSLOT</code> 只算、不存資料）：</p>
 <pre><code>$ redis-cli CLUSTER KEYSLOT product:1001
 (integer) 181
 

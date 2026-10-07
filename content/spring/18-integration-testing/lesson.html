@@ -15,7 +15,7 @@
 <li>它拿得到端對端測試的很多好處，又避開處理畫面框架的許多麻煩；在網頁應用程式裡就是透過 API 層測試。</li>
 <li>高層測試抓到 bug 時，修之前先用單元測試重現這個 bug，讓它不會再回來。<a class="fixsrc" href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>Ham Vocke 在「The Practical Test Pyramid」提醒「單元測試」這個詞很模糊，「整合測試更是如此」（“unit tests” is a vague term, this is even more true for “integration tests”）。<a class="fixsrc" href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">出處</a> 所以團隊裡說「我們有整合測試」時，最好講清楚接了哪些真的元件。Spring Boot 的分法：</p>
+<p>「單元測試」這個詞很模糊，「整合測試」更是如此。<a class="fixsrc" href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">出處</a> 所以團隊裡說「我們有整合測試」時，最好講清楚接了哪些真的元件。Spring Boot 的分法：</p>
 <div class="tablewrap"><table><thead><tr><th>層</th><th>這課用的工具</th><th>Spring 容器裡有什麼</th></tr></thead><tbody>
 <tr><td>單元測試</td><td>JUnit 加 Mockito（〈Spring Boot 單元測試〉）</td><td>不啟動 Spring 容器</td></tr>
 <tr><td>切片測試</td><td><code>@WebMvcTest</code>、<code>@DataJpaTest</code></td><td>只有某一層的元件，其他用替身或根本不載入</td></tr>
@@ -144,7 +144,7 @@ public class AccountController {
 <div class="drill">
   <p class="dq">想在同一個測試類別上同時寫 <code>@WebMvcTest</code> 與 <code>@DataJpaTest</code>，一次測控制器又測 repository。可以嗎？</p>
   <ul class="dopts"><li>可以，Spring Boot 會把兩個切片的 Bean 合併進同一個容器</li><li>可以，但要再加 @Import，把兩個切片各自的設定類別接起來</li><li data-ok>不支援；挑一個，另一邊的 @AutoConfigure… 自己加</li><li>可以，只是每個測試方法會各跑兩次</li></ul>
-  <p class="dexp">Spring Boot 文件寫明，在一個測試裡用多個 @…Test 註解組合切片不支援；需要多個切片時，挑一個 @…Test，再手動加上另一個切片的 @AutoConfigure… 註解。</p>
+  <p class="dexp">在一個測試裡用多個 @…Test 註解組合切片不支援；需要多個切片時，挑一個 @…Test，再手動加上另一個切片的 @AutoConfigure… 註解。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>@SpringBootTest</code> 沒有指定 <code>webEnvironment</code>。測試執行時會不會啟動一個真的 Tomcat、佔用連接埠？</p>
@@ -329,7 +329,7 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 <div class="drill">
   <p class="dq">公司的 CI 機器沒有任何容器執行環境。專案的 Testcontainers 測試在那台機器上會怎樣？</p>
   <ul class="dopts"><li>照樣跑，Testcontainers 會自己下載 MySQL 安裝</li><li data-ok>跑不起來，它需要一個相容 Docker API 的容器執行環境</li><li>照樣跑，自動改用記憶體內的資料庫</li><li>照樣跑，只是比較慢</li></ul>
-  <p class="dexp">Testcontainers 文件寫明，要跑這類測試需要相容 Docker API 的容器執行環境。CI 機器要先裝 Docker（或其他相容的執行環境）。</p>
+  <p class="dexp">要跑 Testcontainers 的測試，需要相容 Docker API 的容器執行環境。CI 機器要先裝 Docker（或其他相容的執行環境）。</p>
 </div>
 <div class="drill">
   <p class="dq">容器標了 <code>@ServiceConnection</code>，<code>application.properties</code> 卻還留著一行指向公司測試機的 <code>spring.datasource.url</code>。測試連到哪？</p>
@@ -521,7 +521,7 @@ class RandomPortTest {
 <h3 class="head">Spring 容器快取：為什麼有個測試類別不到 0.1 秒</h3>
 <p>啟動 Spring 容器很花時間，連資料庫的還要等 MySQL 容器。所以 TestContext 框架（Spring 負責替測試建立與管理容器的那一套機制）的做法是：為某個測試載入 ApplicationContext 之後就快取起來，同一個測試套件裡，之後宣告相同設定的測試都重用它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><strong>什麼叫「相同設定」</strong>：快取的鍵由載入容器用的設定組合而成，包括設定類別、設定檔、啟用的 profile、測試屬性，以及 contextCustomizers，文件寫明這裡「包括 <code>@DynamicPropertySource</code> 方法、Bean 覆蓋（例如 <code>@TestBean</code>、<code>@MockitoBean</code>、<code>@MockitoSpyBean</code> 等），以及 Spring Boot 測試支援的各種功能」。換句話說，多一個或少一個 <code>@MockitoBean</code>，就是另一個容器。</li>
+<li><strong>什麼叫「相同設定」</strong>：快取的鍵由載入容器用的設定組合而成，包括設定類別、設定檔、啟用的 profile、測試屬性，以及 contextCustomizers；contextCustomizers 包括 <code>@DynamicPropertySource</code> 方法、Bean 覆蓋（例如 <code>@TestBean</code>、<code>@MockitoBean</code>、<code>@MockitoSpyBean</code> 等），以及 Spring Boot 測試支援的各種功能。換句話說，多一個或少一個 <code>@MockitoBean</code>，就是另一個容器。</li>
 <li><strong>什麼叫「同一個測試套件」</strong>：快取存在一個 static 變數裡，所以「測試若在不同的行程裡跑，每次執行之間靜態快取就被清掉，等於關掉快取機制」；用 Maven 或 Gradle 跑時要確認建置工具沒有在測試之間另開行程。</li>
 <li><strong>上限</strong>：「預設最多 32 個」，滿了用 LRU（最久沒用的先淘汰）關掉舊的容器，可以用 JVM 系統屬性 <code>spring.<wbr>test.<wbr>context.<wbr>cache.<wbr>maxSize</code> 調整。</li>
 <li><strong>看統計</strong>：把 <code>org.<wbr>springframework.<wbr>test.<wbr>context.<wbr>cache</code> 的日誌層級設成 DEBUG，就會印出快取統計。</li>
@@ -561,7 +561,7 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <div class="drill">
   <p class="dq">承上，其中一個類別多宣告了 <code>@MockitoBean TransferService transferService</code>。現在共建幾個？</p>
   <ul class="dopts"><li>還是 1 個，替身是在容器建好之後才換上去</li><li data-ok>2 個，替身屬於快取鍵的一部分</li><li>1 個，只是多花 0.1 秒把替身換上去</li><li>3 個，每個替身各一個</li></ul>
-  <p class="dexp">文件寫明 Bean 覆蓋（@MockitoBean 等）屬於快取鍵的 contextCustomizers。實跑 ExtraMockIntegrationTest 只多一個替身，就另建一個容器、另起一個 MySQL。</p>
+  <p class="dexp">Bean 覆蓋（@MockitoBean 等）屬於快取鍵的 contextCustomizers。實跑 ExtraMockIntegrationTest 只多一個替身，就另建一個容器、另起一個 MySQL。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑中 <code>TransferIntegrationTest</code> 整個類別只花 0.062 秒，日誌也沒有它的 <code>Started …</code> 那行。原因是？</p>
