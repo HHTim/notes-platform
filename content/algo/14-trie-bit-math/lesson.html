@@ -4,8 +4,8 @@
 <section>
 <p class="era">按字母一層一層往下找</p>
 <h3 class="head">Trie 的結構：共用前綴的樹</h3>
-<p>想像一本按字母分層的電話簿索引：先翻到 c，再翻到 ca，再翻到 car，每翻一層範圍就縮小，而 car、card、care 共用前面同一段路。這就是 <strong>Trie</strong>（也叫前綴樹，prefix tree；名稱來自 re<strong>trie</strong>val，取出資料）。〈雜湊表：HashMap 怎麼做到幾乎一步找到〉能很快回答「這個字在不在」，但回答不了「有哪些字是 ca 開頭」；Trie 兩件事都做得到。普林斯頓《Algorithms》第 5.2 節對它的期待是：「跟雜湊一樣快，比二元搜尋樹更有彈性」（Goal: as fast as hashing, more flexible than binary search trees.），而且「能有效率地支援額外的操作，包括前綴比對與萬用字元比對」（Can efficiently support additional operations including prefix and wildcard matching）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/" target="_blank" rel="noopener">出處</a></p>
-<p>結構很單純：每個節點有一組「孩子」，第 i 個孩子代表「下一個字母是第 i 個字母」；字母本身不存在節點裡，而是由「走哪一條路」決定。普林斯頓的投影片說「字元由連結的索引隱含決定」（characters are implicitly defined by link index）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 另外每個節點要記一個標記：有沒有一個完整的字在這裡結束。下面只處理小寫英文字母，所以孩子是一個 26 格的陣列：</p>
+<p>想像一本按字母分層的電話簿索引：先翻到 c，再翻到 ca，再翻到 car，每翻一層範圍就縮小，而 car、card、care 共用前面同一段路。這就是 <strong>Trie</strong>（也叫前綴樹，prefix tree；名稱來自 re<strong>trie</strong>val，取出資料）。〈雜湊表：HashMap 怎麼做到幾乎一步找到〉能很快回答「這個字在不在」，但回答不了「有哪些字是 ca 開頭」；Trie 兩件事都做得到：目標是跟雜湊一樣快、比二元搜尋樹更有彈性，還能有效率地做前綴比對與萬用字元比對。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/" target="_blank" rel="noopener">出處</a></p>
+<p>結構很單純：每個節點有一組「孩子」，第 i 個孩子代表「下一個字母是第 i 個字母」；字母本身不存在節點裡，而是由「走哪一條路」決定。換句話說，字元由連結的索引決定。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 另外每個節點要記一個標記：有沒有一個完整的字在這裡結束。下面只處理小寫英文字母，所以孩子是一個 26 格的陣列：</p>
 <pre><code>import java.util.ArrayList;
 import java.util.List;
 
@@ -114,7 +114,11 @@ keysWithPrefix(c) [car, card, care, cat]
 </svg>
 <figcaption>car、card、care、cat、dog 的 Trie。car、card、care 共用 c→a→r 這段路；ca 那個節點沒有結束標記，所以 ca 是前綴、不是一個字。</figcaption>
 </figure>
-<p>三個要分清的操作：<code>search</code> 要走得到<strong>而且</strong>結束標記是 true；<code>startsWith</code> 只要走得到；<code>keysWithPrefix</code> 先走到前綴的節點，再把底下所有結束標記收集起來（這一步是〈遞迴與回溯〉的選擇、遞迴、撤銷）。普林斯頓的投影片把兩種結果講得很清楚：搜尋成功是「搜尋結束的節點有值」，搜尋失敗是「走到 null 連結，或結束的節點沒有值」（Search miss: reach null link or node where search ends has null value.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>三個要分清的操作：<code>search</code> 要走得到<strong>而且</strong>結束標記是 true；<code>startsWith</code> 只要走得到；<code>keysWithPrefix</code> 先走到前綴的節點，再把底下所有結束標記收集起來（這一步是〈遞迴與回溯〉的選擇、遞迴、撤銷）。兩種結果這樣分：</p>
+<ul>
+<li>搜尋成功：搜尋結束的節點有值（有結束標記）。</li>
+<li>搜尋失敗：走到 null 連結，或結束的節點沒有值。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a></li>
+</ul>
 
 <div class="drill">
   <p class="dq">上面的 Trie 放了 car、card、care、cat、dog。<code>search("ca")</code> 回傳什麼？</p>
@@ -139,7 +143,7 @@ keysWithPrefix(c) [car, card, care, cat]
 <div class="drill">
   <p class="dq">Trie 的節點裡存的是什麼？</p>
   <ul class="dopts"><li>一個完整的單字字串</li><li>這個字算出來的雜湊碼</li><li>從根走到這裡的路徑長度</li><li data-ok>孩子連結加上結束標記</li></ul>
-  <p class="dexp">字母由走哪一條連結決定，節點本身不存字母；投影片的說法是 characters are implicitly defined by link index。</p>
+  <p class="dexp">字母由走哪一條連結決定，節點本身不存字母。</p>
 </div>
 <div class="drill">
   <p class="dq">程式裡 <code>int i = ch - 'a';</code> 是在做什麼？</p>
@@ -156,8 +160,13 @@ keysWithPrefix(c) [car, card, care, cat]
 <section>
 <p class="era">快在哪、貴在哪</p>
 <h3 class="head">複雜度，以及孩子用陣列還是 HashMap</h3>
-<p>插入、搜尋、前綴查詢都是「照著字串一個字母走一步」，跟 Trie 裡放了多少個字<strong>無關</strong>，只跟字串長度 L 有關。algs4 的 <code>TrieST</code> 文件寫：「put、contains、delete 與最長前綴操作所花的時間與鍵的長度成正比（最壞情況）」（The put, contains, delete, and longest prefix operations take time proportional to the length of the key (in the worst case).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/TrieST.java.html" target="_blank" rel="noopener">出處</a> 搜尋失敗通常更快，投影片：「可能第一個字元就對不上……一般情況只看幾個字元」（Could have mismatch on first character. Typical case: examine only a few characters (sublinear).）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> <code>keysWithPrefix</code> 還要加上收集底下所有字的時間。</p>
-<p>代價在空間。實跑最後一行：10 個節點、每個節點 26 格，共 260 格，真的用到的只有 9 格，其他都是 null。投影片的結論是「搜尋成功很快、搜尋失敗更快，但浪費空間」（Fast search hit and even faster search miss, but wastes space.），空間是每個節點一個值加 R 個參考（A value, plus references to R nodes.；R 是字母表大小，成本表上寫 (R+1) N），並且「R 很大時記憶體太多」（Too much memory for large R.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 字元不只 26 個英文字母時（中文、大小寫加數字），常見的做法是把孩子改成 <code>HashMap</code>：</p>
+<p>插入、搜尋、前綴查詢都是「照著字串一個字母走一步」，跟 Trie 裡放了多少個字<strong>無關</strong>，只跟字串長度 L 有關：</p>
+<ul>
+<li><code>put</code>、<code>contains</code>、<code>delete</code> 與最長前綴操作，最壞情況下時間與鍵的長度成正比。<a class="fixsrc" href="https://algs4.cs.princeton.edu/52trie/TrieST.java.html" target="_blank" rel="noopener">出處</a></li>
+<li>搜尋失敗通常更快：可能第一個字元就對不上，一般情況只看幾個字元。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><code>keysWithPrefix</code> 還要加上收集底下所有字的時間。</li>
+</ul>
+<p>代價在空間。實跑最後一行：10 個節點、每個節點 26 格，共 260 格，真的用到的只有 9 格，其他都是 null。這種 Trie 搜尋成功很快、搜尋失敗更快，但浪費空間：每個節點存一個值加 R 個參考（R 是字母表大小，總空間寫成 (R+1) N），R 很大時記憶體太多。<a class="fixsrc" href="https://algs4.cs.princeton.edu/lectures/keynote/52Tries.pdf" target="_blank" rel="noopener">出處</a> 字元不只 26 個英文字母時（中文、大小寫加數字），常見的做法是把孩子改成 <code>HashMap</code>：</p>
 <pre><code>import java.util.HashMap;
 import java.util.Map;
 
@@ -202,7 +211,7 @@ public class TrieMap {
 <tr><th>能放什麼字元</th><td>只能放事先定好的字母表</td><td>任何字元，中文也行</td></tr>
 <tr><th>孩子的順序</th><td>依字母順序，收集結果自然排好</td><td>沒有順序；要排序得改用 <code>TreeMap</code></td></tr>
 </tbody></table></div>
-<p>面試題多半限定小寫英文字母，用陣列最簡單也最快。algs4 還介紹了另一種省空間的變形：三元搜尋樹（ternary search trie，每個節點只有小於、等於、大於三個孩子），這裡不展開。</p>
+<p>面試題多半限定小寫英文字母，用陣列最簡單也最快。另一種省空間的變形是三元搜尋樹（ternary search trie，每個節點只有小於、等於、大於三個孩子），這裡不展開。</p>
 
 <div class="drill">
   <p class="dq">Trie 裡已經有一百萬個字，搜尋一個長度 8 的字，最多要走幾步（每步看一個節點）？</p>
@@ -217,7 +226,7 @@ public class TrieMap {
 <div class="drill">
   <p class="dq">實跑結果「孩子格子總數 260，真的有用到的 9」說明了什麼？</p>
   <ul class="dopts"><li data-ok>格子大多是 null，浪費空間</li><li>程式寫錯了，應該全部都用到</li><li>Trie 的搜尋速度很慢</li><li>這棵 Trie 最多只能放 9 個字</li></ul>
-  <p class="dexp">投影片的結論：Fast search hit and even faster search miss, but wastes space。字母表越大（R 越大）越浪費。</p>
+  <p class="dexp">搜尋很快，但浪費空間：大部分格子是 null。字母表越大（R 越大）越浪費。</p>
 </div>
 <div class="drill">
   <p class="dq">要建一個存「台灣地名」的 Trie（中文字），孩子該用哪一種存？</p>
@@ -232,7 +241,7 @@ public class TrieMap {
 <div class="drill">
   <p class="dq">搜尋一個 Trie 裡不存在的字，通常會怎樣？</p>
   <ul class="dopts"><li>一定要走完整個字串才知道</li><li>要掃過 Trie 裡所有的字</li><li>一定會丟出例外</li><li data-ok>常在前幾個字母碰到 null</li></ul>
-  <p class="dexp">投影片：搜尋失敗可能第一個字元就對不上，一般只看幾個字元。例如 search("x") 在根就走不下去。</p>
+  <p class="dexp">搜尋失敗可能第一個字元就對不上，一般只看幾個字元。例如 search("x") 在根就走不下去。</p>
 </div>
 </section>
 
@@ -247,7 +256,10 @@ public class TrieMap {
 <tr><th><code>~</code>（NOT）</th><td>每一位反過來</td><td>做遮罩</td></tr>
 <tr><th><code>&lt;&lt;</code>、<code>&gt;&gt;</code></th><td>整排往左、往右移</td><td>乘、除以 2 的次方</td></tr>
 </tbody></table></div>
-<p>Java 語言規格對位移的定義：<code>n &lt;&lt; s</code>「等於乘以 2 的 s 次方（即使溢位也一樣）」（this is equivalent (even if overflow occurs) to multiplication by two to the power s），<code>n &gt;&gt; s</code> 的結果是「floor(n / 2^s)」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>n &lt;&lt; s</code> 等於乘以 2 的 s 次方，即使溢位也一樣。</li>
+<li><code>n &gt;&gt; s</code> 的結果是 floor(n / 2^s)。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <pre><code>public class Bits {
     static String b(int x) {                           // 補滿 8 位，方便對齊看
         String s = Integer.toBinaryString(x);
@@ -318,12 +330,12 @@ n &amp; -n    = 00000100，Integer.lowestOneBit(n) = 00000100
 <div class="drill">
   <p class="dq"><code>5 &lt;&lt; 3</code> 是多少？</p>
   <ul class="dopts"><li>15</li><li>8</li><li data-ok>40</li><li>125</li></ul>
-  <p class="dexp">左移 3 位等於乘以 2³ = 8，5 × 8 = 40。規格的說法是乘以 2 的 s 次方。</p>
+  <p class="dexp">左移 3 位等於乘以 2³ = 8，5 × 8 = 40。左移 s 位就是乘以 2 的 s 次方。</p>
 </div>
 <div class="drill">
   <p class="dq">MIT 6.006 的 Word-RAM 模型把位元運算算成多少時間？</p>
   <ul class="dopts"><li>O(位元數)</li><li>O(log n)</li><li data-ok>O(1)</li><li>看 CPU 而定</li></ul>
-  <p class="dexp">講義把整數運算、邏輯運算與位元運算都列為對固定長度的字做的常數時間操作。</p>
+  <p class="dexp">在 Word-RAM 模型裡，整數運算、邏輯運算與位元運算都是對固定長度的字做的常數時間操作。</p>
 </div>
 </section>
 
@@ -371,9 +383,9 @@ n &amp; -n    = 00000100，Integer.lowestOneBit(n) = 00000100
 </figure>
 <p>三個常見用法都在實跑裡：</p>
 <ul class="plainlist">
-<li><strong>數有幾個 1</strong>：一直做 <code>x &amp;= x - 1</code> 直到 0，跑幾次就有幾個 1，迴圈次數只跟 1 的個數有關。Java 有現成的 <code>Integer.bitCount</code>：「回傳二補數表示法裡 1 的個數」（Returns the number of one-bits in the two's complement binary representation of the specified int value.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html#bitCount(int)" target="_blank" rel="noopener">出處</a></li>
+<li><strong>數有幾個 1</strong>：一直做 <code>x &amp;= x - 1</code> 直到 0，跑幾次就有幾個 1，迴圈次數只跟 1 的個數有關。Java 有現成的 <code>Integer.bitCount</code>，回傳二補數表示法裡 1 的個數。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html#bitCount(int)" target="_blank" rel="noopener">出處</a></li>
 <li><strong>是不是 2 的次方</strong>：2 的次方只有一個 1，拿掉之後就是 0，所以條件是 <code>x &gt; 0 &amp;&amp; (x &amp; (x - 1)) == 0</code>。0 要另外排除（0 &amp; −1 也是 0）。</li>
-<li><strong>只留最低位的 1</strong>：<code>n &amp; -n</code>，跟 <code>Integer.lowestOneBit</code> 一樣，文件說它回傳「最多只有一個 1，位置在最低位那個 1」的值（Returns an int value with at most a single one-bit, in the position of the lowest-order ("rightmost") one-bit in the specified int value.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>只留最低位的 1</strong>：<code>n &amp; -n</code>，跟 <code>Integer.lowestOneBit</code> 一樣，回傳的值最多只有一個 1，位置在原數最低位（最右邊）那個 1。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 
 <div class="drill">
@@ -499,7 +511,11 @@ public class Subsets {
 <section>
 <p class="era">負數右移，左邊補什麼</p>
 <h3 class="head"><code>&gt;&gt;</code> 對 <code>&gt;&gt;&gt;</code>，以及位移距離與溢位</h3>
-<p>Java 的 <code>int</code> 用二補數表示負數，最左邊那一位是正負號。右移時左邊空出來的位要補什麼，就是兩個運算子的差別。語言規格：<code>n &gt;&gt; s</code> 是「帶正負號延伸的右移」（right-shifted s bit positions with sign-extension），<code>n &gt;&gt;&gt; s</code> 是「補零延伸的右移」（right-shifted s bit positions with zero-extension）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></p>
+<p>Java 的 <code>int</code> 用二補數表示負數，最左邊那一位是正負號。右移時左邊空出來的位要補什麼，就是兩個運算子的差別：</p>
+<ul>
+<li><code>n &gt;&gt; s</code>：帶正負號延伸的右移，左邊補正負號那一位。</li>
+<li><code>n &gt;&gt;&gt; s</code>：補零延伸的右移，左邊一律補 0。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <pre><code>public class Shift {
     public static void main(String[] args) {
         int x = -16;
@@ -628,9 +644,9 @@ x &gt;&gt;&gt; 2    = 1073741820（左邊補 0：變成很大的正數）
 </figure>
 <p>實跑裡還有三件值得記的事：</p>
 <ul class="plainlist">
-<li><strong><code>&gt;&gt;</code> 是往下取整，不是 <code>/</code>。</strong>規格說 <code>n &gt;&gt; s</code> 的結果是 floor(n / 2^s)，對非負數才「等於整數除法」（For non-negative values of n, this is equivalent to truncating integer division）。所以 <code>-7 &gt;&gt; 1</code> 是 -4，<code>-7 / 2</code> 是 -3（除法往 0 靠）。</li>
-<li><strong>位移距離只看最低 5 位。</strong>規格：左邊是 <code>int</code> 時，「只用右邊運算元的最低五個位元當位移距離」（only the five lowest-order bits of the right-hand operand are used as the shift distance），所以實際距離永遠在 0 到 31。<code>1 &lt;&lt; 32</code> 等於 <code>1 &lt;&lt; 0</code> = 1，<code>1 &lt;&lt; 33</code> 等於 <code>1 &lt;&lt; 1</code> = 2。要移 32 位以上得用 <code>long</code>（看最低 6 位）：<code>1L &lt;&lt; 32</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></li>
-<li><strong><code>1 &lt;&lt; 31</code> 是負數。</strong>1 被移到正負號那一位，得到 <code>Integer.MIN_VALUE</code>。這就是整數溢位：規格說「整數運算子不會以任何方式表示溢位」（The integer operators do not indicate overflow or underflow in any way.），不會報錯，只會悄悄繞過去。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a> 加法溢位在〈陣列與字串〉〈面試解題流程與題型對照〉已經講過，下一節會碰到乘法溢位。</li>
+<li><strong><code>&gt;&gt;</code> 是往下取整，不是 <code>/</code>。</strong><code>n &gt;&gt; s</code> 的結果是 floor(n / 2^s)，只有 n 不是負數時才等於整數除法。所以 <code>-7 &gt;&gt; 1</code> 是 -4，<code>-7 / 2</code> 是 -3（除法往 0 靠）。</li>
+<li><strong>位移距離只看最低 5 位。</strong>左邊是 <code>int</code> 時，只用右邊運算元的最低五個位元當位移距離，所以實際距離永遠在 0 到 31。<code>1 &lt;&lt; 32</code> 等於 <code>1 &lt;&lt; 0</code> = 1，<code>1 &lt;&lt; 33</code> 等於 <code>1 &lt;&lt; 1</code> = 2。要移 32 位以上得用 <code>long</code>（看最低 6 位）：<code>1L &lt;&lt; 32</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.19" target="_blank" rel="noopener">出處</a></li>
+<li><strong><code>1 &lt;&lt; 31</code> 是負數。</strong>1 被移到正負號那一位，得到 <code>Integer.MIN_VALUE</code>。這就是整數溢位：整數運算溢位時不會用任何方式提醒，不會報錯，只會悄悄繞過去。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a> 加法溢位在〈陣列與字串〉〈面試解題流程與題型對照〉已經講過，下一節會碰到乘法溢位。</li>
 </ul>
 <p>〈雜湊表：HashMap 怎麼做到幾乎一步找到〉看過的 <code>h ^ (h &gt;&gt;&gt; 16)</code>、〈排序與二分搜尋〉看過的 <code>(low + high) &gt;&gt;&gt; 1</code>，用的都是 <code>&gt;&gt;&gt;</code>：前者要把高 16 位原封不動搬下來，後者要把溢位成負數的和當成正數看。</p>
 
@@ -669,7 +685,7 @@ x &gt;&gt;&gt; 2    = 1073741820（左邊補 0：變成很大的正數）
 <section>
 <p class="era">兩千年前的演算法，今天還在用</p>
 <h3 class="head">最大公因數與質數篩</h3>
-<p><strong>輾轉相除法</strong>（歐幾里得演算法，Euclid's algorithm）找最大公因數。普林斯頓《Introduction to Programming in Java》的說法：對正整數 p 與 q，「如果 p &gt; q，p 與 q 的最大公因數等於 q 與 p % q 的最大公因數」（If p &gt; q, the gcd of p and q is the same as the gcd of q and p % q.），一直做到第二個數是 0。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>輾轉相除法</strong>（歐幾里得演算法，Euclid's algorithm）找最大公因數：對正整數 p 與 q，如果 p &gt; q，p 與 q 的最大公因數等於 q 與 p % q 的最大公因數，一直做到第二個數是 0。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <pre><code>public class Gcd {
     static int gcd(int p, int q) {                     // 輾轉相除：gcd(p, q) = gcd(q, p % q)，直到 q 是 0
         System.out.println("gcd(" + p + ", " + q + ")");
@@ -826,10 +842,10 @@ Math.multiplyExact：integer overflow
 7 % -3 = 1，Math.floorMod(7, -3) = -2
 星期二往前 10 天：% 得 -1，floorMod 得 6
 Math.abs(Integer.MIN_VALUE) = -2147483648</code></pre>
-<p>修法是先轉 <code>long</code> 再乘：<code>(long) a * b % M</code>（轉型要寫在乘法之前，寫成 <code>(long) (a * b)</code> 就晚了）。想在溢位時直接報錯，用 <code>Math.multiplyExact</code>：「回傳兩數相乘的結果，如果溢位就丟出例外」（Returns the product of the arguments, throwing an exception if the result overflows an int.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
+<p>修法是先轉 <code>long</code> 再乘：<code>(long) a * b % M</code>（轉型要寫在乘法之前，寫成 <code>(long) (a * b)</code> 就晚了）。想在溢位時直接報錯，用 <code>Math.multiplyExact</code>：回傳兩數相乘的結果，溢位就丟出例外。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
 <h4>負數取模：% 與 Math.floorMod</h4>
-<p>Java 的 <code>%</code> 結果的正負號跟著<strong>被除數</strong>：語言規格說「餘數運算的結果只有在被除數是負數時才可能是負的」（the result of the remainder operation can be negative only if the dividend is negative）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3" target="_blank" rel="noopener">出處</a> 所以 <code>-7 % 3</code> 是 -1。<code>Math.floorMod</code> 的結果則「跟除數同號或是 0」（has the same sign as the divisor y or is zero），文件的例子是 <code>floorMod(-4, +3) == +2</code>、<code>(-4 % +3) == -1</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)" target="_blank" rel="noopener">出處</a> 算「往前推幾天是星期幾」、環狀陣列往回走這類題目，要的是 0 到 6 之間的數，就用 <code>floorMod</code>（實跑：星期二往前 10 天，<code>%</code> 得 -1，<code>floorMod</code> 得 6，也就是星期六）。</p>
-<p class="muted">最後一行是另一個常見陷阱：<code>Math.abs(Integer.MIN_VALUE)</code> 還是負數。文件寫明「參數等於 Integer.MIN_VALUE 時，結果是同一個值，是負數」（the result is that same value, which is negative），要報錯得用 <code>Math.absExact</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
+<p>Java 的 <code>%</code> 結果的正負號跟著<strong>被除數</strong>，只有被除數是負數時，餘數才可能是負的。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3" target="_blank" rel="noopener">出處</a> 所以 <code>-7 % 3</code> 是 -1。<code>Math.floorMod</code> 的結果則跟除數同號或是 0，例如 <code>floorMod(-4, +3) == +2</code>，而 <code>(-4 % +3) == -1</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)" target="_blank" rel="noopener">出處</a> 算「往前推幾天是星期幾」、環狀陣列往回走這類題目，要的是 0 到 6 之間的數，就用 <code>floorMod</code>（實跑：星期二往前 10 天，<code>%</code> 得 -1，<code>floorMod</code> 得 6，也就是星期六）。</p>
+<p class="muted">最後一行是另一個常見陷阱：<code>Math.abs(Integer.MIN_VALUE)</code> 還是負數：參數等於 <code>Integer.MIN_VALUE</code> 時，結果是同一個值，是負數；要報錯得用 <code>Math.absExact</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">用快速冪算 a 的 1024 次方，大約要平方幾次？</p>
@@ -859,7 +875,7 @@ Math.abs(Integer.MIN_VALUE) = -2147483648</code></pre>
 <div class="drill">
   <p class="dq"><code>Math.abs(Integer.MIN_VALUE)</code> 會得到什麼？</p>
   <ul class="dopts"><li data-ok>-2147483648，還是負數</li><li>2147483648</li><li>丟出 ArithmeticException</li><li>0</li></ul>
-  <p class="dexp">int 的正數最大只到 2147483647，裝不下 2147483648，結果繞回自己。文件寫明這一點；要報錯用 Math.absExact。</p>
+  <p class="dexp">int 的正數最大只到 2147483647，裝不下 2147483648，結果繞回自己。要報錯用 Math.absExact。</p>
 </div>
 </section>
 

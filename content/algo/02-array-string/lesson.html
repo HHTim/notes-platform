@@ -5,7 +5,7 @@
 <p class="era">一排連在一起的格子</p>
 <h3 class="head">陣列在記憶體裡長什麼樣</h3>
 <p>把陣列想成一排編了號的置物櫃（正式名稱是陣列 array）：櫃子一個緊接一個，大小都一樣，從 0 開始編號。要拿 3 號櫃的東西，不用從 0 號一個一個數過去，直接走到 3 號就好。</p>
-<p>MIT 6.006 的習題課講義這樣描述最基本的陣列：「靜態陣列就是在記憶體裡保留的一段連續的格子」（A static array is simply a contiguous sequence of words reserved in memory；一格講義叫 word：電腦一次處理的固定長度資料），所以讀寫第 i 格都是 O(1)（講義用的符號是 Θ(1)），原因是「陣列裡每一項的大小都一樣」（because each item in the array has the same size）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 每格一樣大，第 i 格的位置就能直接算出來：起點 + i × 每格大小。下圖用 <code>int</code>（Java 語言規格寫明是 32 位元，也就是 4 個位元組）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2" target="_blank" rel="noopener">出處</a>示意：</p>
+<p>最基本的陣列（靜態陣列）就是在記憶體裡保留的一段連續的格子（一格叫 word：電腦一次處理的固定長度資料）。陣列裡每一項的大小都一樣，所以讀寫第 i 格都是 O(1)（更精確的寫法是 Θ(1)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 每格一樣大，第 i 格的位置就能直接算出來：起點 + i × 每格大小。下圖用 <code>int</code>（固定是 32 位元，也就是 4 個位元組）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2" target="_blank" rel="noopener">出處</a>示意：</p>
 <figure>
 <svg viewBox="0 0 760 210" role="img" aria-label="一個長度 5 的 int 陣列：五個格子連在一起，索引從 0 到 4；每格 4 個位元組，假設起點在位址 1000，第 3 格的位址就是 1000 加 3 乘 4 等於 1012，算一次就到">
   <rect x="160" y="80" width="56" height="40" fill="var(--surface)" stroke="currentColor"/>
@@ -38,12 +38,12 @@
 </svg>
 <figcaption>位址是示意用的數字。重點是「每格一樣大、一個接一個」，所以第幾格的位置算一次就知道，不用一格一格找。</figcaption>
 </figure>
-<p class="muted">Java 虛擬機規格寫「Java 虛擬機不規定物件在記憶體裡的內部結構」（The Java Virtual Machine does not mandate any particular internal structure for objects.），<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.7" target="_blank" rel="noopener">出處</a> 上面是演算法課用的記憶體模型，用來理解「為什麼索引是 O(1)」。物件陣列（例如 <code>String[]</code>）每一格放的是指向物件的參考（reference：記著物件放在哪裡，像門牌號碼），MIT 講義的說法是「把那一格的內容當成指向另一塊記憶體的位址」（interpret the machine word at the index as a memory address to a larger piece of memory）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>Java 陣列的四條規則，都寫在語言規格裡：</p>
+<p class="muted">Java 虛擬機不規定物件在記憶體裡的內部結構，<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.7" target="_blank" rel="noopener">出處</a> 上面是演算法課用的記憶體模型，用來理解「為什麼索引是 O(1)」。物件陣列（例如 <code>String[]</code>）每一格放的是指向物件的參考（reference：記著物件放在哪裡，像門牌號碼），也就是把那一格的內容當成指向另一塊記憶體的位址。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>Java 陣列的四條規則：</p>
 <ul class="plainlist">
-<li><strong>從 0 開始</strong>：「所有陣列都從 0 起算。長度 n 的陣列可以用整數 0 到 n−1 當索引」（All arrays are 0-origin. An array with length n can be indexed by the integers 0 to n-1.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
-<li><strong>超出範圍會丟例外</strong>：索引小於 0 或大於等於長度，「會丟出 <code>ArrayIndexOutOfBoundsException</code>」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
-<li><strong>長度固定</strong>：「陣列物件一旦建立，長度就不會再變」（Once an array object is created, its length never changes.）。要變長只能開一個新陣列。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.2" target="_blank" rel="noopener">出處</a></li>
+<li><strong>從 0 開始</strong>：長度 n 的陣列用整數 0 到 n−1 當索引。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
+<li><strong>超出範圍會丟例外</strong>：索引小於 0 或大於等於長度，會丟出 <code>ArrayIndexOutOfBoundsException</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.4" target="_blank" rel="noopener">出處</a></li>
+<li><strong>長度固定</strong>：陣列物件一旦建立，長度就不會再變。要變長只能開一個新陣列。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-10.html#jls-10.2" target="_blank" rel="noopener">出處</a></li>
 <li><strong>有預設值</strong>：陣列的每一格建立時就有預設值，<code>int</code> 是 0、物件參考是 <code>null</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.12.5" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <pre><code>import java.util.Arrays;
@@ -201,7 +201,7 @@ public class ShiftDemo {
 刪除搬了 4 格：[15, 20, 30, 40, 0, 0]
 插入搬了 0 格：[15, 20, 30, 40, 50, 0]
 size = 5</code></pre>
-<p>插在第 1 格搬了 3 格、刪掉第 0 格搬了 4 格、插在尾端一格都不用搬。MIT 講義的整理：陣列讀寫第 i 格是 O(1)（講義寫 Θ(1)），但插入與刪除需要「把被修改那格之後的所有項目都移動」（shifting all items after the modified item）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>插在第 1 格搬了 3 格、刪掉第 0 格搬了 4 格、插在尾端一格都不用搬。整理起來：陣列讀寫第 i 格是 O(1)（精確寫法是 Θ(1)），插入與刪除要把被修改那格之後的所有項目都移動。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>操作</th><th>陣列（已有 n 個）</th><th>為什麼</th></tr></thead><tbody>
 <tr><th>讀、寫第 i 格</th><td>O(1)</td><td>位置直接算出來</td></tr>
 <tr><th>在尾端放一個（還有空格）</th><td>O(1)</td><td>不用搬</td></tr>
@@ -251,7 +251,7 @@ size = 5</code></pre>
 <section>
 <p class="era">固定長度，或自動長大</p>
 <h3 class="head">int[] 對 ArrayList</h3>
-<p><code>ArrayList</code> 是幫你把「陣列滿了就開更大的、搬過去」包好的類別，API 文件說它是「可調整大小的陣列實作」（Resizable-array implementation of the List interface），底下就是一個陣列。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 擴容為什麼平均下來是 O(1)（攤銷），在〈複雜度：程式跑多快、吃多少記憶體〉有實跑的計算；List、Set、Map 怎麼挑在 Java 模組的〈集合與泛型〉，<code>Array</code> 與 <code>ArrayList</code>、<code>LinkedList</code> 的面試速答在面試集的〈Java 基礎快答〉。這裡只整理寫題目時會用到的差別：</p>
+<p><code>ArrayList</code> 是幫你把「陣列滿了就開更大的、搬過去」包好的類別，是 List 介面的可調整大小陣列實作，底下就是一個陣列。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 擴容為什麼平均下來是 O(1)（攤銷），在〈複雜度：程式跑多快、吃多少記憶體〉有實跑的計算；List、Set、Map 怎麼挑在 Java 模組的〈集合與泛型〉，<code>Array</code> 與 <code>ArrayList</code>、<code>LinkedList</code> 的面試速答在面試集的〈Java 基礎快答〉。這裡只整理寫題目時會用到的差別：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th><code>int[]</code></th><th><code>ArrayList&lt;Integer&gt;</code></th></tr></thead><tbody>
 <tr><th>長度</th><td>建立時決定，之後不變</td><td>自動長大</td></tr>
 <tr><th>放什麼</th><td>基本型別直接放</td><td>只能放物件，<code>int</code> 要包成 <code>Integer</code></td></tr>
@@ -260,8 +260,12 @@ size = 5</code></pre>
 <tr><th>插入、刪除中間</th><td>自己搬，O(n)</td><td><code>add(i, e)</code>、<code>remove(i)</code>，一樣 O(n)</td></tr>
 <tr><th>適合</th><td>長度事先知道（12 個月、26 個字母）</td><td>筆數事先不知道，一筆一筆收進來</td></tr>
 </tbody></table></div>
-<p>API 文件寫 <code>add(int index, E element)</code> 會「把目前在該位置的元素與之後的元素都往右移」（Shifts the element currently at that position (if any) and any subsequent elements to the right），<code>remove(int index)</code> 會「把之後的元素都往左移」（Shifts any subsequent elements to the left），跟上一段自己搬的一樣。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>最常踩的坑：<code>remove</code> 有兩個版本。</strong>傳 <code>int</code> 進去是「刪掉這個索引」，傳物件進去是「刪掉第一個等於它的元素」（Removes the first occurrence of the specified element from this list, if it is present.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 清單裡放的是 <code>Integer</code> 時，<code>remove(20)</code> 會被當成索引 20，不是值 20：</p>
+<p>插入、刪除中間時 <code>ArrayList</code> 也是自己搬，跟上一段一樣：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><code>add(int index, E element)</code>：把目前在該位置的元素（如果有）與之後的元素都往右移。</li>
+<li><code>remove(int index)</code>：把之後的元素都往左移。</li>
+</ul>
+<p><strong>最常踩的坑：<code>remove</code> 有兩個版本。</strong>傳 <code>int</code> 進去是「刪掉這個索引」，傳物件進去是「刪掉第一個等於它的元素」（如果有的話）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 清單裡放的是 <code>Integer</code> 時，<code>remove(20)</code> 會被當成索引 20，不是值 20：</p>
 <pre><code>import java.util.ArrayList;
 import java.util.List;
 
@@ -319,7 +323,7 @@ System.out.println(list);</code></pre>
 <div class="drill">
   <p class="dq"><code>list</code> 是有 n 個元素的 <code>ArrayList</code>，<code>list.get(n / 2)</code> 的時間複雜度是？</p>
   <ul class="dopts"><li>O(n)，要從頭走到中間</li><li>O(log n)</li><li>O(n/2)</li><li data-ok>O(1)</li></ul>
-  <p class="dexp">ArrayList 底下是陣列，用索引直接算出位置，API 文件也把 get 列在常數時間的操作裡。從頭走到第 i 個的是 LinkedList。</p>
+  <p class="dexp">ArrayList 底下是陣列，用索引直接算出位置，get 屬於常數時間的操作。從頭走到第 i 個的是 LinkedList。</p>
 </div>
 <div class="drill">
   <p class="dq">要記錄一年 12 個月每月的手續費收入，用哪個最直接？</p>
@@ -336,7 +340,7 @@ System.out.println(list);</code></pre>
 <section>
 <p class="era">字串不能改，只能換一個新的</p>
 <h3 class="head">String 不可變、StringBuilder 與 char[]</h3>
-<p>Java 的 <code>String</code> 像刻好的印章：刻好就不能改，想要不一樣的字只能刻一顆新的。API 文件原句：「字串是常數，建立之後值就不能改」（Strings are constant; their values cannot be changed after they are created.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 所以 <code>toUpperCase()</code>、<code>replace()</code> 這些方法都是回傳一個新字串，原本的不會變；沒接住回傳值，等於白做。</p>
+<p>Java 的 <code>String</code> 像刻好的印章：刻好就不能改，想要不一樣的字只能刻一顆新的：字串是常數，建立之後值就不能改。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a> 所以 <code>toUpperCase()</code>、<code>replace()</code> 這些方法都是回傳一個新字串，原本的不會變；沒接住回傳值，等於白做。</p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="String 不可變：a 和 b 原本都指向「銀行」這個字串物件；執行 a = a + 帳戶 之後，產生一個新的「銀行帳戶」物件，a 改指向新物件，b 還指向原本的「銀行」，原本的物件內容沒有被改">
   <defs><marker id="ar-03-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -360,8 +364,12 @@ System.out.println(list);</code></pre>
 </svg>
 <figcaption>a = a + "帳戶" 沒有改到原本的字串，而是做出一個新字串，再讓 a 改指向它。b 還指向舊的「銀行」。</figcaption>
 </figure>
-<p><strong>迴圈裡用 <code>+</code> 相加的代價。</strong>語言規格說字串相加的結果「是一個新建立的 String 物件」，只有整個運算式是編譯期常數（整個運算式在編譯時就算得出來）時例外（The String object is newly created (§12.5) unless the expression is a constant expression）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.1" target="_blank" rel="noopener">出處</a> 迴圈每一圈都做一個新字串，新字串要放進目前的全部內容，長度 1、2、3……n 加起來約 n²/2 個字元，總共 O(n²)。</p>
-<p><code>StringBuilder</code> 是可以改的字串（a mutable sequence of characters），主要操作是 <code>append</code> 與 <code>insert</code>，<code>append</code>「一律把字元加在尾端」。它有自己的容量，「只要內容長度沒超過容量，就不需要配置新的內部緩衝區（內部用來放字元的陣列）；緩衝區不夠時會自動變大」（If the internal buffer overflows, it is automatically made larger.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StringBuilder.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>迴圈裡用 <code>+</code> 相加的代價。</strong>字串相加的結果是一個新建立的 String 物件，只有整個運算式是編譯期常數（整個運算式在編譯時就算得出來）時例外。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.1" target="_blank" rel="noopener">出處</a> 迴圈每一圈都做一個新字串，新字串要放進目前的全部內容，長度 1、2、3……n 加起來約 n²/2 個字元，總共 O(n²)。</p>
+<p><code>StringBuilder</code> 是可以改的字串：</p>
+<ul class="plainlist">
+<li>主要操作是 <code>append</code> 與 <code>insert</code>，<code>append</code> 一律把字元加在尾端。</li>
+<li>它有自己的容量，只要內容長度沒超過容量，就不需要配置新的內部緩衝區（內部用來放字元的陣列）；緩衝區不夠時會自動變大。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StringBuilder.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>API 文件沒有說它每次變多大；OpenJDK 25 的實作（<code>AbstractStringBuilder</code> 的 <code>newCapacity</code>）是不夠時約變成兩倍再多 2 格。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/lang/AbstractStringBuilder.java#L344" target="_blank" rel="noopener">出處</a> 每次按比例放大，所以跟 <code>ArrayList</code> 同一個道理，連續 append n 個字元整體是 O(n)。<code>StringBuffer</code> 與 <code>StringBuilder</code> 差在哪，在〈Java 基礎快答〉。</p>
 <pre><code>public class StringDemo {
     public static void main(String[] args) {
@@ -456,7 +464,7 @@ String s = sb.toString();</code></pre>
 <div class="drill">
   <p class="dq"><code>char[] cs = s.toCharArray();</code>（s 長度 n）這一行的額外空間是？</p>
   <ul class="dopts"><li>O(1)，它只是回傳字串內部那個陣列</li><li>O(log n)</li><li data-ok>O(n)，它回傳一個新配置的字元陣列</li><li>O(n²)</li></ul>
-  <p class="dexp">API 文件寫 toCharArray 回傳 a newly allocated character array，長度等於字串長度，所以是 O(n) 時間與空間。改這個陣列不會影響原本的字串。</p>
+  <p class="dexp">toCharArray 回傳一個新配置的字元陣列，長度等於字串長度，所以是 O(n) 時間與空間。改這個陣列不會影響原本的字串。</p>
 </div>
 <div class="drill">
   <p class="dq">要把十萬筆交易組成一份 CSV 字串（每筆一行），哪種寫法比較好？</p>
@@ -832,17 +840,27 @@ for (int read = 1; read &lt; a.length; read++) {
 <section>
 <p class="era">內建工具，與它們的陷阱</p>
 <h3 class="head">常用 API 與常見陷阱</h3>
-<p><strong><code>Arrays.sort</code>：基本型別與物件用不同的演算法。</strong>API 文件寫，<code>int[]</code> 這類基本型別陣列的排序法是「Vladimir Yaroslavskiy、Jon Bentley、Joshua Bloch 的雙軸快速排序」（Dual-Pivot Quicksort），提供 O(n log(n)) 的效能；物件陣列則是「穩定、自適應、迭代的合併排序」（a stable, adaptive, iterative mergesort），「改編自 Tim Peters 為 Python 寫的串列排序（TimSort）」，而且「保證穩定：相等的元素不會因為排序而改變順序」（This sort is guaranteed to be stable: equal elements will not be reordered as a result of the sort.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a> 穩定性的用處：交易先照時間排好，再照金額排，同金額的會保持時間順序。排序法本身在〈排序與二分搜尋〉。</p>
-<p><strong><code>Arrays.asList</code> 回傳固定大小的清單。</strong>API 文件：「回傳一個由指定陣列支撐、固定大小的清單。對陣列的修改會反映在清單上，對清單的修改也會反映在陣列上」，而且會改變大小的方法「會讓清單維持不變並丟出 <code>UnsupportedOperationException</code>」（Those methods leave the list unchanged and throw UnsupportedOperationException.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a> 所以 <code>set</code> 可以、<code>add</code>、<code>remove</code> 不行。要能增刪就包一層 <code>new ArrayList&lt;&gt;(Arrays.asList(arr))</code>。另一個坑：<code>Arrays.asList</code> 的參數是物件，傳 <code>int[]</code> 進去時，整個 <code>int[]</code> 被當成「一個元素」，得到長度 1 的清單。</p>
-<p><strong><code>==</code> 比的是不是同一個物件，<code>equals</code> 比內容。</strong>語言規格：兩邊都是參考型別時，<code>==</code>「在兩個運算元都是 null，或都指向同一個物件或陣列時」才是 true，並特別寫到字串：「就算兩個不同的 String 物件內容相同，結果也是 false」（The result is false if the operands are distinct String objects, even if they contain the same sequence of characters）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.21.3" target="_blank" rel="noopener">出處</a></p>
-<p><code>String.equals</code> 則是「引數不是 null，而且是代表相同字元序列的 String 物件」時回傳 true。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a></p>
-<p>讓人誤會的是，兩個一樣的字面值（直接寫在程式碼裡、用雙引號括起來的字串）用 <code>==</code> 比會是 true，因為規格規定「字串字面值永遠指向同一個 String 實例」（a string literal always refers to the same instance of class String）。這是字面值共用同一個物件的規則，不是在比內容；執行時才組出來的字串，規格寫「執行時用串接算出來的字串是新建立的，所以彼此不同」（Strings computed by concatenation at run time are newly created and therefore distinct.），從檔案、資料庫讀進來的字串也不會自動共用。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-3.html#jls-3.10.5" target="_blank" rel="noopener">出處</a> 比字串內容一律用 <code>equals</code>。</p>
-<p><strong>整數溢位</strong>（overflow：算出來的數字超過型別裝得下的範圍）。<code>int</code> 的範圍是 −2,147,483,648 到 2,147,483,647，上限就是 <code>Integer.MAX_VALUE</code>（A constant holding the maximum value an int can have, 2³¹−1.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a></p>
-<p>超過時不會報錯，規格寫「整數運算子不會以任何方式表示溢位」（The integer operators do not indicate overflow or underflow in any way.），結果會繞回負數。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a></p>
+<p><strong><code>Arrays.sort</code>：基本型別與物件用不同的演算法。</strong><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>陣列</th><th>排序法</th><th>特性</th></tr></thead><tbody>
+<tr><th><code>int[]</code> 這類基本型別</th><td>Vladimir Yaroslavskiy、Jon Bentley、Joshua Bloch 的雙軸快速排序（Dual-Pivot Quicksort）</td><td>O(n log(n)) 的效能</td></tr>
+<tr><th>物件陣列</th><td>穩定、自適應、迭代的合併排序，改編自 Tim Peters 為 Python 寫的串列排序（TimSort）</td><td>保證穩定：相等的元素不會因為排序而改變順序</td></tr>
+</tbody></table></div>
+<p>穩定性的用處：交易先照時間排好，再照金額排，同金額的會保持時間順序。排序法本身在〈排序與二分搜尋〉。</p>
+<p><strong><code>Arrays.asList</code> 回傳固定大小的清單。</strong><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>清單由指定的陣列支撐：對陣列的修改會反映在清單上，對清單的修改也會反映在陣列上。</li>
+<li>會改變大小的方法讓清單維持不變，並丟出 <code>UnsupportedOperationException</code>。</li>
+</ul>
+<p>所以 <code>set</code> 可以、<code>add</code>、<code>remove</code> 不行。要能增刪就包一層 <code>new ArrayList&lt;&gt;(Arrays.asList(arr))</code>。另一個坑：<code>Arrays.asList</code> 的參數是物件，傳 <code>int[]</code> 進去時，整個 <code>int[]</code> 被當成「一個元素」，得到長度 1 的清單。</p>
+<p><strong><code>==</code> 比的是不是同一個物件，<code>equals</code> 比內容。</strong>兩邊都是參考型別時，<code>==</code> 只在兩個運算元都是 null，或都指向同一個物件或陣列時才是 true。就算兩個不同的 String 物件內容相同，結果也是 false。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.21.3" target="_blank" rel="noopener">出處</a></p>
+<p><code>String.equals</code> 則是在引數不是 null、而且是代表相同字元序列的 String 物件時回傳 true。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html" target="_blank" rel="noopener">出處</a></p>
+<p>讓人誤會的是，兩個一樣的字面值（直接寫在程式碼裡、用雙引號括起來的字串）用 <code>==</code> 比會是 true，因為字串字面值永遠指向同一個 String 實例。這是字面值共用同一個物件的規則，不是在比內容；執行時用串接算出來的字串是新建立的，所以彼此不同，從檔案、資料庫讀進來的字串也不會自動共用。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-3.html#jls-3.10.5" target="_blank" rel="noopener">出處</a> 比字串內容一律用 <code>equals</code>。</p>
+<p><strong>整數溢位</strong>（overflow：算出來的數字超過型別裝得下的範圍）。<code>int</code> 的範圍是 −2,147,483,648 到 2,147,483,647，上限就是 <code>Integer.MAX_VALUE</code>（2³¹−1）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Integer.html" target="_blank" rel="noopener">出處</a></p>
+<p>超過時不會報錯：整數運算子不會以任何方式表示溢位，結果會繞回負數。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2" target="_blank" rel="noopener">出處</a></p>
 <p>三種防法：</p>
 <ul class="plainlist">
 <li><b>金額加總用 <code>long</code></b>。</li>
-<li><b>想在溢位時直接失敗，用 <code>Math.addExact</code></b>：它「在結果超出 int 範圍時丟出例外」。<span class="orig">Math 文件：throwing an exception if the result overflows an int<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>想在溢位時直接失敗，用 <code>Math.addExact</code></b>：結果超出 int 範圍時丟出例外。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html" target="_blank" rel="noopener">出處</a></li>
 <li><b>算兩個索引的中間值</b>：寫 <code>left + (right - left) / 2</code>，不寫 <code>(left + right) / 2</code>。</li>
 </ul>
 <pre><code>import java.util.Arrays;
@@ -908,7 +926,7 @@ addExact：integer overflow
 <div class="drill">
   <p class="dq">交易物件已經照時間排好，現在要再照金額排，並且希望同金額的交易保持時間先後。用 <code>Arrays.sort</code> 排物件陣列做得到嗎？</p>
   <ul class="dopts"><li>做不到，Arrays.sort 不管什麼陣列一律用快速排序，同金額的交易順序會被打亂</li><li>做不到，要自己寫泡沫排序</li><li>只有基本型別陣列才做得到</li><li data-ok>做得到，物件陣列的 Arrays.sort 保證穩定，相等的元素不會改變順序</li></ul>
-  <p class="dexp">API 文件寫物件陣列的排序 is guaranteed to be stable。雙軸快速排序是用在基本型別陣列，基本型別也沒有「同金額的兩筆交易」要分辨順序的問題。</p>
+  <p class="dexp">物件陣列的排序保證穩定。雙軸快速排序是用在基本型別陣列，基本型別也沒有「同金額的兩筆交易」要分辨順序的問題。</p>
 </div>
 <div class="drill">
   <p class="dq">這段程式會怎樣？</p>

@@ -5,13 +5,18 @@
 <p class="era">先問為什麼，資料變多時會慢多少</p>
 <h3 class="head">複雜度在量什麼</h3>
 <p>同一個需求可以有很多種寫法。對帳程式在測試環境跑一百筆時，每種寫法都是一眨眼；上線後一天一百萬筆，有的寫法一樣一眨眼，有的要跑一整晚。<strong>複雜度</strong>（complexity）就是用來事先回答「資料量變大時，這個寫法會慢多少、吃多少記憶體」的工具，不用真的等到上線才知道。</p>
-<p>直接量秒數不準，因為同一支程式在快的電腦上跑得快、慢的電腦上跑得慢。MIT 6.006 講義的做法是「數這個演算法總共做了幾次固定時間的基本動作」（Count number of fixed-time operations algorithm takes to return），並預期它「跟輸入的大小有關：輸入越大通常越久」（Expect to depend on size of input: larger input suggests longer time）。輸入的大小通常記作 <code>n</code>，例如交易筆數、帳戶數、字串長度。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>數出來的步數常常長成 <code>3n² + 5n + 100</code> 這種樣子。<strong>大 O 符號</strong>（big O notation，也叫漸近符號：只看 n 很大很大時的趨勢）把它簡化成 <code>O(n²)</code>，規則只有兩條，講義原文是「忽略常數倍數與低次項」（Asymptotic Notation: ignore constant factors and low order terms）：<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>直接量秒數不準，因為同一支程式在快的電腦上跑得快、慢的電腦上跑得慢。改成數步數：</p>
+<ul class="plainlist">
+<li>數這個演算法總共做了幾次固定時間的基本動作。</li>
+<li>步數跟輸入的大小有關，輸入越大通常越久。</li>
+<li>輸入的大小通常記作 <code>n</code>，例如交易筆數、帳戶數、字串長度。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>數出來的步數常常長成 <code>3n² + 5n + 100</code> 這種樣子。<strong>大 O 符號</strong>（big O notation，也叫漸近符號：只看 n 很大很大時的趨勢）把它簡化成 <code>O(n²)</code>，規則只有兩條：忽略常數倍數與低次項。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>去常數</strong>：<code>3n²</code> 的 3、<code>n/2</code> 的 ½ 都拿掉。換一台快兩倍的電腦，只會改變這個常數，不會改變「n 變兩倍時要多花幾倍時間」。</li>
 <li><strong>取最高次項</strong>：<code>3n² + 5n + 100</code> 裡，n 等於一百萬時 <code>n²</code> 是一兆，<code>5n</code> 才五百萬，後面那些小項可以忽略，只留 <code>n²</code>。</li>
 </ul>
-<p>嚴格的定義在 MIT 習題課講義：「非負函式 g(n) 屬於 O(f(n))，若且唯若存在正實數 c 與正整數 n₀，使得所有 n ≥ n₀ 都有 g(n) ≤ c·f(n)」（Non-negative function g(n) is in O(f(n)) if and only if there exists a positive real number c and positive integer n0 such that g(n) ≤ c · f(n) for all n ≥ n0.）。白話：n 夠大以後，g(n) 不會超過 f(n) 的某個固定倍數，所以 O 是一個<strong>上限</strong>。講義另外有 Ω（下限）與 Θ（上下限都對上、最貼的那個）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 照定義，O(n) 的程式也算 O(n²)（上限放寬一點也成立），但這樣講沒有資訊量。本課和這個模組寫 O 時，一律寫最貼近的那個等級。</p>
+<p>嚴格的定義：非負函式 g(n) 屬於 O(f(n))，若且唯若存在正實數 c 與正整數 n₀，使得所有 n ≥ n₀ 都有 g(n) ≤ c·f(n)。白話：n 夠大以後，g(n) 不會超過 f(n) 的某個固定倍數，所以 O 是一個<strong>上限</strong>。另外還有 Ω（下限）與 Θ（上下限都對上、最貼的那個）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 照定義，O(n) 的程式也算 O(n²)（上限放寬一點也成立），但這樣講沒有資訊量。本課和這個模組寫 O 時，一律寫最貼近的那個等級。</p>
 <p class="formula">大 O 只看 n 變大時的成長趨勢：去掉常數、只留最高次項</p>
 
 <div class="drill">
@@ -47,7 +52,7 @@
 <div class="drill">
   <p class="dq">大 O 為什麼可以把常數倍數丟掉？</p>
   <ul class="dopts"><li>因為實務上常數一定很小，跟 n 比起來可以直接忽略，不影響結果</li><li data-ok>因為我們要比的是 n 變大時的成長趨勢；換快的電腦只改常數，不改趨勢</li><li>因為 Java 編譯器會把常數最佳化掉</li><li>因為常數只會出現在空間複雜度裡</li></ul>
-  <p class="dexp">常數可以很大（例如每筆都要做 100 次運算），丟掉它不是因為它小，而是因為它不影響「n 變兩倍時慢幾倍」。MIT 習題課講義說用漸近表現比較演算法，就是「為了忽略硬體效能的常數倍差異」（in order to ignore constant factor differences in hardware performance）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
+  <p class="dexp">常數可以很大（例如每筆都要做 100 次運算），丟掉它不是因為它小，而是因為它不影響「n 變兩倍時慢幾倍」。用漸近表現比較演算法，就是為了忽略硬體效能的常數倍差異。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a></p>
 </div>
 </section>
 
@@ -136,7 +141,7 @@
 <tr><th>O(n²)</th><td>平方時間：每一筆都跟每一筆配對一次</td><td>兩層迴圈都走過整份資料</td><td>核心系統的每一筆，都到清算檔從頭找一遍有沒有對應</td></tr>
 <tr><th>O(2ⁿ)</th><td>指數時間：每多一筆資料，工作量就翻倍</td><td>把每個元素「選或不選」的組合全部試一遍</td><td>帳差了 7 元，找哪幾筆交易加起來剛好 7 元</td></tr>
 </tbody></table></div>
-<p><strong>O(log n) 為什麼這麼快：</strong>猜數字遊戲的做法（正式名稱是二分搜尋 binary search）：資料先排好序，每次看正中間那格，太小就丟掉它和左半、太大就丟掉它和右半。MIT 習題課講義說，「在已排序的陣列中找一個值，可以用二分搜尋在對數時間內解決」（finding a value in a sorted array ... can be solved in logarithmic time via binary search）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 細節在〈排序與二分搜尋〉。</p>
+<p><strong>O(log n) 為什麼這麼快：</strong>猜數字遊戲的做法（正式名稱是二分搜尋 binary search）：資料先排好序，每次看正中間那格，太小就丟掉它和左半、太大就丟掉它和右半。在已排序的陣列中找一個值，用二分搜尋可以在對數時間內解決。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c6d8f06c6f11e3342633dec85498f551_MIT6_006S20_r01.pdf" target="_blank" rel="noopener">出處</a> 細節在〈排序與二分搜尋〉。</p>
 <figure>
 <svg viewBox="0 0 760 400" role="img" aria-label="在 8 個排好序的數字裡用二分搜尋找 68：每看一次中間那格就丟掉一半，要找的範圍從 8 格變 4 格、2 格、1 格，總共看 4 次">
   <text x="20" y="65" font-size="14">第 1 次：剩 8 格</text>
@@ -254,7 +259,7 @@
 </svg>
 <figcaption>8 格找 68：每次看中間那格（古銅），比要找的小就連它和左邊一起丟掉，剩下要找的範圍是 8 → 4 → 2 → 1 格，看 4 次就找到。資料變 16 格也只多看 1 次。</figcaption>
 </figure>
-<p><strong>O(n log n) 從哪來：</strong>好的排序法大致是「分 log n 層，每層把 n 筆都處理一次」。Java 對基本型別陣列用的雙軸快速排序，API 文件寫它「在所有資料上都提供 O(n log(n)) 的效能」（This algorithm offers O(n log(n)) performance on all data sets）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>O(n log n) 從哪來：</strong>好的排序法大致是「分 log n 層，每層把 n 筆都處理一次」。Java 對基本型別陣列用的雙軸快速排序，在所有資料上都是 O(n log(n)) 的效能。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></p>
 <p><strong>O(2ⁿ) 為什麼可怕：</strong>n 筆交易，每筆都可以「選」或「不選」，組合數是 2 × 2 × … × 2 = 2ⁿ。10 筆有 1,024 種，20 筆就超過一百萬種，40 筆超過一兆種。這種寫法只能用在 n 很小的時候。</p>
 <p>把六個等級寫進同一支程式，用一個計數器 <code>steps</code> 數「基本動作做了幾次」，再把 n 加倍，看步數怎麼變：</p>
 <pre><code>import java.util.Arrays;
@@ -340,7 +345,12 @@ n=2,000  O(1)=1  O(log n)=11  O(n)=2,000  O(n²)=2,001,000
 n=10  O(2ⁿ)=2,047
 n=20  O(2ⁿ)=2,097,151</code></pre>
 <p>n 從 1,000 變 2,000（兩倍）：O(1) 不變、O(log n) 只多 1 步、O(n) 變 2 倍、O(n²) 從 500,500 變 2,001,000，約 4 倍。O(2ⁿ) 那行是 n 從 10 變 20，步數變成約 1,024 倍。O(n²) 那行是 500,500 而不是 1,000,000，因為每一筆找到對應就 <code>break</code>，平均只找一半；這個 ½ 就是大 O 去掉的常數。</p>
-<p>O(n log n) 用 <code>Arrays.sort</code> 示範，在比較器裡數它比了幾次。要傳比較器只能排物件陣列（<code>Long[]</code>），這時 <code>Arrays.sort</code> 用的不是上面那個雙軸快速排序，而是另一種合併排序；API 文件寫它在資料順序打亂時「提供傳統合併排序的效能」（offering the performance of a traditional mergesort when the input array is randomly ordered）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a>，而 algs4 寫合併排序排長度 N 的陣列「用 ½ N lg N 到 N lg N 次比較」（uses between 1/2 N lg N and N lg N compares），一樣是 O(n log n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a> 兩種排序法的差別在〈陣列與字串〉。</p>
+<p>O(n log n) 用 <code>Arrays.sort</code> 示範，在比較器裡數它比了幾次。要傳比較器只能排物件陣列（<code>Long[]</code>），這時 <code>Arrays.sort</code> 用的不是上面那個雙軸快速排序，而是另一種合併排序：</p>
+<ul class="plainlist">
+<li>資料順序打亂時，它的效能跟傳統合併排序一樣。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html" target="_blank" rel="noopener">出處</a></li>
+<li>合併排序排長度 N 的陣列，用 ½ N lg N 到 N lg N 次比較，一樣是 O(n log n)。<a class="fixsrc" href="https://algs4.cs.princeton.edu/22mergesort/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>兩種排序法的差別在〈陣列與字串〉。</p>
 <pre><code>import java.util.Arrays;
 import java.util.Random;
 
@@ -403,7 +413,7 @@ for (long x : amounts) {
 <div class="drill">
   <p class="dq">十萬筆交易的金額放在一個 <code>long[]</code> 陣列裡，用 <code>Arrays.sort</code> 由小到大排好，時間複雜度是？</p>
   <ul class="dopts"><li>O(n)</li><li>O(n²)</li><li>O(log n)</li><li data-ok>O(n log n)</li></ul>
-  <p class="dexp">API 文件寫 <code>Arrays.sort</code> 對基本型別陣列提供 O(n log(n)) 的效能。比較型的排序一般就是這個等級。</p>
+  <p class="dexp"><code>Arrays.sort</code> 對基本型別陣列提供 O(n log(n)) 的效能。比較型的排序一般就是這個等級。</p>
 </div>
 <div class="drill">
   <p class="dq">核心系統有 n 筆、清算檔也有 n 筆，「核心系統的每一筆，都到清算檔從頭找一遍」的時間複雜度是？</p>
@@ -430,8 +440,8 @@ for (long x : amounts) {
 </tbody></table></div>
 <p>兩個常見的陷阱：</p>
 <ul class="plainlist">
-<li><strong>內層從 <code>i + 1</code> 開始，還是 O(n²)。</strong>內層跑 n−1、n−2、…、1 次，加起來是 n(n−1)/2，去掉 ½ 和低次項還是 n²。MIT 講義分析找同生日的兩層迴圈（內層只跑到 k）時，結論同樣是 O(n²)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></li>
-<li><strong>迴圈裡呼叫的方法本身也要算。</strong>一層迴圈裡面寫 <code>list.contains(x)</code>，看起來只有一層，但 <code>ArrayList</code> 的 API 文件說除了少數幾個方法，「其他操作都是線性時間」（All of the other operations run in linear time (roughly speaking).），<code>contains</code> 要從頭比到尾，整段就是 O(n²)。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 字串在迴圈裡用 <code>+</code> 相加也是同一種隱藏成本，在〈陣列與字串〉講。</li>
+<li><strong>內層從 <code>i + 1</code> 開始，還是 O(n²)。</strong>內層跑 n−1、n−2、…、1 次，加起來是 n(n−1)/2，去掉 ½ 和低次項還是 n²。例如找同生日的兩層迴圈（內層只跑到 k），一樣是 O(n²)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/477c78e0af2df61fa205bcc6cb613ceb_MIT6_006S20_lec1.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><strong>迴圈裡呼叫的方法本身也要算。</strong>一層迴圈裡面寫 <code>list.contains(x)</code>，看起來只有一層，但 <code>ArrayList</code> 除了少數幾個方法，其他操作大致都是線性時間，<code>contains</code> 要從頭比到尾，整段就是 O(n²)。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 字串在迴圈裡用 <code>+</code> 相加也是同一種隱藏成本，在〈陣列與字串〉講。</li>
 </ul>
 <p>遞迴怎麼算（畫出呼叫樹、數有幾個節點）在〈遞迴與回溯〉細講，這課只需要知道「數總共呼叫幾次」。</p>
 <p class="formula">巢狀相乘、先後相加、每次減半是 log n、迴圈裡呼叫的方法也要算進去</p>
@@ -617,11 +627,19 @@ for (int i = 1; i &lt; n; i *= 2) {
 <tr><th>攤銷（amortized）</th><td>把偶爾一次很貴的成本，平均分攤到每一次操作：看一連串操作的總成本</td><td><code>ArrayList.add</code> 攤銷 O(1)</td></tr>
 </tbody></table></div>
 <p>注意最壞、平均跟前面的 O、Θ 是兩件事：最壞、平均講的是「拿哪一種輸入來算」，O、Θ 講的是「這個等級是上限，還是剛好」。例如逐筆搜尋，最壞情況（要找的不在裡面）剛好是 n 步，是 Θ(n)；最好情況（第一筆就是）是 Θ(1)。本模組寫 O 時一律寫最貼近的等級，所以「最壞 O(n)」的意思就是「最壞情況的等級是 n」。</p>
-<p><strong>最壞情況</strong>的意思，algs4 寫的是「不管輸入是什麼，程式的執行時間都小於某個上限」（Running time of a program is less than a certain bound (as a function of the input size), no matter what the input.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> 快速排序是平均與最壞差很多的例子：algs4 寫它「平均約用 2N ln N 次比較」（~2 N ln N compares ... on the average），「最壞約 N²/2 次，但先隨機洗牌可以避開這種情況」（~N²/2 compares in the worst case, but random shuffling protects against this case）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a></p>
-<p><strong>平均情況</strong>背後一定有假設。<code>HashMap</code> 的 API 文件寫 get 與 put 是常數時間，但前面有條件：「假設雜湊函式把元素適當地分散到各個桶」（桶，bucket：雜湊表裡的一格）（This implementation provides constant-time performance for the basic operations (get and put), assuming the hash function disperses the elements properly among the buckets.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a> 所以面試講「HashMap 查詢 O(1)」時，要講成「平均 O(1)」。</p>
-<p><strong>攤銷</strong>跟平均不一樣，它不靠輸入的機率，講的是「一整串操作加起來」的保證。algs4 的說法：「攤銷分析對一連串操作提供最壞情況的效能保證」（Amortized analysis provides a worst-case performance guarantee on a sequence of operations.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> MIT 講義的定義：「k 次操作總成本不超過 k·T(n)，就說每次操作攤銷成本是 T(n)」（Operation has amortized cost T(n) if k operations cost at most ≤ kT(n)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>最常被問的例子是 <code>ArrayList.add</code>。<code>ArrayList</code> 底下是一個陣列，格子滿了就開一個更大的新陣列、把舊的全部搬過去。搬家那一次是 O(n)，但不是每次都搬。API 文件原句：「add 與 addLast 操作是攤銷常數時間，也就是說，加入 n 個元素需要 O(n) 時間」（The add, and addLast operations runs in amortized constant time, that is, adding n elements requires O(n) time.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 這裡的 add 是加在尾端的 <code>add(e)</code>；插到中間的 <code>add(index, e)</code> 要把後面整段往右搬，屬於文件說的「其他操作都是線性時間」。</p>
-<p>新陣列開多大？API 文件只說「成長策略的細節沒有規定，只保證加入一個元素的攤銷成本是常數」（The details of the growth policy are not specified beyond the fact that adding an element has constant amortized time cost.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 實際做法要看原始碼：OpenJDK 25 的 <code>ArrayList.grow</code> 把「偏好的成長量」設成 <code>oldCapacity &gt;&gt; 1</code>（舊容量的一半），也就是新容量約為舊的 1.5 倍；用預設建構子建立的清單，第一次放東西時開 <code>DEFAULT_CAPACITY</code>，也就是 10 格。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayList.java" target="_blank" rel="noopener">出處</a> 照這個公式模擬，數一數總共搬了多少個元素：</p>
+<p><strong>最壞情況</strong>：不管輸入是什麼，程式的執行時間（看成輸入大小的函式）都小於某個上限。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> 快速排序是平均與最壞差很多的例子：<a class="fixsrc" href="https://algs4.cs.princeton.edu/23quicksort/" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>平均約用 2N ln N 次比較。</li>
+<li>最壞約 N²/2 次，但先隨機洗牌可以避開這種情況。</li>
+</ul>
+<p><strong>平均情況</strong>背後一定有假設。<code>HashMap</code> 的 get 與 put 是常數時間，但有條件：雜湊函式要把元素適當地分散到各個桶（桶，bucket：雜湊表裡的一格）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a> 所以面試講「HashMap 查詢 O(1)」時，要講成「平均 O(1)」。</p>
+<p><strong>攤銷</strong>跟平均不一樣，它不靠輸入的機率，講的是一整串操作加起來的保證：</p>
+<ul class="plainlist">
+<li>攤銷分析對一連串操作提供最壞情況的效能保證。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a></li>
+<li>定義：k 次操作總成本不超過 k·T(n)，就說每次操作的攤銷成本是 T(n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>最常被問的例子是 <code>ArrayList.add</code>。<code>ArrayList</code> 底下是一個陣列，格子滿了就開一個更大的新陣列、把舊的全部搬過去。搬家那一次是 O(n)，但不是每次都搬：add 與 addLast 是攤銷常數時間，也就是加入 n 個元素需要 O(n) 時間。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 這裡的 add 是加在尾端的 <code>add(e)</code>；插到中間的 <code>add(index, e)</code> 要把後面整段往右搬，屬於線性時間的那些操作。</p>
+<p>新陣列開多大？API 文件沒有規定成長策略的細節，只保證加入一個元素的攤銷成本是常數。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a> 實際做法要看原始碼：OpenJDK 25 的 <code>ArrayList.grow</code> 把「偏好的成長量」設成 <code>oldCapacity &gt;&gt; 1</code>（舊容量的一半），也就是新容量約為舊的 1.5 倍；用預設建構子建立的清單，第一次放東西時開 <code>DEFAULT_CAPACITY</code>，也就是 10 格。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/ArrayList.java" target="_blank" rel="noopener">出處</a> 照這個公式模擬，數一數總共搬了多少個元素：</p>
 <pre><code>public class GrowthCost {
     public static void main(String[] args) {
         for (int n : new int[]{1_000, 1_000_000}) {
@@ -706,8 +724,8 @@ for (int i = 1; i &lt; n; i *= 2) {
 </svg>
 <figcaption>前 40 次 add 的成本：平常每次只放 1 個（灰藍），第 11、16、23、34 次剛好遇到格子滿，要把舊的 10、15、22、33 個全部搬走（古銅）。貴的那幾次越來越貴，但間隔也越來越長，平均下來每次只有固定幾步。</figcaption>
 </figure>
-<p>放一百萬個只擴容 29 次，平均每次 add 多搬約 2.4 個，跟 n 無關，所以是攤銷 O(1)。關鍵是「每次按比例放大」：MIT 習題課講義說，多配置的空間只要跟目前大小成固定比例，就能達到攤銷常數時間（allocating any constant fraction of additional space will achieve the amortized bound）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c08a3b63dfe5f6f6b32257d35f86ae63_MIT6_006S20_r02.pdf" target="_blank" rel="noopener">出處</a> 如果每次只多加固定 10 格，每 10 次就要搬一次家，搬的總數是 10 + 20 + 30 + … + n，約 n²/20，總成本變成 O(n²)。</p>
-<p class="muted">已經知道要放多少筆時，可以用 <code>new ArrayList&lt;&gt;(容量)</code> 或 <code>ensureCapacity</code> 一次開夠，API 文件說這「可能減少逐步重新配置的次數」（This may reduce the amount of incremental reallocation.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
+<p>放一百萬個只擴容 29 次，平均每次 add 多搬約 2.4 個，跟 n 無關，所以是攤銷 O(1)。關鍵是「每次按比例放大」：多配置的空間只要跟目前大小成固定比例，就能達到攤銷常數時間。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/c08a3b63dfe5f6f6b32257d35f86ae63_MIT6_006S20_r02.pdf" target="_blank" rel="noopener">出處</a> 如果每次只多加固定 10 格，每 10 次就要搬一次家，搬的總數是 10 + 20 + 30 + … + n，約 n²/20，總成本變成 O(n²)。</p>
+<p class="muted">已經知道要放多少筆時，可以用 <code>new ArrayList&lt;&gt;(容量)</code> 或 <code>ensureCapacity</code> 一次開夠，可能減少逐步重新配置的次數。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">在沒排序的 n 筆交易裡逐筆找某個交易編號，最壞情況的時間複雜度是？</p>
@@ -722,12 +740,12 @@ for (int i = 1; i &lt; n; i *= 2) {
 <div class="drill">
   <p class="dq"><code>ArrayList</code> 的 <code>add(e)</code> 單獨一次，最壞要多久？</p>
   <ul class="dopts"><li>O(1)，因為 API 文件說它是常數時間，任何一次都不會超過</li><li data-ok>O(n)，剛好遇到擴容要把舊元素全部搬過去</li><li>O(log n)</li><li>O(n²)</li></ul>
-  <p class="dexp">文件說的是「攤銷」常數時間。剛好碰上格子滿的那一次，要把 n 個舊元素搬到新陣列，那一次是 O(n)。</p>
+  <p class="dexp">是「攤銷」常數時間。剛好碰上格子滿的那一次，要把 n 個舊元素搬到新陣列，那一次是 O(n)。</p>
 </div>
 <div class="drill">
   <p class="dq">從空的 <code>ArrayList</code> 開始，連續 <code>add(e)</code> n 次，總共要多少時間？</p>
   <ul class="dopts"><li>O(n²)，因為每次 add 最壞 O(n)</li><li>O(n log n)</li><li>O(1)</li><li data-ok>O(n)</li></ul>
-  <p class="dexp">API 文件原句：「adding n elements requires O(n) time」。貴的那幾次間隔越來越長，總和還是 O(n)。拿「每次最壞 O(n)」乘以 n 會高估。</p>
+  <p class="dexp">加入 n 個元素需要 O(n) 時間。貴的那幾次間隔越來越長，總和還是 O(n)。拿「每次最壞 O(n)」乘以 n 會高估。</p>
 </div>
 <div class="drill">
   <p class="dq">在有 n 個元素的 <code>ArrayList</code> 最前面插入：<code>list.add(0, x)</code>。時間複雜度是？</p>
@@ -735,19 +753,19 @@ for (int i = 1; i &lt; n; i *= 2) {
   <p class="dexp">插到中間或最前面，後面每一個都要往右搬一格，是 O(n)。攤銷 O(1) 只講尾端的 add(e)。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>HashMap</code> 的 API 文件說 get、put 是常數時間，前提是什麼？</p>
+  <p class="dq"><code>HashMap</code> 的 get、put 是常數時間，前提是什麼？</p>
   <ul class="dopts"><li>鍵必須是字串</li><li data-ok>雜湊函式把元素適當地分散到各個桶</li><li>容量必須是 2 的次方</li><li>只能在單一執行緒使用</li></ul>
-  <p class="dexp">文件原句是 assuming the hash function disperses the elements properly among the buckets。所以要說「平均 O(1)」，分散得不好（很多鍵撞在一起）就會變慢。</p>
+  <p class="dexp">常數時間的前提是雜湊函式把元素適當地分散到各個桶。所以要說「平均 O(1)」，分散得不好（很多鍵撞在一起）就會變慢。</p>
 </div>
 <div class="drill">
-  <p class="dq">有人說「快速排序是 O(n log n)」。照 algs4 的說法，這句話要補上什麼才完整？</p>
+  <p class="dq">有人說「快速排序是 O(n log n)」。這句話要補上什麼才完整？</p>
   <ul class="dopts"><li>不用補，快速排序每次都把資料切成兩半，任何輸入都是 O(n log n)</li><li>要補「最好情況是 O(n)」</li><li>要補「空間是 O(n²)」</li><li data-ok>那是平均情況；最壞約 N²/2 次比較，也就是 O(n²)</li></ul>
-  <p class="dexp">algs4 寫快速排序平均約 2N ln N 次比較、最壞約 N²/2 次，先隨機洗牌可以避開最壞情況。平均與最壞要分開講。</p>
+  <p class="dexp">快速排序平均約 2N ln N 次比較、最壞約 N²/2 次，先隨機洗牌可以避開最壞情況。平均與最壞要分開講。</p>
 </div>
 <div class="drill">
   <p class="dq">「攤銷 O(1)」跟「平均 O(1)」差在哪？</p>
   <ul class="dopts"><li>沒有差別，只是兩種叫法</li><li>攤銷是最好情況，平均是最壞情況</li><li data-ok>攤銷是一整串操作的總成本保證，不靠輸入的機率；平均要先假設輸入怎麼分布</li><li>攤銷只用在空間複雜度，平均只用在時間複雜度，兩者量的東西根本不同</li></ul>
-  <p class="dexp">algs4：攤銷分析對一連串操作提供最壞情況的保證。ArrayList 連續 add n 次一定是 O(n)，不需要假設資料長怎樣；HashMap 的平均 O(1) 則要假設雜湊分散得好。</p>
+  <p class="dexp">攤銷分析對一連串操作提供最壞情況的保證。ArrayList 連續 add n 次一定是 O(n)，不需要假設資料長怎樣；HashMap 的平均 O(1) 則要假設雜湊分散得好。</p>
 </div>
 </section>
 
@@ -761,7 +779,7 @@ for (int i = 1; i &lt; n; i *= 2) {
 <li>開一個 n × n 的二維表格：O(n²)。</li>
 <li>遞迴深度 n 層：O(n)。這一項最容易漏掉。</li>
 </ul>
-<p>遞迴為什麼吃空間？Java 虛擬機規格寫，每條執行緒有自己的呼叫堆疊（call stack：方法一層一層呼叫時，像疊盤子一樣疊起來的紀錄），堆疊需要的深度超過允許的上限，就丟出 <code>StackOverflowError</code>；<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 而且「每呼叫一次方法就建立一個新的框」（A new frame is created each time a method is invoked.），方法結束才拆掉。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.6" target="_blank" rel="noopener">出處</a> 框（frame）就是一次呼叫用到的小抽屜，放參數、區域變數、算到一半的結果。<code>sumRecursive(n)</code> 要一路疊到 <code>sumRecursive(0)</code> 才開始往回算，同時有 n 個抽屜開著：</p>
+<p>遞迴為什麼吃空間？每條執行緒有自己的呼叫堆疊（call stack：方法一層一層呼叫時，像疊盤子一樣疊起來的紀錄），堆疊需要的深度超過允許的上限，就丟出 <code>StackOverflowError</code>；<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 而且每呼叫一次方法就建立一個新的框，方法結束才拆掉。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.6" target="_blank" rel="noopener">出處</a> 框（frame）就是一次呼叫用到的小抽屜，放參數、區域變數、算到一半的結果。<code>sumRecursive(n)</code> 要一路疊到 <code>sumRecursive(0)</code> 才開始往回算，同時有 n 個抽屜開著：</p>
 <pre><code>public class SpaceDemo {
     // 空間 O(1)：不管 n 多大，只用 sum 和 i 兩個變數
     static long sumLoop(int n) {

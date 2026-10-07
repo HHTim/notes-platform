@@ -5,14 +5,19 @@
 <p class="era">每次都先處理最急的那個</p>
 <h3 class="head">優先佇列：不是先來先處理，是最重要的先處理</h3>
 <p>醫院急診不是照掛號順序看診，而是照傷勢輕重：心臟病發的先看，扭到腳的等一下。後來的病人如果更急，也會插到前面。這種「隨時有人加進來，每次都拿出最優先的那個」的資料結構叫<strong>優先佇列</strong>（priority queue）。〈堆疊與佇列〉的佇列是先來先處理；優先佇列是照優先順序處理，跟誰先來無關（除非你把到達順序也算進優先順序，後面的任務排程會示範）。</p>
-<p>MIT 6.006 講義列的例子包括「頻寬有限的路由器，必須優先處理某些訊息」與「作業系統核心的行程排程」（process scheduling in operating system kernels），並把優先佇列要支援的操作整理成：建立、插入、取出最大（或最小）、查看最大（或最小）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a> 銀行裡的例子：止付通知要比一般轉帳先處理、即將到期的交易要先送出。</p>
+<p>優先佇列要支援四個操作：建立、插入、取出最大（或最小）、查看最大（或最小）。常見用途：<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>頻寬有限的路由器，要優先處理某些訊息</li>
+<li>作業系統核心的行程排程</li>
+<li>銀行：止付通知要比一般轉帳先處理、即將到期的交易要先送出</li>
+</ul>
 <p>用陣列也能做，但總有一邊很慢：</p>
 <div class="tablewrap"><table><thead><tr><th>做法</th><th>插入</th><th>取出最小</th><th>查看最小</th></tr></thead><tbody>
 <tr><th>沒排序的陣列</th><td>攤銷 O(1)，放尾端</td><td>O(n)，要整個掃一遍找最小</td><td>O(n)</td></tr>
 <tr><th>排好序的陣列</th><td>O(n)，要找位置、往後搬</td><td>O(1)，就在一端</td><td>O(1)</td></tr>
 <tr><th>二元堆積</th><td>O(log n)</td><td>O(log n)</td><td>O(1)</td></tr>
 </tbody></table></div>
-<p>MIT 講義的比較也是這樣：沒排序的陣列「插入很快，但取出最大很慢」，排好序的陣列「取出最大很快，但插入很慢」，於是問「能不能在這兩個極端之間找個折衷？」（Can we find a compromise between these two array priority queue extremes?），答案就是二元堆積（binary heap）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a> 插入、取出都要做很多次時，O(log n) 加 O(log n) 比 O(1) 加 O(n) 划算得多。</p>
+<p>沒排序的陣列插入快、取出慢；排好序的陣列取出快、插入慢。<strong>二元堆積</strong>（binary heap）就是這兩個極端之間的折衷。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a> 插入、取出都要做很多次時，O(log n) 加 O(log n) 比 O(1) 加 O(n) 划算得多。</p>
 
 <div class="drill">
   <p class="dq">客服系統隨時有新案件進來，每次都要拿出「等最久的 VIP 案件」先處理，而且兩種操作都很頻繁。最適合的資料結構是？</p>
@@ -46,8 +51,8 @@
 <h3 class="head">堆積：完全二元樹、存在陣列裡</h3>
 <p>堆積（heap）是一棵二元樹，滿足兩個條件：</p>
 <ul class="plainlist">
-<li><strong>形狀是完全二元樹</strong>（complete binary tree）：從上到下、從左到右一格一格填，除了最後一層，每層都塞滿，最後一層靠左排。MIT 講義的說法：「完全樹是照閱讀順序密密地填滿：從根到葉子、由左到右」（complete tree is filled densely in reading order: root to leaves, left to right）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a> 所以 n 個元素的完全樹高度約 lg n（數邊，準確是 ⌊lg n⌋，lg n 無條件捨去），是平衡的。</li>
-<li><strong>堆積順序</strong>：每個父節點都不大於它的孩子（最小堆），或都不小於它的孩子（最大堆）。algs4 對最大堆的定義：「每個節點的鍵都大於或等於它兩個孩子的鍵」（the key in each node is larger than (or equal to) the keys in that nodes two children），所以「最大的鍵就在根」（The largest key in a heap-ordered binary tree is found at the root.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>形狀是完全二元樹</strong>（complete binary tree）：從上到下、從左到右一格一格填，除了最後一層，每層都塞滿，最後一層靠左排，也就是照閱讀順序（由上到下、由左到右）密密地填滿。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a> 所以 n 個元素的完全樹高度約 lg n（數邊，準確是 ⌊lg n⌋，lg n 無條件捨去），是平衡的。</li>
+<li><strong>堆積順序</strong>：每個父節點都不大於它的孩子（最小堆），或都不小於它的孩子（最大堆）。最大堆裡每個節點的鍵都大於或等於兩個孩子的鍵，所以最大的鍵就在根。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>注意堆積順序只管「父子之間」，不管左右兄弟誰大，也不管不同子樹之間。所以堆積<strong>不是</strong>排好序的陣列，只保證根是最小（或最大）的。跟〈樹與二元搜尋樹〉的 BST 不一樣：BST 是「左邊都比我小、右邊都比我大」，堆積是「孩子都不比我小」。</p>
 <p><strong>為什麼能存在陣列裡？</strong>完全二元樹沒有空洞，照層序一格一格放進陣列剛好放滿，不用存左右參考，用索引算就知道誰是誰的孩子。從 0 開始編號時（Java 的 <code>PriorityQueue</code> 就是這樣），公式是：</p>
@@ -105,8 +110,8 @@
 </svg>
 <figcaption>同一個最小堆的兩種樣子。古銅是第 1 格的 3，灰藍是它的兩個孩子：2 × 1 + 1 = 3、2 × 1 + 2 = 4。每個節點下方的方括號是它在陣列裡的索引。</figcaption>
 </figure>
-<p>MIT 講義寫的就是這三個公式：left(i) = 2i + 1、right(i) = 2i + 2、parent(i) = ⌊(i − 1)/2⌋（向下取整，Java 整數除法就會這樣）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>OpenJDK 的 <code>PriorityQueue</code> 原始碼註解也是：「以平衡二元堆積表示：<code>queue[n]</code> 的兩個孩子是 <code>queue[2*n+1]</code> 與 <code>queue[2*(n+1)]</code>」，「值最小的元素在 <code>queue[0]</code>」。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/PriorityQueue.java#L94-L101" target="_blank" rel="noopener">出處</a></p>
+<p>寫成公式：left(i) = 2i + 1、right(i) = 2i + 2、parent(i) = ⌊(i − 1)/2⌋（向下取整，Java 整數除法就會這樣）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>Java 的 <code>PriorityQueue</code> 內部就是用陣列存的平衡二元堆積：<code>queue[n]</code> 的兩個孩子是 <code>queue[2*n+1]</code> 與 <code>queue[2*(n+1)]</code>，值最小的元素在 <code>queue[0]</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/PriorityQueue.java#L94-L101" target="_blank" rel="noopener">出處</a></p>
 <p>algs4 的課本從索引 1 開始放（第 0 格不用），公式變成父節點 k/2、孩子 2k 與 2k + 1，看課本時別搞混。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">堆積＝完全二元樹＋父節點不比孩子大；存在陣列裡，左 2i + 1、右 2i + 2、父 (i − 1)/2</p>
 
@@ -150,7 +155,7 @@
 <section>
 <p class="era">放到最後，再往上爬</p>
 <h3 class="head">插入：上浮</h3>
-<p>新元素先放到陣列最後一格（樹的最下層、最右邊的空位），形狀還是完全二元樹，但可能破壞堆積順序：它可能比父節點小。這時就跟父節點交換，再跟新的父節點比，一路往上，直到父節點比它小或到了根。這叫<strong>上浮</strong>（sift up，algs4 叫 swim：「把節點跟它的父節點交換」，一路往上直到「碰到鍵更大的節點，或到了根」）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></p>
+<p>新元素先放到陣列最後一格（樹的最下層、最右邊的空位），形狀還是完全二元樹，但可能破壞堆積順序：它可能比父節點小。這時就跟父節點交換，再跟新的父節點比，一路往上，直到父節點比它小或到了根。這叫<strong>上浮</strong>（sift up，有些課本叫 swim）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 330" role="img" aria-label="上浮：在最小堆 1、3、8、5、9 加入 2。先放到最後一格（第 5 格，父節點是第 2 格的 8），2 比 8 小就交換；再跟父節點 1 比，2 比 1 大，停。結果是 1、3、2、5、9、8">
   <line x1="190" y1="50" x2="105" y2="120" stroke="currentColor" stroke-opacity=".45"/>
@@ -209,7 +214,7 @@
 </svg>
 <figcaption>在 [1, 3, 8, 5, 9] 加入 2：放到第 5 格，父節點是第 2 格的 8，2 比較小就交換；再跟根 1 比，2 比較大，停。古銅是正在上浮的 2。</figcaption>
 </figure>
-<p>每次交換就往上一層，最多走到根，所以是 O(樹高) = O(log n)。MIT 講義：「執行時間是樹的高度，所以 Θ(log n)」（Running time: height of tree, so Θ(log n)!）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>每次交換就往上一層，最多走到根，所以執行時間是樹高，Θ(log n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">最小堆 [2, 4, 6, 8, 10] 加入 1 之後，陣列是？</p>
@@ -256,7 +261,7 @@
 <section>
 <p class="era">拿走根，最後一個補上來再往下沉</p>
 <h3 class="head">取出：下沉</h3>
-<p>最小值在根（第 0 格），但陣列只有尾端能直接拿掉。做法是：記下根的值，把最後一格搬到根，陣列少一格；這時根可能比孩子大，就跟<strong>較小的那個孩子</strong>交換，一路往下，直到它比兩個孩子都小或變成葉子。這叫<strong>下沉</strong>（sift down，algs4 叫 sink：跟「兩個孩子中較大的那個」交換，那是最大堆的版本）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></p>
+<p>最小值在根（第 0 格），但陣列只有尾端能直接拿掉。做法是：記下根的值，把最後一格搬到根，陣列少一格；這時根可能比孩子大，就跟<strong>較小的那個孩子</strong>交換，一路往下，直到它比兩個孩子都小或變成葉子。這叫<strong>下沉</strong>（sift down，有些課本叫 sink；最大堆的版本是跟兩個孩子中較大的那個交換）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a></p>
 <p>為什麼要跟<strong>較小</strong>的孩子換？換上來的那個會變成另一個孩子的父節點，它必須不比另一個孩子大；兩個孩子裡只有較小的那個符合。</p>
 <figure>
 <svg viewBox="0 0 760 330" role="img" aria-label="下沉：從最小堆 1、3、2、5、9、8 取出最小的 1。把最後一格的 8 搬到根，8 的兩個孩子是 3 和 2，跟比較小的 2 交換；8 到第 2 格後沒有孩子，停。結果是 2、3、8、5、9">
@@ -308,7 +313,8 @@
 </svg>
 <figcaption>從 [1, 3, 2, 5, 9, 8] 取出 1：最後的 8 搬到根，兩個孩子 3、2 中較小的是 2，交換；8 到了第 2 格，沒有孩子（第 5 格已經不在了），停。</figcaption>
 </figure>
-<p>MIT 講義的步驟一樣：「把根和最後一個交換」，再「跟較大的孩子交換，直到滿足堆積性質」（最大堆的說法），執行時間也是樹的高度，Θ(log n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a> 自己寫一次最小堆，每次 offer、poll 之後印出陣列：</p>
+<p>下沉最多從根走到葉子，執行時間也是樹高，Θ(log n)。最大堆的步驟對稱：根和最後一個交換，再跟較大的孩子交換，直到滿足堆積性質。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>自己寫一次最小堆，每次 offer、poll 之後印出陣列：</p>
 <pre><code>import java.util.Arrays;
 
 public class MinHeap {
@@ -373,7 +379,7 @@ poll 3 → [5, 9, 8]
 poll 5 → [8, 9]
 poll 8 → [9]
 poll 9 → []</code></pre>
-<p>一直 poll 出來的值是 1、2、3、5、8、9，由小到大：反覆取出最小值就是排序，這叫堆積排序（heapsort）。MIT 講義說把最大堆放進這種「優先佇列排序」就得到堆積排序，每次插入與取出都是 O(log n)，所以是 O(n log n)（Running time is O(n log n) because each insert and delete max takes O(log n)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>一直 poll 出來的值是 1、2、3、5、8、9，由小到大：反覆取出最小值就是排序，用堆積做這種「優先佇列排序」就是<strong>堆積排序</strong>（heapsort）。每次插入與取出都是 O(log n)，所以是 O(n log n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">最小堆 [2, 4, 3, 7, 5, 6] 做一次 poll，回傳什麼、之後陣列是？</p>
@@ -420,8 +426,8 @@ poll 9 → []</code></pre>
 <section>
 <p class="era">一次放進全部，比一個一個放快</p>
 <h3 class="head">建堆為什麼是 O(n)</h3>
-<p>已經有一整批資料時，一個一個 offer 最壞是 n 次 O(log n)，共 O(n log n)。另一個做法是先把全部照原樣放進陣列，再從最後一個有孩子的節點開始，往前對每個節點做下沉。MIT 講義說這樣「可以在 O(n) 時間建好堆積」（So can build heap in O(n) time），algs4 也寫「用下沉建堆是線性時間」（Sink-based heap construction is linear time.）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a> 直覺：一半的節點是葉子，根本不用沉；越上層節點越少，雖然可能沉得比較遠，加起來還是 O(n)。</p>
-<p>Java 用一整個集合建立 <code>PriorityQueue</code> 時就是這樣做：OpenJDK 原始碼的 <code>heapify()</code> 從 <code>(n &gt;&gt;&gt; 1) - 1</code>（最後一個有孩子的節點）往前逐一下沉，註解寫這個「Floyd 在 1964 年提出的經典演算法，已知是 O(size)」（This classic algorithm due to Floyd (1964) is known to be O(size).）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/PriorityQueue.java#L720-L735" target="_blank" rel="noopener">出處</a> 用最不利的順序（由大到小）數比較次數：</p>
+<p>已經有一整批資料時，一個一個 offer 最壞是 n 次 O(log n)，共 O(n log n)。另一個做法是先把全部照原樣放進陣列，再從最後一個有孩子的節點開始，往前對每個節點做下沉。這樣建堆是線性時間，O(n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/40d4851e550507ca14dc778b9b2266cc_MIT6_006S20_lec8.pdf" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://algs4.cs.princeton.edu/24pq/" target="_blank" rel="noopener">出處</a> 直覺：一半的節點是葉子，根本不用沉；越上層節點越少，雖然可能沉得比較遠，加起來還是 O(n)。</p>
+<p>Java 用一整個集合建立 <code>PriorityQueue</code> 時就是這樣做：OpenJDK 原始碼的 <code>heapify()</code> 從 <code>(n &gt;&gt;&gt; 1) - 1</code>（最後一個有孩子的節點）往前逐一下沉。這是 Floyd 在 1964 年提出的經典演算法，已知是 O(size)。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/PriorityQueue.java#L720-L735" target="_blank" rel="noopener">出處</a> 用最不利的順序（由大到小）數比較次數：</p>
 <pre><code>import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -467,24 +473,37 @@ n=100,000：一個一個 offer 比較 1,468,946 次，整批建堆比較 199,978
 <div class="drill">
   <p class="dq">建堆是 O(n)，那用堆積把 n 個數排好序，總時間是多少？</p>
   <ul class="dopts"><li>O(n)，因為建堆是 O(n)，建好之後最小值一直在根，取出不用再花時間</li><li>O(log n)</li><li>O(n²)</li><li data-ok>O(n log n)，因為之後還要 poll n 次，每次 O(log n)</li></ul>
-  <p class="dexp">建堆省下的只是第一步，取出 n 次還是 O(n log n)。MIT 講義也註明建堆 O(n)「不會加快堆積排序的 O(n lg n)」。</p>
+  <p class="dexp">建堆省下的只是第一步，取出 n 次還是 O(n log n)，所以建堆 O(n) 不會讓堆積排序快過 O(n lg n)。</p>
 </div>
 </section>
 
 <section>
 <p class="era">Java 內建的那一個</p>
 <h3 class="head">PriorityQueue：預設最小堆</h3>
-<p>Java 的 <code>PriorityQueue</code> 就是二元堆積。API 文件第一句：「以優先堆積為基礎、沒有容量上限的優先佇列」（An unbounded priority queue based on a priority heap.），元素照自然順序或建立時給的 <code>Comparator</code> 排，「佇列的前端是依指定順序最小的元素」（The head of this queue is the least element with respect to the specified ordering.），所以<strong>預設是最小堆</strong>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a></p>
-<p>各方法的複雜度，文件的實作說明寫得很清楚：「入列與出列方法（<code>offer</code>、<code>poll</code>、<code>remove()</code>、<code>add</code>）是 O(log(n))；<code>remove(Object)</code> 與 <code>contains(Object)</code> 是線性時間；取值方法（<code>peek</code>、<code>element</code>、<code>size</code>）是常數時間」（this implementation provides O(log(n)) time for the enqueuing and dequeuing methods (offer, poll, remove() and add); linear time for the remove(Object) and contains(Object) methods; and constant time for the retrieval methods (peek, element, and size).）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a></p>
+<p>Java 的 <code>PriorityQueue</code> 是以二元堆積為基礎、沒有容量上限的優先佇列：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>元素照自然順序或建立時給的 <code>Comparator</code> 排。</li>
+<li>佇列的前端是依這個順序最小的元素，所以<strong>預設是最小堆</strong>。</li>
+</ul>
+<p>各方法的時間：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>入列與出列（<code>offer</code>、<code>poll</code>、<code>remove()</code>、<code>add</code>）：O(log(n))</li>
+<li><code>remove(Object)</code>、<code>contains(Object)</code>：線性時間</li>
+<li>取值（<code>peek</code>、<code>element</code>、<code>size</code>）：常數時間</li>
+</ul>
 <div class="tablewrap"><table><thead><tr><th>方法</th><th>做什麼</th><th>時間</th><th>佇列空的時候</th></tr></thead><tbody>
 <tr><th><code>offer(e)</code>／<code>add(e)</code></th><td>放進去（上浮）</td><td>O(log n)</td><td>—</td></tr>
 <tr><th><code>peek()</code></th><td>看前端，不拿走</td><td>O(1)</td><td>回傳 <code>null</code></td></tr>
 <tr><th><code>poll()</code></th><td>拿走前端（下沉）</td><td>O(log n)</td><td>回傳 <code>null</code></td></tr>
 <tr><th><code>contains(o)</code>／<code>remove(o)</code></th><td>找某個特定元素</td><td>O(n)</td><td>—</td></tr>
 </tbody></table></div>
-<p><code>peek</code>、<code>poll</code> 在空的時候回傳 <code>null</code>（or returns null if this queue is empty），跟〈堆疊與佇列〉的 <code>ArrayDeque</code> 一樣。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a> 另外兩條規則：它「不允許 null 元素」（A priority queue does not permit null elements.）；最小值有好幾個一樣時，「前端是其中一個，平手時任意挑」（ties are broken arbitrarily），所以不能指望同分的照放進去的順序出來。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>要最大堆</strong>，建立時給一個反過來的比較規則：<code>Collections.reverseOrder()</code>「回傳一個比較器，對實作 <code>Comparable</code> 的物件施加自然順序的相反順序」（Returns a comparator that imposes the reverse of the natural ordering）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collections.html" target="_blank" rel="noopener">出處</a> 自訂物件就用 <code>Comparator.comparingInt(…)</code>，需要反過來再接 <code>.reversed()</code>。</p>
-<p><strong>最容易踩的坑：走訪與印出不是排好序的。</strong>文件寫：「<code>iterator()</code> 提供的迭代器……不保證以任何特定順序走訪優先佇列的元素」（are not guaranteed to traverse the elements of the priority queue in any particular order.），需要照順序就「考慮用 <code>Arrays.sort(pq.toArray())</code>」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a> <code>System.out.println(pq)</code> 和 for-each 走的都是迭代器，所以印出來的不是排好序的結果。</p>
+<p><code>peek</code>、<code>poll</code> 在空的時候回傳 <code>null</code>，跟〈堆疊與佇列〉的 <code>ArrayDeque</code> 一樣。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a> 另外兩條規則：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>不允許 <code>null</code> 元素。</li>
+<li>最小值有好幾個一樣時，前端是其中一個，平手時任意挑，所以不能指望同分的照放進去的順序出來。</li>
+</ul>
+<p><strong>要最大堆</strong>，建立時給一個反過來的比較規則：<code>Collections.reverseOrder()</code> 回傳的比較器，對實作 <code>Comparable</code> 的物件套用自然順序的相反順序。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collections.html" target="_blank" rel="noopener">出處</a> 自訂物件就用 <code>Comparator.comparingInt(…)</code>，需要反過來再接 <code>.reversed()</code>。</p>
+<p><strong>最容易踩的坑：走訪與印出不是排好序的。</strong><code>iterator()</code> 的迭代器不保證以任何特定順序走訪元素，需要照順序就用 <code>Arrays.sort(pq.toArray())</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html" target="_blank" rel="noopener">出處</a> <code>System.out.println(pq)</code> 和 for-each 走的都是迭代器，所以印出來的不是排好序的結果。</p>
 <pre><code>import java.util.Arrays;
 import java.util.Collections;
 import java.util.PriorityQueue;
@@ -518,7 +537,7 @@ public class PqDemo {
 最大堆 peek 9
 排序後 [1, 2, 3, 5, 8, 9]，pq 還有 6 個
 空的時候 poll null</code></pre>
-<p>印出來的 [1, 3, 2, 5, 9, 8] 剛好跟上一段自己寫的 <code>MinHeap</code> 陣列一樣，但文件不保證走訪順序，不要依賴它。要依序拿就 poll，要看全部又不想清空就複製出來排序。</p>
+<p>印出來的 [1, 3, 2, 5, 9, 8] 剛好跟上一段自己寫的 <code>MinHeap</code> 陣列一樣，但走訪順序不保證，不要依賴它。要依序拿就 poll，要看全部又不想清空就複製出來排序。</p>
 
 <div class="drill">
   <p class="dq">這段程式印出什麼？</p>
@@ -544,22 +563,22 @@ System.out.println(pq.peek());</code></pre>
 <div class="drill">
   <p class="dq"><code>PriorityQueue</code> 的 <code>peek()</code> 是多少時間？</p>
   <ul class="dopts"><li data-ok>O(1)，最小值就在第 0 格</li><li>O(log n)，要下沉</li><li>O(n)，要把整個陣列掃一遍才知道哪個最小</li><li>O(n log n)</li></ul>
-  <p class="dexp">文件把 peek 列為常數時間的取值方法。它只是看，不拿走，不需要下沉。</p>
+  <p class="dexp">peek 是常數時間的取值方法。它只是看，不拿走，不需要下沉。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>PriorityQueue</code> 的 <code>contains(x)</code> 是多少時間？</p>
   <ul class="dopts"><li data-ok>O(n)</li><li>O(log n)，跟二元搜尋樹一樣往一邊找</li><li>O(1)</li><li>O(n log n)</li></ul>
-  <p class="dexp">文件寫 contains(Object) 與 remove(Object) 是線性時間。堆積只保證父子大小，不能像 BST 那樣決定往哪邊找，只能一個一個看。</p>
+  <p class="dexp">contains(Object) 與 remove(Object) 是線性時間。堆積只保證父子大小，不能像 BST 那樣決定往哪邊找，只能一個一個看。</p>
 </div>
 <div class="drill">
   <p class="dq">用 for-each 走訪一個 <code>PriorityQueue&lt;Integer&gt;</code>，會依什麼順序拿到元素？</p>
   <ul class="dopts"><li>由小到大</li><li>放進去的順序，跟一般佇列一樣</li><li>由大到小</li><li data-ok>文件不保證任何順序</li></ul>
-  <p class="dexp">API 文件：iterator 不保證以任何特定順序走訪。要由小到大就一直 poll，或 Arrays.sort(pq.toArray())。</p>
+  <p class="dexp">iterator 不保證以任何特定順序走訪。要由小到大就一直 poll，或 Arrays.sort(pq.toArray())。</p>
 </div>
 <div class="drill">
   <p class="dq">對一個空的 <code>PriorityQueue</code> 呼叫 <code>poll()</code>，會怎樣？</p>
   <ul class="dopts"><li data-ok>回傳 null</li><li>丟出 NoSuchElementException</li><li>回傳 0</li><li>程式卡住，等到有元素為止</li></ul>
-  <p class="dexp">poll 的文件：佇列是空的就回傳 null。所以寫 while 迴圈時用 isEmpty() 判斷，不要把 poll 的結果直接當 int 用（拆箱 null 會 NullPointerException）。</p>
+  <p class="dexp">佇列是空的時候，poll 回傳 null。所以寫 while 迴圈時用 isEmpty() 判斷，不要把 poll 的結果直接當 int 用（拆箱 null 會 NullPointerException）。</p>
 </div>
 <div class="drill">
   <p class="dq">要建一個「金額最大的交易先出來」的優先佇列，交易是 <code>record Tx(long amount)</code>，已經有下面這個比較器。建立佇列時要傳什麼？</p>
@@ -570,12 +589,12 @@ System.out.println(pq.peek());</code></pre>
 <div class="drill">
   <p class="dq">兩筆優先等級一樣的任務放進 <code>PriorityQueue</code>（比較器只比等級），先放進去的會先出來嗎？</p>
   <ul class="dopts"><li>會，PriorityQueue 實作了 Queue 介面，所以跟一般佇列一樣，同分時一定先進先出</li><li>會，同分時一定照放入順序</li><li>不會，一定是後放的先出來</li><li data-ok>不保證；文件說平手時任意挑，要照到達順序就把到達序號也放進比較規則</li></ul>
-  <p class="dexp">API 文件：ties are broken arbitrarily。後面任務排程的例子用 thenComparingLong(Task::seq) 把先來後到也算進去。</p>
+  <p class="dexp">平手時任意挑一個。後面任務排程的例子用 thenComparingLong(Task::seq) 把先來後到也算進去。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>pq.offer(null)</code> 會怎樣？</p>
   <ul class="dopts"><li>可以放進去，null 會被當成比任何數都小，所以下一次 poll 會先拿到它</li><li>放進去，被當成最大值</li><li data-ok>丟出 NullPointerException，PriorityQueue 不允許 null</li><li>什麼都不做</li></ul>
-  <p class="dexp">文件：A priority queue does not permit null elements。也因為 null 不會是元素，poll 才能用 null 表示「空的」。</p>
+  <p class="dexp">PriorityQueue 不允許 null 元素。也因為 null 不會是元素，poll 才能用 null 表示「空的」。</p>
 </div>
 </section>
 
@@ -803,7 +822,7 @@ public class Scheduler {
 <div class="drill">
   <p class="dq">上面任務排程的比較器拿掉 <code>.thenComparingLong(Task::seq)</code>，只比等級。結果會怎樣？</p>
   <ul class="dopts"><li>編譯錯誤</li><li>止付通知不再排第一</li><li>同等級的一定變成後到先出，因為比較器只看等級時，後放進去的會浮到前面</li><li data-ok>等級的順序還是對的，但三筆等級 2 的任務之間順序不保證</li></ul>
-  <p class="dexp">只比等級時，等級 1 一定最先、3 最後；但等級 2 的三筆是平手，文件說平手時任意挑。要先來後到就得把序號加進比較。</p>
+  <p class="dexp">只比等級時，等級 1 一定最先、3 最後；但等級 2 的三筆是平手，平手時任意挑。要先來後到就得把序號加進比較。</p>
 </div>
 <div class="drill">
   <p class="dq">要找離原點最近的 k 個點（LeetCode 973 題），用大小為 k 的堆，堆該怎麼排？</p>

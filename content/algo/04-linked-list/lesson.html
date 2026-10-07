@@ -5,7 +5,7 @@
 <p class="era">尋寶紙條，一張指向下一張</p>
 <h3 class="head">節點與指標：鏈結串列長什麼樣</h3>
 <p>想像一場尋寶遊戲：第一張紙條寫著一個數字，還寫著「下一張藏在冰箱上」；冰箱上那張又寫著數字和下一張的位置……一直到某張寫著「沒有下一張了」。這就是<strong>鏈結串列</strong>（linked list）：每一筆資料放在一個<strong>節點</strong>（node）裡，節點除了資料，還記著下一個節點在哪，這個欄位通常叫 <code>next</code>。最後一個節點的 <code>next</code> 是 <code>null</code>，表示到底了。</p>
-<p>普林斯頓《Algorithms》的定義是遞迴式的：鏈結串列「要嘛是空的（null），要嘛是一個指向節點的參考，這個節點有一筆資料，以及一個指向另一條鏈結串列的參考」（A linked list is a recursive data structure that is either empty (null) or a reference to a node having a generic item and a reference to a linked list）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> Java 沒有 C 語言那種可以做加減的指標，<code>next</code> 其實是一個<strong>參考</strong>（reference，記著物件在哪裡的變數）；演算法書與面試習慣把它叫「指標」，這課也這樣叫。</p>
+<p>鏈結串列可以用遞迴來定義：它要嘛是空的（null），要嘛是一個指向節點的參考，這個節點有一筆資料，以及一個指向另一條鏈結串列的參考。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> Java 沒有 C 語言那種可以做加減的指標，<code>next</code> 其實是一個<strong>參考</strong>（reference，記著物件在哪裡的變數）；演算法書與面試習慣把它叫「指標」，這課也這樣叫。</p>
 <p>手上只有第一個節點的參考，叫 <code>head</code>（頭）。要拿索引 3 的節點（跟陣列一樣從 0 數，也就是第 4 個），就得從 <code>head</code> 沿著 <code>next</code> 走 3 步，沒辦法像陣列那樣用「起點＋3 格」直接算出位置：</p>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="陣列與鏈結串列的比較：陣列是連續的五個格子，用索引直接算出位置；鏈結串列的五個節點散在不同位置，每個節點用 next 指向下一個，最後指向 null">
@@ -45,7 +45,7 @@
 </svg>
 <figcaption>陣列的格子連在一起，第 i 格的位置用算的；鏈結串列的節點可以散在記憶體各處，只能從 head 一個一個沿著 next 走。</figcaption>
 </figure>
-<p>MIT 6.006 講義的比較：鏈結串列「從開頭插入與刪除只要 Θ(1)」（Can now insert and delete from the front in Θ(1) time!），但「取、改索引 i 的元素都要 O(n)」（But now get at(i) and set at(i, x) each take O(n) time）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a>（Θ 讀作 theta，表示「剛好是這個等級」；記號見〈複雜度：程式跑多快、吃多少記憶體〉。）整理成表：</p>
+<p>鏈結串列從開頭插入與刪除只要 Θ(1)，但取、改索引 i 的元素都要 O(n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/79a07dc1cb47d76dae2ffedc701e3d2b_MIT6_006S20_lec2.pdf" target="_blank" rel="noopener">出處</a>（Θ 讀作 theta，表示「剛好是這個等級」；記號見〈複雜度：程式跑多快、吃多少記憶體〉。）整理成表：</p>
 <div class="tablewrap"><table><thead><tr><th>操作</th><th>陣列（含 <code>ArrayList</code>）</th><th>單向鏈結串列</th></tr></thead><tbody>
 <tr><th>取索引 i 的元素</th><td>O(1)：起點＋i 格</td><td>O(n)：從 head 走 i 步</td></tr>
 <tr><th>在最前面插入、刪除</th><td>O(n)：後面每格都要搬<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></td><td>O(1)：改 head 就好</td></tr>
@@ -53,9 +53,9 @@
 <tr><th>找某個值在不在</th><td>O(n)（沒排序時）</td><td>O(n)</td></tr>
 <tr><th>額外記憶體</th><td>連續一塊，幾乎沒有額外欄位</td><td>每個節點多一個 <code>next</code></td></tr>
 </tbody></table></div>
-<p>第三列要特別注意前提：鏈結串列的插入刪除快，是在<strong>已經站在那個位置</strong>的時候；如果要先從頭找到第 i 個再插入，找的那段還是 O(n)。〈Java 基礎快答〉說 <code>LinkedList</code>「插入刪除只要改動前後節點的接法」，指的就是改接這一步；陣列那一欄的根據是 <code>ArrayList</code> 文件：取值、設值與尾端加入以外，「其他操作大致都是線性時間」（All of the other operations run in linear time (roughly speaking)），插在最前面就屬於這一類<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a>；細節見〈陣列與字串〉。</p>
+<p>第三列要特別注意前提：鏈結串列的插入刪除快，是在<strong>已經站在那個位置</strong>的時候；如果要先從頭找到第 i 個再插入，找的那段還是 O(n)。〈Java 基礎快答〉講的 <code>LinkedList</code> 插入刪除只要改動前後節點的接法，指的就是改接這一步。陣列那一欄：<code>ArrayList</code> 除了取值、設值與尾端加入，其他操作大致都是線性時間，插在最前面就屬於這一類<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a>；細節見〈陣列與字串〉。</p>
 <h4>單向與雙向</h4>
-<p>只有 <code>next</code> 的叫<strong>單向鏈結串列</strong>（singly linked list），只能往後走。每個節點再多一個指向前一個節點的 <code>prev</code>，就是<strong>雙向鏈結串列</strong>（doubly linked list），可以往回走；拿到某個節點時，要刪掉它自己也是 O(1)（單向的得先找到它的前一個）。代價是每個節點多一個欄位、每次插入刪除要多改幾條箭頭。Java 的 <code>java.util.LinkedList</code> 文件第一句就是「<code>List</code> 與 <code>Deque</code> 介面的雙向鏈結串列實作」（Doubly-linked list implementation of the List and Deque interfaces）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a> 面試題常給自己定義的單向串列（像 LeetCode 的 <code>ListNode</code>），所以這課主要寫單向。</p>
+<p>只有 <code>next</code> 的叫<strong>單向鏈結串列</strong>（singly linked list），只能往後走。每個節點再多一個指向前一個節點的 <code>prev</code>，就是<strong>雙向鏈結串列</strong>（doubly linked list），可以往回走；拿到某個節點時，要刪掉它自己也是 O(1)（單向的得先找到它的前一個）。代價是每個節點多一個欄位、每次插入刪除要多改幾條箭頭。Java 的 <code>java.util.LinkedList</code> 就是 <code>List</code> 與 <code>Deque</code> 介面的雙向鏈結串列實作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a> 面試題常給自己定義的單向串列（像 LeetCode 的 <code>ListNode</code>），所以這課主要寫單向。</p>
 
 <div class="drill">
   <p class="dq">單向鏈結串列有 n 個節點，手上只有 <code>head</code>。要取第 1,000 個節點的值，要多久？</p>
@@ -288,7 +288,7 @@ public class InsertDelete {
 <figcaption>刪掉 9 後面的 3：<code>prev.next = prev.next.next</code>，9 直接改指 7。</figcaption>
 </figure>
 <h4>虛擬頭節點（dummy head）</h4>
-<p>刪除要靠「前一個」，可是頭節點沒有前一個，所以「要刪的剛好是頭」得另外寫一段。<strong>虛擬頭節點</strong>（dummy head，在真正的頭前面先放一個不存資料的假節點）讓每個真節點都有前一個，刪頭和刪中間就變成同一種寫法，最後回傳 <code>dummy.next</code>。普林斯頓的雙向串列範例也是同一招：「用一個假的頭節點和尾節點，省掉額外的情況」（We use a dummy head and tail node to avoid extra cases）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
+<p>刪除要靠「前一個」，可是頭節點沒有前一個，所以「要刪的剛好是頭」得另外寫一段。<strong>虛擬頭節點</strong>（dummy head，在真正的頭前面先放一個不存資料的假節點）讓每個真節點都有前一個，刪頭和刪中間就變成同一種寫法，最後回傳 <code>dummy.next</code>。雙向串列也常用同一招：頭尾各放一個假節點，省掉額外的情況。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 282" role="img" aria-label="虛擬頭節點：在串列 6、6、2、6、5 前面先接一個 dummy 節點，刪掉所有的 6 時前兩個 6 也是「某個節點的下一個」，不用特別處理；刪完是 dummy、2、5，回傳 dummy.next">
   <defs><marker id="ll-a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
@@ -788,7 +788,7 @@ public class JdkLinkedList {
 <pre><code>[A, B, C]
 B
 A C [B]</code></pre>
-<p>它是雙向串列，頭尾的加入與移除都是改幾條箭頭；用索引取值時，文件說會「從開頭或結尾走過去，看哪一端離指定的索引比較近」（Operations that index into the list will traverse the list from the beginning or the end, whichever is closer to the specified index）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a> 所以 <code>get(i)</code> 還是 O(n)，在迴圈裡 <code>for (int i = 0; i &lt; list.size(); i++) list.get(i)</code> 會變成 O(n²)，走訪要用 for-each（〈集合與泛型〉講過）。要當佇列或堆疊用，<code>ArrayDeque</code> 的文件說它當佇列時「可能比 <code>LinkedList</code> 快」（likely to be ... faster than LinkedList when used as a queue）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a>，見〈堆疊與佇列〉。</p>
+<p>它是雙向串列，頭尾的加入與移除都是改幾條箭頭；用索引取值時，會從開頭或結尾走過去，看哪一端離指定的索引比較近。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a> 所以 <code>get(i)</code> 還是 O(n)，在迴圈裡 <code>for (int i = 0; i &lt; list.size(); i++) list.get(i)</code> 會變成 O(n²)，走訪要用 for-each（〈集合與泛型〉講過）。要當佇列或堆疊用，<code>ArrayDeque</code> 當佇列時可能比 <code>LinkedList</code> 快<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a>，見〈堆疊與佇列〉。</p>
 <h4>三種最常見的錯</h4>
 <div class="tablewrap"><table><thead><tr><th>錯誤</th><th>長什麼樣</th><th>怎麼避免</th></tr></thead><tbody>
 <tr><th>空指標</th><td>讀 <code>x.next.val</code>、<code>fast.next.next</code> 時，<code>x.next</code> 或 <code>fast.next</code> 其實是 <code>null</code></td><td>每次要讀 <code>a.b</code> 之前，先確定 <code>a</code> 不是 <code>null</code>；迴圈條件把要用到的都檢查進去</td></tr>
@@ -826,7 +826,7 @@ System.out.println(l + " " + l.getFirst());</code></pre>
 <div class="drill">
   <p class="dq">Java 程式需要一個先進先出的佇列，元素不會是 null。依 <code>ArrayDeque</code> 文件，當佇列用時通常比較快的是哪個？</p>
   <ul class="dopts"><li data-ok><code>ArrayDeque</code></li><li><code>LinkedList</code></li><li><code>ArrayList</code>，從索引 0 取出</li><li>自己寫 <code>ListNode</code></li></ul>
-  <p class="dexp">ArrayDeque 文件說它當佇列時可能比 LinkedList 快。ArrayList 從索引 0 取出每次都要搬動後面的元素，是 O(n)。</p>
+  <p class="dexp">ArrayDeque 當佇列時可能比 LinkedList 快。ArrayList 從索引 0 取出每次都要搬動後面的元素，是 O(n)。</p>
 </div>
 <div class="drill">
   <p class="dq">寫完一個「刪除串列中所有值為 x 的節點」的方法，下面哪一組測試最能抓到邊界錯誤？</p>

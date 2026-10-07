@@ -12,7 +12,7 @@
 <tr><th>滑動視窗</th><td>都往右，夾住一段連續的區間</td><td>連續 k 天總額最大、最長不重複子字串</td></tr>
 <tr><th>前綴和</th><td>不是指標，先算好「到這裡為止的總和」</td><td>多次查區間和、和為 k 的子陣列</td></tr>
 </tbody></table></div>
-<p>MIT 6.006 的講義把合併兩個排好的陣列叫「兩根手指的演算法」（two finger algorithm）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/6d1ae5278d02bbecb5c4428928b24194_MIT6_006S20_lec3.pdf" target="_blank" rel="noopener">出處</a>，那就是兩個指標各在一個陣列上同向走（見〈排序與二分搜尋〉的合併排序）。</p>
+<p>合併兩個排好的陣列又叫「兩根手指的演算法」（two finger algorithm）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/6d1ae5278d02bbecb5c4428928b24194_MIT6_006S20_lec3.pdf" target="_blank" rel="noopener">出處</a>，那就是兩個指標各在一個陣列上同向走（見〈排序與二分搜尋〉的合併排序）。</p>
 </section>
 
 <section>
@@ -84,14 +84,14 @@ left=2 right=3 和=10
 
 <h4>為什麼不會漏掉答案</h4>
 <p>關鍵在「排好了」。和太大時，<code>a[right]</code> 配上目前最小的 <code>a[left]</code> 都已經太大，配上 <code>left</code> 右邊更大的只會更大，所以 <code>a[right]</code> 跟誰都不可能湊出 target，可以整個丟掉。和太小時同理，<code>a[left]</code> 配上目前最大的都不夠，也可以丟掉。<strong>每一步都丟掉一個「確定沒用」的數</strong>，所以最多 n − 1 步，時間 O(n)、額外空間 O(1)。</p>
-<p>普林斯頓 algs4 的練習題也這樣要求：給一個排好的 N 個整數的串列和目標 x，「在線性時間內找出和最接近 x 的兩個」（Given a sorted list of N integers and a target integer x, determine in linear time the two whose sum is closest to x.）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> 對照四種做法：</p>
+<p>同一招的變形：給一個排好的 N 個整數的串列和目標 x，在線性時間內找出和最接近 x 的兩個。<a class="fixsrc" href="https://algs4.cs.princeton.edu/25applications/" target="_blank" rel="noopener">出處</a> 對照四種做法：</p>
 <div class="tablewrap"><table><thead><tr><th>做法</th><th>時間</th><th>額外空間</th><th>前提</th></tr></thead><tbody>
 <tr><td>每一對都試</td><td>O(n²)</td><td>O(1)</td><td>無</td></tr>
 <tr><td>每個數用二分搜尋找補數</td><td>O(n log n)</td><td>O(1)</td><td>排好</td></tr>
 <tr><td>左右往中間</td><td>O(n)</td><td>O(1)</td><td>排好</td></tr>
 <tr><td>雜湊表查補數（〈雜湊表：HashMap 怎麼做到幾乎一步找到〉）</td><td>平均 O(n)</td><td>O(n)</td><td>不用排好</td></tr>
 </tbody></table></div>
-<p>algs4 的 2-sum 就是第二種：「TwoSumFast.java 用跟 N log N 成正比的時間解 2-sum」（TwoSumFast.java solves the 2-sum problem in time proportional to N log N time.），暴力解是 N²。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> 陣列<strong>沒排好</strong>時，先排序要 O(n log n)，而且排序會打亂原本的索引，題目要回傳原索引時就改用雜湊表。</p>
+<p>經典的 2-sum 解法 <code>TwoSumFast</code> 就是第二種，時間跟 N log N 成正比，暴力解是 N²。<a class="fixsrc" href="https://algs4.cs.princeton.edu/14analysis/" target="_blank" rel="noopener">出處</a> 陣列<strong>沒排好</strong>時，先排序要 O(n log n)，而且排序會打亂原本的索引，題目要回傳原索引時就改用雜湊表。</p>
 
 <h4>去掉重複的答案</h4>
 <p>題目要「所有不重複的數對」時，找到一對之後兩邊各往內一步，再<strong>跳過跟剛才一樣的值</strong>，不然同樣的 (1, 5) 會被記好幾次。上面 <code>allPairs</code> 的兩個 <code>while</code> 就在做這件事；三數和（固定一個數，剩下的做兩數和）也是同一招。</p>
@@ -479,7 +479,7 @@ public class WindowMax {
 }</code></pre>
 <p>執行結果：</p>
 <pre><code>[5, 5, 5, 6, 6]</code></pre>
-<p>每個索引最多從尾端進來一次、從前端或尾端被丟掉一次，所以 n 個元素總共 O(n) 次進出。<code>ArrayDeque</code> 的文件寫「大部分 ArrayDeque 操作在攤銷常數時間內完成」（Most ArrayDeque operations run in amortized constant time.），<code>peekFirst</code>、<code>pollFirst</code>、<code>peekLast</code>、<code>pollLast</code>、<code>offerLast</code> 都在這一類。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a> 整題 O(n)，deque 最多放 k 個索引，額外空間 O(k)。</p>
+<p>每個索引最多從尾端進來一次、從前端或尾端被丟掉一次，所以 n 個元素總共 O(n) 次進出。<code>ArrayDeque</code> 大部分操作在攤銷常數時間內完成，<code>peekFirst</code>、<code>pollFirst</code>、<code>peekLast</code>、<code>pollLast</code>、<code>offerLast</code> 都在這一類。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a> 整題 O(n)，deque 最多放 k 個索引，額外空間 O(k)。</p>
 <p>放索引而不是放值，是因為要判斷「前端是不是已經滑出視窗」，只有值的話不知道它在哪。</p>
 <p class="formula">視窗最大值：deque 放索引、值由前到後遞減；前端滑出就丟、尾端比新來的小就丟；前端就是最大值</p>
 
@@ -519,7 +519,7 @@ public class WindowMax {
 <p class="era">先算好累計，區間和變減法</p>
 <h3 class="head">前綴和：一次預算，之後區間和 O(1)</h3>
 <p>同一個陣列要被問很多次「索引 l 到 r 加起來是多少」。每次重加是 O(n)，問 q 次就是 O(n × q)。<strong>前綴和</strong>（prefix sum）先把「從頭加到每一格為止」的總和算好存起來，之後任何一段都是兩個數相減。</p>
-<p>Java 的 <code>Arrays.parallelPrefix</code> 做的就是這種累計，文件舉的例子：「陣列原本是 [2, 1, 0, 3]，運算是加法，結束時陣列變成 [2, 3, 3, 6]」（if the array initially holds [2, 1, 0, 3] and the operation performs addition, then upon return the array holds [2, 3, 3, 6].）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#parallelPrefix(int%5B%5D,java.util.function.IntBinaryOperator)" target="_blank" rel="noopener">出處</a> 解題時通常自己寫，而且多開一格：</p>
+<p>Java 的 <code>Arrays.parallelPrefix</code> 做的就是這種累計：陣列原本是 <code>[2, 1, 0, 3]</code>，運算是加法，結束時陣列變成 <code>[2, 3, 3, 6]</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#parallelPrefix(int%5B%5D,java.util.function.IntBinaryOperator)" target="_blank" rel="noopener">出處</a> 解題時通常自己寫，而且多開一格：</p>
 <ul class="plainlist">
 <li><code>p</code> 的長度是 n + 1，<code>p[0] = 0</code>，<code>p[i + 1] = p[i] + a[i]</code>。也就是 <code>p[i]</code> ＝ a 的前 i 個（索引 0 到 i − 1）的和。</li>
 <li><code>a[l..r]</code>（含兩端）的和 ＝ <code>p[r + 1] - p[l]</code>：前 r + 1 個的和，減掉前 l 個的和，剩下的就是 l 到 r。</li>
@@ -587,10 +587,10 @@ public class SubarraySumK {
 <ul class="plainlist">
 <li><code>{1, 2, 1, -1, 2}</code>、k = 3 有三段：[1, 2]、[2, 1]、[1, 2, 1, −1]。</li>
 <li><code>{2, -2, 2, -2}</code>、k = 0 有四段：三個相鄰的 [2, −2]／[−2, 2]，加上整段。</li>
-<li><code>getOrDefault(prefix - k, 0)</code> 是「有這個鍵就回傳它的值，沒有就回傳給定的預設值」（Returns the value to which the specified key is mapped, or defaultValue if this map contains no mapping for the key.），沒出現過的前綴和就當 0 次。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#getOrDefault(java.lang.Object,V)" target="_blank" rel="noopener">出處</a></li>
+<li><code>getOrDefault(prefix - k, 0)</code> 是有這個鍵就回傳它的值，沒有就回傳給定的預設值，沒出現過的前綴和就當 0 次。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#getOrDefault(java.lang.Object,V)" target="_blank" rel="noopener">出處</a></li>
 <li>一開始的 <code>seen.put(0, 1)</code> 代表「什麼都還沒加時，前綴和是 0」，這樣從索引 0 開始的那些段（例如 [1, 2]）才數得到。</li>
 </ul>
-<p>雜湊表的 <code>get</code>、<code>put</code> 在雜湊分散得好時是常數時間（This implementation provides constant-time performance for the basic operations (get and put), assuming the hash function disperses the elements properly among the buckets.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a>，所以整題平均 O(n) 時間、O(n) 額外空間。</p>
+<p>雜湊表的 <code>get</code>、<code>put</code> 在雜湊分散得好時是常數時間<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a>，所以整題平均 O(n) 時間、O(n) 額外空間。</p>
 
 <h4>二維前綴和（點到為止）</h4>
 <p>表格也可以預算：<code>p[i][j]</code> 是左上角 i 列 × j 欄那一塊的總和。任一塊長方形的和用「大塊 − 上面 − 左邊 + 左上角（被減了兩次，要加回一次）」四個數算出來，O(1)。</p>

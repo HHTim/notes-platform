@@ -5,12 +5,18 @@
 <p class="era">算過的，不要再算</p>
 <h3 class="head">從費氏數列接上：什麼是動態規劃</h3>
 <p>〈遞迴與回溯〉看過：照定義寫的費氏數列 <code>fib(30)</code> 要呼叫 2,692,537 次，因為同一個 <code>fib(k)</code> 被重算了很多遍；加上備忘錄（memoization，把算過的答案存起來，下次直接查）之後只要 59 次，時間從 O(2ⁿ) 降到 O(n)。那一課說，這招往下延伸就是<strong>動態規劃</strong>（dynamic programming，簡稱 DP）。</p>
-<p>普林斯頓《Introduction to Programming in Java》的定義：動態規劃的基本想法是「把複雜的問題遞迴拆成一些比較簡單的子問題；把每個子問題的答案存起來；最後用存起來的答案解出原本的問題」，而且因為「每個子問題只解一次（不是一解再解）」，它避開了執行時間可能的指數爆炸（By solving each subproblem only once (instead of over and over), this technique avoids a potential exponential blow-up in the running time.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p>動態規劃的基本想法分三步：<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<ol>
+<li>把複雜的問題遞迴拆成一些比較簡單的子問題。</li>
+<li>把每個子問題的答案存起來。</li>
+<li>最後用存起來的答案解出原本的問題。</li>
+</ol>
+<p>每個子問題只解一次（不是一解再解），所以避開了執行時間可能的指數爆炸。</p>
 <h4>兩個條件</h4>
 <p>不是每個遞迴都該用動態規劃。值得用、也用得上的題目有兩個特徵：</p>
 <ul class="plainlist">
-<li><strong>重疊子問題</strong>（overlapping subproblems）：同一個小題目會被問很多次。費氏數列裡 F(3) 同時是 F(5) 和 F(4) 的一部分。MIT 6.006 講義的說法是：把子問題之間「誰需要誰」畫成一張有向無環圖，<strong>相依關係有重疊時</strong>（某個子問題被兩個以上的子問題需要）才是動態規劃（Dynamic programming if subproblem dependencies overlap (DAG, in-degree &gt; 1)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 合併排序也是遞迴拆小，但左半和右半互不重疊，講義說那種子問題圖「是一棵樹（分治法）」，存答案沒有用。</li>
-<li><strong>最佳子結構</strong>（optimal substructure）：大題目的最好答案，可以用小題目的最好答案拼出來。例如「湊 6 元最少幾枚硬幣」：如果最後一枚是 3 元，剩下的 3 元也一定要用最少的方式湊。MIT 同一份講義在「能寫出遞迴解，就表示問題能拆成子問題」這句的註腳寫：這個性質「常被叫做最佳子結構」（This property often called optimal substructure）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><strong>重疊子問題</strong>（overlapping subproblems）：同一個小題目會被問很多次。費氏數列裡 F(3) 同時是 F(5) 和 F(4) 的一部分。把子問題之間「誰需要誰」畫成一張有向無環圖，<strong>相依關係有重疊時</strong>（某個子問題被兩個以上的子問題需要，也就是圖裡有入度大於 1 的頂點）才是動態規劃。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 合併排序也是遞迴拆小，但左半和右半互不重疊，子問題圖是一棵樹（這叫分治法），存答案沒有用。</li>
+<li><strong>最佳子結構</strong>（optimal substructure）：大題目的最好答案，可以用小題目的最好答案拼出來。例如「湊 6 元最少幾枚硬幣」：如果最後一枚是 3 元，剩下的 3 元也一定要用最少的方式湊。能寫出這種遞迴解，就表示問題能拆成子問題。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <figure>
 <svg viewBox="0 0 760 234" role="img" aria-label="費氏數列的子問題相依圖：F5 需要 F4 與 F3，F4 需要 F3 與 F2，依此類推到 F1、F0。F3 同時被 F5 與 F4 需要，F2 同時被 F4 與 F3 需要，F1 同時被 F3 與 F2 需要，這就是重疊子問題">
@@ -57,7 +63,7 @@
 <div class="drill">
   <p class="dq">合併排序也是把問題拆成子問題遞迴解，為什麼通常不叫它動態規劃？</p>
   <ul class="dopts"><li>因為它從頭到尾都沒有用到陣列</li><li>因為它的時間是 O(n log n)，不夠快</li><li>因為它其實不是遞迴，是迴圈</li><li data-ok>因為左右兩半不重疊，存了也用不到</li></ul>
-  <p class="dexp">每一段只被排序一次，沒有子問題被重複需要，存答案沒有好處，這叫分治法。MIT 講義說這時子問題圖是一棵樹。</p>
+  <p class="dexp">每一段只被排序一次，沒有子問題被重複需要，存答案沒有好處，這叫分治法，子問題圖是一棵樹。</p>
 </div>
 <div class="drill">
   <p class="dq">在費氏數列的子問題相依圖裡（上圖），F2 被哪些子問題需要？</p>
@@ -79,12 +85,12 @@
 <section>
 <p class="era">同一張表，兩個方向填</p>
 <h3 class="head">由上而下（備忘錄）對由下而上（填表）</h3>
-<p>同一個動態規劃有兩種寫法。普林斯頓的說法：</p>
+<p>同一個動態規劃有兩種寫法：<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><strong>由上而下</strong>（top-down）：照原本的遞迴寫，但「把解過的每個子問題結果存起來，下次需要同一個子問題時就用存起來的值，不必從頭再解」（we store or cache the result of each subproblem that we solve, so that the next time we need to solve the same subproblem, we can use the cached values）。就是備忘錄。</li>
-<li><strong>由下而上</strong>（bottom-up）：「算出所有子問題的解，從最簡單的子問題開始，逐步建出越來越複雜的子問題的解」（we compute solutions to all of the subproblems, starting with the “simplest” subproblems and gradually building up solutions to more and more complicated subproblems）。通常是一個陣列加一個迴圈，叫<strong>填表</strong>。</li>
+<li><strong>由上而下</strong>（top-down）：照原本的遞迴寫，但把解過的每個子問題結果存起來，下次需要同一個子問題時就用存起來的值，不必從頭再解。就是備忘錄。</li>
+<li><strong>由下而上</strong>（bottom-up）：算出所有子問題的解，從最簡單的子問題開始，逐步建出越來越複雜的子問題的解。通常是一個陣列加一個迴圈，叫<strong>填表</strong>。</li>
 </ul>
-<p><a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> MIT 講義補了一句：由下而上就是「照子問題的拓樸順序解」（solve subproblems in topological sort order (usually via loops)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 也就是說，填表的順序要保證「要用到的格子都已經填好了」，跟拓樸排序要求「前置條件先排」是同一件事。</p>
+<p>由下而上就是照子問題的拓樸順序解（通常用迴圈）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 也就是說，填表的順序要保證「要用到的格子都已經填好了」，跟拓樸排序要求「前置條件先排」是同一件事。</p>
 <pre><code>public class Fib {
     // 由上而下：遞迴＋備忘錄，需要誰才去算誰
     static long[] memo;
@@ -158,7 +164,7 @@ return f[n];</code></pre>
 <div class="drill">
   <p class="dq">由下而上填表時，格子的填寫順序要滿足什麼？</p>
   <ul class="dopts"><li data-ok>用到的格子都要先填好</li><li>一定要由大到小填</li><li>一定要隨機打亂順序，避免偏差</li><li>先填答案那一格，再往回填</li></ul>
-  <p class="dexp">這就是 MIT 講義說的「照子問題的拓樸順序」。費氏數列要由小到大；有些題目（例如背包壓成一維）反而要由大到小，看的是相依關係。</p>
+  <p class="dexp">這就是「照子問題的拓樸順序」填表。費氏數列要由小到大；有些題目（例如背包壓成一維）反而要由大到小，看的是相依關係。</p>
 </div>
 <div class="drill">
   <p class="dq">用由上而下（遞迴＋備忘錄）算 <code>topDown(100000)</code>，最可能出什麼問題？</p>
@@ -171,7 +177,7 @@ return f[n];</code></pre>
   <p class="dexp">答案本身仍然正確，但 0 跟「還沒算」分不出來，那些格子就失去備忘錄的效果，最壞又回到指數時間。改用 -1 當沒算過，或用 Long 陣列以 null 表示。</p>
 </div>
 <div class="drill">
-  <p class="dq">MIT 講義說「由下而上是照子問題的拓樸順序解」。這裡的「拓樸順序」指的是？</p>
+  <p class="dq">由下而上要照子問題的拓樸順序解。這裡的「拓樸順序」指的是？</p>
   <ul class="dopts"><li data-ok>每個子問題排在需要它的子問題前面</li><li>子問題依照編號由大到小依序排好</li><li>子問題依照各自答案的大小排序</li><li>只要隨便一種順序都可以</li></ul>
   <p class="dexp">把「誰需要誰」畫成有向無環圖，拓樸順序保證被需要的先算。就是〈圖：BFS、DFS 與拓樸排序〉裡「前置條件先排」的同一個概念。</p>
 </div>
@@ -180,14 +186,23 @@ return f[n];</code></pre>
 <section>
 <p class="era">四個問題問自己</p>
 <h3 class="head">解題四步驟：狀態、轉移式、初始值、答案在哪</h3>
-<p>MIT 6.006 把寫遞迴（也就是寫動態規劃）整理成幾個步驟：定義子問題、把子問題的解用遞迴關係連起來、確認子問題之間沒有環（有拓樸順序）、寫出初始情況、說明原問題的答案從哪個子問題來，最後分析時間。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a> 面試時濃縮成四個問題就好。先講兩個名詞：<strong>狀態</strong>是「dp[i] 這一格代表什麼」，<strong>轉移式</strong>是「怎麼用比較小的格子算出這一格的公式」。</p>
+<p>寫遞迴（也就是寫動態規劃）的完整步驟：<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/9eb3e9a51a7b5b60b0f67c2277f8b0ee_MIT6_006S20_lec15.pdf" target="_blank" rel="noopener">出處</a></p>
+<ol>
+<li>定義子問題。</li>
+<li>把子問題的解用遞迴關係連起來。</li>
+<li>確認子問題之間沒有環（有拓樸順序）。</li>
+<li>寫出初始情況。</li>
+<li>說明原問題的答案從哪個子問題來。</li>
+<li>分析時間。</li>
+</ol>
+<p>面試時濃縮成四個問題就好。先講兩個名詞：<strong>狀態</strong>是「dp[i] 這一格代表什麼」，<strong>轉移式</strong>是「怎麼用比較小的格子算出這一格的公式」。</p>
 <div class="tablewrap"><table><thead><tr><th>步驟</th><th>問自己</th><th>爬樓梯的回答</th></tr></thead><tbody>
 <tr><th>1. 狀態</th><td><code>dp[i]</code> 代表什麼？要能用一句話講完</td><td><code>dp[i]</code>＝爬到第 i 階的走法數</td></tr>
 <tr><th>2. 轉移式</th><td>最後一步有哪幾種選擇？每種選擇之前的狀態是什麼？</td><td>最後一步爬 1 階（從 i − 1 來）或 2 階（從 i − 2 來）：<code>dp[i] = dp[i − 1] + dp[i − 2]</code></td></tr>
 <tr><th>3. 初始值</th><td>最小的幾個狀態，答案直接知道是多少？</td><td><code>dp[0] = 1</code>（還沒爬，算一種）、<code>dp[1] = 1</code></td></tr>
 <tr><th>4. 答案在哪</th><td>原題目對應哪一格（或哪幾格取最大）？</td><td><code>dp[n]</code></td></tr>
 </tbody></table></div>
-<p>MIT 講義對第一步的提醒是「用文字描述子問題的意思」（Describe the meaning of a subproblem in words）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a> 狀態講不清楚，後面三步一定會亂。填表順序（第五件事）通常由轉移式決定：<code>dp[i]</code> 用到比較小的 i，就由小到大填。</p>
+<p>第一步要用文字描述子問題的意思。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a> 狀態講不清楚，後面三步一定會亂。填表順序（第五件事）通常由轉移式決定：<code>dp[i]</code> 用到比較小的 i，就由小到大填。</p>
 <pre><code>public class Stairs {
     // 一次爬 1 階或 2 階，爬到第 n 階有幾種走法
     static long ways(int n) {
@@ -379,7 +394,7 @@ public class Coins {
 <section>
 <p class="era">背包只裝得下這麼重</p>
 <h3 class="head">0/1 背包（簡化版）</h3>
-<p>題目：有 n 樣東西，各有重量和價值，背包最多裝重量 W。<strong>每樣東西最多拿一次</strong>（拿或不拿，所以叫 0/1），總價值最大是多少？MIT 6.006 的習題課講義用的子問題是「只用前 i 樣東西、容量 j 時的最大價值」，轉移式是兩種選擇取大的：<strong>不拿</strong>第 i 樣（答案跟只用前 i − 1 樣一樣），或<strong>拿</strong>第 i 樣（得到它的價值，再用剩下的容量 j − 重量裝前 i − 1 樣），後者只在放得下時才能選。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/e88f4499b351ab82ebf07c4de2859272_MIT6_006S20_r18.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>題目：有 n 樣東西，各有重量和價值，背包最多裝重量 W。<strong>每樣東西最多拿一次</strong>（拿或不拿，所以叫 0/1），總價值最大是多少？子問題定為「只用前 i 樣東西、容量 j 時的最大價值」，轉移式是兩種選擇取大的：<strong>不拿</strong>第 i 樣（答案跟只用前 i − 1 樣一樣），或<strong>拿</strong>第 i 樣（得到它的價值，再用剩下的容量 j − 重量裝前 i − 1 樣），後者只在放得下時才能選。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/e88f4499b351ab82ebf07c4de2859272_MIT6_006S20_r18.pdf" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>狀態</strong>：<code>dp[i][j]</code>＝只考慮前 i 樣、容量 j 時的最大價值。</li>
 <li><strong>轉移式</strong>：<code>dp[i][j] = max(dp[i − 1][j], dp[i − 1][j − w] + v)</code>，第二項只在 j ≥ w 時成立（w、v 是第 i 樣的重量與價值）。</li>
@@ -494,7 +509,7 @@ public class Knapsack {
 </svg>
 <figcaption>背包的表一列一列往下填：每一格只看正上方（不拿）和上一列往左 w 格再加 v（拿）。最大價值 9＝物品 2 加物品 3（重 3 + 4 = 7，值 4 + 5 = 9）。</figcaption>
 </figure>
-<p>貪婪法在這裡一樣會錯。MIT 講義的例子：三樣東西（重量, 價值）是 (6, 6)、(9, 9)、(10, 12)，容量 15，最好是拿前兩樣（價值 15），「貪婪法會失敗」（greedy fails）：例如照「價值除以重量」最高的先拿，會先拿 (10, 12)，剩下的容量放不下其他東西，只有 12。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/e88f4499b351ab82ebf07c4de2859272_MIT6_006S20_r18.pdf" target="_blank" rel="noopener">出處</a> 表有 (n + 1) × (W + 1) 格、每格 O(1)，講義寫的時間是 O(nS)（S 就是這裡的 W）。</p>
+<p>貪婪法在這裡一樣會錯。例如三樣東西（重量, 價值）是 (6, 6)、(9, 9)、(10, 12)，容量 15，最好是拿前兩樣（價值 15）。照「價值除以重量」最高的先拿，會先拿 (10, 12)，剩下的容量放不下其他東西，只有 12。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/e88f4499b351ab82ebf07c4de2859272_MIT6_006S20_r18.pdf" target="_blank" rel="noopener">出處</a> 表有 (n + 1) × (W + 1) 格、每格 O(1)，時間是 O(nW)（有些書把容量寫成 S，就是 O(nS)）。</p>
 <p class="muted">一維版本的 <code>j</code> 由大到小，原因在最後一段「空間壓縮」講。</p>
 
 <div class="drill">
@@ -518,14 +533,14 @@ public class Knapsack {
   <p class="dexp">i = 0 表示「前 0 樣」，沒有東西可拿，價值當然是 0。容量 0 是 dp[i][0] 那一欄。</p>
 </div>
 <div class="drill">
-  <p class="dq">MIT 的例子：（重量, 價值）是 (6, 6)、(9, 9)、(10, 12)，容量 15。最大價值是多少？</p>
+  <p class="dq">（重量, 價值）是 (6, 6)、(9, 9)、(10, 12)，容量 15。最大價值是多少？</p>
   <ul class="dopts"><li>12</li><li data-ok>15</li><li>21</li><li>27</li></ul>
   <p class="dexp">拿 6 和 9 兩樣，重 15、值 15。拿 10 那樣之後剩 5，誰都放不下，只有 12。三樣全拿重 25 超重。實跑一維版本也是 15。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼 0/1 背包不能用「價值除以重量最高的先拿」？</p>
   <ul class="dopts"><li>因為除法會產生小數，誤差太大</li><li>因為這樣算比動態規劃慢很多</li><li data-ok>先拿划算的，剩餘容量可能浪費掉</li><li>其實可以，只是面試官不喜歡</li></ul>
-  <p class="dexp">MIT 的例子就是：(10, 12) 單位價值最高，拿了之後剩 5 放不下別的，總共 12，不如 6 + 9 的 15。東西不能切開，就要每種組合都考慮到。</p>
+  <p class="dexp">(10, 12) 單位價值最高，拿了之後剩 5 放不下別的，總共 12，不如 6 + 9 的 15。東西不能切開，就要每種組合都考慮到。</p>
 </div>
 <div class="drill">
   <p class="dq">n 樣東西、容量 W，二維背包表的時間複雜度是多少？</p>
@@ -542,14 +557,14 @@ public class Knapsack {
 <section>
 <p class="era">兩串字的共同部分</p>
 <h3 class="head">最長共同子序列（LCS）</h3>
-<p><strong>子序列</strong>（subsequence）是從字串裡刪掉一些字、剩下的字照原順序排出來的結果，不必連續。普林斯頓的定義：從 x 刪掉一些字、從 y 刪掉一些字，剩下的兩個字串相等，就叫共同子序列；LCS 問題是找最長的那一個。他們的例子：<code>GGCACCACG</code> 與 <code>ACGGCGGATACG</code> 的 LCS 是 <code>GGCAACG</code>，長度 7。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>子序列</strong>（subsequence）是從字串裡刪掉一些字、剩下的字照原順序排出來的結果，不必連續。從 x 刪掉一些字、從 y 刪掉一些字，剩下的兩個字串相等，就叫<strong>共同子序列</strong>；LCS 問題是找最長的那一個。例如 <code>GGCACCACG</code> 與 <code>ACGGCGGATACG</code> 的 LCS 是 <code>GGCAACG</code>，長度 7。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>狀態</strong>：<code>dp[i][j]</code>＝a 的前 i 個字與 b 的前 j 個字的 LCS 長度。</li>
 <li><strong>轉移式</strong>：看兩邊的最後一個字。一樣的話，它一定可以算進 LCS：<code>dp[i − 1][j − 1] + 1</code>；不一樣，至少有一邊的最後一個字用不到，丟掉其中一邊取大的：<code>max(dp[i − 1][j], dp[i][j − 1])</code>。</li>
 <li><strong>初始值</strong>：任一邊是空字串，LCS 是 0：第 0 列、第 0 欄都是 0。</li>
 <li><strong>答案</strong>：<code>dp[m][n]</code>，右下角。</li>
 </ul>
-<p>普林斯頓的寫法用的是「後綴」（從第 i 個字到結尾），三種情況一模一樣：起頭的字相同就一起去掉、加 1；不同就丟掉其中一個、取較大的。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 這裡改用「前綴」，表從左上往右下填，比較直覺；兩種寫法的答案相同。</p>
+<p>也可以用「後綴」（從第 i 個字到結尾）當子問題，三種情況一模一樣：起頭的字相同就一起去掉、加 1；不同就丟掉其中一個、取較大的。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 這裡改用「前綴」，表從左上往右下填，比較直覺；兩種寫法的答案相同。</p>
 <pre><code>public class Lcs {
     // 最長共同子序列：dp[i][j] 是 a 的前 i 個字與 b 的前 j 個字的 LCS 長度
     static int lcs(String a, String b) {
@@ -627,7 +642,7 @@ public class Knapsack {
 </svg>
 <figcaption>ABCDE 與 ACE 的 LCS 表。字母相同的三格（A、C、E）從左上角加 1，其他格從上方或左方取大的。右下角 3 就是 ACE。</figcaption>
 </figure>
-<p>表有 (m + 1) × (n + 1) 格，每格 O(1)，時間與空間都是 O(m × n)。MIT 講義的分析也是子問題 (|A| + 1)(|B| + 1) 個、每個 O(1)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a> 要印出 LCS 本身，就從右下角往回走：字母相同就記下它、往左上走；不同就往數字比較大的那一邊走。</p>
+<p>表有 (m + 1) × (n + 1) 格，每格 O(1)，時間與空間都是 O(m × n)，也就是 (m + 1)(n + 1) 個子問題、每個 O(1)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a> 要印出 LCS 本身，就從右下角往回走：字母相同就記下它、往左上走；不同就往數字比較大的那一邊走。</p>
 
 <div class="drill">
   <p class="dq"><code>"ACE"</code> 是 <code>"ABCDE"</code> 的什麼？</p>
@@ -674,14 +689,14 @@ public class Knapsack {
 <section>
 <p class="era">一路往上爬的最長子序列</p>
 <h3 class="head">最長遞增子序列（LIS）</h3>
-<p>題目：一串數字裡，最長的「嚴格遞增」子序列有多長（一樣不必連續）？MIT 6.006 用這題示範一個技巧：直接用「前 i 個」當子問題接不起來，因為不知道接上去會不會遞增；要在子問題<strong>加一個條件</strong>，固定「一定包含某個元素」，才接得起來（add constraint to subproblems to give enough structure to achieve increasing property）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>題目：一串數字裡，最長的「嚴格遞增」子序列有多長（一樣不必連續）？這題要用一個技巧：直接用「前 i 個」當子問題接不起來，因為不知道接上去會不會遞增；要在子問題<strong>加一個條件</strong>，固定「一定包含某個元素」，才接得起來。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>狀態</strong>：<code>dp[i]</code>＝<strong>以 nums[i] 結尾</strong>的最長遞增子序列長度。</li>
 <li><strong>轉移式</strong>：nums[i] 可以接在任何比它小的 nums[j]（j &lt; i）後面：<code>dp[i] = max(dp[j] + 1)</code>，對所有 j &lt; i 且 nums[j] &lt; nums[i]。</li>
 <li><strong>初始值</strong>：每個 <code>dp[i]</code> 至少是 1（只有自己）。</li>
 <li><strong>答案</strong>：<strong>所有 dp[i] 的最大值</strong>，因為最長的那條不一定在最後一個數結束。</li>
 </ul>
-<p>MIT 用的是「以 A[i] 開頭的後綴」，對稱的寫法；他們也是取所有 x(i) 的最大值當答案，時間 O(|A|²)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>對稱的寫法是用「以 A[i] 開頭的後綴」當子問題，一樣取所有子問題答案的最大值，時間 O(|A|²)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a></p>
 <pre><code>import java.util.Arrays;
 
 public class Lis {
@@ -744,12 +759,12 @@ public class Lis {
 </svg>
 <figcaption>每一格 dp[i] 往左看所有比 nums[i] 小的數，接在 dp 最大的那一個後面。2、5、7、18 是其中一條長度 4 的遞增子序列（2、3、7、101 也是）。</figcaption>
 </figure>
-<p>兩層迴圈，O(n²) 時間、O(n) 空間。MIT 講義把「加速到 O(n log n)」留作練習（Exercise: speed up to O(|A| log |A|)）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a>；常見的做法是另外維護一個「長度 k 的遞增子序列，結尾最小可以是多少」的陣列，用二分搜尋更新它（〈排序與二分搜尋〉）。面試先寫 O(n²) 版本，再說得出有更快的做法就夠了。</p>
+<p>兩層迴圈，O(n²) 時間、O(n) 空間。這題可以加速到 O(n log n)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/28461a74f81101874a13d9679a40584d_MIT6_006S20_lec16.pdf" target="_blank" rel="noopener">出處</a> 常見的做法是另外維護一個「長度 k 的遞增子序列，結尾最小可以是多少」的陣列，用二分搜尋更新它（〈排序與二分搜尋〉）。面試先寫 O(n²) 版本，再說得出有更快的做法就夠了。</p>
 
 <div class="drill">
   <p class="dq">LIS 的狀態 <code>dp[i]</code> 定義成「以 nums[i] 結尾」的最長遞增子序列，為什麼不定義成「前 i 個數裡」的最長遞增子序列？</p>
   <ul class="dopts"><li data-ok>知道結尾是誰，才能判斷接不接得上</li><li>因為 Java 陣列的索引只能從 0 開始</li><li>因為這樣定義比較省記憶體空間</li><li>兩種定義其實完全一樣</li></ul>
-  <p class="dexp">要接 nums[i]，得知道前一段的最後一個數比它小。「前 i 個裡最長的」不記得結尾是誰，接不起來，這就是 MIT 說要替子問題加條件的原因。</p>
+  <p class="dexp">要接 nums[i]，得知道前一段的最後一個數比它小。「前 i 個裡最長的」不記得結尾是誰，接不起來，這就是要替子問題加條件的原因。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>nums = {3, 1, 4, 1, 5, 9, 2, 6}</code>，LIS 的長度是多少？</p>
@@ -774,14 +789,14 @@ public class Lis {
 <div class="drill">
   <p class="dq">上面的 LIS 寫法時間複雜度是多少？還有更快的做法嗎？</p>
   <ul class="dopts"><li>O(n)，沒有更快的</li><li>O(2ⁿ)，可以加備忘錄變成 O(n²)</li><li>O(n log n)，已經最快</li><li data-ok>O(n²)；有 O(n log n) 的做法</li></ul>
-  <p class="dexp">每個 i 都往前看所有 j，兩層迴圈 O(n²)。MIT 講義把加速到 O(n log n) 留作練習，常見做法搭配二分搜尋。</p>
+  <p class="dexp">每個 i 都往前看所有 j，兩層迴圈 O(n²)。可以加速到 O(n log n)，常見做法搭配二分搜尋。</p>
 </div>
 </section>
 
 <section>
 <p class="era">只留下一輪會用到的</p>
 <h3 class="head">空間壓縮，以及怎麼認出動態規劃題</h3>
-<p>填表時，如果每一格只用到「前幾格」或「上一列」，更早的格子就可以丟掉，空間跟著變小。代價是表不完整了：要還原答案本身（不只是長度或最大值）時，通常要從最後一格沿著整張表往回走，普林斯頓找出 LCS 字串的方法就是「把填表的步驟倒著走回去」（retrace the steps of the dynamic programming algorithm backward），這時就不能丟。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p>填表時，如果每一格只用到「前幾格」或「上一列」，更早的格子就可以丟掉，空間跟著變小。代價是表不完整了：要還原答案本身（不只是長度或最大值）時，通常要從最後一格沿著整張表往回走，例如找出 LCS 字串就是把填表的步驟倒著走回去，這時就不能丟。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>只用前兩格</strong>（費氏、爬樓梯）：留兩個變數，空間 O(1)，上面 <code>Fib.twoVars</code> 就是。</li>
 <li><strong>只用上一列和這一列左邊那格</strong>（LCS 長度）：留兩列，空間從 O(m × n) 降到 O(n)。</li>
@@ -855,7 +870,7 @@ public class Lis {
 <div class="drill">
   <p class="dq">要印出 LCS 的「字串本身」（不只是長度），為什麼通常不能只留兩列？</p>
   <ul class="dopts"><li data-ok>往回找要用到整張表</li><li>因為兩列的長度不一樣</li><li>因為字串不能存在 int 陣列裡</li><li>其實可以，兩列就夠</li></ul>
-  <p class="dexp">往回找 LCS 要看每一格是從左上、上方還是左方來的，需要整張表；普林斯頓還原 LCS 的方法就是把填表的步驟倒著走回去。</p>
+  <p class="dexp">往回找 LCS 要看每一格是從左上、上方還是左方來的，需要整張表；還原 LCS 就是把填表的步驟倒著走回去。</p>
 </div>
 </section>
 

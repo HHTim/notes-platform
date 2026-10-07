@@ -5,10 +5,10 @@
 <p class="era">自己呼叫自己，但每次問題都變小</p>
 <h3 class="head">遞迴的兩個要素</h3>
 <p>電影院裡很暗，你想知道自己坐第幾排，就問前一排的人「你是第幾排？」，他也不知道，再往前問……一直問到第一排的人，他回答「我是第 1 排」。答案再一排一排往回傳：前一排說 1，我就是 2；我說 2，後面的人就是 3。這種「把問題交給一個比較小的自己，等它回答再加工」的寫法叫<strong>遞迴</strong>（recursion）：一個方法在裡面呼叫自己。</p>
-<p>普林斯頓《Computer Science》課本網站用階乘（n! = n × (n − 1) × … × 1）當遞迴的第一個例子，並說每個遞迴函式都需要兩個主要部分（the two main components that are required for every recursive function）：<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p>遞迴最常拿階乘（n! = n × (n − 1) × … × 1）當第一個例子。每個遞迴函式都需要兩個主要部分：<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><strong>終止條件</strong>（base case）：「不再做任何遞迴呼叫就直接回傳值」（The base case returns a value without making any subsequent recursive calls.）。電影院裡的第一排。</li>
-<li><strong>縮小問題</strong>（課本叫 reduction step，化簡的那一步）：把這個輸入的答案，接到另一個輸入的答案上；而且「輸入的序列必須收斂到終止條件」（the sequence of input values must converge to the base case.）。每問一次就往前一排，一定會走到第一排。</li>
+<li><strong>終止條件</strong>（base case）：不再做任何遞迴呼叫，直接回傳值。電影院裡的第一排。</li>
+<li><strong>縮小問題</strong>（reduction step，化簡的那一步）：把這個輸入的答案，接到另一個輸入的答案上；而且一路傳下去的輸入必須收斂到終止條件。每問一次就往前一排，一定會走到第一排。</li>
 </ul>
 <pre><code>public class Factorial {
     static long factorial(int n, String indent) {
@@ -36,7 +36,7 @@
   回傳 3 * 2 = 6
 回傳 4 * 6 = 24
 答案：24</code></pre>
-<p>上半段一路往下呼叫，叫「遞」；碰到終止條件之後一路往回傳，叫「迴」。寫遞迴時不要試著在腦中展開每一層，只要確認兩件事：<strong>終止條件對不對、縮小之後的那一步交給同一個方法能不能算對</strong>。課本把這叫做跟數學歸納法直接相關（Recursive programming is directly related to mathematical induction）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p>上半段一路往下呼叫，叫「遞」；碰到終止條件之後一路往回傳，叫「迴」。寫遞迴時不要試著在腦中展開每一層，只要確認兩件事：<strong>終止條件對不對、縮小之後的那一步交給同一個方法能不能算對</strong>。這跟數學歸納法是同一個道理。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">遞迴兩要素：終止條件（不再呼叫自己）＋ 縮小問題（每次都更靠近終止條件）</p>
 
 <div class="drill">
@@ -87,7 +87,7 @@
     return f(n) + 1;
 }</code></pre>
   <ul class="dopts"><li>回傳 3：每一層加 1，加到 n 等於 1 為止</li><li>回傳 1：一進來就碰到終止條件</li><li data-ok>一直呼叫自己，最後丟出 StackOverflowError</li><li>編譯錯誤：方法不能呼叫自己</li></ul>
-  <p class="dexp">有終止條件，但遞迴呼叫傳的還是 n，問題沒有變小，永遠到不了 n 等於 1。課本把這列為「不保證收斂」（No guarantee of convergence）的錯誤。</p>
+  <p class="dexp">有終止條件，但遞迴呼叫傳的還是 n，問題沒有變小，永遠到不了 n 等於 1。這是「不保證收斂」的錯誤。</p>
 </div>
 <div class="drill">
   <p class="dq">呼叫 <code>skip(5)</code> 會怎樣？</p>
@@ -103,7 +103,12 @@
 <section>
 <p class="era">每呼叫一次，堆疊就多一框</p>
 <h3 class="head">呼叫堆疊：遞迴在記憶體裡長什麼樣</h3>
-<p>〈堆疊與佇列〉最後提到，方法呼叫本身就是用堆疊實作的。Java 虛擬機規格寫：「每次呼叫方法就建立一個新的框（frame）。方法呼叫結束時框就被銷毀，不管是正常結束還是丟出例外」（A new frame is created each time a method is invoked. A frame is destroyed when its method invocation completes, whether that completion is normal or abrupt），框配置在執行緒的 JVM 堆疊上，而且「每個框有自己的區域變數陣列」（Each frame has its own array of local variables）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.6" target="_blank" rel="noopener">出處</a></p>
+<p>〈堆疊與佇列〉最後提到，方法呼叫本身就是用堆疊實作的。在 JVM 裡：</p>
+<ul>
+<li>每次呼叫方法就建立一個新的<strong>框</strong>（frame），配置在這條執行緒的 JVM 堆疊上。</li>
+<li>方法呼叫結束時框就被銷毀，不管是正常結束還是丟出例外。</li>
+<li>每個框有自己的區域變數陣列。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.6" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>所以遞迴的每一層都有<strong>自己的 n</strong>，互不干擾。<code>factorial(4)</code> 遞迴到最深的那一刻，呼叫堆疊長這樣：</p>
 <figure>
 <svg viewBox="0 0 760 334" role="img" aria-label="呼叫堆疊：factorial(4) 遞迴到最深時，由下往上依序是 main、factorial(4)、factorial(3)、factorial(2)、factorial(1)，每一框各有自己的 n。最上面的 factorial(1) 碰到終止條件回傳 1，接著右邊的箭頭一層一層往下回傳 2、6、24">
@@ -136,7 +141,7 @@
 <pre><code>3 2 1 
 1 2 3 </code></pre>
 <h4>遞迴太深：<code>StackOverflowError</code></h4>
-<p>JVM 堆疊的大小有上限。規格寫：「如果執行緒的計算需要比允許的更大的 JVM 堆疊，JVM 丟出 <code>StackOverflowError</code>」（If the computation in a thread requires a larger Java Virtual Machine stack than is permitted, the Java Virtual Machine throws a StackOverflowError.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> API 文件對它的描述就一句：「應用程式遞迴太深造成堆疊溢位時丟出」（Thrown when a stack overflow occurs because an application recurses too deeply.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StackOverflowError.html" target="_blank" rel="noopener">出處</a></p>
+<p>JVM 堆疊的大小有上限。執行緒需要的 JVM 堆疊比允許的還大時，JVM 丟出 <code>StackOverflowError</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 最常見的原因就是遞迴太深。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StackOverflowError.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>public class Overflow {
     static int depth = 0;
 
@@ -158,7 +163,7 @@
 <pre><code>丟出 StackOverflowError
 深度超過一千層：true</code></pre>
 <p>實際能疊幾層跟堆疊大小、每一框多大有關，每台機器、每次執行都可能不同，所以程式只印「超過一千層」。堆疊大小用哪個參數調、它跟 <code>OutOfMemoryError</code> 怎麼分，見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
-<p>常見的解法是<strong>改成迴圈</strong>。課本的問答寫：「任何遞迴函式都可以換成迭代的寫法」（any recursive function can be replaced by an iterative counterpart.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 例如階乘用一個 <code>for</code> 迴圈乘上去，就只需要固定幾個變數；比較複雜的遞迴可以自己開一個 <code>ArrayDeque</code> 當堆疊，模擬呼叫堆疊在做的事。</p>
+<p>常見的解法是<strong>改成迴圈</strong>：任何遞迴函式都可以換成迭代（用迴圈）的寫法。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 例如階乘用一個 <code>for</code> 迴圈乘上去，就只需要固定幾個變數；比較複雜的遞迴可以自己開一個 <code>ArrayDeque</code> 當堆疊，模擬呼叫堆疊在做的事。</p>
 <p class="formula">每一層呼叫一框、各有自己的變數；空間看最深幾層；太深就 StackOverflowError，解法是改迴圈或自己開堆疊</p>
 
 <div class="drill">
@@ -275,7 +280,7 @@ fib(30) = 832040，天真寫法呼叫 2692537 次，加備忘錄呼叫 59 次</c
 </svg>
 <figcaption>每個節點是一次呼叫；同一個 f(2) 在三個地方各算一次。樹的節點數就是時間，樹的高度就是呼叫堆疊最深的時候。</figcaption>
 </figure>
-<p>每個節點分兩支、深度大約 n 層，節點數<strong>不會超過</strong> 2 的 n 次方，所以天真寫法的時間可以寫成 <strong>O(2ⁿ)</strong>，指數級。要注意 2ⁿ 是上限：右邊那支是 n − 2，比左邊淺，樹並不是滿的。課本的說法是：簡單的遞迴程式「可能因為過度重複計算而需要（不必要的）指數時間」（a simple program might require exponential time (unnecessarily), due to excessive recomputation），並指出計算 fibonacci(n) 時，fibonacci(1) 被算的次數「恰好是 F(n)」（The number of times this program computes fibonacci(1) when computing fibonacci(n) is precisely F n.），也就是跟答案本身一樣快速長大。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 實際數一下：</p>
+<p>每個節點分兩支、深度大約 n 層，節點數<strong>不會超過</strong> 2 的 n 次方，所以天真寫法的時間可以寫成 <strong>O(2ⁿ)</strong>，指數級。要注意 2ⁿ 是上限：右邊那支是 n − 2，比左邊淺，樹並不是滿的。問題出在重複計算：簡單的遞迴程式可能因此花上不必要的指數時間。計算 fibonacci(n) 時，fibonacci(1) 被算的次數恰好是 F(n)，跟答案本身一樣快速長大。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 實際數一下：</p>
 <pre><code>public class FibRatio {
     static long calls = 0;
     static long fib(int n) { calls++; if (n &lt;= 1) return n; return fib(n - 1) + fib(n - 2); }
@@ -299,9 +304,9 @@ n=30 呼叫 2692537 次，是前一個的 1.618 倍
 2 的 30 次方 = 1073741824</code></pre>
 <p>n 每多 1，呼叫次數大約變成 1.618 倍，不是 2 倍；fib(30) 呼叫了兩百六十多萬次，遠少於 2³⁰ 的十億多。所以更貼近的成長率大約是 1.618ⁿ。面試時答 O(2ⁿ)、並說明這是上限就可以；兩者都是指數級，都一樣會爆炸。空間只看深度，是 O(n)。</p>
 <h4>加備忘錄：算過的不要再算</h4>
-<p><strong>備忘錄</strong>（memoization）就是把每個子問題的答案存起來，下次遇到同一個子問題直接查。課本把它叫做由上而下的動態規劃：「把解過的每個子問題的結果存起來或快取起來，下次需要同一個子問題時就用快取的值，不用從頭再解」（we store or cache the result of each subproblem that we solve, so that the next time we need to solve the same subproblem, we can use the cached values instead of solving the subproblem from scratch.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>備忘錄</strong>（memoization）就是把每個子問題的答案存起來，下次遇到同一個子問題直接查，不用從頭再解。這也叫由上而下的動態規劃。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <p>上面的 <code>fibMemo</code> 用 <code>HashMap</code> 存（為什麼查詢幾乎一步完成見〈雜湊表：HashMap 怎麼做到幾乎一步找到〉）。每個 n 只會真的計算一次，呼叫次數從 2692537 降到 59，時間從 O(2ⁿ) 降到 <strong>O(n)</strong>，空間是備忘錄加呼叫堆疊，O(n)。這招再往下延伸，就是〈動態規劃入門〉的主題。</p>
-<p>同一套數法也能算其他遞迴：課本的河內塔（把 n 個盤子從一根柱子搬到另一根，每次搬一個、大的不能壓小的）每一層呼叫自己兩次、n 減 1，步數滿足 T(n) = 2T(n − 1) + 1，結果是 2ⁿ − 1（In general, T(n) = 2^n − 1.）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
+<p>同一套數法也能算其他遞迴：河內塔（把 n 個盤子從一根柱子搬到另一根，每次搬一個、大的不能壓小的）每一層呼叫自己兩次、n 減 1，步數滿足 T(n) = 2T(n − 1) + 1，結果是 2ⁿ − 1。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>遞迴長相</th><th>呼叫樹</th><th>時間</th><th>空間（深度）</th></tr></thead><tbody>
 <tr><td>呼叫自己一次，n 減 1（階乘、sum）</td><td>一條直線，n 個節點</td><td>O(n)</td><td>O(n)</td></tr>
 <tr><td>呼叫自己一次，n 減半</td><td>一條直線，log n 個節點</td><td>O(log n)</td><td>O(log n)</td></tr>
@@ -371,7 +376,7 @@ n=30 呼叫 2692537 次，是前一個的 1.618 倍
   <p class="dexp">呼叫 n 次，但每次不是固定幾步：第一層印 n 個、第二層 n − 1 個……加起來 n + (n − 1) + … + 1，是 O(n²)。「呼叫幾次 × 每次做多少」兩個都要看。</p>
 </div>
 <div class="drill">
-  <p class="dq">河內塔要把 3 個盤子搬到另一根柱子，照課本的遞迴解法共要搬幾步？</p>
+  <p class="dq">河內塔要把 3 個盤子搬到另一根柱子，照遞迴解法共要搬幾步？</p>
   <ul class="dopts"><li>3</li><li>6</li><li data-ok>7</li><li>9</li></ul>
   <p class="dexp">T(n) = 2T(n − 1) + 1、T(1) = 1，所以 T(2) = 3、T(3) = 7，也就是 2³ − 1。</p>
 </div>
@@ -427,7 +432,7 @@ public class Subsets {
 </svg>
 <figcaption>回溯就是沿著這棵樹深度優先地走：往下一層是選擇一個數，走到底就退回上一層撤銷它，再試下一個。</figcaption>
 </figure>
-<p>每個數「選或不選」兩種，n 個數就有 2ⁿ 個子集，課本的組合練習題也寫「印出所有 2ⁿ 個任意大小的組合」（prints all 2^n combinations of any size）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 光是答案就有 2ⁿ 個，時間不可能比 2ⁿ 少；每個子集複製一份要花到 n 步，總共 O(n · 2ⁿ)。</p>
+<p>每個數「選或不選」兩種，n 個數就有 2ⁿ 個子集（任意大小的組合）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 光是答案就有 2ⁿ 個，時間不可能比 2ⁿ 少；每個子集複製一份要花到 n 步，總共 O(n · 2ⁿ)。</p>
 <h4>排列：走到底才是答案</h4>
 <p>列出 [1, 2, 3] 的所有排列。這次每個位置都可以從全部的數裡挑，但不能挑已經用過的，所以多一個 <code>used</code> 陣列記錄；path 滿了才是一個答案。</p>
 <pre><code>import java.util.ArrayList;
@@ -457,7 +462,7 @@ public class Permutations {
 }</code></pre>
 <p>執行結果：</p>
 <pre><code>[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]</code></pre>
-<p>第一個位置 n 種、第二個 n − 1 種……排列共 n! 個（課本：all n! permutations）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 子集和排列的差別就在 for 迴圈從哪裡開始：子集從 <code>start</code>（只往後挑，順序不同算同一個），排列從 0（每個位置都重新挑，順序不同算不同）。</p>
+<p>第一個位置 n 種、第二個 n − 1 種……排列共 n! 個。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 子集和排列的差別就在 for 迴圈從哪裡開始：子集從 <code>start</code>（只往後挑，順序不同算同一個），排列從 0（每個位置都重新挑，順序不同算不同）。</p>
 <h4>組合與剪枝：明知走不通的路不要走</h4>
 <p><strong>剪枝</strong>（pruning）是在往下走之前就判斷「這條路不可能有答案」，整段跳過，像修剪樹枝。例子：從 [2, 3, 5, 7] 挑數字（同一個數可以重複挑）湊出總和 10，列出所有組合。先把陣列排序，試到某個數已經比剩下要湊的還大時，後面的數只會更大，直接 <code>break</code>。</p>
 <pre><code>import java.util.ArrayList;
@@ -499,7 +504,7 @@ public class CombinationSum {
 <pre><code>不剪枝：[[2, 2, 2, 2, 2], [2, 2, 3, 3], [2, 3, 5], [3, 7], [5, 5]]，呼叫 52 次
 剪枝：[[2, 2, 2, 2, 2], [2, 2, 3, 3], [2, 3, 5], [3, 7], [5, 5]]，呼叫 23 次</code></pre>
 <p>答案一樣，呼叫次數少了一半多。剪枝不改變答案，只少走冤枉路；這裡能用 <code>break</code> 的前提是<strong>陣列已排序</strong>，沒排序就只能對這一個數 <code>continue</code>，不能把後面的也一起跳掉。</p>
-<p><strong>N 皇后</strong>（在 n × n 棋盤放 n 個皇后，任兩個不能在同一列、同一行或同一斜線上）是回溯加剪枝的代表題：一列一列放，每放一個就檢查會不會被前面的皇后吃到，會就不往下走。課本的 <code>Queens.java</code> 註解寫它「用遞迴與回溯解八皇后問題」（Solve the 8 queens problem using recursion and backtracing），並說回溯「剪掉了大部分」的擺法（the backtracing prunes off most of them）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/Queens.java.html" target="_blank" rel="noopener">出處</a> 4 皇后有 2 組解，8 皇后有 92 組解。</p>
+<p><strong>N 皇后</strong>（在 n × n 棋盤放 n 個皇后，任兩個不能在同一列、同一行或同一斜線上）是回溯加剪枝的代表題：一列一列放，每放一個就檢查會不會被前面的皇后吃到，會就不往下走。回溯會把大部分的擺法剪掉，不用真的試完。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/Queens.java.html" target="_blank" rel="noopener">出處</a> 4 皇后有 2 組解，8 皇后有 92 組解。</p>
 <p class="formula">回溯模板：選擇 → 遞迴 → 撤銷選擇；子集從 start 挑、排列從 0 挑加 used；能剪就剪，break 要先排序</p>
 
 <div class="drill">
@@ -578,7 +583,12 @@ public class CombinationSum {
 <p class="era">三個最常踩的坑</p>
 <h3 class="head">常見錯誤：忘記終止條件、共用清單沒複製、沒撤銷選擇</h3>
 <h4>忘記終止條件（或到不了終止條件）</h4>
-<p>課本的「遞迴的陷阱」（Pitfalls of recursion）第一條就是少了終止條件：方法「會一直呼叫自己，永遠不回傳」（it will repeatedly call itself and never return.）；第二條是遞迴呼叫的子問題沒有比原本小（No guarantee of convergence）。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a> 兩種最後都是 <code>StackOverflowError</code>。費氏數列只寫 <code>if (n == 1) return 1;</code> 也是同一種錯：<code>fib(2)</code> 會呼叫 <code>fib(0)</code>，再往下是 <code>fib(-1)</code>，永遠停不下來。</p>
+<p>遞迴最常見的兩個陷阱：</p>
+<ul>
+<li>少了終止條件：方法會一直呼叫自己，永遠不回傳。</li>
+<li>不保證收斂：遞迴呼叫的子問題沒有比原本小。<a class="fixsrc" href="https://introcs.cs.princeton.edu/java/23recursion/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>兩種最後都是 <code>StackOverflowError</code>。費氏數列只寫 <code>if (n == 1) return 1;</code> 也是同一種錯：<code>fib(2)</code> 會呼叫 <code>fib(0)</code>，再往下是 <code>fib(-1)</code>，永遠停不下來。</p>
 <h4>共用清單沒複製</h4>
 <p>把 <code>result.add(new ArrayList&lt;&gt;(path))</code> 寫成 <code>result.add(path)</code>，結果會全部是空的：</p>
 <pre><code>import java.util.ArrayList;
@@ -623,7 +633,7 @@ public class Bugs {
 </svg>
 <figcaption>Java 的清單變數存的是物件的參考值；不複製，就是把同一個物件存了好幾次。</figcaption>
 </figure>
-<p>Java 的清單變數存的是物件的<strong>參考值</strong>（object reference，可以想成物件的取件號碼，見〈物件與類別〉），不是物件本身。<code>result.add(path)</code> 存進去的是「同一個 path 物件」八次；回溯結束時 path 已經被撤銷成空的，八格看起來就都是 <code>[]</code>。<code>new ArrayList&lt;&gt;(path)</code> 用的建構子會「建立一個清單，內含指定集合的元素」（Constructs a list containing the elements of the specified collection），是當下內容的複本，之後 path 再怎麼變都不影響它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
+<p>Java 的清單變數存的是物件的<strong>參考值</strong>（object reference，可以想成物件的取件號碼，見〈物件與類別〉），不是物件本身。<code>result.add(path)</code> 存進去的是「同一個 path 物件」八次；回溯結束時 path 已經被撤銷成空的，八格看起來就都是 <code>[]</code>。<code>new ArrayList&lt;&gt;(path)</code> 用的建構子會建立一個新清單，放進指定集合的元素，是當下內容的複本，之後 path 再怎麼變都不影響它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a></p>
 <h4>沒撤銷選擇</h4>
 <p>少了 <code>path.remove(path.size() - 1)</code>，選過的數永遠留在 path 裡，下一個分支就帶著上一個分支的東西往下走，於是出現 <code>[1, 2, 3, 3]</code> 這種不可能的子集。排列的程式要撤銷兩樣東西（path 和 <code>used</code>），只撤一樣也會錯：忘了把 <code>used[i]</code> 設回 false，用過的數就再也不能出現在別的位置，[1, 2, 3] 的排列只會剩下一組 <code>[1, 2, 3]</code>。<strong>選擇時改了什麼，撤銷時就要原樣改回來。</strong></p>
 <p class="formula">存答案要複製（new ArrayList&lt;&gt;(path)）；選擇時改了幾樣，撤銷時就改回幾樣</p>
