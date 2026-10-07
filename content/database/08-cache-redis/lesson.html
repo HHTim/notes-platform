@@ -200,7 +200,7 @@ public class OrderRace {
 <p>為什麼不是「更新資料庫，再<strong>改</strong>快取」？因為兩個人同時改時，資料庫可能是 A 後寫、快取卻是 B 後寫，兩邊就對不起來了；刪掉讓下一次讀取重新回填，比較不會留下錯的值。但對的順序也只是縮短舊值存在的時間，Cache-Aside 不保證資料存放區與快取之間的一致性。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
 <h4>延遲雙刪</h4>
 <p><strong>延遲雙刪</strong>是業界慣用的補救（這個名字是業界叫法，各家文件裡沒有）：刪一次快取、更新資料庫、隔一小段時間（例如幾百毫秒）再刪一次。它的邏輯是：第二次刪，是要清掉「第一次刪和更新資料庫之間，被別人回填的舊值」；有讀寫分離時，也順便清掉從複本資料庫（還沒同步到新值）讀回來回填的舊值。它沒解決的事：延遲是猜的，讀取比猜的慢就漏掉；第二次刪也可能失敗；兩次刪之間仍讀得到舊值。所以它還是<strong>最終一致</strong>（過一段時間才一致），不是強一致。</p>
-<p>不管哪種順序，最後一道保險都是 TTL：真的漏了，最多舊到 TTL 到期。讀多的路徑如果需要寫完立刻讀到，就換模式，改用 Write-Through。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
+<p>不管哪種順序，最後一道保險都是 TTL：真的漏了，最多舊到 TTL 到期。讀多的路徑如果需要寫完立刻讀到，可以考慮換模式，改用 Write-Through。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
 <p>面試被問「先刪快取還是先更新資料庫」「延遲雙刪解決什麼、沒解決什麼」，答題講法見〈系統設計：快取一致性與熱點〉。</p>
 <p class="formula">先更新資料庫、再刪快取；刪而不是改；延遲雙刪仍是最終一致；TTL 是最後一道保險</p>
 

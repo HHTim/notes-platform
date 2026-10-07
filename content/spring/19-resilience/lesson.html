@@ -185,7 +185,7 @@ public class BalanceService {
  2234 ms  【core】狀態 HALF_OPEN → OPEN
  2234 ms  第 7 次呼叫 → 暫時查不到（InternalServerError）
          狀態 OPEN，記了 2 次，失敗 2 次，失敗率 100.0%，被擋 0 次</code></pre>
-<p>第 6 次失敗後還沒退回 OPEN：半開放行 2 次，第 1 次跑完時失敗率還是 -1；第 2 次也失敗，2 次全敗才退回 OPEN。斷路器的通用描述常寫成半開時任何一個請求失敗，就認定故障還在、退回 OPEN（例如 Azure 架構中心）<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a>；Resilience4j 看的是放行那幾次的比例。</p>
+<p>第 6 次失敗後還沒退回 OPEN：半開放行 2 次，第 1 次跑完時失敗率還是 -1；第 2 次也失敗，2 次全敗才退回 OPEN。Azure 架構中心的通用描述是半開時任何一個請求失敗，就認定故障還在、退回 OPEN<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a>；Resilience4j 看的是放行那幾次的比例。</p>
 <p class="muted">計數型視窗看「最近 N 次」，時間型（<code>TIME_BASED</code>）看「最近 N 秒」，兩種都把結果先彙總好，所以讀取快照是 O(1)。視窗大小也不是同時呼叫的上限：20 條執行緒同時要求執行時，只要狀態是 CLOSED，全部都會放行，就算滑動視窗大小是 15。要限制同時在跑的數量得用隔艙。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">CLOSED 記帳（記滿最少次數才算）→ 失敗率 ≥ 門檻跳 OPEN（直接擋）→ 等滿時間、下一次呼叫時轉 HALF_OPEN → 放行那幾次的比例決定回 CLOSED 或退回 OPEN</p>
 
@@ -303,7 +303,7 @@ public class BalanceService {
 <li>有好幾個時，呼叫最接近的那一個。</li>
 <li>全域回呼：好幾個方法回傳型別相同時，可以共用一個只收例外參數的回呼；實跑 <code>String onlyEx(Exception e)</code> 確實接得到。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>對照實驗輸出：CLOSED 時下游回 500，進的是參數為 <code>Exception</code> 的那個（暫時查不到）；OPEN 時被擋，例外是 <code>Call<wbr>Not<wbr>Permitted<wbr>Exception</code>，兩個回呼都接得住，選比較接近的那個（快取餘額）。降級要回什麼是業務決定，常見做法是暫時降低功能、改用替代的操作。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a> 餘額這種會影響決策的資料，回快取時畫面上要標「資料時間」。</p>
+<p>對照實驗輸出：CLOSED 時下游回 500，進的是參數為 <code>Exception</code> 的那個（暫時查不到）；OPEN 時被擋，例外是 <code>Call<wbr>Not<wbr>Permitted<wbr>Exception</code>，兩個回呼都接得住，選比較接近的那個（快取餘額）。降級要回什麼是業務決定，例如暫時降低功能、改用替代的操作。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a> 餘額這種會影響決策的資料，回快取時畫面上要標「資料時間」。</p>
 
 <h4>自我呼叫：註解整個沒作用</h4>
 <p>這些註解跟 <code>@Transactional</code> 一樣靠 AOP 代理（starter 提供自動設定的註解與 AOP 切面）<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a>，所以〈Spring AOP 與交易控制〉講的自我呼叫一樣會讓它失效。同一個類別裡加一個方法，用 <code>this</code> 去叫有 <code>@CircuitBreaker</code> 的 <code>balance</code>：</p>

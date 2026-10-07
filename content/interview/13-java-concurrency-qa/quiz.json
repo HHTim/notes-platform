@@ -33,7 +33,7 @@
   {
    "q": "用 ConcurrentHashMap 做每個使用者的請求計數，寫成「Integer n = map.get(user); map.put(user, n == null ? 1 : n + 1);」，問題在哪？",
    "opts": ["get 與 put 是兩次獨立呼叫，中間別的執行緒可能插隊，計數會遺失；應改用 merge 或 compute 一次完成", "ConcurrentHashMap 的 get 需要鎖整張表，效能太差", "ConcurrentHashMap 不允許 Integer 當值", "沒有問題，ConcurrentHashMap 的所有操作都是執行緒安全的，包含這兩行的組合"],
-   "exp": "單一操作執行緒安全不等於「先讀再寫」的組合原子；標準寫法是 computeIfAbsent 配 LongAdder 的 increment，一次呼叫做完。"
+   "exp": "單一操作執行緒安全不等於「先讀再寫」的組合原子；例如用 computeIfAbsent 配 LongAdder 的 increment，一次呼叫做完。"
   },
   {
    "q": "主執行緒要等 8 個分片各自對帳完才產出總表，而且這件事整批只做一次。CountDownLatch 與 CyclicBarrier 選哪個？",

@@ -48,7 +48,7 @@
       <li>主動方回最後一個 ACK 進 TIME_WAIT，等 2 MSL 後才 CLOSED。（RFC 寫 TIME-WAIT，作業系統 netstat／ss 指令的輸出寫 TIME_WAIT，本課用後者。）</li>
     </ul>
     <p><strong>為什麼是四段不是三段：</strong>因為 TCP 的關閉是單向的：收到 FIN 的一端先回 ACK，要等自己的使用者也 CLOSE 之後才送自己的 FIN<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.6" target="_blank" rel="noopener">RFC 9293 第 3.6 節</a>，中間那段對方可能還有資料要送完，所以 ACK 與 FIN 通常分開。</p>
-    <p><strong>TIME_WAIT 在等什麼：</strong>等夠久，確定對方收到了對它關閉請求的確認，並避免新連線被前一條連線延遲到達的區段影響。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.3.2" target="_blank" rel="noopener">RFC 9293 第 3.3.2 節</a>。</p>
+    <p><strong>TIME_WAIT 在等什麼：</strong>等夠久，確定對方收到了對它關閉請求的確認，並避免新連線被前一條連線延遲到達的區段影響。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.3.2" target="_blank" rel="noopener">RFC 9293 第 3.3.2 節</a></p>
 <p>等多久是硬性規定（MUST）：主動關閉的連線要在 TIME-WAIT 停留 2 倍 MSL<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.6" target="_blank" rel="noopener">RFC 9293 第 3.6 節</a>；MSL（Maximum Segment Lifetime，一個區段在網路上最多能活多久）取 2 分鐘，這是工程上的選擇<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.4.1" target="_blank" rel="noopener">RFC 9293 第 3.4.1 節</a>。</p>
 <p>為什麼要 2 倍：最後那個 ACK 可能丟，對方會重送 FIN，一來一回各一個 MSL。</p>
     <p><strong>為什麼伺服器上會很多：</strong>TIME_WAIT 落在「主動關閉」的那一端。伺服器若在每次回應後主動關連線（例如短連線的 HTTP 服務），每條連線關掉後都會在伺服器上留一個 TIME_WAIT 記錄，照 RFC 是 4 分鐘（2 倍 MSL），Linux 實作是 60 秒<a class="fixsrc" href="https://github.com/torvalds/linux/blob/master/include/net/tcp.h" target="_blank" rel="noopener">Linux tcp.h 的 TCP_TIMEWAIT_LEN</a>；流量一大就累積成千上萬個，吃的是記憶體與連線表。應用伺服器對後端資料庫或快取每次新開連線再主動關掉時，它自己是用戶端，堆的 TIME_WAIT 還會把暫時埠（用戶端每條連線臨時借用的埠號）用光。解法是連線重用（HTTP 持久連線、資料庫連線池），少關就少等。</p>

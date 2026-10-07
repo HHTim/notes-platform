@@ -430,13 +430,13 @@ System.out.println("關掉之後：" + openFds());
 <tr><th>非同步</th><td>先交出請求、馬上回來，做完再通知或去查</td><td>POSIX AIO、<code>io_uring</code></td><td><code>AsynchronousFileChannel</code> 這類 API（OpenJDK 在 Linux 上用執行緒池模擬，見表下說明）</td></tr>
 </tbody></table></div>
 <p class="muted">表格最後一列的補充：<code>AsynchronousFileChannel</code> 的 API 是非同步的，但 OpenJDK 21 在 Linux 上沒有用 POSIX AIO 或 <code>io_uring</code>，而是用執行緒池跑一般的阻塞讀寫來模擬。Linux 走的 <code>UnixChannelFactory</code> 直接回傳 <code>SimpleAsynchronousFileChannelImpl</code>（OpenJDK 目前先用這個簡單的實作）<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/unix/classes/sun/nio/fs/UnixChannelFactory.java#L171" target="_blank" rel="noopener">出處</a>，這個類別是給不支援非同步檔案 I/O 的作業系統用的可攜實作。這是 OpenJDK 的實作做法，API 規格沒有規定。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/sun/nio/ch/SimpleAsynchronousFileChannelImpl.java#L37" target="_blank" rel="noopener">出處</a></p>
-<p><strong>阻塞與非阻塞。</strong></p>
+<p><strong>阻塞與非阻塞。</strong>作業系統教科書 OSTEP 這樣分：</p>
 <ul>
 <li><b>阻塞</b>（或稱同步）介面：把工作全部做完才回到呼叫者</li>
 <li><b>非阻塞</b>（或稱非同步）介面：開始做一些工作就立刻回來</li>
 <li>阻塞最常見的原因就是 I/O<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>有些教科書（例如 OSTEP）把「同步」當成「阻塞」的同義詞、「非同步」當成「非阻塞」的同義詞；上面的表格照常見的分法，把「立刻回來說現在沒有、要自己再問」的非阻塞，跟「交出請求、做完再通知」的非同步拆成兩種。這種四分法沒有一份標準文件統一定義，不同書的切法略有出入。</p>
+<p>OSTEP 這裡把「同步」當成「阻塞」的同義詞、「非同步」當成「非阻塞」的同義詞；上面的表格照常見的分法，把「立刻回來說現在沒有、要自己再問」的非阻塞，跟「交出請求、做完再通知」的非同步拆成兩種。這種四分法沒有一份標準文件統一定義，不同書的切法略有出入。</p>
 <p>Linux 用 <code>O_NONBLOCK</code> 旗標開成非阻塞模式後，之後在這個檔案描述子上的 I/O 都不會讓呼叫的行程等待<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a>；這時讀 socket 讀不到，<code>read</code> 回傳錯誤 <code>EAGAIN</code>（或 <code>EWOULDBLOCK</code>）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/read.2.html" target="_blank" rel="noopener">出處</a> Java 的非阻塞 <code>SocketChannel</code> 讀不到時回傳 0：</p>
 <pre><code>try (ServerSocketChannel server = ServerSocketChannel.open().bind(new InetSocketAddress("127.0.0.1", 0));
      SocketChannel client = SocketChannel.open(server.getLocalAddress());
