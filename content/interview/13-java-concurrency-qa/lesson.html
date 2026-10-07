@@ -76,7 +76,8 @@ ExecutorService pool = new ThreadPoolExecutor(
     <p>結論：fixed 與 single 在任務湧入時佇列吃光堆（<code>Java heap space</code>）；cached 是執行緒無上限（<code>unable to create native thread</code>），兩種錯見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。對帳池用有界佇列加 <code>CallerRunsPolicy</code>，兩個洞一起堵。</p>
     <p class="q">面試官：執行緒池要開多大？</p>
     <p><strong>一句話定義：</strong>沒有官方公式，只有通則：CPU 密集約等於核心數，I/O 密集可以多很多。</p>
-    <p>核心數用 <code>Runtime.availableProcessors()</code>「回傳 JVM 可用的處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Runtime.html" target="_blank" rel="noopener">出處</a>。Linux 容器裡 JVM 預設開著容器支援（<code>-XX:+UseContainerSupport</code>），會「判斷 docker 容器內的 Java 行程可用的記憶體量與處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a>；前提是容器有設 CPU 上限才回傳上限；沒設上限時一般就是主機核心數（這半句是推論，手冊沒明寫）。</p>
+    <p>核心數用 <code>Runtime.availableProcessors()</code>「回傳 JVM 可用的處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Runtime.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>Linux 容器裡 JVM 預設開著容器支援（<code>-XX:+UseContainerSupport</code>），會「判斷 docker 容器內的 Java 行程可用的記憶體量與處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a>；前提是容器有設 CPU 上限才回傳上限；沒設上限時一般就是主機核心數（這半句是推論，手冊沒明寫）。</p>
     <p><strong>差別與取捨：</strong>文件講白了：「若任務常阻塞（例如 I/O 密集），系統可能有辦法排程比你允許的更多執行緒」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 面試常聽到的估算式「執行緒數約等於核心數乘上（1 加 等待時間除以計算時間）」出自並行程式設計教材，不是官方文件，只是起點，要靠壓測與監控修正。</p>
     <p><strong>版本註記：</strong>Java 21 起 I/O 密集的另一個答案是不估：<code>Executors.<wbr>newVirtual<wbr>Thread<wbr>PerTask<wbr>Executor()</code>「為每個任務啟動一條新的虛擬執行緒，建立的執行緒數無上限」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html" target="_blank" rel="noopener">出處</a>，要限的是下游承受量，用 <code>Semaphore</code>。</p>
 </section>
@@ -159,7 +160,7 @@ return balance.thenCombine(limit, CreditCheck::decide)       // 兩個結果都�
     <p><strong>實務註記（最常被問倒的坑）：</strong></p>
     <ul class="plainlist">
     <li>「所有沒有明確 <code>Executor</code> 參數的 async 方法，都在 <code>ForkJoinPool.commonPool()</code> 執行」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></li>
-    <li>common pool 的平行度（同時在跑的工作執行緒數）預設是可用處理器數減一、最少 1（OpenJDK 原始碼：<code>pc = Math.max(1, Runtime.getRuntime().availableProcessors() - 1)</code>）<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ForkJoinPool.java" target="_blank" rel="noopener">出處</a></li>
+    <li>common pool 的平行度（同時在跑的工作執行緒數）預設是可用處理器數減一、最少 1（OpenJDK 原始碼：<code>pc = Math.<wbr>max(1, Runtime.<wbr>getRuntime().<wbr>availableProcessors() - 1)</code>）<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ForkJoinPool.java" target="_blank" rel="noopener">出處</a></li>
     <li>自己 <code>new ForkJoinPool()</code> 才是「預設等於可用處理器數」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ForkJoinPool.html" target="_blank" rel="noopener">出處</a></li>
     </ul>
     <p>它是整個 JVM 共用的，拿它跑阻塞 I/O，幾個慢請求就卡住全 JVM 的非同步工作，所以範例都傳自己的池。</p>
