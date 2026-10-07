@@ -3,52 +3,52 @@
   {
    "q": "一個 ThreadPoolExecutor 設 corePoolSize 4、maximumPoolSize 8、佇列容量 100。目前 4 條執行緒都在忙、佇列裡有 10 個任務，這時再提交一個任務會怎樣？",
    "opts": ["進佇列排隊，不會新開執行緒", "立刻新開第 5 條執行緒處理它", "被拒絕，交給 RejectedExecutionHandler", "由呼叫端自己執行"],
-   "exp": "文件寫「已達 corePoolSize 時，永遠偏好排隊而非新開執行緒」；只有佇列滿了才會加到 maximumPoolSize，最大也滿了才拒絕。"
+   "exp": "已達 corePoolSize 時，一律先排隊、不新開執行緒；只有佇列滿了才會加到 maximumPoolSize，最大也滿了才拒絕。"
   },
   {
    "q": "批次對帳一次提交五十萬個任務給 Executors.newFixedThreadPool(8)，最可能先撞到哪個問題？",
    "opts": ["任務堆在無界佇列裡吃光堆，出現 OutOfMemoryError: Java heap space", "執行緒無上限成長，出現 unable to create native thread", "超出 8 條執行緒的任務被 AbortPolicy 拒絕", "池會自動擴到 maximumPoolSize 把任務跑完"],
-   "exp": "newFixedThreadPool 的文件寫「操作一個共用的無界佇列」，原始碼是沒給容量的 LinkedBlockingQueue；執行緒數固定 8 條，堆積的是任務物件。執行緒無上限是 newCachedThreadPool 的問題。"
+   "exp": "newFixedThreadPool 用的是共用的無界佇列，原始碼裡是沒給容量的 LinkedBlockingQueue；執行緒數固定 8 條，堆積的是任務物件。執行緒無上限是 newCachedThreadPool 的問題。"
   },
   {
    "q": "thread dump 裡看到很多執行緒是 WAITING（parking），堆疊停在 ReentrantLock.lock()；另一批是 BLOCKED。這兩批各在等什麼？",
    "opts": ["WAITING 那批在等 ReentrantLock 這類鎖，BLOCKED 那批在等 synchronized 的監視器鎖", "兩批都在等 synchronized 的監視器鎖，等得比較久的那批被 JVM 改標成 WAITING", "WAITING 那批在等作業系統把 CPU 排給它，BLOCKED 那批在等磁碟或網路 I/O 回來", "WAITING 那批已經拿到鎖正在跑臨界區，BLOCKED 那批是還沒呼叫 start() 的新執行緒"],
-   "exp": "Thread.State 文件：BLOCKED 是「等監視器鎖以進入 synchronized 區塊」；WAITING 的來源是 Object.wait、Thread.join 或 LockSupport.park，ReentrantLock 靠的是 park。等 CPU 的執行緒是 RUNNABLE。"
+   "exp": "BLOCKED 是等監視器鎖、以進入 synchronized 區塊；WAITING 的來源是 Object.wait、Thread.join 或 LockSupport.park，ReentrantLock 靠的是 park。等 CPU 的執行緒是 RUNNABLE。"
   },
   {
    "q": "把共用計數器宣告成 volatile int count，多條執行緒同時 count++，結果會正確嗎？",
    "opts": ["不會，volatile 只保證可見性與順序（happens-before），count++ 仍是讀、算、寫三步", "會，volatile 讓每次寫入立刻對所有執行緒可見，所以遞增不會遺失", "會，JLS 規定 volatile 欄位的所有操作都是原子的", "不會，因為 volatile 變數不能在多執行緒間共用"],
-   "exp": "JLS 只保證「對 volatile 欄位的寫入 happens-before 之後每一次讀取」，沒有讓複合動作變成不可分割；要正確計數用 AtomicInteger、LongAdder 或鎖。"
+   "exp": "volatile 只保證對該欄位的寫入 happens-before 之後每一次讀取，沒有讓複合動作變成不可分割；要正確計數用 AtomicInteger、LongAdder 或鎖。"
   },
   {
    "q": "轉帳服務把鎖改成 new ReentrantLock(true) 公平模式後，依官方文件應該預期什麼？",
    "opts": ["整體吞吐量下降，但等最久的執行緒優先拿到鎖、不會飢餓；不帶時間的 tryLock() 仍會插隊", "吞吐量上升，因為鎖的分配更有秩序", "死結從此不會發生，因為所有執行緒照順序取鎖", "tryLock() 也會照排隊順序等待，不再立刻回傳"],
-   "exp": "ReentrantLock 文件寫公平鎖「吞吐量較低（常常慢很多）」但「保證不會飢餓」，並特別註明「不帶時間的 tryLock() 不遵守公平設定」；公平與死結無關。"
+   "exp": "公平鎖保證不會飢餓，代價是吞吐量較低（常常慢很多）；不帶時間的 tryLock() 不遵守公平設定；公平與死結無關。"
   },
   {
    "q": "要統計對帳批次「已處理筆數」給監控看，幾十條執行緒高頻遞增、偶爾讀一次總數。AtomicLong 與 LongAdder 選哪個，為什麼？",
    "opts": ["LongAdder：文件寫高競爭下吞吐量顯著較高，統計用途不需要每次拿到精確的更新後值", "AtomicLong：LongAdder 不是執行緒安全的", "AtomicLong：因為 LongAdder 的 sum() 需要加鎖，讀取太慢", "兩者一樣，LongAdder 只是 AtomicLong 的別名"],
-   "exp": "LongAdder 文件：「多條執行緒更新用於統計、而非精細同步控制的共用總和時，通常比 AtomicLong 更好」；要靠遞增後的值立刻做決定（發序號）才選 Atomic。"
+   "exp": "多條執行緒更新用於統計、而非精細同步控制的共用總和時，LongAdder 通常比 AtomicLong 好；要靠遞增後的值立刻做決定（發序號）才選 Atomic。"
   },
   {
    "q": "用 ConcurrentHashMap 做每個使用者的請求計數，寫成「Integer n = map.get(user); map.put(user, n == null ? 1 : n + 1);」，問題在哪？",
    "opts": ["get 與 put 是兩次獨立呼叫，中間別的執行緒可能插隊，計數會遺失；應改用 merge 或 compute 一次完成", "ConcurrentHashMap 的 get 需要鎖整張表，效能太差", "ConcurrentHashMap 不允許 Integer 當值", "沒有問題，ConcurrentHashMap 的所有操作都是執行緒安全的，包含這兩行的組合"],
-   "exp": "單一操作執行緒安全不等於「先讀再寫」的組合原子；文件自己的範例就是用 computeIfAbsent 配 LongAdder 的 increment，一次呼叫做完。"
+   "exp": "單一操作執行緒安全不等於「先讀再寫」的組合原子；標準寫法是 computeIfAbsent 配 LongAdder 的 increment，一次呼叫做完。"
   },
   {
    "q": "主執行緒要等 8 個分片各自對帳完才產出總表，而且這件事整批只做一次。CountDownLatch 與 CyclicBarrier 選哪個？",
    "opts": ["CountDownLatch(8)：主執行緒 await，各分片完成時 countDown，一次性不需重設", "CyclicBarrier(8)：因為它可以重用，比較保險", "Semaphore(8)：讓 8 個分片同時拿許可", "CyclicBarrier(9)：主執行緒也算一方一起等"],
-   "exp": "CountDownLatch 文件：「讓一或多條執行緒等待其他執行緒中的一組操作完成」，「一次性，計數不能重設」；CyclicBarrier 是一組執行緒互相等待並可重用，多輪迭代才需要。"
+   "exp": "CountDownLatch 讓一或多條執行緒等待其他執行緒的一組操作完成，而且是一次性的，計數不能重設；CyclicBarrier 是一組執行緒互相等待並可重用，多輪迭代才需要。"
   },
   {
    "q": "Java 21 把請求處理改成虛擬執行緒後，下游核心帳務只能同時接 20 個請求。依 JEP 444 應該怎麼限制？",
    "opts": ["不要池化虛擬執行緒，改用 Semaphore(20) 限制同時進入下游的數量", "改成 Executors.newFixedThreadPool(20) 的虛擬執行緒池", "把虛擬執行緒調成更高優先權，讓它們更快跑完", "不用限制，虛擬執行緒本身比平台執行緒快"],
-   "exp": "JEP 444 明講「不要池化虛擬執行緒」，限流「改用專門為此設計的結構，例如 semaphore」；也寫了「虛擬執行緒不是更快的執行緒」，而且虛擬執行緒的優先權固定不能改。"
+   "exp": "不要池化虛擬執行緒，限流改用專門為此設計的結構，例如 semaphore；虛擬執行緒也不是更快的執行緒，而且虛擬執行緒的優先權固定不能改。"
   },
   {
    "q": "線上服務無回應、CPU 幾乎是零。依 Oracle 疑難排解指南，最直接確認是不是死結的做法是？",
    "opts": ["拿 thread dump，看 HotSpot 有沒有印出「Found one Java-level deadlock」", "先重啟服務讓對外功能恢復，之後幾天盯著監控看會不會再卡一次，重現了才值得開始查原因", "調大執行緒池的 maximumPoolSize，讓更多執行緒接手，卡住的那幾條自然就會被繞過", "用 jcmd GC.heap_dump 抓 heap dump，從物件之間的參考鏈找出是誰卡住了誰"],
-   "exp": "指南寫「印出 thread dump 之後，HotSpot VM 會執行死結偵測演算法」，偵測到就印出死結與相關堆疊；CPU 閒著才像死結，吃光 CPU 反而像迴圈。heap dump 是查記憶體問題的工具。"
+   "exp": "印出 thread dump 之後，HotSpot VM 會跑死結偵測演算法，偵測到就印出死結與相關堆疊；CPU 閒著才像死結，吃光 CPU 反而像迴圈。heap dump 是查記憶體問題的工具。"
   }
  ]
 }

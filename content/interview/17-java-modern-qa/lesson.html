@@ -6,9 +6,9 @@
     <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本註記。以下以 Java 21 為準，Java 22 之後的差異另外標。</p>
 
     <p class="q">面試官：lambda 跟匿名類別差在哪？</p>
-    <p><strong>一句話定義：</strong>lambda 是只留參數與本體的匿名方法，用來實作函式介面那唯一的抽象方法；dev.java 說它是在某些情況下「寫匿名類別實例的另一種、更簡單的方式」（another, simpler way of writing instances of anonymous classes, in some precise cases）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>差別一，this 指誰：</strong>匿名類別是一個新類別，裡面的 <code>this</code> 指那個匿名物件；JLS 說 lambda 本體裡的名稱與 <code>this</code>、<code>super</code>「跟周圍的程式碼意義相同」（are the same as in the surrounding context）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>差別二，編譯方式（點到即可）：</strong>匿名類別會多編出一個 <code>外層$1.class</code>；lambda 不會，本體編成外層類別裡的私有方法（javac 的做法，Java 21 實測），執行時才由 <code>invokedynamic</code> 指令透過 <code>LambdaMetafactory</code> 產生實作物件，API 文件說這些方法「通常當作 invokedynamic 呼叫點的啟動方法，用來支援 lambda 運算式與方法參考」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/LambdaMetafactory.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>lambda 是只留參數與本體的匿名方法，用來實作函式介面那唯一的抽象方法；在某些情況下，它是寫匿名類別實例的另一種、更簡單的方式。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>差別一，this 指誰：</strong>匿名類別是一個新類別，裡面的 <code>this</code> 指那個匿名物件；lambda 本體裡的名稱與 <code>this</code>、<code>super</code> 跟周圍的程式碼意義相同。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>差別二，編譯方式（點到即可）：</strong>匿名類別會多編出一個 <code>外層$1.class</code>；lambda 不會，本體編成外層類別裡的私有方法（javac 的做法，Java 21 實測），執行時才由 <code>invokedynamic</code> 指令透過 <code>LambdaMetafactory</code> 產生實作物件；<code>LambdaMetafactory</code> 的方法通常當作 <code>invokedynamic</code> 呼叫點的啟動方法，用來支援 lambda 運算式與方法參考。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/LambdaMetafactory.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>public class ThisDemo {
     String name = "外層物件";
 
@@ -39,8 +39,8 @@ $ javap -c -p -cp out ThisDemo | grep -E 'invokedynamic|lambda\$'
     <p class="muted">只有匿名類別多了 <code>ThisDemo$1.class</code>；lambda 的本體編成私有方法 <code>lambda$run$0</code>（javac 的做法，Java 21 實測），執行時由 <code>invokedynamic</code> 指令產生 <code>Runnable</code> 物件。最後一行是字串串接，跟 lambda 無關。</p>
 
     <p class="q">面試官：什麼是函式介面？@FunctionalInterface 一定要加嗎？</p>
-    <p><strong>一句話定義：</strong>「概念上，函式介面恰好有一個抽象方法」，default 方法有實作所以不算，跟 <code>Object</code> 公開方法同名的抽象方法也不算；lambda 只能放在需要函式介面的地方。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>差別與取捨：</strong>不加 <code>@FunctionalInterface</code> 也能用 lambda，文件說編譯器「不論有沒有這個標註」都會把符合定義的介面當函式介面；加了的好處是防呆，有人多加一個抽象方法時直接編譯失敗。常用的不必自己寫：<code>Function</code>（T 到 R）、<code>Predicate</code>（T 到 boolean）、<code>Consumer</code>（T 到沒有回傳）、<code>Supplier</code>（不收參數到 T）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>概念上，函式介面恰好有一個抽象方法；default 方法有實作所以不算，跟 <code>Object</code> 公開方法同名的抽象方法也不算；lambda 只能放在需要函式介面的地方。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>差別與取捨：</strong>不加 <code>@FunctionalInterface</code> 也能用 lambda，不論有沒有這個標註，編譯器都會把符合定義的介面當函式介面；加了的好處是防呆，有人多加一個抽象方法時直接編譯失敗。常用的不必自己寫：<code>Function</code>（T 到 R）、<code>Predicate</code>（T 到 boolean）、<code>Consumer</code>（T 到沒有回傳）、<code>Supplier</code>（不收參數到 T）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -66,8 +66,8 @@ public class FuncIface {
 大額 一般</code></pre>
 
     <p class="q">面試官：lambda 裡為什麼不能改外面的區域變數？什麼是 effectively final？</p>
-    <p><strong>一句話定義：</strong>lambda 用到但沒在裡面宣告的區域變數、參數或例外參數「必須是 final 或 effectively final」（must either be final or effectively final）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a>；effectively final 是沒寫 <code>final</code>、但「加上 final 也不會有任何編譯錯誤」的變數，也就是宣告後從沒被重新指派。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.4" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>為什麼：</strong>JLS 的理由是這樣「禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題」（whose capture would likely introduce concurrency problems）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> lambda 可能在別的執行緒、之後才執行，捕獲的其實是「值」。要加總就讓結果變成回傳值：</p>
+    <p><strong>一句話定義：</strong>lambda 用到但沒在裡面宣告的區域變數、參數或例外參數，必須是 final 或 effectively final<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a>；effectively final 是沒寫 <code>final</code>、但加上 final 也不會有任何編譯錯誤的變數，也就是宣告後從沒被重新指派。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.4" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>為什麼：</strong>這樣就禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> lambda 可能在別的執行緒、之後才執行，捕獲的其實是「值」。要加總就讓結果變成回傳值：</p>
     <pre><code>import java.util.List;
 
 public class Capture {
@@ -97,11 +97,11 @@ public class CaptureFix {
 }</code></pre>
     <pre><code>500</code></pre>
     <p><strong>實務註記：</strong>這條限制只管區域變數、參數與例外參數，物件的欄位可以在 lambda 裡改，但多執行緒時就要自己處理同步，見〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
-    <p><strong>常被追問：</strong>lambda 能不能丟受檢例外？要看函式介面的方法有沒有宣告 throws：JLS 規定 lambda 本體丟出的受檢例外，必須是目標方法 throws 子句所列例外的子類別<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a>，而 <code>Function.apply</code>、<code>Consumer.accept</code> 都沒宣告，所以在 <code>forEach</code> 裡直接讀檔會編不過，只能在 lambda 裡自己 try／catch，或改回一般迴圈。</p>
+    <p><strong>常被追問：</strong>lambda 能不能丟受檢例外？要看函式介面的方法有沒有宣告 throws：lambda 本體丟出的受檢例外，必須是目標方法 throws 子句所列例外的子類別<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a>，而 <code>Function.apply</code>、<code>Consumer.accept</code> 都沒宣告，所以在 <code>forEach</code> 裡直接讀檔會編不過，只能在 lambda 裡自己 try／catch，或改回一般迴圈。</p>
 
     <p class="q">面試官：方法參考有哪幾種？</p>
-    <p><strong>一句話定義：</strong>方法參考用 <code>::</code>「指稱一個方法的呼叫，而不實際執行那個呼叫」（to refer to the invocation of a method without actually performing the invocation）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a>；dev.java 說它是用來取代那種「只是呼叫某個在別處定義好的方法」的 lambda（lambda expressions that are just calls to specific methods defined somewhere else）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
-    <p>dev.java 分四種：<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>方法參考用 <code>::</code> 指向一個方法的呼叫，但不實際執行它<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a>；用來取代那種只是呼叫某個在別處定義好的方法的 lambda。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+    <p>分四種：<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
     <ul class="plainlist">
     <li><b>靜態方法</b>：<code>Integer::parseInt</code></li>
     <li><b>特定物件的實例方法</b>：<code>System.out::println</code>，也叫綁定</li>
@@ -142,8 +142,17 @@ same true
     <h3 class="head">惰性、一次性、收集器與平行</h3>
 
     <p class="q">面試官：Stream 的惰性求值是什麼？為什麼一條流只能用一次？中間操作跟終端操作差在哪？</p>
-    <p><strong>一句話定義：</strong>管線是「來源＋零個或多個中間操作＋一個終端操作」；中間操作（<code>filter</code>、<code>map</code>、<code>sorted</code>……）回傳新的流而且「一律是惰性的」，終端操作（<code>toList</code>、<code>collect</code>、<code>count</code>、<code>findFirst</code>……）執行之前「不會開始走訪來源」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>只能用一次：</strong>套件說明說流的元素「在一條流的生命期間只會被走訪一次」（The elements of a stream are only visited once during the life of a stream），而且「跟 Iterator 一樣」要再走就得產生新的流（Like an Iterator, a new stream must be generated to revisit the same elements of the source）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> Stream 文件說偵測到重用時「可能丟出 IllegalStateException」（A stream implementation may throw IllegalStateException if it detects that the stream is being reused）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 下面的輸出還看得出 Java 21 的循序流是一筆一筆走完整條管線，不是全部 filter 完才 map：</p>
+    <p><strong>一句話定義：</strong>管線是來源＋零個或多個中間操作＋一個終端操作：</p>
+    <ul class="plainlist">
+    <li><b>中間操作</b>（<code>filter</code>、<code>map</code>、<code>sorted</code>……）：回傳新的流，一律是惰性的</li>
+    <li><b>終端操作</b>（<code>toList</code>、<code>collect</code>、<code>count</code>、<code>findFirst</code>……）：它執行之前，不會開始走訪來源。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p><strong>只能用一次：</strong></p>
+    <ul class="plainlist">
+    <li>流的元素在一條流的生命期間只會被走訪一次；跟 <code>Iterator</code> 一樣，要再走就得產生新的流<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
+    <li>偵測到重用時，實作可能丟出 <code>IllegalStateException</code><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p>下面的輸出還看得出 Java 21 的循序流是一筆一筆走完整條管線，不是全部 filter 完才 map：</p>
     <pre><code>import java.util.List;
 import java.util.stream.Stream;
 
@@ -170,10 +179,10 @@ filter 8
 map 8
 [200, 80]
 stream has already been operated upon or closed</code></pre>
-    <p><strong>實務註記：</strong>中間操作再分無狀態（<code>filter</code>、<code>map</code>）與有狀態（<code>distinct</code>、<code>sorted</code>，要看過全部元素才能輸出）；<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 是短路操作，答案確定就停。<code>peek</code>「主要給除錯用」（exists mainly to support debugging）；<code>count()</code> 能直接從來源算出筆數時，實作「可能選擇不執行管線」（An implementation may choose to not execute the stream pipeline）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 細節見〈Stream API：把迴圈寫成資料流〉。</p>
+    <p><strong>實務註記：</strong>中間操作再分無狀態（<code>filter</code>、<code>map</code>）與有狀態（<code>distinct</code>、<code>sorted</code>，要看過全部元素才能輸出）；<code>findFirst</code>、<code>anyMatch</code>、<code>limit</code> 是短路操作，答案確定就停。<code>peek</code> 主要給除錯用；<code>count()</code> 能直接從來源算出筆數時，實作可能選擇不執行管線。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 細節見〈Stream API：把迴圈寫成資料流〉。</p>
 
     <p class="q">面試官：map 跟 flatMap 差在哪？</p>
-    <p><strong>一句話定義：</strong><code>map</code> 一進一出；<code>flatMap</code> 把每個元素換成一條流再接起來，文件說是「一對多的轉換，再把產生的元素攤平成一條新的流」（a one-to-many transformation ... and then flattening the resulting elements into a new stream）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 迴圈的對應是「兩層 for」：外層走帳戶、內層走交易。</p>
+    <p><strong>一句話定義：</strong><code>map</code> 一進一出；<code>flatMap</code> 把每個元素換成一條流再接起來，也就是一對多的轉換，再把產生的元素攤平成一條新的流。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 迴圈的對應是「兩層 for」：外層走帳戶、內層走交易。</p>
     <pre><code>import java.util.List;
 
 public class FlatMapDemo {
@@ -195,7 +204,7 @@ public class FlatMapDemo {
 [100, 250, 40]</code></pre>
 
     <p class="q">面試官：groupingBy 跟 toMap 怎麼選？toMap 遇到重複的鍵會怎樣？</p>
-    <p><strong>一句話定義：</strong><code>groupingBy</code> 把同一個鍵的元素收成一組（預設 <code>Map&lt;K, List&lt;T&gt;&gt;</code>，可以接下游收集器做加總、計數）；<code>toMap</code> 一個元素對一個值，<strong>鍵重複時「收集時會丟出 IllegalStateException」</strong>，要給第三個參數「合併函式」決定兩個值怎麼合成一個。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong><code>groupingBy</code> 把同一個鍵的元素收成一組（預設 <code>Map&lt;K, List&lt;T&gt;&gt;</code>，可以接下游收集器做加總、計數）；<code>toMap</code> 一個元素對一個值，<strong>鍵重複時，收集時會丟出 <code>IllegalStateException</code></strong>，要給第三個參數「合併函式」決定兩個值怎麼合成一個。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -228,7 +237,7 @@ Duplicate key 台北 (attempted merging values 500 and 200)
     <p><strong>實務註記：</strong>兩者回傳的 <code>Map</code> 型別都不保證，要固定順序就傳 <code>TreeMap::new</code>；<code>counting()</code> 的結果是 <code>Long</code> 不是 <code>Integer</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></p>
 
     <p class="q">面試官：stream.toList() 跟 collect(Collectors.toList()) 一樣嗎？</p>
-    <p><strong>一句話定義：</strong>不一樣。<code>Stream.toList()</code>（Java 16 起）回傳的清單「不可修改，呼叫任何修改方法都一定會丟出 UnsupportedOperationException」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html#toList()" target="_blank" rel="noopener">出處</a>；<code>Collectors.toList()</code> 則「對型別、可變性……沒有任何保證」，需要可修改的清單就用 <code>toCollection(ArrayList::new)</code>。另外 <code>Collectors.toUnmodifiableList()</code> 不收 <code>null</code>，遇到就丟 <code>NullPointerException</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>不一樣。<code>Stream.toList()</code>（Java 16 起）回傳的清單不可修改，呼叫任何修改方法都一定會丟出 <code>UnsupportedOperationException</code><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html#toList()" target="_blank" rel="noopener">出處</a>；<code>Collectors.toList()</code> 則對清單的型別、可變性都沒有任何保證，需要可修改的清單就用 <code>toCollection(ArrayList::new)</code>。另外 <code>Collectors.toUnmodifiableList()</code> 不收 <code>null</code>，遇到就丟 <code>NullPointerException</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -264,16 +273,16 @@ toUnmodifiableList 不收 null
     <p><strong>版本註記：</strong>從 Java 8 的程式升上來時，把 <code>collect(Collectors.toList())</code> 一律換成 <code>toList()</code> 要小心：後面若有 <code>add</code>、<code>sort</code> 這類修改，會變成執行時才丟例外。<code>Collectors.toList()</code> 在 Java 21 實跑給的是 <code>ArrayList</code>，但那是實作，不是保證。</p>
 
     <p class="q">面試官：平行流什麼時候不該用？</p>
-    <p><strong>一句話定義：</strong><code>parallelStream()</code> 把工作切給整個 JVM 共用的 Fork/Join 池；Oracle 教學說「平行不會自動比循序快」，資料夠多、核心夠多時才可能。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/collections/streams/parallelism.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong><code>parallelStream()</code> 把工作切給整個 JVM 共用的 Fork/Join 池；平行不會自動比循序快，資料夠多、核心夠多時才可能。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/collections/streams/parallelism.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>不該用的情況：</strong></p>
     <ul class="plainlist">
     <li>資料量小</li>
-    <li><b>來源難切</b>（dev.java 舉 <code>LinkedList</code>）或合併成本高</li>
+    <li><b>來源難切</b>（例如 <code>LinkedList</code>）或合併成本高</li>
     <li><b>阻塞的 I/O</b>：lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）</li>
-    <li><b>改外面的集合</b>：lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
+    <li><b>改外面的集合</b>：lambda 裡改外面的集合，行為參數的副作用一般是不鼓勵的；<code>ArrayList</code> 不是執行緒安全的，會造成錯誤的結果。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
     </ul>
-    <p>這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：文件說「沒有明確 Executor 參數的非同步方法，都用 ForkJoinPool.commonPool() 執行」<span class="orig">CompletableFuture 文件：All async methods without an explicit Executor argument are performed using the ForkJoinPool.commonPool()<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></span></p>
-    <p>dev.java 的守則是「不要猜，量測你的程式碼的效能」。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
+    <p>這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：沒有明確 <code>Executor</code> 參數的非同步方法，都用 <code>ForkJoinPool.commonPool()</code> 執行。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></p>
+    <p>守則：不要猜，量測你的程式碼的效能。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
     <pre><code>import java.util.List;
 import java.util.stream.IntStream;
 
@@ -296,8 +305,14 @@ public class ParallelDemo {
     <h3 class="head">Optional、record、var、switch、sealed</h3>
 
     <p class="q">面試官：Optional 該怎麼用？哪些用法是錯的？</p>
-    <p><strong>一句話定義：</strong>「可能裝著、也可能沒裝著一個非 null 值的容器」，「主要是設計來當方法的回傳型別」，用在明確要表達「沒有結果」、用 null 很可能出錯的地方。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>不該怎麼用：</strong>dev.java 的守則：Optional 變數或回傳值「永遠不要是 null」；「不要用在欄位、方法參數、集合與 Map 裡」；優先用 <code>map</code>、<code>orElse</code> 這些方法，而不是先 <code>isPresent()</code> 再 <code>get()</code>。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a> <strong>常被追問：</strong><code>orElse(x)</code> 的 x 在呼叫前就算好了，<code>orElseGet(supplier)</code> 只在沒有值時才呼叫，預設值很貴（查資料庫）時用後者：</p>
+    <p><strong>一句話定義：</strong>可能裝著、也可能沒裝著一個非 null 值的容器，主要設計來當方法的回傳型別，用在明確要表達「沒有結果」、用 null 很可能出錯的地方。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>不該怎麼用：</strong><a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></p>
+    <ul class="plainlist">
+    <li>Optional 變數或回傳值永遠不要是 null</li>
+    <li>不要用在欄位、方法參數、集合與 Map 裡</li>
+    <li>優先用 <code>map</code>、<code>orElse</code> 這些方法，而不是先 <code>isPresent()</code> 再 <code>get()</code></li>
+    </ul>
+    <p><strong>常被追問：</strong><code>orElse(x)</code> 的 x 在呼叫前就算好了，<code>orElseGet(supplier)</code> 只在沒有值時才呼叫，預設值很貴（查資料庫）時用後者：</p>
     <pre><code>import java.util.Map;
 import java.util.Optional;
 
@@ -333,8 +348,8 @@ orElseGet：
     <p class="muted">細節與更多守則見〈Lambda 與函式介面〉最後一段。</p>
 
     <p class="q">面試官：record 是什麼？有什麼限制？</p>
-    <p><strong>一句話定義：</strong>JEP 395（Java 16）：record 是「透明地裝著不可變資料的類別」，宣告元件後自動有 private final 欄位、同名讀取方法（<code>amount()</code>，不是 <code>getAmount()</code>）、標準建構子，以及依元件值的 <code>equals</code>、<code>hashCode</code>、<code>toString</code>；驗證寫在不寫參數列的緊湊建構子。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>限制：</strong>不能 <code>extends</code>（父類別固定是 <code>java.lang.Record</code>），但可以實作介面；隱含 <code>final</code>；不能另外宣告實體欄位。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a> 而且只是「淺層不可變」（shallowly immutable）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Record.html" target="_blank" rel="noopener">出處</a>：元件指向的清單還是改得動，要在緊湊建構子裡 <code>List.copyOf</code>。</p>
+    <p><strong>一句話定義：</strong>record（Java 16 起，JEP 395）是透明地裝著不可變資料的類別，宣告元件後自動有 private final 欄位、同名讀取方法（<code>amount()</code>，不是 <code>getAmount()</code>）、標準建構子，以及依元件值的 <code>equals</code>、<code>hashCode</code>、<code>toString</code>；驗證寫在不寫參數列的緊湊建構子。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>限制：</strong>不能 <code>extends</code>（父類別固定是 <code>java.lang.Record</code>），但可以實作介面；隱含 <code>final</code>；不能另外宣告實體欄位。<a class="fixsrc" href="https://openjdk.org/jeps/395" target="_blank" rel="noopener">出處</a> 而且只是淺層不可變（shallowly immutable）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Record.html" target="_blank" rel="noopener">出處</a>：元件指向的清單還是改得動，要在緊湊建構子裡 <code>List.copyOf</code>。</p>
     <pre><code>import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -364,8 +379,13 @@ public class RecordDemo {
     <p><strong>實務註記：</strong>因為 <code>equals</code>、<code>hashCode</code> 依元件值，record 很適合當 <code>HashMap</code> 的鍵、API 的回應物件、Stream 的中間結果。教材見〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。</p>
 
     <p class="q">面試官：var 要不要用？有什麼取捨？</p>
-    <p><strong>一句話定義：</strong>JEP 286（Java 10）：var 只用在「有初始值的區域變數、增強型 for 的索引、傳統 for 迴圈裡宣告的區域變數」，欄位、方法參數、回傳型別都不行；型別在編譯期就定了，不是動態型別。它「不是關鍵字，而是保留的型別名稱」。<a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>取捨：</strong>OpenJDK 的風格指南第一條原則是「讀程式碼比寫程式碼重要」，建議「初始值已經提供足夠資訊時才考慮 var」，並點名 var 配菱形會推成 <code>Object</code>、配整數字面值一律推成 <code>int</code>。<a class="fixsrc" href="https://openjdk.org/projects/amber/guides/lvti-style-guide" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>var（Java 10 起，JEP 286）只用在有初始值的區域變數、增強型 for 的索引、傳統 for 迴圈裡宣告的區域變數，欄位、方法參數、回傳型別都不行；型別在編譯期就定了，不是動態型別。它不是關鍵字，而是保留的型別名稱。<a class="fixsrc" href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>取捨：</strong><a class="fixsrc" href="https://openjdk.org/projects/amber/guides/lvti-style-guide" target="_blank" rel="noopener">出處</a></p>
+    <ul class="plainlist">
+    <li>讀程式碼比寫程式碼重要</li>
+    <li>初始值已經提供足夠資訊時才考慮 var</li>
+    <li>var 配菱形會推成 <code>Object</code>、配整數字面值一律推成 <code>int</code></li>
+    </ul>
     <pre><code>import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -391,7 +411,7 @@ public class VarDemo {
 Long</code></pre>
 
     <p class="q">面試官：switch 運算式跟以前的 switch 差在哪？模式比對又是什麼？</p>
-    <p><strong>一句話定義：</strong>JEP 361（Java 14）讓 switch 可以產生值；箭頭 <code>-&gt;</code>「只執行箭頭右邊……不會穿透」（no fall through），區塊裡用 <code>yield</code> 交出值，而且 switch 運算式「必須窮舉」。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>Java 14 起（JEP 361）switch 可以產生值；箭頭 <code>-&gt;</code> 只執行箭頭右邊，不會穿透（no fall through），區塊裡用 <code>yield</code> 交出值，而且 switch 運算式必須窮舉。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a></p>
     <p>模式比對是「檢查形狀、順便取出內容」：</p>
     <ul class="plainlist">
     <li><b>Java 16</b>：<code>instanceof String s</code>（JEP 394，Java 16）<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></li>
@@ -440,8 +460,8 @@ B 銀行 轉帳 5000
     <p><strong>常被追問：</strong>由上往下第一個符合的生效，所以有 <code>when</code> 的 <code>case Card(...)</code> 要放在 <code>case Card c</code> 前面，反過來會被「支配」而編譯錯誤；<code>default</code> 不接 <code>null</code>，沒寫 <code>case null</code> 時還是丟 <code>NullPointerException</code>。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a> <strong>版本註記：</strong>用不到的元件寫成 <code>_</code> 是 Java 22 正式（JEP 456），Java 21 還是預覽。<a class="fixsrc" href="https://openjdk.org/jeps/456" target="_blank" rel="noopener">出處</a></p>
 
     <p class="q">面試官：sealed 類別解決什麼問題？</p>
-    <p><strong>一句話定義：</strong>JEP 409（Java 17）：sealed 類別與介面「限制哪些類別或介面可以延伸或實作它們」，用 <code>permits</code> 列出名單；每個子類別都要寫 <code>final</code>、<code>sealed</code> 或 <code>non-sealed</code> 表明要不要繼續開放（record 隱含 final）。<a class="fixsrc" href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>用途：</strong>上一題的 <code>Payment</code> 只有三種，switch 不寫 <code>default</code> 編譯器也知道已經窮舉；JEP 441 說選擇值是 sealed 型別時，窮舉檢查會參考 permits 清單。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a> 好處是之後新增第四種付款方式，沒寫 <code>default</code> 的模式 switch，重新編譯時就會<strong>編譯失敗</strong>，而不是默默掉進 <code>default</code>。少寫一種的實跑結果：</p>
+    <p><strong>一句話定義：</strong>sealed 類別與介面（Java 17 起，JEP 409）限制哪些類別或介面可以延伸或實作它們，用 <code>permits</code> 列出名單；每個子類別都要寫 <code>final</code>、<code>sealed</code> 或 <code>non-sealed</code> 表明要不要繼續開放（record 隱含 final）。<a class="fixsrc" href="https://openjdk.org/jeps/409" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>用途：</strong>上一題的 <code>Payment</code> 只有三種，switch 不寫 <code>default</code> 編譯器也知道已經窮舉：選擇值是 sealed 型別時，窮舉檢查會參考 permits 清單。<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a> 好處是之後新增第四種付款方式，沒寫 <code>default</code> 的模式 switch，重新編譯時就會<strong>編譯失敗</strong>，而不是默默掉進 <code>default</code>。少寫一種的實跑結果：</p>
     <pre><code>public class SealedBad {
     sealed interface Payment permits Card, Cash {}
     record Card(long amount) implements Payment {}

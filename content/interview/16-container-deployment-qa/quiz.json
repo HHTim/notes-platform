@@ -41,7 +41,7 @@
    "exp": "兩者預設 25%，10 的 25% 是 2.5；maxUnavailable 無條件捨去成 2，maxSurge 無條件進位成 3。"
   },
   {
-   "q": "照官方的金絲雀做法：stable 與 canary 兩個 Deployment，副本數 3 與 1，Service 的 selector 只寫兩者共同的 app 標籤。新版大約收到多少流量？",
+   "q": "金絲雀用 stable 與 canary 兩個 Deployment，副本數 3 與 1，Service 的 selector 只寫兩者共同的 app 標籤。新版大約收到多少流量？",
    "opts": [
     "約四分之一，Service 選到的 4 個 Pod 裡有 1 個是新版",
     "一半，Service 在兩個 Deployment 之間平均分配",
@@ -58,7 +58,7 @@
     "存活探針失敗只記錄事件，kubelet 不會採取動作",
     "啟動探針會接手檢查，所以存活探針暫停不跑"
    ],
-   "exp": "存活失敗是重啟容器，外部系統一掛就全部重啟；Spring Boot 文件明講存活探針不應依賴外部系統，移出端點是就緒探針的行為。"
+   "exp": "存活失敗是重啟容器，外部系統一掛就全部重啟；存活探針不應依賴外部系統，移出端點是就緒探針的行為。"
   },
   {
    "q": "服務啟動要 2 分鐘，存活探針 periodSeconds 10、failureThreshold 3，Pod 一直在啟動途中被重啟。最合適的修法是？",
@@ -68,7 +68,7 @@
     "把存活探針改成也檢查資料庫連線",
     "把滾動更新的 maxUnavailable 設成 0"
    ],
-   "exp": "啟動探針成功前另兩種探針不跑，官方做法是用同一個端點、讓 failureThreshold × periodSeconds 涵蓋最壞的啟動時間。"
+   "exp": "啟動探針成功前另兩種探針不跑，建議做法是用同一個端點、讓 failureThreshold × periodSeconds 涵蓋最壞的啟動時間。"
   },
   {
    "q": "Pod 只有一個容器，requests 是 cpu 500m、memory 1Gi，limits 只寫 memory 1Gi。它的 QoS 等級是？",
@@ -98,7 +98,7 @@
     "要改用 stringData 寫，Kubernetes 才會幫它加密",
     "Secret 只有 Pod 讀得到，有權限的人也無法用 kubectl 取出"
    ],
-   "exp": "官方警語寫 Secret 預設未加密存在 etcd，有 API 權限的人就能讀；安全靠靜態加密、最小權限 RBAC 與外部金鑰服務。"
+   "exp": "Secret 預設未加密存在 etcd，有 API 權限的人就能讀；安全靠靜態加密、最小權限 RBAC 與外部金鑰服務。"
   }
  ]
 }

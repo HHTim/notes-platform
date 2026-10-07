@@ -24,7 +24,7 @@
     <p class="q">第 2 題　面試官：HashMap 內部長什麼樣？什麼時候擴容？</p>
     <p><strong>30 秒版：</strong>桶陣列，用 <code>hashCode()</code> 決定落在哪個桶，同桶串成鏈結串列。預設容量 16、負載因子 0.75，超過 12 筆、也就是放第 13 筆時擴成 32。Java 8 起同一桶太長改成紅黑樹，最壞查找從 O(n) 變 O(log n)。</p>
     <p><strong>追問一：多長才轉紅黑樹？</strong>要補的點：同一桶已有 8 個節點再放一筆，而且容量已達 64；不到 64 先擴容。縮回 6 個退回串列。</p>
-    <p><strong>追問二：Hashtable 呢？</strong>要補的點：它整張表一把鎖，文件自己說：不需要執行緒安全用 HashMap，需要高並行用 ConcurrentHashMap，兩種情況都不該選它。</p>
+    <p><strong>追問二：Hashtable 呢？</strong>要補的點：它整張表一把鎖。不需要執行緒安全用 HashMap，需要高並行用 ConcurrentHashMap，兩種情況都不該選它。</p>
     <p class="muted">指路：Java 模組〈集合與泛型〉、演算法模組〈雜湊表：HashMap 怎麼做到幾乎一步找到〉；面試課〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
 
     <p class="q">第 3 題　面試官：equals() 和 hashCode() 有什麼約定？</p>
@@ -100,12 +100,12 @@
 
     <p class="q">第 9 題（銀行情境）　面試官：夜間對帳批次的執行緒池，參數怎麼給？</p>
     <p><strong>30 秒版：</strong>ThreadPoolExecutor 七個參數：corePoolSize、maximumPoolSize、keepAliveTime 與 unit、workQueue、threadFactory、handler。順序：核心沒滿就開執行緒，滿了先排隊，佇列滿了才加到最大，最大也滿才拒絕。對帳池用有界的 ArrayBlockingQueue 加 CallerRunsPolicy，執行緒取名字，thread dump 才認得出來。</p>
-    <p><strong>追問一：為什麼不用 newFixedThreadPool？</strong>要補的點：它是無界佇列，任務湧入時吃光堆，maximumPoolSize 也失效；newCachedThreadPool 則是執行緒無上限。文件本身鼓勵用工廠方法，所以答「知道預設值再用」。</p>
+    <p><strong>追問一：為什麼不用 newFixedThreadPool？</strong>要補的點：它是無界佇列，任務湧入時吃光堆，maximumPoolSize 也失效；newCachedThreadPool 則是執行緒無上限。JDK 本身鼓勵用工廠方法，所以答「知道預設值再用」。</p>
     <p><strong>追問二：轉帳 API 的池滿了，任務直接丟掉行嗎？</strong>要補的點：不行。DiscardPolicy 只給可丟的工作；轉帳寧可失敗也不能默默丟，用預設 AbortPolicy 丟 RejectedExecutionException。CallerRunsPolicy 等於自動減速，適合批次。</p>
     <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
 
     <p class="q">第 10 題　面試官：執行緒池要開多大？</p>
-    <p><strong>30 秒版：</strong>沒有官方公式：CPU 密集約等於核心數，I/O 密集可以多很多。「核心數 ×（1 + 等待 ÷ 計算）」出自教材不是官方文件，只是起點，要靠壓測修正。</p>
+    <p><strong>30 秒版：</strong>沒有標準公式：CPU 密集約等於核心數，I/O 密集可以多很多。「核心數 ×（1 + 等待 ÷ 計算）」是教材的經驗式，只是起點，要靠壓測修正。</p>
     <p><strong>追問一：容器裡核心數怎麼拿？</strong>要補的點：<code>availableProcessors()</code>，容器有設 CPU 上限就回傳上限；要手動壓用 <code>-XX:<wbr>ActiveProcessorCount</code>。</p>
     <p><strong>追問二：Java 21 有不用估的做法嗎？</strong>要補的點：每個任務一條虛擬執行緒（<code>newVirtualThreadPerTaskExecutor</code>）。它換吞吐不換速度、不要池化；限下游用 Semaphore。</p>
     <p class="muted">指路：Java 模組〈執行緒池與並行工具〉；面試課〈Java 並行快答：執行緒池、鎖與並行集合〉。</p>
@@ -187,14 +187,14 @@
     <h3 class="head">Spring 與交易</h3>
 
     <p class="q">第 17 題　面試官：IoC 和 DI 差在哪？</p>
-    <p><strong>30 秒版：</strong>IoC 是原則：物件不自己建立或找相依，改由容器負責；DI 是做法：容器建立物件時把相依送進去。必要相依用建構子注入，官方理由是可以寫成不可變、必要相依不會是 null；欄位注入能動但官方不推。</p>
+    <p><strong>30 秒版：</strong>IoC 是原則：物件不自己建立或找相依，改由容器負責；DI 是做法：容器建立物件時把相依送進去。必要相依用建構子注入，因為可以寫成不可變、必要相依不會是 null；欄位注入能動，但 Spring 不推薦。</p>
     <p><strong>追問一：Bean 預設單例，執行緒安全嗎？</strong>要補的點：singleton 是每個容器一份，多條執行緒共用同一物件；安不安全看 Bean 有沒有可變狀態。</p>
     <p><strong>追問二：A、B 互相需要怎麼辦？</strong>要補的點：建構子注入下啟動就丟 BeanCurrentlyInCreationException；Spring Boot 2.6 起預設禁止循環參考，答「責任切錯了，重新設計」。</p>
     <p class="muted">指路：Spring 模組〈Spring 入門與 IoC、DI〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
 
     <p class="q">第 18 題　面試官：同一個類別裡呼叫自己的 @Transactional 方法，為什麼沒有交易？</p>
     <p><strong>30 秒版：</strong>交易長在代理上。外部呼叫先經過代理；目標物件裡用 this 呼叫自己，沒經過代理，<code>@Transactional</code>、<code>@Cacheable</code> 都不生效。</p>
-    <p><strong>追問一：怎麼修？</strong>要補的點：官方最推薦把方法搬到另一個 Bean；其次自己注入自己；最不建議 <code>AopContext.currentProxy()</code>。</p>
+    <p><strong>追問一：怎麼修？</strong>要補的點：首選把方法搬到另一個 Bean；其次自己注入自己；最不建議 <code>AopContext.currentProxy()</code>。</p>
     <p><strong>追問二：還有哪些情況會失效？</strong>要補的點：代理攔不到：private 方法、自己 new 的物件；攔到了卻不還原：丟受檢例外、例外被吞掉、在新執行緒裡做事。</p>
     <p class="muted">指路：Spring 模組〈Spring AOP 與交易控制〉〈@Transactional 的傳播、隔離與失效情境〉；面試課〈Spring 面試快答：IoC、Bean、AOP 與交易〉。</p>
 
@@ -223,7 +223,7 @@
     <p class="muted">指路：Spring 模組〈JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接〉；面試課〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉。</p>
 
     <p class="q">第 23 題（銀行情境）　面試官：網路銀行的登入密碼怎麼存？</p>
-    <p><strong>30 秒版：</strong>只存專為密碼設計的慢雜湊，不存明文、不加密、不用 SHA-256 這類快速雜湊。OWASP：首選 Argon2id；不可用時 scrypt；bcrypt 給舊系統；要 FIPS-140 合規用 PBKDF2。</p>
+    <p><strong>30 秒版：</strong>只存專為密碼設計的慢雜湊，不存明文、不加密、不用 SHA-256 這類快速雜湊。首選 Argon2id；不可用時 scrypt；bcrypt 給舊系統；要 FIPS-140 合規用 PBKDF2。</p>
     <p><strong>追問一：SHA-256 加鹽不夠嗎？</strong>要補的點：鹽讓攻擊者不能一次破所有人，但不會讓猜一次變慢；慢雜湊讓破一個人也很貴。</p>
     <p><strong>追問二：舊系統存的是 MD5，怎麼換？</strong>要補的點：DelegatingPasswordEncoder 用前綴分辨演算法，新舊共存，登入成功時升級；不想等登入，可以整批包成 bcrypt(md5(密碼))，下次登入再換成直接對密碼算的。</p>
     <p class="muted">指路：Spring 模組〈JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接〉；面試課〈認證與安全面試題：JWT、OAuth 2.0、OIDC 與密碼保存〉。</p>
@@ -283,7 +283,7 @@
     <p class="q">第 26 題（銀行情境）　面試官：對帳報表跑到一半有轉帳進來，數字會不會前後對不上？</p>
     <p><strong>30 秒版：</strong>看隔離層級。READ COMMITTED 擋髒讀，REPEATABLE READ 再擋不可重複讀，SERIALIZABLE 全擋。InnoDB 預設 REPEATABLE READ，一般 SELECT 讀交易第一次讀取時建立的快照，同一筆交易裡前後一致；PostgreSQL 預設 READ COMMITTED。</p>
     <p><strong>追問一：讀快照為什麼不用等鎖？</strong>要補的點：MVCC。舊版本存在 undo log，讀到比快照新的就沿指標回溯；這種一致性讀不加鎖。</p>
-    <p><strong>追問二：報表交易可以開很久嗎？</strong>要補的點：不建議。還有快照可能用到的 undo log 不能清，手冊建議只讀的交易也要定期提交。</p>
+    <p><strong>追問二：報表交易可以開很久嗎？</strong>要補的點：不建議。還有快照可能用到的 undo log 不能清，所以只讀的交易也要定期提交。</p>
     <p class="muted">指路：資料庫模組〈交易隔離層級與鎖〉；面試課〈資料庫面試題：索引、交易隔離與鎖〉。</p>
 
     <p class="q">第 27 題（銀行情境）　面試官：扣款要防兩筆同時扣同一帳戶，悲觀鎖還是樂觀鎖？</p>

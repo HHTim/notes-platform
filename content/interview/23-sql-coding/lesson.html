@@ -37,7 +37,12 @@ INSERT INTO emp VALUES
   RETURN (SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET N - 1);
 
 ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '- 1)' at line 2</code></pre>
-<p>LIMIT 不接受運算式。手冊：LIMIT 的參數「必須是非負的整數常數」，例外是預備陳述式可以用 <code>?</code>，以及「在預存程式裡，可以用整數型別的參數或區域變數」（Within stored programs, LIMIT parameters can be specified using integer-valued routine parameters or local variables.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a> 所以先用 <code>SET N = N - 1</code> 算好，再把變數放進 OFFSET。第二個坑是函式的特性宣告：</p>
+<p>LIMIT 不接受運算式，參數必須是非負的整數常數，例外有兩個：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>預備陳述式可以用 <code>?</code>。</li>
+<li>預存程式裡可以用整數型別的參數或區域變數。</li>
+</ul>
+<p>所以先用 <code>SET N = N - 1</code> 算好，再把變數放進 OFFSET。第二個坑是函式的特性宣告：</p>
 <pre><code>DELIMITER //
 CREATE FUNCTION nth_nochar(N INT) RETURNS INT
 BEGIN
@@ -46,7 +51,7 @@ BEGIN
 END//
 
 ERROR 1418 (HY000): This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA in its declaration and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)</code></pre>
-<p>MySQL 8.4 預設開著二進位日誌（binlog，複寫與還原用的變更紀錄）。手冊：建立預存函式時，「必須宣告它是確定性的，或它不修改資料，否則可能對資料還原或複寫不安全」（you must declare either that it is deterministic or that it does not modify data. Otherwise, it may be unsafe for data recovery or replication.），預設至少要寫 DETERMINISTIC、NO SQL、READS SQL DATA 其中一個（確定性是指同樣的輸入一定得到同樣的結果）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/stored-programs-logging.html" target="_blank" rel="noopener">出處</a> 這個函式只讀資料，寫 <code>READS SQL DATA</code>：</p>
+<p>MySQL 8.4 預設開著二進位日誌（binlog，複寫與還原用的變更紀錄）。這時建立預存函式必須宣告它是確定性的、或它不修改資料，否則可能對資料還原或複寫不安全；預設至少要寫 DETERMINISTIC、NO SQL、READS SQL DATA 其中一個（確定性是指同樣的輸入一定得到同樣的結果）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/stored-programs-logging.html" target="_blank" rel="noopener">出處</a> 這個函式只讀資料，寫 <code>READS SQL DATA</code>：</p>
 <pre><code>DELIMITER //
 CREATE FUNCTION getNthHighestSalary(N INT) RETURNS INT
 READS SQL DATA
@@ -76,12 +81,12 @@ SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 4;  -- 80000
 <div class="drill">
   <p class="dq">在 MySQL 8.4 寫 <code>… LIMIT 1 OFFSET N - 1</code>（N 是函式參數），會怎樣？</p>
   <ul class="dopts"><li data-ok>報錯：LIMIT 不接受運算式</li><li>正常執行，回傳第 N 高的薪資</li><li>正常執行，但回傳第 N − 1 高</li><li>只有 N 大於 1 的時候才報錯</li></ul>
-  <p class="dexp">實跑 ERROR 1064。手冊：LIMIT 的參數要是整數常數，預存程式裡可以用參數或區域變數，但不能是運算式；所以先 SET N = N - 1。</p>
+  <p class="dexp">實跑 ERROR 1064。LIMIT 的參數要是整數常數，預存程式裡可以用參數或區域變數，但不能是運算式；所以先 SET N = N - 1。</p>
 </div>
 <div class="drill">
   <p class="dq">函式沒寫 DETERMINISTIC、NO SQL、READS SQL DATA 任何一個，在預設開著二進位日誌的 MySQL 8.4 建立時會怎樣？</p>
   <ul class="dopts"><li>自動當成 DETERMINISTIC</li><li>可以建立，但執行時報錯</li><li data-ok>建立時就報 ERROR 1418</li><li>只會出現警告，照常建立</li></ul>
-  <p class="dexp">手冊：建立預存函式時必須宣告它是確定性的或不修改資料，否則對還原與複寫不安全。實跑 ERROR 1418；這個函式只讀資料，寫 READS SQL DATA。</p>
+  <p class="dexp">開著二進位日誌時，建立預存函式必須宣告它是確定性的或不修改資料，否則對還原與複寫不安全。實跑 ERROR 1418；這個函式只讀資料，寫 READS SQL DATA。</p>
 </div>
 <div class="drill">
   <p class="dq">薪資由高到低是 120000、95000、90000、85000、85000、80000……。<code>SELECT salary … ORDER BY salary DESC LIMIT 1 OFFSET 4</code>（沒有 DISTINCT）回傳什麼？</p>
@@ -191,7 +196,7 @@ JOIN logs l3 ON l3.id = l1.id + 2 AND l3.num = l1.num;
 SELECT DISTINCT num AS ConsecutiveNums
 FROM (SELECT num, LAG(num) OVER (ORDER BY id) AS prev, LEAD(num) OVER (ORDER BY id) AS nxt FROM logs) t
 WHERE num = prev AND num = nxt;</code></pre>
-<p>兩種實跑都只回 1。差別在 id 有缺號時。手冊對 LAG 的定義是「同一分組裡，往前第 N <strong>列</strong>的值」（the row that lags (precedes) the current row by N rows within its partition）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a> 自我連接比的是 id 數字。另一張表 <code>logs2</code> 是 (1,7)、(2,7)、(4,7)、(5,8)，第 3 號被刪掉了：自我連接實跑是 Empty set（找不到 id 3），LAG／LEAD 版回 7。哪個對，要先問清楚「連續」是指日誌裡一筆接一筆，還是 id 數字相連。</p>
+<p>兩種實跑都只回 1。差別在 id 有缺號時。LAG 拿的是同一分組裡往前第 N <strong>列</strong>的值。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a> 自我連接比的是 id 數字。另一張表 <code>logs2</code> 是 (1,7)、(2,7)、(4,7)、(5,8)，第 3 號被刪掉了：自我連接實跑是 Empty set（找不到 id 3），LAG／LEAD 版回 7。哪個對，要先問清楚「連續」是指日誌裡一筆接一筆，還是 id 數字相連。</p>
 <p>題目改成「至少連續 N 次、列出起訖」，用〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉連續登入那招的變形：兩個列號相減。整體列號是一筆接一筆編，分組內列號只在同一個數字裡編；同一段連續的值，兩者一起往前走，差值固定。</p>
 <pre><code>SELECT num, COUNT(*) AS times
 FROM (SELECT num, ROW_NUMBER() OVER (ORDER BY id)
@@ -203,7 +208,7 @@ GROUP BY num, grp;
 |   7 |     3 |
 |   8 |     1 |
 +-----+-------+</code></pre>
-<p>如果改用 <code>id - ROW_NUMBER() OVER (PARTITION BY num ORDER BY id)</code>，缺號會被當成斷開：實跑 7 被分成「2 次」與「1 次」兩段。另一個坑是型別：ROW_NUMBER 回傳的是不帶正負號的整數，相減結果是負數時會直接報錯。實跑 <code>0 - ROW_NUMBER() OVER (…)</code> 得到 <code>ERROR 1690 (22003): BIGINT UNSIGNED value is out of range</code>。手冊：「整數相減時只要有一方是 UNSIGNED，結果預設也是 UNSIGNED，如果結果原本會是負數，就會出錯」（Subtraction between integer values, where one is of type UNSIGNED, produces an unsigned result by default. If the result would otherwise have been negative, an error results）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/out-of-range-and-overflow.html" target="_blank" rel="noopener">出處</a> 讓大的減小的（整體列號一定不小於分組內列號），或先 <code>CAST(… AS SIGNED)</code>。</p>
+<p>如果改用 <code>id - ROW_NUMBER() OVER (PARTITION BY num ORDER BY id)</code>，缺號會被當成斷開：實跑 7 被分成「2 次」與「1 次」兩段。另一個坑是型別：ROW_NUMBER 回傳的是不帶正負號的整數，相減結果是負數時會直接報錯。實跑 <code>0 - ROW_NUMBER() OVER (…)</code> 得到 <code>ERROR 1690 (22003): BIGINT UNSIGNED value is out of range</code>。整數相減時只要有一方是 UNSIGNED，結果預設也是 UNSIGNED，結果原本會是負數就出錯。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/out-of-range-and-overflow.html" target="_blank" rel="noopener">出處</a> 讓大的減小的（整體列號一定不小於分組內列號），或先 <code>CAST(… AS SIGNED)</code>。</p>
 
 <div class="drill">
   <p class="dq"><code>SELECT num FROM logs GROUP BY num HAVING COUNT(*) &gt;= 3</code> 為什麼不是「連續三次」的正解？</p>
@@ -223,7 +228,7 @@ GROUP BY num, grp;
 <div class="drill">
   <p class="dq"><code>0 - ROW_NUMBER() OVER (ORDER BY x)</code> 在 MySQL 8.4 會怎樣？</p>
   <ul class="dopts"><li>回傳 −1、−2 這樣的負數</li><li>回傳 0，負數一律當成 0</li><li data-ok>ERROR 1690，超出範圍</li><li>自動轉成帶正負號的整數再算</li></ul>
-  <p class="dexp">ROW_NUMBER 是不帶正負號的整數；手冊說有一方是 UNSIGNED 時相減結果也是 UNSIGNED，結果為負就出錯。讓大的減小的，或先 CAST(… AS SIGNED)。</p>
+  <p class="dexp">ROW_NUMBER 是不帶正負號的整數；有一方是 UNSIGNED 時相減結果也是 UNSIGNED，結果為負就出錯。讓大的減小的，或先 CAST(… AS SIGNED)。</p>
 </div>
 </section>
 
@@ -299,7 +304,7 @@ FROM contact GROUP BY email HAVING COUNT(*) &gt; 1 ORDER BY email;
 <pre><code>DELETE FROM contact WHERE id NOT IN (SELECT MIN(id) FROM contact GROUP BY email);
 
 ERROR 1093 (HY000): You can't specify target table 'contact' for update in FROM clause</code></pre>
-<p>手冊寫得很直接：「不能從一張表刪除，又在子查詢裡從同一張表讀取」（You cannot delete from a table and select from the same table in a subquery.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/delete.html" target="_blank" rel="noopener">出處</a> 兩種改法：</p>
+<p>不能從一張表刪除，又在子查詢裡從同一張表讀取。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/delete.html" target="_blank" rel="noopener">出處</a> 兩種改法：</p>
 <pre><code>-- 改法一：多表 DELETE，自己接自己，刪掉「有更小 id 的同一個 email」
 DELETE c1 FROM contact c1
 JOIN contact c2 ON c1.email = c2.email AND c1.id &gt; c2.id;
@@ -309,8 +314,21 @@ Query OK, 3 rows affected
 DELETE FROM contact
 WHERE id NOT IN (SELECT keep_id FROM (SELECT MIN(id) AS keep_id FROM contact GROUP BY email) AS k);
 Query OK, 3 rows affected</code></pre>
-<p>兩種實跑都刪了 3 筆，剩下 1、2、4。改法二能跑，是因為 MySQL 把衍生資料表（放在 FROM 裡、有名字的子查詢結果）先算成暫存表，EXPLAIN 裡那一列的 select_type 是 DERIVED；刪除時讀的是暫存表，不是正要刪的那張表。這題的內層剛好有 GROUP BY，手冊也把它列為一定不會合併的寫法，「會阻止合併」的包括聚合函式、DISTINCT、GROUP BY、LIMIT 等（Constructs that prevent merging are the same for derived tables, common table expressions, and view references: Aggregate functions or window functions … GROUP BY …），並說關掉合併可以「避免 ER_UPDATE_TABLE_USED 錯誤」（Disabling the flag prevents merging and avoids ER_UPDATE_TABLE_USED errors.），那就是 1093 這個錯。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/derived-table-optimization.html" target="_blank" rel="noopener">出處</a> 不含 GROUP BY 的衍生資料表一樣能刪：實跑 <code>DELETE FROM contact WHERE id IN (SELECT id FROM (SELECT id FROM contact WHERE id &gt; 4) AS k)</code> 刪了 2 筆，EXPLAIN 那一列同樣是 DERIVED。 改成保留「最新一筆」的版本用 ROW_NUMBER，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉去重那段。</p>
-<p><strong>追問：之後怎麼不再重複、表很大怎麼刪。</strong>清完加唯一索引 <code>ALTER TABLE contact ADD UNIQUE KEY uk_email (email)</code>，再插入重複的 email 實跑是 <code>ERROR 1062 (23000): Duplicate entry 'ming@example.com' for key 'contact.uk_email'</code>。幾千萬列的表不要一次刪。手冊提醒，從大表刪很多列時，InnoDB 可能超過鎖表的容量（you may exceed the lock table size for an InnoDB table），也會讓表被鎖住比較久；為了讓單一 DELETE 不要跑太久，可以加 LIMIT，然後「重複執行，直到影響的列數小於 LIMIT」（repeat the DELETE statement until the number of affected rows is less than the LIMIT value）。但手冊也說「多表 DELETE 不能用 ORDER BY 或 LIMIT」（You cannot use ORDER BY or LIMIT in a multiple-table DELETE.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/delete.html" target="_blank" rel="noopener">出處</a> 所以要分批就用改法二，它是單表 DELETE：</p>
+<p>兩種實跑都刪了 3 筆，剩下 1、2、4。改法二能跑的原因：</p>
+<ul>
+<li>MySQL 把衍生資料表（放在 FROM 裡、有名字的子查詢結果）先算成暫存表，EXPLAIN 裡那一列的 select_type 是 DERIVED；刪除時讀的是暫存表，不是正要刪的那張表。</li>
+<li>這題的內層剛好有 GROUP BY，屬於一定不會合併的寫法；會阻止合併的還有聚合函式、視窗函式、DISTINCT、LIMIT 等。</li>
+<li>不合併就能避開 ER_UPDATE_TABLE_USED 錯誤，也就是 1093 這個錯。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/derived-table-optimization.html" target="_blank" rel="noopener">出處</a></li>
+<li>不含 GROUP BY 的衍生資料表一樣能刪：實跑 <code>DELETE FROM contact WHERE id IN (SELECT id FROM (SELECT id FROM contact WHERE id &gt; 4) AS k)</code> 刪了 2 筆，EXPLAIN 那一列同樣是 DERIVED。</li>
+</ul>
+<p>改成保留「最新一筆」的版本用 ROW_NUMBER，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉去重那段。</p>
+<p><strong>追問：之後怎麼不再重複、表很大怎麼刪。</strong>清完加唯一索引 <code>ALTER TABLE contact ADD UNIQUE KEY uk_email (email)</code>，再插入重複的 email 實跑是 <code>ERROR 1062 (23000): Duplicate entry 'ming@example.com' for key 'contact.uk_email'</code>。幾千萬列的表不要一次刪：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/delete.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>從大表刪很多列時，InnoDB 可能超過鎖表的容量，也會讓表被鎖住比較久。</li>
+<li>為了讓單一 DELETE 不要跑太久，可以加 LIMIT，重複執行到影響的列數小於 LIMIT 為止。</li>
+<li>多表 DELETE 不能用 ORDER BY 或 LIMIT。</li>
+</ul>
+<p>所以要分批就用改法二，它是單表 DELETE：</p>
 <pre><code>DELETE FROM contact
 WHERE id NOT IN (SELECT keep_id FROM (SELECT MIN(id) AS keep_id FROM contact GROUP BY email) AS k)
 ORDER BY id LIMIT 2;          -- 實跑第一次刪 2 筆，第二次刪 1 筆，小於 LIMIT 就停</code></pre>
@@ -319,7 +337,7 @@ ORDER BY id LIMIT 2;          -- 實跑第一次刪 2 筆，第二次刪 1 筆�
 <div class="drill">
   <p class="dq"><code>DELETE FROM contact WHERE id NOT IN (SELECT MIN(id) FROM contact GROUP BY email)</code> 在 MySQL 8.4 會怎樣？</p>
   <ul class="dopts"><li>正常執行，刪掉 3 筆重複</li><li data-ok>ERROR 1093，讀了要刪的表</li><li>把整張表的資料全部刪光</li><li>只刪掉 email 是 NULL 的列</li></ul>
-  <p class="dexp">手冊：不能從一張表刪除，又在子查詢裡從同一張表讀取。改用多表 DELETE 自我連接，或把子查詢再包一層衍生資料表。</p>
+  <p class="dexp">不能從一張表刪除，又在子查詢裡從同一張表讀取。改用多表 DELETE 自我連接，或把子查詢再包一層衍生資料表。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>DELETE c1 FROM contact c1 JOIN contact c2 ON c1.email = c2.email AND c1.id &gt; c2.id</code> 刪掉的是哪些列？</p>
@@ -334,7 +352,7 @@ ORDER BY id LIMIT 2;          -- 實跑第一次刪 2 筆，第二次刪 1 筆�
 <div class="drill">
   <p class="dq">幾千萬列的表要分批刪重複資料，為什麼不能直接在多表 DELETE 後面加 <code>LIMIT 10000</code>？</p>
   <ul class="dopts"><li data-ok>多表 DELETE 不能用 LIMIT</li><li>LIMIT 會讓刪除變得很慢</li><li>LIMIT 只能用在 SELECT 裡</li><li>InnoDB 不支援分批刪除資料</li></ul>
-  <p class="dexp">手冊原句：You cannot use ORDER BY or LIMIT in a multiple-table DELETE。單表 DELETE 可以用 LIMIT；多表版通常改成依主鍵範圍一段一段刪，或改用單表寫法加 LIMIT。</p>
+  <p class="dexp">多表 DELETE 不能用 ORDER BY 或 LIMIT。單表 DELETE 可以用 LIMIT；多表版通常改成依主鍵範圍一段一段刪，或改用單表寫法加 LIMIT。</p>
 </div>
 </section>
 
@@ -347,7 +365,12 @@ INSERT INTO atm_daily VALUES
   ('2026-09-01', 100), ('2026-09-02', 120), ('2026-09-03', 80), ('2026-09-04', 140),
   ('2026-09-05', 60),  ('2026-09-06', 90),  ('2026-09-07', 110),
   ('2026-09-09', 150), ('2026-09-10', 130);   -- 9/8 機台維修，沒有資料</code></pre>
-<p>累計（從頭加到目前這列）〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉講過；移動平均是「只看最近幾天」，要自己寫框架（frame，算這一列時要納入哪幾列）。關鍵是 ROWS 與 RANGE 的差別（沒寫框架時的預設框架與同分列，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉）。手冊：ROWS 的框架「由起訖的列位置定義，位移是列號的差」；RANGE 的框架「由一個值的範圍內的列定義，位移是列值的差」（RANGE: The frame is defined by rows within a value range. Offsets are differences in row values from the current row value.），而且 RANGE 的位移可以寫成時間區間 <code>INTERVAL val unit</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-frames.html" target="_blank" rel="noopener">出處</a> 先用「近 3 日」看差別：</p>
+<p>累計（從頭加到目前這列）〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉講過；移動平均是「只看最近幾天」，要自己寫框架（frame，算這一列時要納入哪幾列）。關鍵是 ROWS 與 RANGE 的差別（沒寫框架時的預設框架與同分列，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉）：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-frames.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>ROWS</code>：框架由起訖的列位置定義，位移是列號的差。</li>
+<li><code>RANGE</code>：框架由一個值的範圍內的列定義，位移是列值的差；位移可以寫成時間區間 <code>INTERVAL val unit</code>。</li>
+</ul>
+<p>先用「近 3 日」看差別：</p>
 <pre><code>SELECT d, amount,
        SUM(amount) OVER (ORDER BY d ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)                 AS sum_3rows,
        SUM(amount) OVER (ORDER BY d RANGE BETWEEN INTERVAL 2 DAY PRECEDING AND CURRENT ROW)   AS sum_3days,
@@ -400,7 +423,7 @@ ORDER BY d;
 <div class="drill">
   <p class="dq">MySQL 8.4 的 RANGE 框架，位移可以怎麼寫？</p>
   <ul class="dopts"><li>只能寫列數，例如 6 PRECEDING</li><li>只能寫 UNBOUNDED PRECEDING</li><li>只能用在數字型別的欄位</li><li data-ok>可以寫 INTERVAL 6 DAY</li></ul>
-  <p class="dexp">手冊：位移可以是非負數字或 INTERVAL val unit 形式的時間區間；RANGE 要配數字或時間型別的 ORDER BY。</p>
+  <p class="dexp">位移可以是非負數字或 INTERVAL val unit 形式的時間區間；RANGE 要配數字或時間型別的 ORDER BY。</p>
 </div>
 </section>
 
@@ -438,7 +461,7 @@ ORDER BY cur.ym;
 +------------+--------+------------+---------+-----------+---------+</code></pre>
 <p>自己驗算一列：2026 年 4 月月增率 (660 − 650) ÷ 650 ≈ 1.54%，年增率 (660 − 510) ÷ 510 ≈ 29.41%。3 月沒有上個月，月增率是 NULL，而不是拿 1 月硬比。用 LEFT JOIN 是為了缺比較期時本期照樣列出。</p>
 <p>常見的寫錯是用 <code>LAG(amount, 12)</code> 當去年同月。LAG 數的是列，2 月缺了一列，實跑 2026 年 6 月的 <code>LAG(ym, 12)</code> 指到的是 2025-05-01，年增率就比錯月份了；<code>LAG(amount, 1)</code> 在 3 月拿到的也是 1 月。月份齊全時 LAG 可以用，但答題時要講出這個前提。</p>
-<p>分母是 0 時（2025 年 6 月），<code>NULLIF(prev_y.amount, 0)</code> 把 0 換成 NULL，除出來就是 NULL。不加的話，手冊說「SELECT 裡除以零回傳 NULL」（For SELECT, division by zero returns NULL.），預設開著的 <code>ERROR_FOR_DIVISION_BY_ZERO</code> 還會多一個警告；實跑 <code>SELECT 700 / 0</code> 是 NULL 加 <code>Warning 1365 Division by 0</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html" target="_blank" rel="noopener">出處</a> 結果一樣是 NULL，但用 NULLIF 寫明意圖，也不會在報表程式裡留下一堆警告。</p>
+<p>分母是 0 時（2025 年 6 月），<code>NULLIF(prev_y.amount, 0)</code> 把 0 換成 NULL，除出來就是 NULL。不加的話，SELECT 裡除以零也回傳 NULL，預設開著的 <code>ERROR_FOR_DIVISION_BY_ZERO</code> 還會多一個警告；實跑 <code>SELECT 700 / 0</code> 是 NULL 加 <code>Warning 1365 Division by 0</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html" target="_blank" rel="noopener">出處</a> 結果一樣是 NULL，但用 NULLIF 寫明意圖，也不會在報表程式裡留下一堆警告。</p>
 
 <div class="drill">
   <p class="dq">「月增率」是跟哪一期比？</p>
@@ -490,7 +513,7 @@ ORDER BY total DESC;
 | 新竹   |   80 | NULL |   95 | NULL |   175 |
 | 高雄   | NULL |   70 | NULL |   88 |   158 |
 +--------+------+------+------+------+-------+</code></pre>
-<p>原理：每一列先用 CASE 決定它屬於哪一欄，不屬於的那幾欄是 NULL，手冊說沒有條件成立、又沒有 ELSE 時結果就是 NULL（or NULL if there is no ELSE part）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/flow-control-functions.html" target="_blank" rel="noopener">出處</a>；再 GROUP BY 分行，用 SUM 把同一欄的值收成一個，NULL 不算。兩種寫錯：</p>
+<p>原理：每一列先用 CASE 決定它屬於哪一欄，不屬於的那幾欄是 NULL（沒有條件成立、又沒有 ELSE 時，CASE 的結果就是 NULL）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/flow-control-functions.html" target="_blank" rel="noopener">出處</a>；再 GROUP BY 分行，用 SUM 把同一欄的值收成一個，NULL 不算。兩種寫錯：</p>
 <ul>
 <li><strong>有 GROUP BY 卻沒有聚合</strong>：<code>CASE WHEN quarter = 'Q1' THEN fee END</code> 直接放在 SELECT，實跑 ERROR 1055（quarter 不在 GROUP BY、也沒有聚合），規則見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉GROUP BY 那段。</li>
 <li><strong>沒有 GROUP BY</strong>：每一列各自一列，台北實跑 4 列、每列只有一格有值，沒有「轉」成功。</li>
@@ -540,8 +563,12 @@ SELECT account_id FROM txn WHERE tx_time &gt;= '2026-09-01' AND tx_time &lt; '20
 +------------+
 |        203 |
 +------------+</code></pre>
-<p>手冊：EXCEPT「把第一個查詢的結果限制在第二個查詢裡找不到的那些列」（EXCEPT limits the result from the first query block to those rows which are (also) not found in the second.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/except.html" target="_blank" rel="noopener">出處</a> 沒寫 ALL 時結果會去重：手冊說集合運算「預設會移除重複的列」（By default, duplicate rows are removed from results of set operations.），寫 ALL 才保留。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/set-operations.html" target="_blank" rel="noopener">出處</a> 實跑 a 表 (1)、(1)、(2) EXCEPT b 表 (2)，得到一列 1；改 EXCEPT ALL 是兩列 1。NOT EXISTS 與 LEFT JOIN … IS NULL 的版本實跑結果相同（都要加 DISTINCT，因為同一帳戶八月可能有好幾筆），可以在任何資料庫跑，面試寫這兩種最保險。</p>
-<p>效能方面，手冊說 NOT IN 與 NOT EXISTS 子查詢會被改寫成反連接（antijoin）（The following subqueries are transformed into antijoins: NOT IN (SELECT ... FROM ...) NOT EXISTS (SELECT ... FROM ...)），也就是「只回傳找不到相符列的那些列」的運算（An antijoin is an operation that returns only rows for which there is no match.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/semijoins-antijoins.html" target="_blank" rel="noopener">出處</a> 實跑「哪些帳戶從沒當過轉帳對象」的 EXPLAIN：</p>
+<ul>
+<li>EXCEPT 只留下第一個查詢裡、在第二個查詢找不到的那些列。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/except.html" target="_blank" rel="noopener">出處</a></li>
+<li>沒寫 ALL 時結果會去重：集合運算預設移除重複的列，寫 ALL 才保留。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/set-operations.html" target="_blank" rel="noopener">出處</a> 實跑 a 表 (1)、(1)、(2) EXCEPT b 表 (2)，得到一列 1；改 EXCEPT ALL 是兩列 1。</li>
+</ul>
+<p>NOT EXISTS 與 LEFT JOIN … IS NULL 的版本實跑結果相同（都要加 DISTINCT，因為同一帳戶八月可能有好幾筆），可以在任何資料庫跑，面試寫這兩種最保險。</p>
+<p>效能方面，MySQL 會把 NOT IN 與 NOT EXISTS 子查詢改寫成反連接（antijoin），也就是只回傳找不到相符列的那些列的運算。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/semijoins-antijoins.html" target="_blank" rel="noopener">出處</a> 實跑「哪些帳戶從沒當過轉帳對象」的 EXPLAIN：</p>
 <pre><code>EXPLAIN FORMAT=TREE
 SELECT account_id FROM acct a WHERE NOT EXISTS (SELECT 1 FROM txn t WHERE t.ref_acct = a.account_id);
 
@@ -567,7 +594,7 @@ SELECT account_id FROM acct a WHERE NOT EXISTS (SELECT 1 FROM txn t WHERE t.ref_
 <div class="drill">
   <p class="dq">EXPLAIN 第一行出現 <code>Nested loop antijoin</code>，意思是？</p>
   <ul class="dopts"><li>查詢有語法錯誤</li><li>MySQL 把 NOT EXISTS 改成了 INNER JOIN</li><li data-ok>只回傳在子查詢裡找不到相符列的那些列</li><li>結果一定是空的</li></ul>
-  <p class="dexp">手冊：antijoin 是只回傳找不到相符列的運算；NOT IN 與 NOT EXISTS 子查詢會被改寫成反連接。</p>
+  <p class="dexp">antijoin 是只回傳找不到相符列的運算；NOT IN 與 NOT EXISTS 子查詢會被改寫成反連接。</p>
 </div>
 <div class="drill">
   <p class="dq">同一題用 <code>WHERE account_id NOT IN (SELECT ref_acct FROM txn)</code>，而 <code>ref_acct</code> 有 NULL。實跑結果是？</p>
@@ -613,7 +640,7 @@ ORDER BY account_id;
 <p><strong>追問：索引。</strong>建 <code>(account_id, tx_time, tx_id)</code> 複合索引後，「每個帳戶的最大時間」實跑的執行計畫是：</p>
 <pre><code>EXPLAIN FORMAT=TREE SELECT account_id, MAX(tx_time) FROM txn GROUP BY account_id;
 -&gt; Covering index skip scan for grouping on txn using idx_acct_time  (cost=1.5 rows=5)</code></pre>
-<p>這是手冊說的 Loose Index Scan：分組欄位在索引裡已經排好，MySQL 每個帳戶只要跳到它那一段的最後一筆（The most efficient way to process GROUP BY is when an index is used to directly retrieve the grouping columns.），不必讀完每個帳戶的所有交易。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-optimization.html" target="_blank" rel="noopener">出處</a> 帳戶有幾百萬、每戶交易很多時，這比整表算 ROW_NUMBER 省得多；另一種常見做法是直接在帳戶表維護一個「最後交易時間」欄位。</p>
+<p>這就是 Loose Index Scan：分組欄位在索引裡已經排好，MySQL 直接從索引取分組欄位，每個帳戶只要跳到它那一段的最後一筆，不必讀完每個帳戶的所有交易。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-optimization.html" target="_blank" rel="noopener">出處</a> 帳戶有幾百萬、每戶交易很多時，這比整表算 ROW_NUMBER 省得多；另一種常見做法是直接在帳戶表維護一個「最後交易時間」欄位。</p>
 <p class="q">面試官：列出帳戶 201、202 在 9/1 到 9/4 每天的日終餘額，沒交易的日子也要有一列。</p>
 <p>只用交易表做累計是常見的寫錯：沒有交易的日子根本沒有列，實跑 201 只有 8/28、9/1、9/3 三列，9/2 與 9/4 不見了，8/28 也跑進來。正解是「日期序列 × 帳戶」先排好每一格，再把當天淨額接上去，用 SUM OVER 往下累計，最後加上期初餘額：</p>
 <pre><code>WITH RECURSIVE days AS (

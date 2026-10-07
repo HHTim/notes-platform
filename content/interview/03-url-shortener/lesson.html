@@ -51,10 +51,10 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
     └─ A 用完，原子切換到 B
                          │
                          └─ 換 B 發號，再預載下一段</code></pre>
-    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。<mark class="fixnote" tabindex="0" data-note="原筆記寫「用到 80% 時背景預載 Buffer B」，查證後更正">Leaf 官方的門檻是「號段已下發 10%」就啟動背景預載——趁早預載，不是等到 80%</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>沒有雙 Buffer 時，號段用完的那一瞬間所有執行緒都在等資料庫，延遲會突然拉尖；預載把這個尖峰抹平。<mark class="fixnote" tabindex="0" data-note="原筆記寫「用到 80% 時背景預載 Buffer B」，查證後更正">Leaf 的門檻是號段已下發 10% 就啟動背景預載——趁早預載，不是等到 80%</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>號段長度也不是固定的：Leaf 會依消耗速度動態調整——上一段用不到 15 分鐘就用完，下一段長度加倍；超過 30 分鐘才用完，就減半<a class="fixsrc" href="https://tech.meituan.com/2019/03/07/open-source-project-leaf.html" target="_blank" rel="noopener">Leaf 2019</a>。</p>
 <p>切換時要防多執行緒重複載入，也要處理預載失敗、目前號段耗盡、資料庫短暫不可用這幾種情況。</p>
-    <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「DB 存取完全在背景，使用端感受不到任何延遲」，查證後更正">雙 Buffer 只能隱藏正常情況下的分配延遲，不是保證永遠無感：Leaf 的原文建議把號段長度設成尖峰每秒請求數的 600 倍，資料庫掛掉時也只能再撐 10〜20 分鐘</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「DB 存取完全在背景，使用端感受不到任何延遲」，查證後更正">雙 Buffer 只能隱藏正常情況下的分配延遲，不是保證永遠無感：Leaf 建議把號段長度設成尖峰每秒請求數的 600 倍，資料庫掛掉時也只能再撐 10〜20 分鐘</mark><a class="fixsrc" href="https://tech.meituan.com/2017/04/21/mt-leaf.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 <section>
     <p class="era">寫入與點擊統計</p>
@@ -95,7 +95,7 @@ UPDATE leaf_alloc SET max_id = max_id + step WHERE biz_tag = 'url_short'</code><
       <li><strong>新增資料</strong>：主資料寫成功後，同步或用可靠事件把新短碼加進名單。新短碼還沒進名單前會被誤擋，這個時間差要治理——建碼時同步加入，或在這段空窗期內先放行。</li>
       <li><strong>刪除與重建</strong>：標準 Bloom Filter 不會刪——直接清位元會誤傷別的元素；短碼大量過期時靠定期重建、按時間分區，或改用支援刪除的變形（Counting Bloom Filter）。</li>
     </ul>
-    <p class="muted">查一次要付的成本是幾次雜湊加幾次記憶體讀取。放在自己程序的記憶體裡，是奈秒等級的事；但一放進 Redis 就不同了——Redis 官方文件說伺服器本身的處理時間多在次微秒等級，1 Gbit/s 網路的一趟來回卻約 200 微秒，網路才是大頭。面試講「幾奈秒」時，要先講清楚名單放在哪裡。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></p>
+    <p class="muted">查一次要付的成本是幾次雜湊加幾次記憶體讀取。放在自己程序的記憶體裡，是奈秒等級的事；但一放進 Redis 就不同了——Redis 伺服器本身的處理時間多在次微秒等級，1 Gbit/s 網路的一趟來回卻約 200 微秒，網路才是大頭。面試講「幾奈秒」時，要先講清楚名單放在哪裡。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></p>
 </section>
 <section>
     <p class="era">限流</p>
