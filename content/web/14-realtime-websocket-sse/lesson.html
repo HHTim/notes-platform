@@ -4,7 +4,7 @@
 <section>
 <p class="era">先看四種做法長什麼樣</p>
 <h3 class="head">伺服器有新消息，怎麼讓瀏覽器知道</h3>
-<p>HTTP 是用戶端問、伺服器答。匯率變了、轉帳入帳了，伺服器沒辦法主動開口，只能等瀏覽器來問。RFC 6455 開頭就講這個痛點：過去需要雙向通訊的網頁應用程式，「得濫用 HTTP 去輪詢伺服器有沒有更新，往上送的通知再另外發 HTTP 呼叫」（has required an abuse of HTTP to poll the server for updates while sending upstream notifications as distinct HTTP calls）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.1" target="_blank" rel="noopener">RFC 6455 第 1.1 節</a> 常見的四種做法，下圖橫軸是時間：</p>
+<p>HTTP 是用戶端問、伺服器答。匯率變了、轉帳入帳了，伺服器沒辦法主動開口，只能等瀏覽器來問。過去需要雙向通訊的網頁應用程式，只能硬拿 HTTP 去輪詢伺服器有沒有更新，往上送的通知再另外發 HTTP 呼叫。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.1" target="_blank" rel="noopener">RFC 6455 第 1.1 節</a> 常見的四種做法，下圖橫軸是時間：</p>
 <figure>
 <svg viewBox="0 0 760 440" role="img" aria-label="四種即時更新方式的時序對比，橫軸是時間，上線是用戶端、下線是伺服器。短輪詢：用戶端每隔一段時間就問一次，多數回應是沒有新資料。長輪詢：請求送出後掛在伺服器，等有新資料才回，用戶端收到馬上再發下一個請求。SSE：用戶端只發一個 GET，伺服器在同一個回應裡陸續送出多筆事件，只有伺服器到用戶端一個方向。WebSocket：先用 Upgrade 請求換到 101，之後同一條連線兩個方向隨時都能送訊框">
 <defs><marker id="rt-1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker><marker id="rt-1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold)"/></marker></defs><text x="20" y="74" font-size="13.5" text-anchor="start" fill="var(--gold-deep)">短輪詢</text><line x1="105" y1="46" x2="745" y2="46" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><line x1="105" y1="106" x2="745" y2="106" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><text x="110" y="42" font-size="10.5" text-anchor="start" opacity=".7">用戶端</text><text x="110" y="120" font-size="10.5" text-anchor="start" opacity=".7">伺服器</text><text x="20" y="174" font-size="13.5" text-anchor="start" fill="var(--gold-deep)">長輪詢</text><line x1="105" y1="146" x2="745" y2="146" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><line x1="105" y1="206" x2="745" y2="206" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><text x="110" y="142" font-size="10.5" text-anchor="start" opacity=".7">用戶端</text><text x="110" y="220" font-size="10.5" text-anchor="start" opacity=".7">伺服器</text><text x="20" y="274" font-size="13.5" text-anchor="start" fill="var(--gold-deep)">SSE</text><line x1="105" y1="246" x2="745" y2="246" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><line x1="105" y1="306" x2="745" y2="306" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><text x="110" y="242" font-size="10.5" text-anchor="start" opacity=".7">用戶端</text><text x="110" y="320" font-size="10.5" text-anchor="start" opacity=".7">伺服器</text><text x="20" y="374" font-size="13.5" text-anchor="start" fill="var(--gold-deep)">WebSocket</text><line x1="105" y1="346" x2="745" y2="346" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><line x1="105" y1="406" x2="745" y2="406" stroke="currentColor" stroke-width="1" stroke-opacity=".2"/><text x="110" y="342" font-size="10.5" text-anchor="start" opacity=".7">用戶端</text><text x="110" y="420" font-size="10.5" text-anchor="start" opacity=".7">伺服器</text><line x1="140" y1="48" x2="154" y2="104" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><line x1="160" y1="104" x2="174" y2="48" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><text x="167" y="41" font-size="10" text-anchor="middle" opacity=".7">沒有</text><line x1="256" y1="48" x2="270" y2="104" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><line x1="276" y1="104" x2="290" y2="48" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><text x="283" y="41" font-size="10" text-anchor="middle" opacity=".7">沒有</text><line x1="372" y1="48" x2="386" y2="104" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><line x1="392" y1="104" x2="406" y2="48" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><text x="399" y="41" font-size="10" text-anchor="middle" opacity=".7">沒有</text><line x1="488" y1="48" x2="502" y2="104" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><line x1="508" y1="104" x2="522" y2="48" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="515" y="41" font-size="10" text-anchor="middle" fill="var(--gold-deep)">有新的</text><line x1="604" y1="48" x2="618" y2="104" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><line x1="624" y1="104" x2="638" y2="48" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><text x="631" y="41" font-size="10" text-anchor="middle" opacity=".7">沒有</text><line x1="140" y1="148" x2="154" y2="204" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><path d="M156 206 L330 206" stroke="var(--slate)" stroke-dasharray="4 3" stroke-width="1.2"/><line x1="330" y1="204" x2="344" y2="148" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="337" y="141" font-size="10" text-anchor="middle" fill="var(--gold-deep)">有了才回</text><line x1="360" y1="148" x2="374" y2="204" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><path d="M376 206 L470 206" stroke="var(--slate)" stroke-dasharray="4 3" stroke-width="1.2"/><line x1="470" y1="204" x2="484" y2="148" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="477" y="141" font-size="10" text-anchor="middle" fill="var(--gold-deep)">有了才回</text><line x1="500" y1="148" x2="514" y2="204" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><path d="M516 206 L700 206" stroke="var(--slate)" stroke-dasharray="4 3" stroke-width="1.2"/><line x1="700" y1="204" x2="714" y2="148" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="707" y="141" font-size="10" text-anchor="middle" fill="var(--gold-deep)">有了才回</text><text x="240" y="196" font-size="10.5" text-anchor="middle" fill="var(--slate-deep)">請求掛在伺服器等</text><line x1="140" y1="248" x2="154" y2="304" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><text x="162" y="272" font-size="10" text-anchor="start" class="mono" opacity=".7">GET</text><line x1="230" y1="304" x2="244" y2="248" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="237" y="241" font-size="10" text-anchor="middle" fill="var(--gold-deep)">事件</text><line x1="330" y1="304" x2="344" y2="248" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="337" y="241" font-size="10" text-anchor="middle" fill="var(--gold-deep)">事件</text><line x1="400" y1="304" x2="414" y2="248" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="407" y="241" font-size="10" text-anchor="middle" fill="var(--gold-deep)">事件</text><line x1="520" y1="304" x2="534" y2="248" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="527" y="241" font-size="10" text-anchor="middle" fill="var(--gold-deep)">事件</text><line x1="640" y1="304" x2="654" y2="248" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="647" y="241" font-size="10" text-anchor="middle" fill="var(--gold-deep)">事件</text><path d="M156 308 L745 308" stroke="var(--slate)" stroke-dasharray="4 3" stroke-width="1.2"/><text x="450" y="326" font-size="10.5" text-anchor="middle" fill="var(--slate-deep)">同一個 HTTP 回應一直不結束（只有伺服器→用戶端）</text><line x1="140" y1="348" x2="154" y2="404" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><line x1="165" y1="404" x2="179" y2="348" stroke="currentColor" stroke-width="1.4" stroke-opacity=".6" marker-end="url(#rt-1a)"/><text x="172" y="341" font-size="10" text-anchor="middle" opacity=".7">101</text><text x="188" y="372" font-size="10" text-anchor="start" class="mono" opacity=".7">Upgrade</text><line x1="260" y1="348" x2="274" y2="404" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><line x1="420" y1="348" x2="434" y2="404" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><line x1="560" y1="348" x2="574" y2="404" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><line x1="320" y1="404" x2="334" y2="348" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="327" y="341" font-size="10" text-anchor="middle" fill="var(--gold-deep)">訊框</text><line x1="480" y1="404" x2="494" y2="348" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="487" y="341" font-size="10" text-anchor="middle" fill="var(--gold-deep)">訊框</text><line x1="640" y1="404" x2="654" y2="348" stroke="var(--gold)" stroke-width="1.4" marker-end="url(#rt-1g)"/><text x="647" y="341" font-size="10" text-anchor="middle" fill="var(--gold-deep)">訊框</text><text x="470" y="426" font-size="10.5" text-anchor="middle" fill="var(--slate-deep)">升級之後同一條 TCP 連線兩個方向隨時都能送</text>
@@ -12,8 +12,8 @@
 <figcaption>古銅箭頭是真正帶著新消息的那一趟。短輪詢大部分的來回都是白跑；長輪詢與 SSE 讓伺服器「有了才說」；WebSocket 連線建好以後兩邊都能隨時說。</figcaption>
 </figure>
 <ul class="plainlist">
-<li><strong>短輪詢（short polling）：</strong>RFC 6202 的定義是用戶端定期送請求、試著「拉」回事件，沒有就回空的，等一陣子再問（a client sends regular requests to the server and each request attempts to "pull" any available events or data）。缺點是要越即時就得問越頻繁，「輪詢頻率可能對伺服器、網路或兩者造成無法接受的負擔」（the polling frequency can cause an unacceptable burden on the server, the network, or both.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6202.html#section-2.1" target="_blank" rel="noopener">RFC 6202 第 2.1 節</a></li>
-<li><strong>長輪詢（long polling）：</strong>伺服器「只有在特定事件、狀態或逾時發生時才回應請求」（by responding to a request only when a particular event, status, or timeout has occurred.），用戶端收到回應通常馬上再發下一個。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6202.html#section-2.1" target="_blank" rel="noopener">RFC 6202 第 2.1 節</a> 逾時不能設太長，否則可能先收到伺服器的 408 或代理的 504。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6202.html#section-5.5" target="_blank" rel="noopener">RFC 6202 第 5.5 節</a></li>
+<li><strong>短輪詢（short polling）：</strong>用戶端定期送請求，試著「拉」回事件，沒有就回空的，等一陣子再問。缺點是要越即時就得問越頻繁，輪詢頻率可能對伺服器、網路或兩者造成無法接受的負擔。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6202.html#section-2.1" target="_blank" rel="noopener">RFC 6202 第 2.1 節</a></li>
+<li><strong>長輪詢（long polling）：</strong>伺服器只有在特定事件、狀態或逾時發生時才回應請求，用戶端收到回應通常馬上再發下一個。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6202.html#section-2.1" target="_blank" rel="noopener">RFC 6202 第 2.1 節</a> 逾時不能設太長，否則可能先收到伺服器的 408 或代理的 504。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6202.html#section-5.5" target="_blank" rel="noopener">RFC 6202 第 5.5 節</a></li>
 <li><strong>SSE（Server-Sent Events，伺服器送出事件）：</strong>用戶端發一個 GET，伺服器把回應一直開著，有事件就寫一段進去。瀏覽器端的 API 叫 <code>EventSource</code>。</li>
 <li><strong>WebSocket：</strong>先用一個 HTTP 請求「升級」，之後同一條 TCP 連線改講 WebSocket，兩個方向都能隨時送訊息。</li>
 </ul>
@@ -25,7 +25,11 @@
 <tr><th>斷線重連</th><td>不用，下一次照問</td><td>用戶端自己再發</td><td>瀏覽器自動重連，帶 Last-Event-ID</td><td>要自己寫重連</td></tr>
 <tr><th>適合</th><td>幾分鐘更新一次就夠的狀態</td><td>偶爾才有事、又要快</td><td>伺服器單向推播：報價、通知</td><td>雙向、頻繁：聊天、協作、遊戲</td></tr>
 </tbody></table></div>
-<p>Spring 文件給的選法很務實：很多情況「AJAX 加 HTTP 串流或長輪詢就是簡單有效的解法」（in many cases, a combination of AJAX and HTTP streaming or long polling can provide a simple and effective solution.），「低延遲、高頻率、大量，三者同時成立，才是 WebSocket 最適合的情況」（It is the combination of low latency, high frequency, and high volume that make the best case for the use of WebSocket.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a></p>
+<p>怎麼選：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a></p>
+<ul class="plainlist">
+<li>很多情況，AJAX 加 HTTP 串流或長輪詢就是簡單有效的解法。</li>
+<li>低延遲、高頻率、大量三者同時成立，才是 WebSocket 最適合的情況。</li>
+</ul>
 <p>示範專案的兩種輪詢都實跑過。短輪詢連問三次，版本都沒變，白跑三趟；長輪詢帶 <code>since=1</code> 掛著等，另一個請求 3 秒後發布新版本，掛著的那個才回：</p>
 <pre><code>$ for i in 1 2 3; do curl -s http://127.0.0.1:9149/poll/short; echo; done
 {"version":1}
@@ -34,31 +38,31 @@
 $ time curl -s 'http://127.0.0.1:9149/poll/long?since=1'
 {"changed":true,"version":2}
 real 3.04</code></pre>
-<p class="muted">長輪詢在 Spring MVC 裡用 <code>DeferredResult</code> 寫：控制器先回一個「之後才會有結果」的物件，執行緒不用卡著等。Spring 文件把它歸在「單一個非同步回傳值」（DeferredResult, Callable, and WebAsyncTask return values in controller methods provide support for a single asynchronous return value.），多個值才用 SSE 這類串流。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html" target="_blank" rel="noopener">Spring Framework 7.0 非同步請求</a></p>
+<p class="muted">長輪詢在 Spring MVC 裡用 <code>DeferredResult</code> 寫：控制器先回一個「之後才會有結果」的物件，執行緒不用卡著等。它屬於「單一個非同步回傳值」，多個值才用 SSE 這類串流。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html" target="_blank" rel="noopener">Spring Framework 7.0 非同步請求</a></p>
 <div class="drill">
   <p class="dq">網銀首頁要顯示「目前有幾則未讀公告」，幾分鐘更新一次就夠。最省事的做法是？</p>
   <ul class="dopts"><li>WebSocket，加上 STOMP 訂閱</li><li data-ok>短輪詢，幾分鐘問一次</li><li>每個分頁各開一條 SSE</li><li>長輪詢，逾時設 10 分鐘</li></ul>
-  <p class="dexp">更新慢、晚幾分鐘也沒關係，短輪詢就是普通 HTTP，最容易穿過代理、最好維護。Spring 文件也說新聞、信件這類每幾分鐘更新一次的需求，不一定要 WebSocket。長輪詢逾時設 10 分鐘還可能撞到代理的逾時。</p>
+  <p class="dexp">更新慢、晚幾分鐘也沒關係，短輪詢就是普通 HTTP，最容易穿過代理、最好維護。新聞、信件這類每幾分鐘更新一次的需求，不一定要 WebSocket。長輪詢逾時設 10 分鐘還可能撞到代理的逾時。</p>
 </div>
 <div class="drill">
   <p class="dq">短輪詢每 2 秒問一次。伺服器在剛好被問完之後 0.1 秒有了新資料，使用者最晚大約多久後才看得到？</p>
   <ul class="dopts"><li>0.1 秒，有資料就馬上看得到</li><li>大約 1 秒</li><li>永遠看不到</li><li data-ok>將近 2 秒</li></ul>
-  <p class="dexp">短輪詢的延遲上限就是輪詢間隔。想降到 0.5 秒就得每 0.5 秒問一次，請求數變四倍，這就是 RFC 6202 說的負擔。</p>
+  <p class="dexp">短輪詢的延遲上限就是輪詢間隔。想降到 0.5 秒就得每 0.5 秒問一次，請求數變四倍，這就是輪詢頻率造成的負擔。</p>
 </div>
 <div class="drill">
-  <p class="dq">長輪詢的請求送到伺服器時，伺服器手上沒有新資料。照 RFC 6202 的做法，伺服器會？</p>
+  <p class="dq">長輪詢的請求送到伺服器時，伺服器手上沒有新資料。伺服器會？</p>
   <ul class="dopts"><li>馬上回一個空的回應</li><li>回 404，表示目前沒有新資料</li><li data-ok>等有新資料或逾時才回</li><li>改用 WebSocket 推給用戶端</li></ul>
   <p class="dexp">長輪詢的伺服器只在事件、狀態或逾時發生時才回應。馬上回空的是短輪詢。</p>
 </div>
 <div class="drill">
   <p class="dq">長輪詢的用戶端收到一個回應之後，通常下一步是？</p>
   <ul class="dopts"><li>等 5 分鐘再問</li><li>關閉連線，改用 SSE</li><li>送一個 Close 訊框</li><li data-ok>立刻再發下一個長輪詢請求</li></ul>
-  <p class="dexp">RFC 6202：Once the server sends a long poll response, typically the client immediately sends a new long poll request。這樣伺服器手上隨時都有一個掛著的請求可以回。Close 訊框是 WebSocket 的東西。</p>
+  <p class="dexp">伺服器送出長輪詢的回應後，用戶端通常馬上再送一個新的長輪詢請求。這樣伺服器手上隨時都有一個掛著的請求可以回。Close 訊框是 WebSocket 的東西。</p>
 </div>
 <div class="drill">
   <p class="dq">長輪詢的逾時設成 10 分鐘。最可能遇到什麼問題？</p>
   <ul class="dopts"><li>伺服器回 201 Created</li><li>瀏覽器自動改用 HTTP/3 重送</li><li data-ok>代理先逾時，回 504 或切斷</li><li>TLS 憑證過期</li></ul>
-  <p class="dexp">RFC 6202 第 5.5 節：逾時太長可能收到伺服器的 408 或代理的 504。很多代理的逾時比 10 分鐘短得多，例如 Nginx 讀取上游回應的逾時預設 60 秒。</p>
+  <p class="dexp">逾時太長可能收到伺服器的 408 或代理的 504。很多代理的逾時比 10 分鐘短得多，例如 Nginx 讀取上游回應的逾時預設 60 秒。</p>
 </div>
 <div class="drill">
   <p class="dq">客服聊天室：客戶與行員都要隨時打字給對方，延遲越低越好。哪一種最合適？</p>
@@ -75,8 +79,13 @@ real 3.04</code></pre>
 <section>
 <p class="era">先用 HTTP 打招呼，再換語言</p>
 <h3 class="head">WebSocket 握手：Upgrade、101、Sec-WebSocket-Accept</h3>
-<p>RFC 6455 的摘要：WebSocket「讓在受控環境裡執行不受信任程式碼的用戶端，跟同意與它通訊的遠端主機雙向溝通」，協定由「開場握手，加上基本的訊息框架，疊在 TCP 上」組成（The protocol consists of an opening handshake followed by basic message framing, layered over TCP.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html" target="_blank" rel="noopener">RFC 6455 摘要</a> 開場握手刻意長得像 HTTP，「讓同一個連接埠可以同時服務 HTTP 用戶端與 WebSocket 用戶端」（so that a single port can be used by both HTTP clients talking to that server and WebSocket clients talking to that server.），所以預設跟 HTTP 共用 80，走 TLS 時（<code>wss://</code>）共用 443。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3" target="_blank" rel="noopener">RFC 6455 第 1.3 節</a></p>
-<p>換協定用的是 HTTP/1.1 的 <code>Upgrade</code> 標頭：用戶端「邀請」伺服器換到列出的協定（to invite the server to switch to one or more of the named protocols），伺服器可以不理。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8" target="_blank" rel="noopener">RFC 9110 第 7.8 節</a> 伺服器同意就回 <code>101 Switching Protocols</code>，表示它「理解並願意照 Upgrade 的要求換掉這條連線上的應用協定」（the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2" target="_blank" rel="noopener">RFC 9110 第 15.2.2 節</a> 2026-10-02 用 curl 對示範專案的 <code>/ws/echo</code> 手動送一次握手（金鑰用 RFC 6455 的範例值）：</p>
+<p>WebSocket 讓在受控環境裡執行不受信任程式碼的用戶端（例如瀏覽器裡的網頁），跟同意與它通訊的遠端主機雙向溝通。協定由開場握手加上基本的訊息框架組成，疊在 TCP 上。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html" target="_blank" rel="noopener">RFC 6455 摘要</a> 開場握手刻意長得像 HTTP，讓同一個連接埠可以同時服務 HTTP 用戶端與 WebSocket 用戶端，所以預設跟 HTTP 共用 80，走 TLS 時（<code>wss://</code>）共用 443。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3" target="_blank" rel="noopener">RFC 6455 第 1.3 節</a></p>
+<p>換協定用的是 HTTP/1.1 的 <code>Upgrade</code> 標頭：<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8" target="_blank" rel="noopener">RFC 9110 第 7.8 節</a> <a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2" target="_blank" rel="noopener">RFC 9110 第 15.2.2 節</a></p>
+<ul class="plainlist">
+<li>用戶端用它「邀請」伺服器換到列出的協定，伺服器可以不理。</li>
+<li>伺服器同意就回 <code>101 Switching Protocols</code>，表示它理解並願意照 Upgrade 的要求，換掉這條連線上的應用協定。</li>
+</ul>
+<p>2026-10-02 用 curl 對示範專案的 <code>/ws/echo</code> 手動送一次握手（金鑰用 RFC 6455 的範例值）：</p>
 <pre><code>$ curl -sv -N -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
     -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
     http://127.0.0.1:9149/ws/echo
@@ -92,7 +101,7 @@ real 3.04</code></pre>
 &lt; Connection: upgrade
 &lt; Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 <p>（Spring Boot 內建的 Tomcat 回應狀態行只寫碼、不寫 Switching Protocols 這幾個字，HTTP/1.1 的狀態行裡原因說明本來就可以省略。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-4" target="_blank" rel="noopener">RFC 9112 第 4 節</a>）同一個網址不帶 Upgrade 直接 GET，回的是 <code>400</code>，內文 <code>Can "Upgrade" only to "WebSocket".</code>——後面 Nginx 那一段會用到這個現象。</p>
-<p><strong>Sec-WebSocket-Accept 怎麼算：</strong>伺服器拿用戶端送來的 <code>Sec-WebSocket-Key</code>，接上一個固定的 GUID「258EAFA5-E914-47DA-95CA-C5AB0DC85B11」，做 SHA-1，再轉 Base64（concatenate this with the Globally Unique Identifier ... A SHA-1 hash (160 bits) [FIPS.180-3], base64-encoded (see Section 4 of [RFC4648]), of this concatenation is then returned in the server's handshake.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3" target="_blank" rel="noopener">RFC 6455 第 1.3 節</a> 用 Python 照算一次，跟上面伺服器回的一模一樣：</p>
+<p><strong>Sec-WebSocket-Accept 怎麼算：</strong>伺服器拿用戶端送來的 <code>Sec-WebSocket-Key</code>，接上一個固定的 GUID「258EAFA5-E914-47DA-95CA-C5AB0DC85B11」，做 SHA-1，再轉 Base64。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3" target="_blank" rel="noopener">RFC 6455 第 1.3 節</a> 用 Python 照算一次，跟上面伺服器回的一模一樣：</p>
 <pre><code>&gt;&gt;&gt; import base64, hashlib
 &gt;&gt;&gt; key = "dGhlIHNhbXBsZSBub25jZQ=="
 &gt;&gt;&gt; guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -104,12 +113,12 @@ real 3.04</code></pre>
 </svg>
 <figcaption>GUID 選這麼怪的字串，RFC 的理由是它「不太可能被不懂 WebSocket 的網路端點用到」，所以算得出正確答案就代表對方真的懂。</figcaption>
 </figure>
-<p>這個值的用途是讓用戶端確認「伺服器願意接受這條連線」（indicates whether the server is willing to accept the connection），值不對就「不得被解讀成伺服器接受了連線」。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3" target="_blank" rel="noopener">RFC 6455 第 1.3 節</a> 它不加密任何東西，也不驗證誰的身分；要加密就用 <code>wss://</code>（WebSocket 跑在 TLS 上），要驗證身分就用 Cookie 或權杖，跟一般 HTTP 一樣。</p>
+<p>這個值的用途是讓用戶端確認伺服器願意接受這條連線，值不對就不得解讀成伺服器接受了連線。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3" target="_blank" rel="noopener">RFC 6455 第 1.3 節</a> 它不加密任何東西，也不驗證誰的身分；要加密就用 <code>wss://</code>（WebSocket 跑在 TLS 上），要驗證身分就用 Cookie 或權杖，跟一般 HTTP 一樣。</p>
 <p><strong>握手之後：</strong>同一條 TCP 連線改送 WebSocket 的<strong>訊框</strong>（frame，每則訊息切成的一段，前面帶著「這是文字、二進位、Ping 還是 Close」的標記）。幾條規則：</p>
 <ul class="plainlist">
-<li>用戶端「必須（MUST）遮罩送給伺服器的所有訊框」（a client MUST mask all frames that it sends to the server），伺服器送的「不得（MUST NOT）遮罩」。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1" target="_blank" rel="noopener">RFC 6455 第 5.1 節</a> 遮罩（masking）是用一組隨機的 4 位元組把內容打亂。它不是為了保密，RFC 第 10.3 節說明是為了防止有人透過升級過的連線送出「看起來像 GET 請求」的資料，污染中間的快取代理。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-10.3" target="_blank" rel="noopener">RFC 6455 第 10.3 節</a></li>
-<li>收到 Ping「必須（MUST）回一個 Pong」（Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in response, unless it already received a Close frame.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.2" target="_blank" rel="noopener">RFC 6455 第 5.5.2 節</a> 常拿來確認對方還在，也讓中間的代理看到連線有動靜、不要當成閒置切掉。</li>
-<li>關閉時雙方各送一個 Close 訊框，再關 TCP。RFC 說這個關閉握手是用來補 TCP 揮手的不足，因為有攔截式代理時 TCP 的關閉「不一定端到端可靠」（the TCP closing handshake is not always reliable end-to-end, especially in the presence of intercepting proxies and other intermediaries.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.4" target="_blank" rel="noopener">RFC 6455 第 1.4 節</a></li>
+<li>用戶端一定要遮罩送給伺服器的所有訊框（RFC 用 MUST），伺服器送的不得遮罩（MUST NOT）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1" target="_blank" rel="noopener">RFC 6455 第 5.1 節</a> 遮罩（masking）是用一組隨機的 4 位元組把內容打亂。它不是為了保密，而是為了防止有人透過升級過的連線送出「看起來像 GET 請求」的資料，污染中間的快取代理。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-10.3" target="_blank" rel="noopener">RFC 6455 第 10.3 節</a></li>
+<li>收到 Ping 一定要回一個 Pong（RFC 用 MUST），除非已經收到 Close 訊框。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.2" target="_blank" rel="noopener">RFC 6455 第 5.5.2 節</a> 常拿來確認對方還在，也讓中間的代理看到連線有動靜、不要當成閒置切掉。</li>
+<li>關閉時雙方各送一個 Close 訊框，再關 TCP。這個關閉握手是用來補 TCP 揮手的不足：有攔截式代理這類中間設備時，TCP 的關閉不一定端到端可靠。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-1.4" target="_blank" rel="noopener">RFC 6455 第 1.4 節</a></li>
 </ul>
 <figure>
 <svg viewBox="0 0 760 530" role="img" aria-label="WebSocket 連線的一生：用戶端送 GET 請求，帶 Upgrade: websocket、Connection: Upgrade 與 Sec-WebSocket-Key；伺服器回 101，帶 Upgrade 與 Sec-WebSocket-Accept。這之後同一條 TCP 連線改講 WebSocket：用戶端送有遮罩的文字訊框，伺服器回沒有遮罩的文字訊框；伺服器送 Ping，用戶端回 Pong；最後雙方各送一個 Close，再關閉 TCP 連線">
@@ -117,7 +126,7 @@ real 3.04</code></pre>
 </svg>
 <figcaption>虛線以上是 HTTP，以下是 WebSocket。Ping 可以由任一端發，圖上畫的是伺服器發。</figcaption>
 </figure>
-<p class="muted">WebSocket 的 Upgrade 是 HTTP/1.1 的機制。HTTP/2 寫明「101 的語意不適用於多工的協定」（The semantics of 101 (Switching Protocols) aren't applicable to a multiplexed protocol.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6" target="_blank" rel="noopener">RFC 9113 第 8.6 節</a> 要在 HTTP/2 上跑 WebSocket 得用 RFC 8441 定義的另一套做法（在 HTTP/2 的單一串流上跑 WebSocket）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8441.html" target="_blank" rel="noopener">RFC 8441</a></p>
+<p class="muted">WebSocket 的 Upgrade 是 HTTP/1.1 的機制。HTTP/2 是多工的協定，101 的語意不適用，<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6" target="_blank" rel="noopener">RFC 9113 第 8.6 節</a> 要在 HTTP/2 上跑 WebSocket 得用 RFC 8441 定義的另一套做法（在 HTTP/2 的單一串流上跑 WebSocket）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8441.html" target="_blank" rel="noopener">RFC 8441</a></p>
 <div class="drill">
   <p class="dq">瀏覽器要開 WebSocket，送出的第一個東西是什麼？</p>
   <ul class="dopts"><li>一個 WebSocket 文字訊框</li><li>一個 UDP 封包，先探路</li><li data-ok>帶 Upgrade 的 HTTP GET</li><li>一個 Ping 訊框，確認伺服器在不在</li></ul>
@@ -131,7 +140,7 @@ real 3.04</code></pre>
 <div class="drill">
   <p class="dq">用戶端送的 Sec-WebSocket-Key 是 <code>dGhlIHNhbXBsZSBub25jZQ==</code>，伺服器回 <code>Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==</code>（原樣送回）。用戶端該怎麼做？</p>
   <ul class="dopts"><li>接受，因為值跟送出去的一樣</li><li>接受，Accept 的值不重要</li><li>重送同一個 Key 再試</li><li data-ok>不能當成連線成功，值不對</li></ul>
-  <p class="dexp">正確的值要是 Key 接上 GUID 後做 SHA-1 再 Base64，也就是 s3pPLMBiTxaQ9kYGzzhZRbK+xOo=。原樣送回正是「不懂 WebSocket 的伺服器」會有的樣子，RFC 說其他值都不得解讀成接受連線。</p>
+  <p class="dexp">正確的值要是 Key 接上 GUID 後做 SHA-1 再 Base64，也就是 s3pPLMBiTxaQ9kYGzzhZRbK+xOo=。原樣送回正是「不懂 WebSocket 的伺服器」會有的樣子，其他值都不得解讀成接受連線。</p>
 </div>
 <div class="drill">
   <p class="dq">Sec-WebSocket-Accept 的主要作用是？</p>
@@ -141,12 +150,12 @@ real 3.04</code></pre>
 <div class="drill">
   <p class="dq">算 Sec-WebSocket-Accept 的步驟，順序正確的是？</p>
   <ul class="dopts"><li>Key 先 Base64 解碼 → SHA-256 → 十六進位</li><li>GUID 接上伺服器私鑰 → SHA-1 → Base64</li><li>Key 直接 Base64 再編碼一次</li><li data-ok>Key＋固定 GUID → SHA-1 → Base64</li></ul>
-  <p class="dexp">RFC 6455 第 1.3 節：把 Key（照原本的字串，不解碼）接上 258EAFA5-E914-47DA-95CA-C5AB0DC85B11，做 SHA-1，結果用 Base64 編碼。不涉及任何私鑰。</p>
+  <p class="dexp">把 Key（照原本的字串，不解碼）接上 258EAFA5-E914-47DA-95CA-C5AB0DC85B11，做 SHA-1，結果用 Base64 編碼。不涉及任何私鑰。</p>
 </div>
 <div class="drill">
   <p class="dq">網址是 <code>wss://chat.example.com/ws</code>。這條 WebSocket 預設連哪個連接埠、有沒有 TLS？</p>
   <ul class="dopts"><li>80，沒有 TLS</li><li>8080，有 TLS</li><li data-ok>443，有 TLS</li><li>443，沒有 TLS</li></ul>
-  <p class="dexp">RFC 6455：一般 WebSocket 預設用 80，跑在 TLS 上的用 443。wss 的 s 就是加了 TLS，跟 https 對 http 一樣。</p>
+  <p class="dexp">一般 WebSocket 預設用 80，跑在 TLS 上的用 443。wss 的 s 就是加了 TLS，跟 https 對 http 一樣。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一個訊框送出去違反 RFC 6455？</p>
@@ -156,29 +165,29 @@ real 3.04</code></pre>
 <div class="drill">
   <p class="dq">WebSocket 用戶端訊框要遮罩，主要是為了防什麼？</p>
   <ul class="dopts"><li>防止別人偷看訊息內容</li><li data-ok>防止污染中間的快取代理</li><li>讓訊框比較小，傳得比較快</li><li>讓伺服器知道訊息是誰送的</li></ul>
-  <p class="dexp">RFC 6455 第 10.3 節講的是攻擊基礎設施：讓快取代理把偽造的資料當成某個網址的回應存起來。遮罩金鑰就放在訊框裡，所以它擋不住偷看，要保密得用 wss://。</p>
+  <p class="dexp">遮罩防的是攻擊基礎設施：讓快取代理把偽造的資料當成某個網址的回應存起來。遮罩金鑰就放在訊框裡，所以它擋不住偷看，要保密得用 wss://。</p>
 </div>
 <div class="drill">
-  <p class="dq">WebSocket 連線上，伺服器送來一個 Ping 訊框。用戶端照規格該做什麼？</p>
+  <p class="dq">WebSocket 連線上，伺服器送來一個 Ping 訊框。用戶端該做什麼？</p>
   <ul class="dopts"><li data-ok>盡快回一個 Pong</li><li>不理它，Ping 只是通知</li><li>關閉連線</li><li>回一個 HTTP 200</li></ul>
-  <p class="dexp">RFC 6455 第 5.5.2 節：收到 Ping MUST 回 Pong（除非已經收到 Close），而且 SHOULD 盡快。握手之後就不講 HTTP 了，不會回 200。</p>
+  <p class="dexp">收到 Ping 一定要回 Pong（除非已經收到 Close），而且應該盡快。握手之後就不講 HTTP 了，不會回 200。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼 WebSocket 除了 TCP 的揮手，還要自己定義一個 Close 訊框的關閉握手？</p>
   <ul class="dopts"><li data-ok>有代理時 TCP 的關閉不一定可靠</li><li>因為 WebSocket 不跑在 TCP 上</li><li>因為 TCP 沒有關閉的機制</li><li>為了加密關閉的原因</li></ul>
-  <p class="dexp">RFC 6455 第 1.4 節：the TCP closing handshake is not always reliable end-to-end, especially in the presence of intercepting proxies。Close 訊框走在 WebSocket 這一層，兩端確定都知道連線要關了。</p>
+  <p class="dexp">有攔截式代理這類中間設備時，TCP 的關閉握手不一定端到端可靠。Close 訊框走在 WebSocket 這一層，兩端確定都知道連線要關了。</p>
 </div>
 <div class="drill">
   <p class="dq">某系統的入口全面走 HTTP/2。工程師說「WebSocket 照樣用 Upgrade 加 101 就好」。這句話？</p>
   <ul class="dopts"><li data-ok>不對，HTTP/2 不適用 101</li><li>對，HTTP/2 也用 101</li><li>對，HTTP/2 會自動降級成 HTTP/1.1 再升級</li><li>不對，WebSocket 根本不能跟 HTTP/2 並存</li></ul>
-  <p class="dexp">RFC 9113 第 8.6 節：101 的語意不適用於多工的協定。RFC 8441 定義了在 HTTP/2 的單一串流上跑 WebSocket 的方法；實務上也常見 WebSocket 那條連線另外走 HTTP/1.1。</p>
+  <p class="dexp">101 的語意不適用於 HTTP/2 這種多工的協定。RFC 8441 定義了在 HTTP/2 的單一串流上跑 WebSocket 的方法；實務上也常見 WebSocket 那條連線另外走 HTTP/1.1。</p>
 </div>
 </section>
 
 <section>
 <p class="era">一個回應，慢慢寫</p>
 <h3 class="head">SSE：text/event-stream 與自動重連</h3>
-<p>SSE 的規格在 WHATWG HTML 標準裡：它「讓伺服器能透過 HTTP 把資料推給網頁」，用法是建立一個 <code>EventSource</code> 物件、註冊事件監聽（To enable servers to push data to web pages over HTTP or using dedicated server-push protocols, this specification introduces the EventSource interface.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#server-sent-events-intro" target="_blank" rel="noopener">WHATWG HTML 第 9.2 節</a> 回應的型別固定是 <code>text/event-stream</code>（This event stream format's MIME type is text/event-stream.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream" target="_blank" rel="noopener">WHATWG HTML 第 9.2.5 節</a></p>
+<p>SSE 的規格在 WHATWG HTML 標準裡，讓伺服器能透過 HTTP 把資料推給網頁：瀏覽器端建立一個 <code>EventSource</code> 物件、註冊事件監聽。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#server-sent-events-intro" target="_blank" rel="noopener">WHATWG HTML 第 9.2 節</a> 回應的型別固定是 <code>text/event-stream</code>。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream" target="_blank" rel="noopener">WHATWG HTML 第 9.2.5 節</a></p>
 <p>內容是一行一行的「欄位名:值」，空一行代表一個事件結束。2026-10-03 用 <code>curl -N</code>（不要緩衝，收到就印）看示範專案的匯率串流，每秒一筆，左邊的時間是收到那一行的時刻：</p>
 <pre><code>$ curl -sN -i http://127.0.0.1:9149/rates/stream
 00:16:11  HTTP/1.1 200
@@ -197,15 +206,20 @@ real 3.04</code></pre>
 00:16:12
 00:16:13  id:3
 …</code></pre>
-<div class="tablewrap"><table><thead><tr><th>欄位</th><th>瀏覽器怎麼處理（WHATWG 的規則）</th></tr></thead><tbody>
+<div class="tablewrap"><table><thead><tr><th>欄位</th><th>瀏覽器怎麼處理</th></tr></thead><tbody>
 <tr><th><code>data</code></th><td>把值加進資料緩衝區，後面補一個換行；多行 <code>data</code> 會接成一筆<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#processField" target="_blank" rel="noopener">WHATWG HTML 第 9.2.6 節</a></td></tr>
 <tr><th><code>event</code></th><td>設定事件類型；用 <code>addEventListener('rate', …)</code> 收，沒寫就是 <code>message</code></td></tr>
-<tr><th><code>id</code></th><td>設定「最後事件編號」（set the last event ID buffer to the field value），重連時會送回去</td></tr>
-<tr><th><code>retry</code></th><td>值全是數字時，設成重連等待時間，單位毫秒（set the event stream's reconnection time to that integer）</td></tr>
-<tr><th>以 <code>:</code> 開頭的行</th><td>註解，忽略（Ignore the line.）</td></tr>
+<tr><th><code>id</code></th><td>設定「最後事件編號」，重連時會送回去</td></tr>
+<tr><th><code>retry</code></th><td>值全是數字時，設成重連等待時間，單位毫秒</td></tr>
+<tr><th>以 <code>:</code> 開頭的行</th><td>註解，忽略</td></tr>
 </tbody></table></div>
-<p>Spring 寫的是 <code>data:{…}</code>，冒號後面沒有空格；規格寫「值若以空格開頭，就去掉那個空格」（If value starts with a U+0020 SPACE character, remove it from value.），<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream" target="_blank" rel="noopener">WHATWG HTML 第 9.2.5 節</a> 所以 <code>data: x</code> 與 <code>data:x</code> 是同一件事。</p>
-<p><strong>自動重連與 Last-Event-ID：</strong>規格說連線關掉時「用戶端會重連」，伺服器要它別再連可以回 204（Clients will reconnect if the connection is closed; a client can be told to stop reconnecting using the HTTP 204 No Content response code.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#server-sent-events-intro" target="_blank" rel="noopener">WHATWG HTML 第 9.2 節</a> 重連時，瀏覽器用 <code>Last-Event-ID</code> 請求標頭「把最後事件編號回報給伺服器」（reports an EventSource object's last event ID string to the server when the user agent is to reestablish the connection.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#the-last-event-id-header" target="_blank" rel="noopener">WHATWG HTML 第 9.2.4 節</a> 伺服器看這個標頭，就能從下一筆接著送。示範專案這樣做：沒帶標頭從第 1 筆送，帶了就從下一筆送。用 Node 26.10 內建的 <code>EventSource</code> 實測（伺服器送完三筆就結束回應）。Node 26 的 EventSource 還是實驗功能，不加 <code>--experimental-eventsource</code> 會直接 <code>ReferenceError: EventSource is not defined</code>；加了會先印一行警告。2026-10-03 的輸出：</p>
+<p>Spring 寫的是 <code>data:{…}</code>，冒號後面沒有空格；值若以空格開頭，瀏覽器會去掉那個空格，<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream" target="_blank" rel="noopener">WHATWG HTML 第 9.2.5 節</a> 所以 <code>data: x</code> 與 <code>data:x</code> 是同一件事。</p>
+<p><strong>自動重連與 Last-Event-ID：</strong><a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#server-sent-events-intro" target="_blank" rel="noopener">WHATWG HTML 第 9.2 節</a> <a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#the-last-event-id-header" target="_blank" rel="noopener">WHATWG HTML 第 9.2.4 節</a></p>
+<ul class="plainlist">
+<li>連線關掉時用戶端會重連；伺服器要它別再連，可以回 204 No Content。</li>
+<li>重連時，瀏覽器用 <code>Last-Event-ID</code> 請求標頭把最後事件編號回報給伺服器，伺服器看這個標頭，就能從下一筆接著送。</li>
+</ul>
+<p>示範專案這樣做：沒帶標頭從第 1 筆送，帶了就從下一筆送。用 Node 26.10 內建的 <code>EventSource</code> 實測（伺服器送完三筆就結束回應）。Node 26 的 EventSource 還是實驗功能，不加 <code>--experimental-eventsource</code> 會直接 <code>ReferenceError: EventSource is not defined</code>；加了會先印一行警告。2026-10-03 的輸出：</p>
 <pre><code>$ node --experimental-eventsource es.mjs
 (node:44255) [UNDICI-ES] Warning: EventSource is experimental, expect them to change at any time.
 (Use `node --trace-warnings ...` to show where the warning was created)
@@ -227,8 +241,8 @@ real 3.04</code></pre>
 <p>readyState 0 是 CONNECTING：<code>EventSource</code> 斷線後不是放棄，而是回到「連線中」準備重連。WebSocket 沒有這個機制，斷了要自己寫重連，自己決定從哪裡補。</p>
 <p><strong>兩個實務限制：</strong></p>
 <ul class="plainlist">
-<li><strong>連線數：</strong>MDN 警告，沒有用 HTTP/2 時，SSE 受最大連線數限制，瀏覽器通常限制每個網域只有 6 條（這是瀏覽器的做法，不是 HTTP 規格），開多個分頁時特別痛（When not used over HTTP/2, SSE suffers from a limitation to the maximum number of open connections, which can be especially painful when opening multiple tabs, as the limit is per browser and is set to a very low number (6).）。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events" target="_blank" rel="noopener">MDN「Using server-sent events」</a> 走 HTTP/2 時，多條 SSE 只是同一條連線上的多個串流（見〈HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進〉）。</li>
-<li><strong>代理逾時：</strong>規格建議每 15 秒左右送一行註解，防止舊的代理在短暫逾時後切斷連線（authors can include a comment line (one starting with a ':' character) every 15 seconds or so.）。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#authoring-notes" target="_blank" rel="noopener">WHATWG HTML 第 9.2.7 節</a></li>
+<li><strong>連線數：</strong>沒有用 HTTP/2 時，SSE 受最大連線數限制：瀏覽器通常限制每個網域只有 6 條（這是瀏覽器的做法，不是 HTTP 規格），開多個分頁時特別痛。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events" target="_blank" rel="noopener">MDN「Using server-sent events」</a> 走 HTTP/2 時，多條 SSE 只是同一條連線上的多個串流（見〈HTTP 進階：狀態碼、快取、Keep-Alive 與版本演進〉）。</li>
+<li><strong>代理逾時：</strong>建議每 15 秒左右送一行註解（以 <code>:</code> 開頭的行），防止舊的代理在短暫逾時後切斷連線。<a class="fixsrc" href="https://html.spec.whatwg.org/multipage/server-sent-events.html#authoring-notes" target="_blank" rel="noopener">WHATWG HTML 第 9.2.7 節</a></li>
 </ul>
 <div class="drill">
   <p class="dq">伺服器送出下面這段，瀏覽器會觸發幾個事件？</p>
@@ -257,9 +271,9 @@ data:30.53
   <p class="dexp">retry 的值全是數字時，設定重連等待時間，單位毫秒，10000 毫秒是 10 秒。實測中 retry:3000 就是斷線 3 秒後重連。</p>
 </div>
 <div class="drill">
-  <p class="dq">活動結束，伺服器希望所有 EventSource 不要再一直重連。照規格可以怎麼做？</p>
+  <p class="dq">活動結束，伺服器希望所有 EventSource 不要再一直重連。可以怎麼做？</p>
   <ul class="dopts"><li data-ok>重連時回 204</li><li>回 101 Switching Protocols</li><li>送 retry:0</li><li>回 304 Not Modified</li></ul>
-  <p class="dexp">WHATWG：a client can be told to stop reconnecting using the HTTP 204 No Content response code。retry:0 只是把等待時間設成 0，會更快重連。</p>
+  <p class="dexp">回 HTTP 204 No Content，就能叫用戶端別再重連。retry:0 只是把等待時間設成 0，會更快重連。</p>
 </div>
 <div class="drill">
   <p class="dq">SSE 串流裡出現一行 <code>: keep-alive</code>。瀏覽器會怎麼處理？</p>
@@ -269,12 +283,12 @@ data:30.53
 <div class="drill">
   <p class="dq">網站還在用 HTTP/1.1，使用者開了 7 個分頁，每個分頁都開一條 SSE 連到同一個網域。最可能發生什麼事？</p>
   <ul class="dopts"><li data-ok>第 7 個分頁的連線卡住</li><li>7 條都正常，各自收事件</li><li>伺服器回 429 Too Many Requests</li><li>瀏覽器自動改用 WebSocket</li></ul>
-  <p class="dexp">MDN：沒有 HTTP/2 時，SSE 受每個瀏覽器、每個網域 6 條的連線上限限制。換成 HTTP/2，7 條 SSE 只是同一條連線上的 7 個串流。</p>
+  <p class="dexp">沒有 HTTP/2 時，SSE 受每個瀏覽器、每個網域 6 條的連線上限限制。換成 HTTP/2，7 條 SSE 只是同一條連線上的 7 個串流。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>data:30.51</code> 與 <code>data: 30.51</code>（冒號後多一個空格），瀏覽器收到的資料一樣嗎？</p>
   <ul class="dopts"><li data-ok>一樣，空格會被去掉</li><li>不一樣，第二個多一個空格</li><li>第二個是錯誤格式，會被忽略</li><li>第一個是錯誤格式</li></ul>
-  <p class="dexp">WHATWG：If value starts with a U+0020 SPACE character, remove it from value。只去掉一個，多個空格的話後面的會留下。</p>
+  <p class="dexp">值若以空格開頭，只去掉那一個空格。多個空格的話後面的會留下。</p>
 </div>
 <div class="drill">
   <p class="dq">EventSource 斷線後 readyState 是 0。這代表？</p>
@@ -292,7 +306,7 @@ data:30.53
 <p class="era">在 Spring Boot 裡寫出來</p>
 <h3 class="head">SseEmitter、WebSocketHandler 與 STOMP</h3>
 <p>以下程式碼節錄自示範專案（Spring Boot 4.1.1，帶進的是 Spring Framework 7.0.9，Java 21 編譯執行），相依只有 <code>spring-boot-starter-webmvc</code> 與 <code>spring-boot-starter-websocket</code>。</p>
-<p><strong>SSE：回傳 SseEmitter。</strong>Spring 文件說 <code>SseEmitter</code>（<code>ResponseBodyEmitter</code> 的子類別）支援 SSE，「從控制器產生 SSE 串流，回傳 SseEmitter 即可」（To produce an SSE stream from a controller, return SseEmitter）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html" target="_blank" rel="noopener">Spring Framework 7.0 非同步請求</a></p>
+<p><strong>SSE：回傳 SseEmitter。</strong><code>SseEmitter</code>（<code>ResponseBodyEmitter</code> 的子類別）支援 SSE，從控制器回傳它就能產生 SSE 串流。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html" target="_blank" rel="noopener">Spring Framework 7.0 非同步請求</a></p>
 <pre><code>@GetMapping(path = "/rates/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 public SseEmitter stream(@RequestHeader(name = "Last-Event-ID", required = false) String lastId) {
     SseEmitter emitter = new SseEmitter(30_000L);          // 30 秒逾時
@@ -315,8 +329,14 @@ public SseEmitter stream(@RequestHeader(name = "Last-Event-ID", required = false
     }
     return emitter;
 }</code></pre>
-<p>三個重點：方法很快就 return，真正的事件是之後在別的執行緒用 <code>send</code> 寫進去；<code>id</code>、<code>name</code>、<code>reconnectTime</code> 分別變成 <code>id:</code>、<code>event:</code>、<code>retry:</code> 三行；<code>complete()</code> 結束回應，瀏覽器那端會照 retry 重連。建構子的逾時沒給的話，「用 MVC 設定的預設值；那也沒設，就看底層伺服器的預設」（By default not set in which case the default configured in the MVC Java Config or the MVC namespace is used, or if that's not set, then the timeout depends on the default of the underlying server.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/web/servlet/mvc/method/annotation/ResponseBodyEmitter.html#%3Cinit%3E(java.lang.Long)" target="_blank" rel="noopener">ResponseBodyEmitter API 文件</a></p>
-<p><strong>原生 WebSocket：繼承 TextWebSocketHandler。</strong>文件寫建 WebSocket 伺服器「就是實作 WebSocketHandler，更常見的是繼承 TextWebSocketHandler 或 BinaryWebSocketHandler」（Creating a WebSocket server is as simple as implementing WebSocketHandler or, more likely, extending either TextWebSocketHandler or BinaryWebSocketHandler.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/server.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket API</a></p>
+<p>三個重點：<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/web/servlet/mvc/method/annotation/ResponseBodyEmitter.html#%3Cinit%3E(java.lang.Long)" target="_blank" rel="noopener">ResponseBodyEmitter API 文件</a></p>
+<ul class="plainlist">
+<li>方法很快就 return，真正的事件是之後在別的執行緒用 <code>send</code> 寫進去。</li>
+<li><code>id</code>、<code>name</code>、<code>reconnectTime</code> 分別變成 <code>id:</code>、<code>event:</code>、<code>retry:</code> 三行。</li>
+<li><code>complete()</code> 結束回應，瀏覽器那端會照 retry 重連。</li>
+</ul>
+<p>建構子的逾時沒給的話，用 MVC 設定的預設值；那也沒設，就看底層伺服器的預設。</p>
+<p><strong>原生 WebSocket：繼承 TextWebSocketHandler。</strong>建 WebSocket 伺服器就是實作 WebSocketHandler，更常見的是繼承 TextWebSocketHandler 或 BinaryWebSocketHandler。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/server.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket API</a></p>
 <pre><code>public class EchoHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
@@ -341,7 +361,7 @@ ws.onclose = (e) =&gt; console.log('關閉，代碼 ' + e.code);
 // 輸出
 收到：echo: USD/TWD?
 關閉，代碼 1000</code></pre>
-<p><strong>STOMP 一眼：</strong>原生 WebSocket 只管把訊息送到，不管訊息是什麼意思。Spring 文件說 WebSocket「不規定訊息內容的語意」，除非雙方約好，否則「沒辦法路由或處理訊息」（there is no way to route or process a message unless the client and the server agree on message semantics.），雙方可以在握手時用 <code>Sec-WebSocket-Protocol</code> 談好用 STOMP 這類上層協定。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a> STOMP（Simple Text Oriented Messaging Protocol）是「以 HTTP 為模型的訊框式協定」，用戶端用 SEND 或 SUBSCRIBE 送出或訂閱訊息，加上 destination 標頭說明訊息是關於什麼、誰該收（Clients can use the SEND or SUBSCRIBE commands to send or subscribe for messages, along with a destination header that describes what the message is about and who should receive it.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/stomp/overview.html" target="_blank" rel="noopener">Spring Framework 7.0 STOMP 概觀</a></p>
+<p><strong>STOMP 一眼：</strong>原生 WebSocket 只管把訊息送到，不規定訊息內容的語意；除非雙方約好，否則沒辦法路由或處理訊息。雙方可以在握手時用 <code>Sec-WebSocket-Protocol</code> 談好用 STOMP 這類上層協定。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a> STOMP（Simple Text Oriented Messaging Protocol）是以 HTTP 為模型的訊框式協定：用戶端用 SEND 或 SUBSCRIBE 送出或訂閱訊息，加上 destination 標頭說明訊息是關於什麼、誰該收。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/stomp/overview.html" target="_blank" rel="noopener">Spring Framework 7.0 STOMP 概觀</a></p>
 <pre><code>@Configuration
 @EnableWebSocketMessageBroker
 public class StompConfig implements WebSocketMessageBrokerConfigurer {
@@ -364,7 +384,11 @@ public class NotifyController {
         return "交易通知：" + body + " 已入帳";
     }
 }</code></pre>
-<p>文件的路由規則：destination 以 <code>/app</code> 開頭的訊息「可能被送到 @MessageMapping 方法」，<code>/topic</code> 與 <code>/queue</code> 的「可能直接送到訊息代理」——訊息代理（message broker）是收下訊息、再轉給訂閱者的中介程式，跟前面講的 HTTP 代理是兩回事（STOMP messages whose destination headers start with /app may be routed to @MessageMapping methods in annotated controllers, while /topic and /queue messages may be routed directly to the message broker.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/stomp/message-flow.html" target="_blank" rel="noopener">Spring Framework 7.0 STOMP 訊息流程</a></p>
+<p>路由規則：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/stomp/message-flow.html" target="_blank" rel="noopener">Spring Framework 7.0 STOMP 訊息流程</a></p>
+<ul class="plainlist">
+<li>destination 以 <code>/app</code> 開頭的訊息：可能被送到 <code>@MessageMapping</code> 方法。</li>
+<li><code>/topic</code> 與 <code>/queue</code> 開頭的：可能直接送到訊息代理。訊息代理（message broker）是收下訊息、再轉給訂閱者的中介程式，跟前面講的 HTTP 代理是兩回事。</li>
+</ul>
 <figure>
 <svg viewBox="0 0 760 284" role="img" aria-label="STOMP 在 Spring 裡的訊息路線：送出方 SEND 到 /app/transfer，因為以 /app 開頭，交給標了 @MessageMapping(&quot;/transfer&quot;) 的方法；方法的回傳值依 @SendTo 送到 /topic/notifications，交給簡易訊息代理；訊息代理把 MESSAGE 廣播給所有 SUBSCRIBE 了 /topic/notifications 的用戶端">
 <defs><marker id="rt-6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="40" width="170" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="105" y="64" font-size="12.5" text-anchor="middle">行員 App（送出方）</text><text x="105" y="88" font-size="11" text-anchor="middle" fill="var(--gold-deep)" class="mono">SEND /app/transfer</text><rect x="15" y="170" width="195" height="70" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="112" y="194" font-size="12.5" text-anchor="middle">客戶 App（訂閱方）</text><text x="112" y="218" font-size="9.5" text-anchor="middle" fill="var(--slate-deep)" class="mono">SUBSCRIBE /topic/notifications</text><rect x="280" y="40" width="215" height="70" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="387" y="64" font-size="10.5" text-anchor="middle" class="mono">@MessageMapping("/transfer")</text><text x="387" y="86" font-size="10" text-anchor="middle" class="mono">@SendTo("/topic/notifications")</text><rect x="560" y="105" width="180" height="70" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="650" y="132" font-size="12" text-anchor="middle" fill="var(--slate-deep)">簡易訊息代理（simple broker）</text><text x="650" y="154" font-size="11.5" text-anchor="middle">管 /topic 開頭的訂閱</text><line x1="192" y1="75" x2="286" y2="75" stroke="var(--gold)" stroke-width="1.5" marker-end="url(#rt-6a)"/><text x="239" y="66" font-size="10.5" text-anchor="middle" fill="var(--gold-deep)">/app 開頭</text><line x1="497" y1="85" x2="556" y2="125" stroke="currentColor" stroke-width="1.5" marker-end="url(#rt-6a)"/><text x="520" y="92" font-size="10.5" text-anchor="middle" opacity=".75">回傳值</text><line x1="558" y1="160" x2="214" y2="205" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#rt-6a)"/><text x="380" y="202" font-size="11" text-anchor="middle" fill="var(--slate-deep)">MESSAGE（廣播給所有訂閱者）</text><text x="380" y="268" font-size="12.5" text-anchor="middle" fill="var(--gold-deep)">目的地開頭決定路線：/app 進你的程式，/topic 直接交給訊息代理廣播</text>
@@ -401,7 +425,13 @@ message-id:00f7c11b-95d5-44bd-91c3-f95a9a58dbcd-0
 content-length:56
 
 交易通知：帳號 ***5678 收到 NT$12,000 已入帳^@</code></pre>
-<p>第一行的 <code>v12.stomp</code> 就是握手時用 <code>Sec-WebSocket-Protocol</code> 談好的子協定。Spring 列的好處包括：不用自己發明訊息格式、可以接外部訊息代理、訊息依 destination 分到多個 <code>@Controller</code>，還能用 Spring Security 依 destination 管權限（You can use Spring Security to secure messages based on STOMP destinations and message types.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/stomp/benefits.html" target="_blank" rel="noopener">Spring Framework 7.0 STOMP 的好處</a></p>
+<p>第一行的 <code>v12.stomp</code> 就是握手時用 <code>Sec-WebSocket-Protocol</code> 談好的子協定。STOMP 的好處包括：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/stomp/benefits.html" target="_blank" rel="noopener">Spring Framework 7.0 STOMP 的好處</a></p>
+<ul class="plainlist">
+<li>不用自己發明訊息格式。</li>
+<li>可以接外部訊息代理。</li>
+<li>訊息依 destination 分到多個 <code>@Controller</code>。</li>
+<li>能用 Spring Security 依 destination 與訊息類型管權限。</li>
+</ul>
 <div class="drill">
   <p class="dq">下面這個 SSE 控制器，瀏覽器會收到幾筆事件？</p>
   <pre><code>SseEmitter e = new SseEmitter();
@@ -421,7 +451,7 @@ return e;</code></pre>
 <div class="drill">
   <p class="dq">SSE 控制器上的 <code>produces = MediaType.TEXT_EVENT_STREAM_VALUE</code> 會讓回應的 Content-Type 是？</p>
   <ul class="dopts"><li>application/json</li><li data-ok>text/event-stream</li><li>text/plain</li><li>application/octet-stream</li></ul>
-  <p class="dexp">WHATWG 規定事件串流的 MIME 型別是 text/event-stream，EventSource 就認這個。實測的回應標頭也是 Content-Type: text/event-stream。</p>
+  <p class="dexp">事件串流的 MIME 型別規定是 text/event-stream，EventSource 就認這個。實測的回應標頭也是 Content-Type: text/event-stream。</p>
 </div>
 <div class="drill">
   <p class="dq">STOMP 設定了 <code>setApplication<wbr>DestinationPrefixes<wbr>("/app")</code> 與 <code>enableSimpleBroker("/topic")</code>。用戶端 SEND 到 <code>/app/transfer</code>，會先到哪裡？</p>
@@ -448,7 +478,7 @@ return e;</code></pre>
 <section>
 <p class="era">中間還有一個人</p>
 <h3 class="head">Nginx 代理 WebSocket 與 SSE</h3>
-<p>〈Web Hosting 與 Nginx〉的 <code>proxy_pass</code> 設定，直接拿來代理 WebSocket 會失敗。nginx.org 的說明：「因為 Upgrade 是逐跳標頭，它不會從用戶端傳給被代理的伺服器」（since the "Upgrade" is a hop-by-hop header, it is not passed from a client to proxied server.）。<strong>逐跳標頭</strong>（hop-by-hop header）只管「這一段連線」，代理收下就算數，不往下一段傳；RFC 9110 用 <code>Connection</code> 標頭區分這類欄位與要傳到終點的欄位。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1" target="_blank" rel="noopener">RFC 9110 第 7.6.1 節</a> 所以「這些標頭必須明確傳過去」（these headers have to be passed explicitly）：<a class="fixsrc" href="https://nginx.org/en/docs/http/websocket.html" target="_blank" rel="noopener">nginx.org「WebSocket proxying」</a></p>
+<p>〈Web Hosting 與 Nginx〉的 <code>proxy_pass</code> 設定，直接拿來代理 WebSocket 會失敗：Upgrade 是逐跳標頭，不會從用戶端傳給被代理的伺服器。<strong>逐跳標頭</strong>（hop-by-hop header）只管「這一段連線」，代理收下就算數，不往下一段傳；HTTP 用 <code>Connection</code> 標頭區分這類欄位與要傳到終點的欄位。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1" target="_blank" rel="noopener">RFC 9110 第 7.6.1 節</a> 所以這些標頭要明確傳過去：<a class="fixsrc" href="https://nginx.org/en/docs/http/websocket.html" target="_blank" rel="noopener">nginx.org「WebSocket proxying」</a></p>
 <pre><code>location /ws/ {
     proxy_pass http://backend;
     proxy_http_version 1.1;                    # Nginx 1.29.7 以前的預設是 1.0，要寫
@@ -491,15 +521,15 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 </figure>
 <p>三個設定各有出處：</p>
 <ul class="plainlist">
-<li><code>proxy_http_version</code>：nginx.org 寫「從 1.29.7 起預設用 1.1，1.29.7 以前預設用 1.0」（Since 1.29.7, version 1.1 is used by default. Before 1.29.7, version 1.0 was used by default.）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version" target="_blank" rel="noopener">ngx_http_proxy_module</a> 用 <code>nginx:1.24</code>（1.24.0）實測沒寫這行時，Nginx 轉給上游的請求行是 <code>GET /x HTTP/1.0</code>，Upgrade 標頭照樣帶著。RFC 6455 規定握手「HTTP 版本至少要 1.1」（The method of the request MUST be GET, and the HTTP version MUST be at least 1.1.），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1" target="_blank" rel="noopener">RFC 6455 第 4.1 節</a> 這次的 Tomcat 很寬鬆，照樣回了 101、訊息也收得到，但不能保證每個後端都接受。舊版 Nginx 寫上這行比較保險。</li>
-<li><code>proxy_read_timeout</code>：「被代理的伺服器在這段時間內沒有送任何東西，連線就關掉」（If the proxied server does not transmit anything within this time, the connection is closed.），預設 60 秒。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout" target="_blank" rel="noopener">ngx_http_proxy_module</a> nginx.org 也提另一個做法：讓後端定期送 Ping 訊框重設逾時（the proxied server can be configured to periodically send WebSocket ping frames to reset the timeout）。<a class="fixsrc" href="https://nginx.org/en/docs/http/websocket.html" target="_blank" rel="noopener">nginx.org「WebSocket proxying」</a></li>
+<li><code>proxy_http_version</code>：從 1.29.7 起預設用 1.1，1.29.7 以前預設用 1.0。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version" target="_blank" rel="noopener">ngx_http_proxy_module</a> 用 <code>nginx:1.24</code>（1.24.0）實測沒寫這行時，Nginx 轉給上游的請求行是 <code>GET /x HTTP/1.0</code>，Upgrade 標頭照樣帶著。WebSocket 握手規定 HTTP 版本至少要 1.1（RFC 用 MUST），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1" target="_blank" rel="noopener">RFC 6455 第 4.1 節</a> 這次的 Tomcat 很寬鬆，照樣回了 101、訊息也收得到，但不能保證每個後端都接受。舊版 Nginx 寫上這行比較保險。</li>
+<li><code>proxy_read_timeout</code>：被代理的伺服器在這段時間內沒有送任何東西，連線就關掉，預設 60 秒。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout" target="_blank" rel="noopener">ngx_http_proxy_module</a> 另一個做法是讓後端定期送 Ping 訊框重設逾時。<a class="fixsrc" href="https://nginx.org/en/docs/http/websocket.html" target="_blank" rel="noopener">nginx.org「WebSocket proxying」</a></li>
 <li><strong>SSE 的緩衝：</strong>SSE 不用 Upgrade，但要能一筆一筆送出去。Nginx 預設開著代理緩衝（proxy_buffering 預設 on）。2026-10-03 用 nginx 1.29.8 實測三種位置，用 curl 記每次收到資料的時間：
 <pre><code>預設（緩衝開、沒壓縮）          00:13:08.54  00:13:09.66  00:13:10.59   三筆照樣每秒一筆
 緩衝開＋gzip（text/event-stream） 00:13:06.37                              三筆在最後一起到
 緩衝關＋gzip                      00:13:26.65  00:13:27.65  00:13:28.64   恢復每秒一筆</code></pre>
-所以這次的情況是「緩衝加上壓縮」才會整批到，單純的預設緩衝沒有卡住。保險的做法是對 SSE 的位置設 <code>proxy_buffering off</code>，或讓後端在回應加 <code>X-Accel-Buffering: no</code>（Buffering can also be enabled or disabled by passing “yes” or “no” in the “X-Accel-Buffering” response header field.）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering" target="_blank" rel="noopener">ngx_http_proxy_module</a> 逾時同樣適用 proxy_read_timeout，定期送註解行可以撐住。</li>
+所以這次的情況是「緩衝加上壓縮」才會整批到，單純的預設緩衝沒有卡住。保險的做法是對 SSE 的位置設 <code>proxy_buffering off</code>，或讓後端在回應加 <code>X-Accel-Buffering: no</code>（回應標頭 X-Accel-Buffering 可以用 yes 或 no 開關緩衝）。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering" target="_blank" rel="noopener">ngx_http_proxy_module</a> 逾時同樣適用 proxy_read_timeout，定期送註解行可以撐住。</li>
 </ul>
-<p>Nginx 之外，公司網路與網際網路上的代理也可能擋 WebSocket。Spring 文件提醒，網際網路上你管不到的嚴格代理可能「沒設定轉送 Upgrade 標頭，或把看起來閒置的長連線關掉」（either because they are not configured to pass on the Upgrade header or because they close long-lived connections that appear idle.），所以防火牆內的內部系統用 WebSocket 比較單純。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a> Spring 為此提供 SockJS 備援：「先試 WebSocket，不行就退回用 HTTP 技術模擬」（attempting to use WebSocket first and then falling back on HTTP-based techniques that emulate a WebSocket interaction）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/fallback.html" target="_blank" rel="noopener">Spring Framework 7.0 SockJS 備援</a></p>
+<p>Nginx 之外，公司網路與網際網路上的代理也可能擋 WebSocket：網際網路上你管不到的嚴格代理，可能沒設定轉送 Upgrade 標頭，或把看起來閒置的長連線關掉，所以防火牆內的內部系統用 WebSocket 比較單純。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket.html" target="_blank" rel="noopener">Spring Framework 7.0 WebSocket 章</a> Spring 為此提供 SockJS 備援：先試 WebSocket，不行就退回用 HTTP 技術模擬。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/web/websocket/fallback.html" target="_blank" rel="noopener">Spring Framework 7.0 SockJS 備援</a></p>
 <div class="drill">
   <p class="dq">前端連 <code>wss://bank.example/ws/</code>，經過 Nginx 到後端 Spring Boot。Nginx 只有 <code>proxy_pass</code>，沒補任何標頭。最可能的結果是？</p>
   <ul class="dopts"><li data-ok>握手失敗，後端回 400</li><li>正常，Nginx 會自動處理升級</li><li>回 101，但之後收不到訊息</li><li>Nginx 自動改用 SSE</li></ul>
@@ -508,12 +538,12 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 <div class="drill">
   <p class="dq">要讓 Nginx 正確代理 WebSocket，location 裡最關鍵的兩行是？</p>
   <ul class="dopts"><li data-ok>補上 Upgrade 與 Connection 標頭</li><li>Host 與 X-Forwarded-For</li><li>proxy_buffering off 與 gzip on</li><li>add_header Cache-Control no-store</li></ul>
-  <p class="dexp">nginx.org：這些標頭必須明確傳過去。Host、X-Forwarded-For 是〈Web Hosting 與 Nginx〉講的轉送資訊，跟升級無關。</p>
+  <p class="dexp">Upgrade、Connection 這些標頭要明確傳過去。Host、X-Forwarded-For 是〈Web Hosting 與 Nginx〉講的轉送資訊，跟升級無關。</p>
 </div>
 <div class="drill">
   <p class="dq">WebSocket 經過 Nginx 能連上，但使用者一分鐘沒動作就斷線。最可能的原因是？</p>
   <ul class="dopts"><li data-ok>proxy_read_timeout 預設 60 秒</li><li>TLS 憑證過期</li><li>瀏覽器規定 WebSocket 連線最多只能開一分鐘就要重建</li><li>Sec-WebSocket-Accept 算錯</li></ul>
-  <p class="dexp">proxy_read_timeout 預設 60s。解法是加長逾時，或讓後端定期送 Ping 訊框，nginx.org 兩種都有提。Accept 算錯根本連不上，不會撐一分鐘。</p>
+  <p class="dexp">proxy_read_timeout 預設 60s。解法是加長逾時，或讓後端定期送 Ping 訊框。Accept 算錯根本連不上，不會撐一分鐘。</p>
 </div>
 <div class="drill">
   <p class="dq">SSE 經過 Nginx 後，事件不是每秒一筆，而是好幾筆一起「一坨」到。最該先檢查什麼？</p>
@@ -523,12 +553,12 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 <div class="drill">
   <p class="dq">公司用的是 Nginx 1.24。WebSocket 的 location 沒寫 <code>proxy_http_version 1.1</code>。會怎樣？</p>
   <ul class="dopts"><li>沒差，Nginx 一直都預設 1.1</li><li>Nginx 會自動改用 HTTP/2 對上游說話</li><li data-ok>可能失敗，舊版預設 1.0</li><li>只影響 SSE，不影響 WebSocket</li></ul>
-  <p class="dexp">nginx.org：Before 1.29.7, version 1.0 was used by default。實測 nginx 1.24.0 沒寫時，送給上游的是 HTTP/1.0 的請求；RFC 6455 要求握手至少 HTTP/1.1。這次的 Tomcat 照樣接受，但換一個嚴格的後端就可能失敗。</p>
+  <p class="dexp">1.29.7 以前 proxy_http_version 預設是 1.0。實測 nginx 1.24.0 沒寫時，送給上游的是 HTTP/1.0 的請求；WebSocket 握手規定至少 HTTP/1.1。這次的 Tomcat 照樣接受，但換一個嚴格的後端就可能失敗。</p>
 </div>
 <div class="drill">
   <p class="dq">網銀的對外 App 要做即時通知，但有些客戶在管得很嚴的公司網路裡，WebSocket 常連不上。Spring 生態裡的對策是？</p>
   <ul class="dopts"><li data-ok>用 SockJS 備援</li><li>改用 UDP 繞過代理</li><li>要客戶換網路</li><li>把 Sec-WebSocket-Version 改成 8</li></ul>
-  <p class="dexp">Spring 文件：嚴格的代理可能不轉送 Upgrade 或關掉閒置的長連線，解法是 WebSocket 模擬，Servlet 堆疊提供 SockJS。另一個選擇是改用 SSE 這類普通 HTTP 的做法。</p>
+  <p class="dexp">嚴格的代理可能不轉送 Upgrade 或關掉閒置的長連線，解法是 WebSocket 模擬，Servlet 堆疊提供 SockJS。另一個選擇是改用 SSE 這類普通 HTTP 的做法。</p>
 </div>
 </section>
 
@@ -557,7 +587,7 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 <div class="drill">
   <p class="dq">行內系統要做「多位行員同時編輯同一份授信文件，即時看到彼此的修改」。最合適的是？</p>
   <ul class="dopts"><li>SSE</li><li data-ok>WebSocket（可搭 STOMP）</li><li>每 30 秒短輪詢一次，看有沒有人改過</li><li>電子郵件通知</li></ul>
-  <p class="dexp">每個人都在送修改、也都要收別人的修改，雙向又頻繁。行內網路在防火牆內，也是 Spring 文件說 WebSocket 比較好決定的情境。</p>
+  <p class="dexp">每個人都在送修改、也都要收別人的修改，雙向又頻繁。行內網路在防火牆內，沒有外部代理擋 WebSocket 的問題，選起來比較單純。</p>
 </div>
 <div class="drill">
   <p class="dq">工程師說「我們改用 WebSocket 推交易通知，所以通知一定送得到」。這句話的問題是？</p>
@@ -566,4 +596,4 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>短輪詢定期問、延遲上限是間隔；長輪詢讓請求掛著，有事或逾時才回；SSE 是一個一直不結束的 HTTP 回應，只有伺服器往用戶端；WebSocket 升級後雙向。低延遲、高頻率、大量同時成立，才最適合 WebSocket。</li><li>WebSocket 握手：GET 帶 Upgrade: websocket、Connection: Upgrade、Sec-WebSocket-Key；伺服器回 101 與 Sec-WebSocket-Accept＝Base64(SHA-1(Key＋固定 GUID))。它證明伺服器懂 WebSocket，不是加密；加密用 wss://。</li><li>握手後送訊框：用戶端必須遮罩、伺服器不遮罩；收到 Ping 必須回 Pong；關閉時雙方各送 Close。101 不適用於 HTTP/2，要用 RFC 8441。</li><li>SSE：text/event-stream，欄位 data、event、id、retry，空行結束一個事件，冒號開頭是註解。斷線後瀏覽器等 retry 毫秒自動重連，帶 Last-Event-ID，伺服器要自己依它補送；回 204 叫它別再連。HTTP/1.1 下瀏覽器通常限制每個網域 6 條（MDN；瀏覽器的做法，不是 HTTP 規格）。</li><li>Spring：回傳 SseEmitter，在別的執行緒 send、最後 complete；原生 WebSocket 繼承 TextWebSocket<wbr>Handler 並用 @EnableWebSocket 註冊；STOMP 用 @EnableWebSocket<wbr>MessageBroker，/app 進 @MessageMapping、/topic 交給訊息代理廣播。</li><li>Nginx：Upgrade、Connection 是逐跳標頭，要用 proxy_set_header 補；舊版要寫 proxy_http_version 1.1；proxy_read_timeout 預設 60 秒；SSE 要關代理緩衝。嚴格的代理擋 WebSocket 時，Spring 有 SockJS 備援。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>短輪詢定期問、延遲上限是間隔；長輪詢讓請求掛著，有事或逾時才回；SSE 是一個一直不結束的 HTTP 回應，只有伺服器往用戶端；WebSocket 升級後雙向。低延遲、高頻率、大量同時成立，才最適合 WebSocket。</li><li>WebSocket 握手：GET 帶 Upgrade: websocket、Connection: Upgrade、Sec-WebSocket-Key；伺服器回 101 與 Sec-WebSocket-Accept＝Base64(SHA-1(Key＋固定 GUID))。它證明伺服器懂 WebSocket，不是加密；加密用 wss://。</li><li>握手後送訊框：用戶端必須遮罩、伺服器不遮罩；收到 Ping 必須回 Pong；關閉時雙方各送 Close。101 不適用於 HTTP/2，要用 RFC 8441。</li><li>SSE：text/event-stream，欄位 data、event、id、retry，空行結束一個事件，冒號開頭是註解。斷線後瀏覽器等 retry 毫秒自動重連，帶 Last-Event-ID，伺服器要自己依它補送；回 204 叫它別再連。HTTP/1.1 下瀏覽器通常限制每個網域 6 條（瀏覽器的做法，不是 HTTP 規格）。</li><li>Spring：回傳 SseEmitter，在別的執行緒 send、最後 complete；原生 WebSocket 繼承 TextWebSocket<wbr>Handler 並用 @EnableWebSocket 註冊；STOMP 用 @EnableWebSocket<wbr>MessageBroker，/app 進 @MessageMapping、/topic 交給訊息代理廣播。</li><li>Nginx：Upgrade、Connection 是逐跳標頭，要用 proxy_set_header 補；舊版要寫 proxy_http_version 1.1；proxy_read_timeout 預設 60 秒；SSE 要關代理緩衝。嚴格的代理擋 WebSocket 時，Spring 有 SockJS 備援。</li></ul></div>
