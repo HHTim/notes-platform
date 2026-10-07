@@ -32,7 +32,7 @@
 <tr><td>取樣（Sampling）</td><td>讓伺服器反過來請主機用模型生成內容</td><td>互相呼叫、成本、資料邊界不清</td></tr>
 </tbody></table></div>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「目前 GitHub Copilot 的 Agent Mode 只能用「工具」這項！」，並把 Resources、Prompts、Sampling 列為當時尚未支援，查證後更正">這四項現行 VS Code 都支援了：工具、資源、提示範本列在 MCP 伺服器說明頁，取樣則寫在擴充功能開發指南裡（伺服器可以用你設定的模型發出請求，第一次呼叫時會跳出授權提示）</mark><a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>；要控管哪些模型開放給伺服器取樣，用的是 <code>chat.mcp.serverSampling</code> 這個設定。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">取樣則要再多看一步。它跟 Roots 已經準備退場：MCP 規格在 2026-07-28 版把這兩項標為棄用（deprecated），最快會在 2027-07-28 之後的版本被移除，並給了替代做法——取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>所以取樣現在的狀態是「編輯器支援得到，規格卻已經不建議」：舊的實作還會動，但新的流程不要再建立在它上面。</p>
+<p class="muted">取樣則要再多看一步。它跟 Roots 已經準備退場：MCP 規格在 2026-07-28 版把這兩項標為棄用（deprecated），最快會在 2027-07-28 之後的版本被移除，並給了替代做法——取樣改成直接串模型供應商的介面，Roots 改用工具參數、資源網址或伺服器設定來傳路徑。<a class="fixsrc" href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated" target="_blank" rel="noopener">出處</a>所以取樣現在是編輯器還支援、規格已經不建議：舊的實作還會動，但新的流程不要再建立在它上面。</p>
 <p class="muted">用戶端這邊還有 Elicitation（伺服器中途向使用者要一項補充資訊）。VS Code 也支援這項，擴充功能開發指南把它跟工具、資源、提示範本列在一起：「Elicitation: request input from the user」。<a class="fixsrc" href="https://code.visualstudio.com/api/extension-guides/ai/mcp" target="_blank" rel="noopener">出處</a>不過通則要記得：「協定有這項能力」推論不出「手上這套產品一定支援」，兩者是不同層次，實際還是看該產品自己的文件。</p>
 </section>
 
@@ -50,7 +50,12 @@
   }
 }</code></pre>
 <p>專案設定檔放在 <code>.vscode/mcp.json</code>，命令列也有 <code>--add-mcp</code> 參數可以加；<mark class="fixnote" tabindex="0" data-note="原筆記寫「安裝擴充套件：使用 code-insiders 安裝 GitHub Copilot Pre-release 版本」「指令：code-insiders --add-mcp」，查證後更正">現在正式版的 VS Code 就支援，不必再裝預覽版</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" rel="noopener">出處</a>。管理指令有 <code>MCP: Add Server</code>、<code>MCP: List Servers</code>、<code>MCP: Reset Cached Tools</code>、<code>MCP: Open User Configuration</code>、<code>MCP: Open Workspace Folder MCP Configuration</code>、<code>MCP: Browse Resources</code>、<code>MCP: Reset Trust</code>、<code>MCP: Show Installed Servers</code>。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration" target="_blank" rel="noopener">出處</a></p>
-<p class="muted"><code>.vscode/mcp.json</code> 有個前提要先知道。VS Code 把 AI 代理跑在一個獨立的程序裡，官方叫它 Agent Host（「VS Code runs AI coding agents in a dedicated process called the Agent Host」）<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/concepts/agent-host" target="_blank" rel="noopener">出處</a>；而「For sessions that run on Agent Host, the Agent Host doesn't read <code>.vscode/mcp.json</code> directly. Instead, VS Code forwards your MCP server configuration to the Agent Host, except servers that require interactive input (for example, <code>${input:...}</code> variables).」——跑在 Agent Host 上的工作階段不會自己去讀這個檔案，是 VS Code 把設定轉過去的，而且需要你當場輸入值的伺服器（像上面範例那樣用 <code>${input:…}</code> 的）不在轉送之列。官方說要讓設定在 Agent Host 與其他 Copilot 工具之間都通用，就改用工作區的 <code>.mcp.json</code> 或使用者的 <code>~/.copilot/mcp-config.json</code>，這兩個 Agent Host 會直接讀。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" rel="noopener">出處</a></p>
+<p class="muted"><code>.vscode/mcp.json</code> 有個前提要先知道。VS Code 把 AI 代理跑在一個獨立的程序裡，叫 Agent Host。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/concepts/agent-host" target="_blank" rel="noopener">出處</a></p>
+<ul class="muted">
+<li>跑在 Agent Host 上的工作階段不會自己去讀 <code>.vscode/mcp.json</code>，是 VS Code 把設定轉過去的。</li>
+<li>需要你當場輸入值的伺服器（像上面範例那樣用 <code>${input:…}</code> 的）不在轉送之列。</li>
+<li>要讓設定在 Agent Host 與其他 Copilot 工具之間都通用，改用工作區的 <code>.mcp.json</code> 或使用者的 <code>~/.copilot/mcp-config.json</code>，這兩個 Agent Host 會直接讀。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <ul class="plainlist">
 <li>優先用唯讀帳號、測試環境與範圍受限的權杖。</li>
 <li>寫入、刪除、付款、部署、對外發訊這類動作，保留人工確認。</li>
@@ -79,7 +84,7 @@
 <div class="tablewrap"><table><thead><tr><th>元件</th><th>像什麼</th><th>適合放什麼</th><th>檔案形式</th></tr></thead><tbody>
 <tr><td>指示檔</td><td>常設規章</td><td>團隊風格、架構界線、安全與測試政策</td><td><code>.github/copilot-instructions.md</code>、<code>.github/instructions/*.instructions.md</code></td></tr>
 <tr><td>提示檔</td><td>可以重跑的工作單</td><td>建介面、審弱點、產遷移計畫等任務流程</td><td><code>.github/prompts/*.prompt.md</code></td></tr>
-<tr><td>自訂代理人</td><td>角色與工作環境</td><td>規劃者、文件編輯、唯讀審查等模式與工具限制</td><td><mark class="fixnote" tabindex="0" data-note="原筆記寫這類檔案是 .chatmode.md（聊天模式），查證後更正">已改名為 <code>*.agent.md</code>，工作區放在 <code>.github/agents</code>；官方說「自訂代理人的前身就是聊天模式」，舊的 <code>.chatmode.md</code> 要改名搬過去</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td>自訂代理人</td><td>角色與工作環境</td><td>規劃者、文件編輯、唯讀審查等模式與工具限制</td><td><mark class="fixnote" tabindex="0" data-note="原筆記寫這類檔案是 .chatmode.md（聊天模式），查證後更正">已改名為 <code>*.agent.md</code>，工作區放在 <code>.github/agents</code>；自訂代理人的前身就是聊天模式，舊的 <code>.chatmode.md</code> 要改名搬過去</mark><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><td>工具</td><td>可以操作的器材</td><td>讀檔、搜尋、查資料庫、呼叫外部服務、執行指令</td><td>內建或由 MCP 伺服器提供</td></tr>
 </tbody></table></div>
 <p>提示檔可以要求遵循指示檔，也可以建議用哪些工具，但它本身不是工具。就像工作單可以寫「用扳手鎖緊」，工作單不會變成扳手。</p>
@@ -97,15 +102,20 @@
     "icon": "book"
   }
 }</code></pre>
-<p>之後在對話裡打 <code>#reader</code>，這一整組就一起帶進去。官方也說明三個欄位各是什麼：<code>tools</code> 是工具名稱的陣列（可以放內建工具、MCP 工具或擴充功能提供的工具），<code>description</code> 是在工具選單裡顯示的說明，<code>icon</code> 是圖示。</p>
-<p class="muted">VS Code 自己也內建了幾組，官方的說法是「Tool sets group related tools. For example, <code>#search</code> groups workspace search tools.」：<code>#read</code>（讀工作區的檔案與執行輸出）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區的檔案與 Notebook，也就是可以邊寫程式邊看執行結果的那種檔案）、<code>#execute</code>（執行指令、任務與 Notebook 的儲存格）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（用瀏覽器工具瀏覽、檢查與操作頁面）、<code>#agent</code>（把工作分派給子代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a></p>
+<p>之後在對話裡打 <code>#reader</code>，這一整組就一起帶進去。三個欄位：</p>
+<ul>
+<li><code>tools</code>：工具名稱的陣列，可以放內建工具、MCP 工具或擴充功能提供的工具。</li>
+<li><code>description</code>：在工具選單裡顯示的說明。</li>
+<li><code>icon</code>：圖示。</li>
+</ul>
+<p class="muted">VS Code 自己也內建了幾組，每組把相關的工具包在一起：<code>#read</code>（讀工作區的檔案與執行輸出）、<code>#search</code>（搜工作區）、<code>#edit</code>（改工作區的檔案與 Notebook，也就是可以邊寫程式邊看執行結果的那種檔案）、<code>#execute</code>（執行指令、任務與 Notebook 的儲存格）、<code>#web</code>（取用網頁內容）、<code>#browser</code>（用瀏覽器工具瀏覽、檢查與操作頁面）、<code>#agent</code>（把工作分派給子代理人）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
 <p class="era">自訂代理人</p>
 <h3 class="head">同一套工具，換個角色用</h3>
-<p>前面那張表提過這類檔案已經從<strong>自訂聊天模式</strong>改名叫<strong>自訂代理人</strong>。這裡講它實際能做什麼。官方的說法是「Custom agents combine instructions, tools, and an optional language model into a reusable configuration for a specific role, such as planning or code review.」——把指示、工具跟一個選填的模型組成一份可重複使用的設定，對應某一個角色，例如規劃或程式碼審查。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
-<p>官方舉的例子是：「The following code snippet shows an example of a "Plan" custom agent file that generates an implementation plan and doesn't make any code edits.」——一個只出實作計畫、不動程式碼的規劃角色，就不會在你還在想的時候改到東西。</p>
+<p>前面那張表提過這類檔案已經從<strong>自訂聊天模式</strong>改名叫<strong>自訂代理人</strong>。這裡講它實際能做什麼：把指示、工具跟一個選填的模型組成一份可重複使用的設定，對應某一個角色，例如規劃或程式碼審查。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+<p>例如一個「Plan」角色只出實作計畫、不動程式碼，就不會在你還在想的時候改到東西。</p>
 <div class="tablewrap"><table><thead><tr><th>要設的東西</th><th>寫在哪</th></tr></thead><tbody>
 <tr><td>檔案本身</td><td>一個 <code>.agent.md</code> 的 Markdown 檔</td></tr>
 <tr><td>工作區共用</td><td><code>.github/agents</code> 資料夾（Claude 格式則放 <code>.claude/agents</code>）</td></tr>
@@ -113,7 +123,7 @@
 <tr><td>檔頭設定（YAML 前置區，檔案開頭用三個減號框起來的設定段）</td><td><code>description</code>（說明）、<code>name</code>（名稱，不寫就用檔名）、<code>tools</code>（准用哪些工具或工具組）、<code>model</code>（指定用哪個模型）等</td></tr>
 </tbody></table></div>
 <p>建立用命令面板的 <code>Chat: New Custom Agent</code>，要用的時候在對話視窗的代理人下拉選單裡切換。</p>
-<p class="muted">這個功能的名稱換過。官方在問答區直接寫「Custom agents were previously known as custom chat modes. The functionality remains the same, but the terminology has been updated to better reflect their purpose in customizing AI behavior for specific tasks.」，並要求把舊的 <code>.chatmode.md</code> 改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">這個功能的名稱換過：自訂代理人以前叫自訂聊天模式，功能一樣，只是改了名字，更貼近「為特定工作調整 AI 行為」的用途。舊的 <code>.chatmode.md</code> 要改名搬過去。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/custom-agents" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -140,7 +150,7 @@ description: 審查指定介面的授權風險
 2. 每項發現對應的程式碼依據
 3. 建議修正與待確認的假設</code></pre>
 <p>不要把整段聊天原封不動存起來；刪掉當時才有的偶然資訊，留下用途、必要輸入、允許範圍、禁止事項、輸出格式與完成條件。流程長的話拆成幾份小提示、明確傳遞中間產物，比做一份越長越大的提示好維護。</p>
-<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">提示檔沒有 <code>chat.promptFiles</code> 這個開關要打開。管提示檔的設定名稱是 <code>chat.promptFilesLocations</code>：2025 年 4 月的 VS Code 更新說明寫「The <code>chat.promptFilesLocations</code> setting lists the folder where prompt files are looked for.」（這個設定列出去哪些資料夾找提示檔），現行的設定總表又把它標成 (Deprecated)，也就是已棄用，說明寫著這個設定與本機代理未來都會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/updates/v1_100" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a>。提示檔在 Agent Host 工作階段也已棄用、不會被載入，只有本機代理還讀得到；官方給的下一步是「Use prompt file migration to convert existing prompts to agent skills.」——把既有的提示檔轉成 agent skills（技能檔，一份 <code>SKILL.md</code>，檔頭寫名稱與用途、內文寫指示）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/agent-skills" target="_blank" rel="noopener">出處</a>所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。另外，把對話存成提示檔、或匯出成一份檔案給別人匯入這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
+<p class="muted"><mark class="fixnote" tabindex="0" data-note="原筆記寫「啟用設定：&quot;chat.promptFiles&quot;: true」，查證後更正">提示檔沒有 <code>chat.promptFiles</code> 這個開關要打開。管提示檔的設定名稱是 <code>chat.promptFilesLocations</code>，列出去哪些資料夾找提示檔（VS Code 2025 年 4 月版起）；現行的設定總表又把它標成 (Deprecated)，也就是已棄用，這個設定與本機代理未來都會移除</mark><a class="fixsrc" href="https://code.visualstudio.com/updates/v1_100" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-settings" target="_blank" rel="noopener">出處</a>。提示檔在 Agent Host 工作階段也已棄用、不會被載入，只有本機代理還讀得到；下一步是用提示檔轉換功能，把既有的提示檔轉成 agent skills（技能檔，一份 <code>SKILL.md</code>，檔頭寫名稱與用途、內文寫指示）。<a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/prompt-files" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://code.visualstudio.com/docs/agent-customization/agent-skills" target="_blank" rel="noopener">出處</a>所以這套做法的觀念可以學，但長期別把流程全押在這個檔案格式上。另外，把對話存成提示檔、或匯出成一份檔案給別人匯入這類功能，分享前要先把祕密、個資、內部路徑與客戶資料清掉——可重用不等於可公開。</p>
 </section>
 
 <section>
@@ -148,26 +158,26 @@ description: 審查指定介面的授權風險
 <h3 class="head">換一個乾淨的開始，或把這段留下來</h3>
 <p>對話越長，舊的資訊越容易干擾新的問題。要處理的需求有三種：清空上下文、把這次的對話存成之後可以重跑的檔案、把整串對話留底或給別人。對應的做法如下。</p>
 <div class="tablewrap"><table><thead><tr><th>你想做的事</th><th>現行官方列的做法</th></tr></thead><tbody>
-<tr><td>不要讓舊對話影響新問題</td><td><code>/clear</code>：官方的說明是「Start a new chat and archive or mark the current chat as done.」——開一個新對話，並把目前這個封存或標記為完成</td></tr>
+<tr><td>不要讓舊對話影響新問題</td><td><code>/clear</code>：開一個新對話，並把目前這個封存或標記為完成</td></tr>
 <tr><td>對話太長、超出模型能看的範圍</td><td><code>/compact</code>：總表把它跟 <code>/fork</code> 併成一列——「Compact context, or branch the conversation with its history.」——壓縮上下文，或是連同歷史把對話分岔成另一串；要繼續同一串的是 <code>/compact</code></td></tr>
 <tr><td>把這次的做法變成下次可以重跑的檔案</td><td><code>/create-prompt</code>：總表把它跟 <code>/create-agent</code>、<code>/create-instructions</code>、<code>/create-skill</code>、<code>/create-hook</code> 併成一列——「Generate a customization in a local agent session.」——在本機代理的工作階段裡產生一份自訂設定</td></tr>
 <tr><td>整串留底或給別人</td><td>命令面板的 <code>Chat: Export Chat...</code>，存成一個 JSON 檔</td></tr>
 </tbody></table></div>
 <p>官方對匯出的描述是「Exporting a chat session creates a JSON file that contains all prompts and responses from the session.」——<strong>全部</strong>的提示與回覆都在裡面。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/sessions/manage-sessions" target="_blank" rel="noopener">出處</a>同一頁還列了右鍵複製成 Markdown 的三種：<code>Copy</code>（單則）、<code>Copy All</code>（整串）、<code>Copy Final Response</code>（只要最後那段結論）。既然是整串照抄，分享前一樣要先清祕密與個資。</p>
-<p class="muted">要把對話變成可重複執行的檔案，官方現行的斜線指令總表列出來的是 <code>/create-prompt</code>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過總表自己註明「Type <code>/</code> to see commands available in the current session. Availability depends on the chat surface, harness, role, and enabled features.」，所以「總表沒有列」不等於「官方說這個指令不存在」，實際還是以你手上那個版本打 <code>/</code> 跳出來的清單為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經被官方標為棄用，所以別把長期流程全押在它身上。</p>
+<p class="muted">要把對話變成可重複執行的檔案，現行的斜線指令總表列出來的是 <code>/create-prompt</code>。工作階段那一頁也只寫了匯出，沒有寫對應的匯入指令。不過能用哪些指令，要看聊天介面、執行環境、角色與開了哪些功能，所以總表沒有列，不等於這個指令不存在；實際以你手上那個版本打 <code>/</code> 跳出來的清單為準。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" target="_blank" rel="noopener">出處</a>另外要記得這一課前面講過的前提：提示檔這個格式在部分工作階段已經標為棄用，所以別把長期流程全押在它身上。</p>
 </section>
 
 <section>
 <p class="era">再多三種材料</p>
 <h3 class="head">專案以外的東西，怎麼指給它看</h3>
 <p>〈GitHub Copilot 基礎〉有一張表，列了怎麼把選取的程式碼、問題清單、版本控制的差異、整個工作區指給它看。還有三種材料來自<strong>工作區以外</strong>，補在這裡。</p>
-<div class="tablewrap"><table><thead><tr><th>想給的材料</th><th>現行寫法</th><th>官方說明</th></tr></thead><tbody>
-<tr><td>GitHub 上某個儲存庫的原始碼</td><td><code>#githubRepo</code>，後面接 <code>owner/repo</code>（GitHub 上「帳號／儲存庫名稱」的寫法）</td><td>「Search a GitHub repository semantically. Specify the repository as <code>owner/repo</code>.」（<strong>語意搜尋</strong>＝照意思找相關的段落，不是只比對字面）</td></tr>
-<tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>「Search a GitHub repository or organization for text or code patterns.」</td></tr>
-<tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>「Fetch a web page.」</td></tr>
+<div class="tablewrap"><table><thead><tr><th>想給的材料</th><th>現行寫法</th><th>用途</th></tr></thead><tbody>
+<tr><td>GitHub 上某個儲存庫的原始碼</td><td><code>#githubRepo</code>，後面接 <code>owner/repo</code>（GitHub 上「帳號／儲存庫名稱」的寫法）</td><td>對 GitHub 儲存庫做<strong>語意搜尋</strong>（照意思找相關的段落，不是只比對字面），儲存庫寫成 <code>owner/repo</code></td></tr>
+<tr><td>同上，但要照關鍵字精確找</td><td><code>#githubTextSearch</code></td><td>在 GitHub 儲存庫或組織裡找文字或程式碼樣式</td></tr>
+<tr><td>某一頁網頁的內容</td><td><code>#web/fetch</code></td><td>抓一頁網頁</td></tr>
 </tbody></table></div>
 <p class="muted">現行工具總表把抓網頁的工具寫成 <code>#web/fetch</code>，歸在 <code>#web</code> 這組底下，跟〈GitHub Copilot 基礎〉的 <code>#search/codebase</code> 是同一種「工具組／工具」的寫法；表上沒有列 <code>#fetch</code> 這個不帶前綴的舊短名，也看不出它還能不能打。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/reference/tools-reference" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">早期用 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構）做這件事，現行官方的內建工具總表與瀏覽器工具那一頁都沒有列這個名字。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做：官方說「Browser tools give agents a visual and interactive feedback loop for web development.」，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">早期用 <code>#openSimpleBrowser</code>（在編輯器裡開一個簡易瀏覽器，讓 AI 看得到網頁結構）做這件事，現行的內建工具總表與瀏覽器工具那一頁都沒有列這個名字。同一件事現在由<strong>內建瀏覽器那一組工具</strong>做，讓代理在做網頁時看得到畫面、也能操作頁面，工具包括 <code>openBrowserPage</code>、<code>navigatePage</code>、<code>readPage</code>、<code>screenshotPage</code>、<code>clickElement</code> 等，用 <code>workbench.browser.enableChatTools</code> 這個設定開關，預設是開的。<a class="fixsrc" href="https://code.visualstudio.com/docs/agents/run/browser-tools" target="_blank" rel="noopener">出處</a></p>
 <p>這三種材料都來自你的工作區以外，所以下一段那條規矩對它們特別重要。</p>
 </section>
 

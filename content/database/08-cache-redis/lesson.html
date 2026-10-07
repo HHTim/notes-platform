@@ -5,15 +5,26 @@
 <p class="era">先決定放哪一層</p>
 <h3 class="head">快取是什麼、放在哪裡</h3>
 <p><strong>快取</strong>（cache）是把常被讀的資料多放一份在更快的地方，讓大多數讀取不必回到資料庫。查得到叫<strong>命中</strong>（cache hit），查不到叫<strong>未命中</strong>（cache miss）。就像櫃檯把最常被問的匯率抄在白板上：問的人看白板就好，白板上沒有才打電話問總行。</p>
-<p>AWS 的快取白皮書把資料庫快取分成三種放法：資料庫內建的快取、應用程式裡的<strong>本地快取</strong>（local cache），和獨立一層的<strong>遠端快取</strong>（remote cache，例如 Redis）。本地快取比其他放法都快，「因為省掉了取資料的網路往返」（because it removes network traffic that is associated with retrieving data）；主要缺點是「每個節點各有一份自己的快取，彼此不相連」（each node has its own resident cache working in a disconnected manner），機器一多很難讓每台的內容一致。遠端快取是專門的伺服器，所有應用程式共用，平均延遲在一毫秒以內。兩者合用叫兩層快取，白皮書說它「因為增加的複雜度，通常只在需要時才用」（it’s typically used only when needed because of the complexity it adds）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/types-of-database-caching.html" target="_blank" rel="noopener">出處</a> 瀏覽器與 CDN 這兩層 HTTP 快取（依 <code>Cache-Control</code> 標頭自動處理）見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉，面試時「HTTP 快取跟應用層快取怎麼分工」怎麼答，見〈系統設計：快取一致性與熱點〉的同名那題。</p>
-<p class="muted">AWS 已把這份白皮書標為僅供歷史參考（This whitepaper is for historical reference only），這裡引的都是不隨產品版本變的觀念。</p>
+<p>資料庫快取有三種放法：<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/types-of-database-caching.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>資料庫內建的快取。</li>
+<li>應用程式裡的<strong>本地快取</strong>（local cache）：比其他放法都快，因為省掉了取資料的網路往返；主要缺點是每個節點各有一份自己的快取、彼此不相連，機器一多很難讓每台的內容一致。</li>
+<li>獨立一層的<strong>遠端快取</strong>（remote cache，例如 Redis）：專門的伺服器，所有應用程式共用，平均延遲在一毫秒以內。</li>
+</ul>
+<p>本地與遠端合用叫兩層快取，因為增加了複雜度，通常只在需要時才用。瀏覽器與 CDN 這兩層 HTTP 快取（依 <code>Cache-Control</code> 標頭自動處理）見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉，面試時「HTTP 快取跟應用層快取怎麼分工」怎麼答，見〈系統設計：快取一致性與熱點〉的同名那題。</p>
+<p class="muted">上面出處那份 AWS 白皮書已標為僅供歷史參考，這裡只取不隨產品版本變的觀念。</p>
 <figure>
 <svg viewBox="0 0 760 228" role="img" aria-label="快取放在哪裡：由左到右是瀏覽器、CDN、應用程式記憶體裡的本地快取、Redis、資料庫。請求從左往右找，找到就停，找不到才往下一層。越左越近越快、容量越小，越右越遠越慢、容量越大，資料庫是最終權威。本課的主角是本地快取與 Redis">
 <defs><marker id="cr-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="22" y="70" width="128" height="60" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="86.0" y="97.0" font-size="13.5" text-anchor="middle">瀏覽器</text><text x="86.0" y="115.0" font-size="11.5" text-anchor="middle" opacity=".7">HTTP 快取</text><line x1="152" y1="100" x2="170" y2="100" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#cr-m1)"/><rect x="170" y="70" width="128" height="60" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="234.0" y="97.0" font-size="13.5" text-anchor="middle">CDN</text><text x="234.0" y="115.0" font-size="11.5" text-anchor="middle" opacity=".7">共用的 HTTP 快取</text><line x1="300" y1="100" x2="318" y2="100" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#cr-m1)"/><rect x="318" y="70" width="128" height="60" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="382.0" y="97.0" font-size="13.5" text-anchor="middle">應用程式記憶體</text><text x="382.0" y="115.0" font-size="11.5" text-anchor="middle" opacity=".7">本地快取</text><line x1="448" y1="100" x2="466" y2="100" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#cr-m1)"/><rect x="466" y="70" width="128" height="60" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="530.0" y="97.0" font-size="13.5" text-anchor="middle">Redis</text><text x="530.0" y="115.0" font-size="11.5" text-anchor="middle" opacity=".7">遠端共用快取</text><line x1="596" y1="100" x2="614" y2="100" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#cr-m1)"/><rect x="614" y="70" width="128" height="60" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="678.0" y="97.0" font-size="13.5" text-anchor="middle">資料庫</text><text x="678.0" y="115.0" font-size="11.5" text-anchor="middle" opacity=".7">最終權威</text><text x="380" y="40" font-size="12.5" text-anchor="middle">請求從左往右找，找到就停（命中）；找不到才往下一層（未命中）</text><line x1="40" y1="160" x2="720" y2="160" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5" marker-end="url(#cr-m1)"/><text x="40" y="182" font-size="12" text-anchor="start" opacity=".75">離使用者近、快、容量小</text><text x="720" y="182" font-size="12" text-anchor="end" opacity=".75">離使用者遠、慢、容量大、資料最新</text><text x="380" y="214" font-size="12" text-anchor="middle" opacity=".6">古銅＝這課的主角：應用程式自己管的快取；HTTP 那兩層由瀏覽器與 CDN 依標頭自動處理</text>
 </svg>
 <figcaption>每一層都是「更小、更近」的副本；資料庫才是正本。</figcaption>
 </figure>
-<p>快取裡的資料遲早會舊，所以每一把 key 都要有<strong>存活時間</strong>（time to live，TTL）。AWS：「設定的時間過了，key 就從快取刪掉，之後必須回到原始資料庫，拿到更新後的資料」（After the set time has passed, the key is deleted from the cache, and access to the origin data store is required along with reaching the updated data）；TTL 要依兩個原則決定：「了解底層資料多常變動」（understand the rate of change of the underlying data），以及「評估回給應用程式的是舊資料、不是更新後的資料，風險有多大」（evaluate the risk of outdated data being returned back to your application instead of its updated counterpart）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/cache-validity.html" target="_blank" rel="noopener">出處</a> 下面用 Docker 跑的 Redis 8.10.2 實際操作（<code>EX</code> 是秒、<code>PX</code> 是毫秒，<code>TTL</code> 看還剩幾秒）：</p>
+<p>快取裡的資料遲早會舊，所以每一把 key 都要有<strong>存活時間</strong>（time to live，TTL）：設定的時間過了，key 就從快取刪掉，之後必須回到原始資料庫，拿到更新後的資料。TTL 依兩個原則決定：<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/cache-validity.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>底層資料多常變動。</li>
+<li>回給應用程式的是舊資料、不是更新後的資料，風險有多大。</li>
+</ul>
+<p>下面用 Docker 跑的 Redis 8.10.2 實際操作（<code>EX</code> 是秒、<code>PX</code> 是毫秒，<code>TTL</code> 看還剩幾秒）：</p>
 <pre><code>$ redis-cli INFO server | grep redis_version
 redis_version:8.10.2
 
@@ -77,10 +88,10 @@ $ redis-cli GET rate:USD
 <h3 class="head">三種讀寫模式：Cache-Aside、Read/Write-Through、Write-Behind</h3>
 <p>四個名字的差別，在於「誰負責把資料放進快取」與「寫的時候快取和資料庫誰先」。</p>
 <ul class="plainlist">
-<li><strong>Cache-Aside</strong>（旁路快取，也叫 lazy loading）：應用程式自己管。AWS 說它是「最常見的快取策略」（the most common caching strategy available），讀取時先查快取，命中就回傳；未命中就查資料庫，「把查到的資料放進快取，再回傳給呼叫者」（The cache is then populated with the data that is retrieved from the database, and the data is returned to the caller）。優點是快取只放真的被要過的資料；缺點是第一次讀要多跑一趟。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>Read-Through</strong>（讀穿）：未命中時由快取元件自己去資料庫載入。Coherence 文件的描述是：應用程式向快取要 X、X 不在快取裡，「Coherence 自動委派給 CacheStore，請它從底層資料來源載入 X」（Coherence automatically delegates to the CacheStore and asks it to load X from the underlying data source），載入後放進快取再回傳。<a class="fixsrc" href="https://docs.oracle.com/en/middleware/standalone/coherence/14.1.1.0/develop-applications/caching-data-sources.html" target="_blank" rel="noopener">出處</a> Spring Cache 的 <code>@Cacheable</code> 在使用上就是這種感覺：你只寫查資料庫的方法，放進快取的事交給框架。</li>
-<li><strong>Write-Through</strong>（寫穿）：寫入時同步更新資料庫與快取。AWS：主資料庫更新之後，「緊接著也更新快取裡的資料」（Immediately afterward, the data is also updated in the cache），優點是快取裡的資料比較新、命中率高，缺點是很少被讀的資料也會被寫進快取，而且它「幾乎總是跟 lazy loading 一起用」（The write-through pattern is almost always implemented along with lazy loading）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html" target="_blank" rel="noopener">出處</a> Coherence 說得直白：寫入要等資料成功存進資料來源才回傳，所以「完全不會改善寫入效能」（This does not improve write performance at all）。<a class="fixsrc" href="https://docs.oracle.com/en/middleware/standalone/coherence/14.1.1.0/develop-applications/caching-data-sources.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>Write-Behind</strong>（寫回）：先寫快取就回應，「修改過的快取項目在設定的延遲之後，非同步寫回資料來源」（modified cache entries are asynchronously written to the data source after a configured delay）；代價是它「實際上讓快取成為權威紀錄（直到寫回佇列寫進磁碟為止），業務規範必須允許資料只保存在叢集的記憶體裡、而不是磁碟上」（write-behind effectively makes the cache the system-of-record (until the write-behind queue has been written to disk), business regulations must allow cluster-durable (rather than disk-durable) storage of data and transactions）。<a class="fixsrc" href="https://docs.oracle.com/en/middleware/standalone/coherence/14.1.1.0/develop-applications/caching-data-sources.html" target="_blank" rel="noopener">出處</a> 快取掛在寫回之前，那段時間的修改就沒了，所以帳戶餘額不能用它；瀏覽次數這類丟一點沒關係的計數可以。</li>
+<li><strong>Cache-Aside</strong>（旁路快取，也叫 lazy loading）：應用程式自己管，是最常見的快取策略。讀取時先查快取，命中就回傳；未命中就查資料庫，把查到的資料放進快取，再回傳給呼叫者。優點是快取只放真的被要過的資料；缺點是第一次讀要多跑一趟。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>Read-Through</strong>（讀穿）：未命中時由快取元件自己去資料庫載入。以 Oracle Coherence 為例：應用程式向快取要 X、X 不在快取裡，Coherence 自動委派給 CacheStore，從底層資料來源載入 X，放進快取再回傳。<a class="fixsrc" href="https://docs.oracle.com/en/middleware/standalone/coherence/14.1.1.0/develop-applications/caching-data-sources.html" target="_blank" rel="noopener">出處</a> Spring Cache 的 <code>@Cacheable</code> 在使用上就是這種感覺：你只寫查資料庫的方法，放進快取的事交給框架。</li>
+<li><strong>Write-Through</strong>（寫穿）：寫入時同步更新資料庫與快取：主資料庫更新之後，緊接著也更新快取裡的資料。優點是快取裡的資料比較新、命中率高，缺點是很少被讀的資料也會被寫進快取；它幾乎總是跟 lazy loading 一起用。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html" target="_blank" rel="noopener">出處</a> 寫入要等資料成功存進資料來源才回傳，所以完全不會改善寫入效能。<a class="fixsrc" href="https://docs.oracle.com/en/middleware/standalone/coherence/14.1.1.0/develop-applications/caching-data-sources.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>Write-Behind</strong>（寫回）：先寫快取就回應，修改過的快取項目在設定的延遲之後，非同步寫回資料來源。代價是在寫回佇列寫進磁碟之前，快取等於權威紀錄，業務規範必須允許資料只保存在叢集的記憶體裡、而不是磁碟上。<a class="fixsrc" href="https://docs.oracle.com/en/middleware/standalone/coherence/14.1.1.0/develop-applications/caching-data-sources.html" target="_blank" rel="noopener">出處</a> 快取掛在寫回之前，那段時間的修改就沒了，所以帳戶餘額不能用它；瀏覽次數這類丟一點沒關係的計數可以。</li>
 </ul>
 <figure>
 <svg viewBox="0 0 760 220" role="img" aria-label="Cache-Aside 的讀與寫。左邊讀取：應用程式先向 Redis GET，命中就回傳；未命中就查資料庫，再把結果回填到 Redis 並設 TTL。右邊寫入：應用程式先更新資料庫，再刪掉 Redis 裡那把 key，下一個讀取未命中時自然回填新值">
@@ -110,7 +121,7 @@ $ redis-cli GET rate:USD
 <div class="drill">
   <p class="dq">換成 Write-Through 之後，寫入速度會？</p>
   <ul class="dopts"><li>變快，因為只要先寫快取</li><li data-ok>不會變快，要等資料庫寫好</li><li>變快一倍，因為兩邊同時寫</li><li>不一定，要看 TTL</li></ul>
-  <p class="dexp">Coherence 文件：寫入要等資料來源存好才回傳，完全不會改善寫入效能。想讓寫入變快的是 Write-Behind。</p>
+  <p class="dexp">Write-Through 寫入要等資料來源存好才回傳，完全不會改善寫入效能。想讓寫入變快的是 Write-Behind。</p>
 </div>
 <div class="drill">
   <p class="dq">轉帳後的帳戶餘額，為什麼不能用 Write-Behind？</p>
@@ -132,7 +143,7 @@ $ redis-cli GET rate:USD
 <section>
 <p class="era">改資料的時候，快取怎麼辦</p>
 <h3 class="head">失效順序：先更新資料庫、再刪快取，以及延遲雙刪</h3>
-<p>用 Cache-Aside 改資料時有兩個動作：更新資料庫、刪快取。順序很重要。Azure 架構中心寫：「先更新資料存放區，再移除快取項目。如果先移除快取項目，會有一小段時間，某個用戶端可能在資料存放區更新前就來讀，未命中之後把過時的資料撈回來」（Update the data store before removing the item from the cache. If you remove the cached item first, there's a small window of time when a client might fetch the item before the data store is updated.）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
+<p>用 Cache-Aside 改資料時有兩個動作：更新資料庫、刪快取。順序很重要：<strong>先更新資料存放區，再移除快取項目</strong>。如果先移除快取項目，會有一小段時間，某個用戶端可能在資料存放區更新前就來讀，未命中之後把過時的資料撈回來。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 258" role="img" aria-label="兩種失效順序的時間軸。上面是先刪快取再更新資料庫：A 刪快取，B 未命中讀到舊的 31.5，A 把資料庫改成 31.7，B 把 31.5 回填，快取留著舊值直到 TTL 到期。下面是先更新資料庫再刪快取：A 改資料庫，B 命中讀到 31.5，A 刪快取，B 未命中回填 31.7，只有 A 兩步之間短暫讀到舊值">
 <defs><marker id="cr-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="20" font-size="13" text-anchor="start" fill="var(--gold-deep)">先刪快取、再更新資料庫（錯的順序）</text><line x1="40" y1="64" x2="720" y2="64" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5" marker-end="url(#cr-m3)"/><text x="722" y="80" font-size="11.5" text-anchor="end" opacity=".6">時間</text><circle cx="90" cy="64" r="6" fill="var(--gold)"/><text x="90" y="48" font-size="12" text-anchor="middle">A：刪快取</text><circle cx="250" cy="64" r="6" fill="var(--slate)"/><text x="250" y="48" font-size="12" text-anchor="middle">B：未命中，讀到舊的 31.5</text><circle cx="410" cy="64" r="6" fill="var(--gold)"/><text x="410" y="48" font-size="12" text-anchor="middle">A：資料庫改成 31.7</text><circle cx="570" cy="64" r="6" fill="var(--slate)"/><text x="570" y="48" font-size="12" text-anchor="middle">B：把 31.5 回填</text><text x="40" y="102" font-size="12.5" text-anchor="start" fill="var(--gold-deep)">結果：快取留著舊值 31.5，直到 TTL 到期</text><text x="40" y="130" font-size="13" text-anchor="start" fill="var(--gold-deep)">先更新資料庫、再刪快取（對的順序）</text><line x1="40" y1="174" x2="720" y2="174" stroke="currentColor" stroke-opacity=".35" stroke-width="1.5" marker-end="url(#cr-m3)"/><text x="722" y="190" font-size="11.5" text-anchor="end" opacity=".6">時間</text><circle cx="90" cy="174" r="6" fill="var(--gold)"/><text x="90" y="158" font-size="12" text-anchor="middle">A：資料庫改成 31.7</text><circle cx="250" cy="174" r="6" fill="var(--slate)"/><text x="250" y="158" font-size="12" text-anchor="middle">B：命中，讀到 31.5</text><circle cx="410" cy="174" r="6" fill="var(--gold)"/><text x="410" y="158" font-size="12" text-anchor="middle">A：刪快取</text><circle cx="570" cy="174" r="6" fill="var(--slate)"/><text x="570" y="158" font-size="12" text-anchor="middle">B：未命中，回填 31.7</text><text x="40" y="212" font-size="12.5" text-anchor="start" fill="var(--slate-deep)">結果：只有 A 兩步之間的短暫空檔讀到舊值</text><text x="40" y="246" font-size="12" text-anchor="start" opacity=".6">古銅點＝更新匯率的請求 A；灰藍點＝讀匯率的請求 B</text>
@@ -186,10 +197,10 @@ public class OrderRace {
 先更新資料庫、再刪快取：
   B 讀到 31.5
   下一個讀到 31.7，快取裡是 31.7</code></pre>
-<p>為什麼不是「更新資料庫，再<strong>改</strong>快取」？因為兩個人同時改時，資料庫可能是 A 後寫、快取卻是 B 後寫，兩邊就對不起來了；刪掉讓下一次讀取重新回填，比較不會留下錯的值。但對的順序也只是縮短舊值存在的時間，Azure 明說 Cache-Aside「不保證資料存放區與快取之間的一致性」（The Cache-Aside pattern doesn't guarantee consistency between the data store and the cache）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
+<p>為什麼不是「更新資料庫，再<strong>改</strong>快取」？因為兩個人同時改時，資料庫可能是 A 後寫、快取卻是 B 後寫，兩邊就對不起來了；刪掉讓下一次讀取重新回填，比較不會留下錯的值。但對的順序也只是縮短舊值存在的時間，Cache-Aside 不保證資料存放區與快取之間的一致性。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
 <h4>延遲雙刪</h4>
-<p><strong>延遲雙刪</strong>是業界慣用的補救：刪一次快取、更新資料庫、隔一小段時間（例如幾百毫秒）再刪一次。官方文件沒有這個名字，它的邏輯是：第二次刪，是要清掉「第一次刪和更新資料庫之間，被別人回填的舊值」；有讀寫分離時，也順便清掉從複本資料庫（還沒同步到新值）讀回來回填的舊值。它沒解決的事：延遲是猜的，讀取比猜的慢就漏掉；第二次刪也可能失敗；兩次刪之間仍讀得到舊值。所以它還是<strong>最終一致</strong>（過一段時間才一致），不是強一致。</p>
-<p>不管哪種順序，最後一道保險都是 TTL：真的漏了，最多舊到 TTL 到期。要「寫完立刻讀到」，Azure 的建議是換模式：「如果讀多的路徑需要寫後即讀的新鮮度，考慮改用 Write-Through」（If read-heavy paths need read-after-write freshness, consider write-through caching instead）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
+<p><strong>延遲雙刪</strong>是業界慣用的補救（這個名字是業界叫法，各家文件裡沒有）：刪一次快取、更新資料庫、隔一小段時間（例如幾百毫秒）再刪一次。它的邏輯是：第二次刪，是要清掉「第一次刪和更新資料庫之間，被別人回填的舊值」；有讀寫分離時，也順便清掉從複本資料庫（還沒同步到新值）讀回來回填的舊值。它沒解決的事：延遲是猜的，讀取比猜的慢就漏掉；第二次刪也可能失敗；兩次刪之間仍讀得到舊值。所以它還是<strong>最終一致</strong>（過一段時間才一致），不是強一致。</p>
+<p>不管哪種順序，最後一道保險都是 TTL：真的漏了，最多舊到 TTL 到期。讀多的路徑如果需要寫完立刻讀到，就換模式，改用 Write-Through。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
 <p>面試被問「先刪快取還是先更新資料庫」「延遲雙刪解決什麼、沒解決什麼」，答題講法見〈系統設計：快取一致性與熱點〉。</p>
 <p class="formula">先更新資料庫、再刪快取；刪而不是改；延遲雙刪仍是最終一致；TTL 是最後一道保險</p>
 
@@ -241,14 +252,14 @@ public class OrderRace {
 <figcaption>差別在「為什麼沒接住」：一起到期、本來就沒有、熱門的那把剛好到期。</figcaption>
 </figure>
 <h4>雪崩：TTL 加隨機秒數</h4>
-<p>AWS 白皮書把它列為最佳實務：「替 TTL 加一點時間抖動（jitter）」（add some time jitter to your TTLs），例子是商品資料如果「全部同時過期、應用程式又在高負載，後端資料庫就得吞下所有商品請求」（If all your product data expires at the same time and your application is under heavy load, then your backend database has to fulfill all the product requests），做法是「TTL ＝ 原本的秒數 ＋ 隨機產生的值」（TTL = your initial TTL value in seconds + jitter）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/cache-validity.html" target="_blank" rel="noopener">出處</a> Redis 自己的延遲文件也提醒：「很多 key 在同一刻到期，可能成為延遲的來源」（many keys expiring at the same moment can be a source of latency）。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> 例如 300 秒再加 0〜60 秒的隨機數，下面這次抽到 48。Redis 整台掛掉也算雪崩，那要靠主從與哨兵，見〈分散式鎖與 Redis〉。</p>
+<p>最佳實務是<strong>替 TTL 加一點時間抖動</strong>（jitter）：TTL ＝ 原本的秒數 ＋ 隨機產生的值。商品資料如果全部同時過期、應用程式又在高負載，後端資料庫就得吞下所有商品請求。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/cache-validity.html" target="_blank" rel="noopener">出處</a> 對 Redis 本身，很多 key 在同一刻到期也可能成為延遲的來源。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> 例如 300 秒再加 0〜60 秒的隨機數，下面這次抽到 48。Redis 整台掛掉也算雪崩，那要靠主從與哨兵，見〈分散式鎖與 Redis〉。</p>
 <pre><code>$ redis-cli SET rate:EUR 34.1 EX 348
 OK
 
 $ redis-cli TTL rate:EUR
 (integer) 348</code></pre>
 <h4>擊穿：只讓一個請求去重建</h4>
-<p>熱門的那把 key 一到期，幾千個請求同時未命中、同時查資料庫。<strong>互斥重建</strong>：用 <code>SET 鍵 值 NX EX 秒數</code> 搶一把短鎖，<code>NX</code> 是「只在 key 不存在時才設」（Only set the key if it does not already exist.）<a class="fixsrc" href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">出處</a>；搶到的去查資料庫回填，沒搶到的等一下重讀快取。鎖的值放每個請求自己產生的隨機字串，解鎖時才認得出「這是我的鎖」，不會刪到別人的；這點和另外兩個不能省的地方，見〈分散式鎖與 Redis〉。下面兩個請求各帶自己的隨機值先後搶，第二個拿到 <code>(nil)</code>，就是沒搶到；<code>GET</code> 看得到鎖還是第一個請求的：</p>
+<p>熱門的那把 key 一到期，幾千個請求同時未命中、同時查資料庫。<strong>互斥重建</strong>：用 <code>SET 鍵 值 NX EX 秒數</code> 搶一把短鎖，<code>NX</code> 是只在 key 不存在時才設<a class="fixsrc" href="https://redis.io/docs/latest/commands/set/" target="_blank" rel="noopener">出處</a>；搶到的去查資料庫回填，沒搶到的等一下重讀快取。鎖的值放每個請求自己產生的隨機字串，解鎖時才認得出「這是我的鎖」，不會刪到別人的；這點和另外兩個不能省的地方，見〈分散式鎖與 Redis〉。下面兩個請求各帶自己的隨機值先後搶，第二個拿到 <code>(nil)</code>，就是沒搶到；<code>GET</code> 看得到鎖還是第一個請求的：</p>
 <pre><code>$ redis-cli SET lock:rebuild:rate:EUR b4aaaafafbf39e68 NX EX 10
 OK
 
@@ -259,7 +270,7 @@ $ redis-cli GET lock:rebuild:rate:EUR
 "b4aaaafafbf39e68"</code></pre>
 <p>另一招是<strong>邏輯過期</strong>：快取值不設 TTL，另外記一個業務上的到期時間；到期後先把舊值回給使用者，背景只派一個任務去更新。代價是短暫看到舊值，匯率表可以、餘額不行。</p>
 <h4>穿透：快取空結果，或先問 Bloom Filter</h4>
-<p>有人拿不存在的帳號狂查，快取永遠未命中、每次都打資料庫。第一招，把「查無此人」本身也用短 TTL 快取起來；第二招，用 <strong>Bloom Filter</strong>（布隆過濾器，用很少的記憶體記住「哪些東西加入過」）先擋掉「確定不存在」的。Redis 文件：Bloom Filter「能保證某個元素不在集合裡，但對『在』只能給出估計」（A Bloom filter can guarantee the absence of an item from a set, but it can only give an estimation about its presence.）。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">出處</a> Redis 8 內建這個型別，<code>BF.RESERVE</code> 建立時要給誤判率（這裡 1%）與預期元素數。原理與名單怎麼維護見〈系統設計：短網址的高併發〉。</p>
+<p>有人拿不存在的帳號狂查，快取永遠未命中、每次都打資料庫。第一招，把「查無此人」本身也用短 TTL 快取起來；第二招，用 <strong>Bloom Filter</strong>（布隆過濾器，用很少的記憶體記住「哪些東西加入過」）先擋掉「確定不存在」的。Bloom Filter 能保證某個元素不在集合裡，但對「在」只能給出估計。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">出處</a> Redis 8 內建這個型別，<code>BF.RESERVE</code> 建立時要給誤判率（這裡 1%）與預期元素數。原理與名單怎麼維護見〈系統設計：短網址的高併發〉。</p>
 <pre><code>$ redis-cli SET acct:none:999 "" EX 60
 OK
 
@@ -324,9 +335,9 @@ $ redis-cli BF.EXISTS bf:accounts Z999
 <h3 class="head">熱 key 與大 key</h3>
 <p><strong>大 key</strong>（big key）是一把 key 的值很大，例如幾十萬個成員的 Set：</p>
 <ul class="plainlist">
-<li><b>危險</b>在 Redis 用單一執行緒處理指令：「當一個請求很慢，所有其他用戶端都得等它」。<span class="orig">Redis 延遲文件：when a request is slow to serve all the other clients will wait for this request to be served<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>危險</b>在 Redis 用單一執行緒處理指令，一個慢指令會讓其他用戶端全部排隊等。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></li>
 <li><b>找它</b>用 <code>redis-cli --bigkeys</code>：它用 SCAN 一批一批掃，不會像 <code>KEYS *</code> 一次卡住整台。<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a></li>
-<li><b>刪它</b>用 <code>UNLINK</code> 而不是 <code>DEL</code>：文件說 UNLINK「在另一條執行緒做真正的記憶體回收，所以不會卡住，DEL 會」。<span class="orig">Redis UNLINK 文件：the command performs the actual memory reclaiming in a different thread, so it is not blocking, while DEL is.<a class="fixsrc" href="https://redis.io/docs/latest/commands/unlink/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>刪它</b>用 <code>UNLINK</code> 而不是 <code>DEL</code>：UNLINK 在另一條執行緒做真正的記憶體回收，所以不會卡住，DEL 會。<a class="fixsrc" href="https://redis.io/docs/latest/commands/unlink/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <pre><code># 用 Lua 在伺服器裡一次塞 20 萬個成員進同一個 Set
 
@@ -353,7 +364,7 @@ Biggest    set found "big:blacklist" has 200000 members
 
 # 後面還有六行，是各型別各有幾把 key 的統計，這裡省略</code></pre>
 <p>20 萬個成員的黑名單佔了約 9 MB（9,234,711 位元組）。<code>--bigkeys</code> 掃描時邊掃邊印「目前最大的」，key 多的時候掃描順序每次不同，看 <code>summary</code> 底下 <code>Biggest … found</code> 那一行就好：每種型別最大的那把是誰、有幾個成員。拆法：大 Set、大 Hash 按成員雜湊拆成幾十個小的；大 List 按時間切段；整包 JSON 塞進一把 String 的，改成存欄位。</p>
-<p><strong>熱 key</strong>（hot key）是短時間被集中讀取的少數 key。在 Redis Cluster 裡一把 key 只由一個節點服務，加機器分攤不了它（理由見〈系統設計：秒殺與限流〉）。找它用 <code>redis-cli --hotkeys</code>，文件註明它「只在 maxmemory-policy 是 *lfu 時有效」（only works when maxmemory-policy is *lfu）<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a>，因為它靠 LFU 的存取次數計數；那個計數是機率式的計數器（Morris counter），只用幾個位元估算頻率<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a>，所以讀了 1,000 次只顯示 18 左右：</p>
+<p><strong>熱 key</strong>（hot key）是短時間被集中讀取的少數 key。在 Redis Cluster 裡一把 key 只由一個節點服務，加機器分攤不了它（理由見〈系統設計：秒殺與限流〉）。找它用 <code>redis-cli --hotkeys</code>，它只在 <code>maxmemory-policy</code> 是 <code>*lfu</code> 時有效<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a>，因為它靠 LFU 的存取次數計數；那個計數是機率式的計數器（Morris counter），只用幾個位元估算頻率<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a>，所以讀了 1,000 次只顯示 18 左右：</p>
 <pre><code>$ redis-cli CONFIG SET maxmemory-policy allkeys-lfu
 OK
 
@@ -397,7 +408,7 @@ $ redis-cli CLUSTER KEYSLOT product:1001:3
 (integer) 3396
 
 # :4 到 :9 依序是 15779、11650、7649、3520、15407、11278</code></pre>
-<p>十把落在十個不同的槽。叢集穩定時「一個槽只由一個節點服務」（a single hash slot will be served by a single node）<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a>，假設三台主節點各管三分之一的槽（0〜5460、5461〜10922、10923〜16383），這十把會分到三台上，分別是 2、2、6 把，不一定平均，但不再全壓在一台。讀的時候隨機挑一把，壓力就拆開了；代價是更新時十把都要刪。只有一台 Redis、沒有叢集時，這招沒用：十把都在同一台，壓力一樣集中，這時要靠本地快取。</p>
+<p>十把落在十個不同的槽。叢集穩定時，一個槽只由一個節點服務<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener">出處</a>，假設三台主節點各管三分之一的槽（0〜5460、5461〜10922、10923〜16383），這十把會分到三台上，分別是 2、2、6 把，不一定平均，但不再全壓在一台。讀的時候隨機挑一把，壓力就拆開了；代價是更新時十把都要刪。只有一台 Redis、沒有叢集時，這招沒用：十把都在同一台，壓力一樣集中，這時要靠本地快取。</p>
 <p>面試被問「熱 key 怎麼發現、怎麼拆」「大 key 為什麼危險」，答題講法見〈系統設計：快取一致性與熱點〉。</p>
 <p class="formula">大 key 卡住單執行緒：--bigkeys 找、UNLINK 刪、拆小；熱 key 一把只住一個節點：--hotkeys（要 LFU）找，本地快取或複製多份拆</p>
 
@@ -409,12 +420,12 @@ $ redis-cli CLUSTER KEYSLOT product:1001:3
 <div class="drill">
   <p class="dq">為什麼一個很大的 key 會讓「其他人的」請求也變慢？</p>
   <ul class="dopts"><li>大 key 會讓網路連線變慢</li><li>大 key 會被自動複製很多份</li><li data-ok>指令單執行緒，慢指令讓大家等</li><li>大 key 會讓所有 TTL 失效</li></ul>
-  <p class="dexp">官方延遲文件：當一個請求很慢，所有其他用戶端都得等它。對大 key 做全部讀取、取交集或刪除，就是這種慢指令。</p>
+  <p class="dexp">Redis 用單一執行緒處理指令，一個請求很慢，所有其他用戶端都得等它。對大 key 做全部讀取、取交集或刪除，就是這種慢指令。</p>
 </div>
 <div class="drill">
   <p class="dq">想在正式環境找出大 key，下面哪個做法比較安全？</p>
   <ul class="dopts"><li data-ok><code>redis-cli --bigkeys</code></li><li><code>KEYS *</code> 再一把一把看大小</li><li>重開 Redis 看哪個載入最久</li><li>FLUSHALL 之後重新寫入</li></ul>
-  <p class="dexp">--bigkeys 用 SCAN 分批掃；KEYS * 一次列出全部，key 多的時候會卡住整台，被官方列為常見的延遲來源。</p>
+  <p class="dexp">--bigkeys 用 SCAN 分批掃；KEYS * 一次列出全部，key 多的時候會卡住整台，是常見的延遲來源。</p>
 </div>
 <div class="drill">
   <p class="dq">把淘汰策略改回 <code>noeviction</code> 再跑 <code>redis-cli --hotkeys</code>，會怎樣？</p>
@@ -431,15 +442,15 @@ $ redis-cli CLUSTER KEYSLOT product:1001:3
 <section>
 <p class="era">依資料的長相選</p>
 <h3 class="head">Redis 資料結構：一個值、一筆紀錄、一串、一群、一份排行</h3>
-<p>Redis 不只能存字串。選結構看「值的形狀」，定義照官方資料型別頁：</p>
+<p>Redis 不只能存字串。選結構看「值的形狀」：<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><b>String</b> 是「最基本的型別，一串位元組」。<span class="orig">Redis 資料型別頁：the most basic Redis data type, representing a sequence of bytes</span></li>
-<li><b>Hash</b> 是「以欄位—值配對組成的紀錄型別」（record types modeled as collections of field-value pairs），像 Java 的 <code>HashMap</code>。</li>
-<li><b>List</b> 是「依插入順序排列的字串串列」。<span class="orig">Redis 資料型別頁：lists of strings sorted by insertion order</span></li>
-<li><b>Set</b> 是「無序、不重複的字串集合」。<span class="orig">Redis 資料型別頁：unordered collections of unique strings</span></li>
-<li><b>Sorted Set</b> 是「不重複的字串，依各自的分數維持順序」。<span class="orig">Redis 資料型別頁：collections of unique strings that maintain order by each string's associated score<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">出處</a></span></li>
-<li><b>Bitmap</b> 不是獨立的型別，是「定義在 String 上的一組位元操作」（a set of bit-oriented operations defined on the String type），每個帳號一個位元記今天有沒有登入<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/strings/bitmaps/" target="_blank" rel="noopener">出處</a>。</li>
-<li><b>HyperLogLog</b> 估算不重複的個數，「最多用 12 KB 記憶體」（uses up to 12 KB of memory），有一點誤差<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/hyperloglogs/" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>String</b>：最基本的型別，一串位元組。</li>
+<li><b>Hash</b>：以欄位—值配對組成的紀錄型別，像 Java 的 <code>HashMap</code>。</li>
+<li><b>List</b>：依插入順序排列的字串串列。</li>
+<li><b>Set</b>：無序、不重複的字串集合。</li>
+<li><b>Sorted Set</b>：不重複的字串，依各自的分數維持順序。</li>
+<li><b>Bitmap</b>：不是獨立的型別，是定義在 String 上的一組位元操作，每個帳號一個位元記今天有沒有登入<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/strings/bitmaps/" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>HyperLogLog</b>：估算不重複的個數，最多用 12 KB 記憶體，有一點誤差<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/hyperloglogs/" target="_blank" rel="noopener">出處</a>。</li>
 </ul>
 <pre><code>$ redis-cli INCR counter:login:2025-10-02
 (integer) 1
@@ -550,7 +561,14 @@ hash</code></pre>
 <p class="era">Redis 重開或記憶體滿了</p>
 <h3 class="head">持久化 RDB 對 AOF，與淘汰策略</h3>
 <h4>持久化：重開之後資料還在不在</h4>
-<p>Redis 的資料在記憶體，重開就沒了，除非開持久化（把資料寫到磁碟）。官方列了幾種選擇：<strong>RDB</strong>「在指定的間隔對資料集做某一時刻的快照」（performs point-in-time snapshots of your dataset at specified intervals）；<strong>AOF</strong>「記錄伺服器收到的每一個寫入操作，啟動時重播，重建原本的資料集」（logs every write operation received by the server. These operations can then be replayed again at server startup, reconstructing the original dataset）；也可以完全不持久化，「做快取時有時會這樣用」（This is sometimes used when caching.）；或 RDB 加 AOF 一起開。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">出處</a> 用兩台 Redis 實際比較重開前後：</p>
+<p>Redis 的資料在記憶體，重開就沒了，除非開持久化（把資料寫到磁碟）。幾種選擇：<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><strong>RDB</strong>：在指定的間隔對資料集做某一時刻的快照。</li>
+<li><strong>AOF</strong>：記錄伺服器收到的每一個寫入操作，啟動時重播，重建原本的資料集。</li>
+<li>完全不持久化：做快取時有時會這樣用。</li>
+<li>RDB 加 AOF 一起開。</li>
+</ul>
+<p>用兩台 Redis 實際比較重開前後：</p>
 <pre><code># 第一台：不持久化（--save "" --appendonly no）
 
 $ redis-cli CONFIG GET appendonly
@@ -586,9 +604,20 @@ OK
 
 $ redis-cli GET stock:P1
 "100"</code></pre>
-<p>差在會丟多少：官方說 RDB「不適合需要把資料遺失機會降到最低的情況」（RDB is NOT good if you need to minimize the chance of data loss），快照之間的修改會丟；AOF 預設的 <code>appendfsync everysec</code>「每秒 fsync 一次……出事時可能丟掉一秒的資料」（you may lose 1 second of data if there is a disaster）。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">出處</a> 實跑那台在寫入後等了 1.5 秒才重開，所以資料還在。怎麼選：純快取（匯率、商品頁）可以不開，掛了從資料庫回填，但要防雪崩；當鎖、當預扣庫存這種丟了會出帳務問題的，至少開 AOF。</p>
+<p>差在會丟多少：</p>
+<ul>
+<li>RDB：不適合需要把資料遺失機會降到最低的情況，快照之間的修改會丟。</li>
+<li>AOF 預設的 <code>appendfsync everysec</code>：每秒 fsync 一次，出事時可能丟掉一秒的資料。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>實跑那台在寫入後等了 1.5 秒才重開，所以資料還在。怎麼選：純快取（匯率、商品頁）可以不開，掛了從資料庫回填，但要防雪崩；當鎖、當預扣庫存這種丟了會出帳務問題的，至少開 AOF。</p>
 <h4>淘汰：記憶體滿了丟誰</h4>
-<p><code>maxmemory</code> 設上限，<code>maxmemory-policy</code> 決定滿了怎麼辦。<code>noeviction</code> 是「不淘汰，嘗試寫入新資料時回錯誤」（Keys are not evicted but the server will return an error when you try to execute commands that cache new data.）；<code>allkeys-lru</code> 淘汰最近最少用的（Evict the least recently used (LRU) keys）；<code>volatile-</code> 開頭的只淘汰有設 TTL 的，而且「沒有任何 key 設 TTL 時，行為等同 noeviction」（The volatile-xxx policies behave like noeviction if no keys have an associated expiration）。官方建議：沒有特別理由偏好別種時，「allkeys-lru 是好的預設選項」（allkeys-lru is a good default option if you have no reason to prefer any others）。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a> 用兩台剛啟動的 Redis，上限都設 2 MB，各逐筆寫入 3,000 把 1 KB 的 key：</p>
+<p><code>maxmemory</code> 設上限，<code>maxmemory-policy</code> 決定滿了怎麼辦。常見的幾種：<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>noeviction</code>：不淘汰，嘗試寫入新資料時回錯誤。</li>
+<li><code>allkeys-lru</code>：淘汰最近最少用的（LRU）。沒有特別理由偏好別種時，這是好的預設選項。</li>
+<li><code>volatile-</code> 開頭的：只淘汰有設 TTL 的；沒有任何 key 設 TTL 時，行為等同 <code>noeviction</code>。</li>
+</ul>
+<p>用兩台剛啟動的 Redis，上限都設 2 MB，各逐筆寫入 3,000 把 1 KB 的 key：</p>
 <pre><code># 第一台：剛啟動、沒有資料，先看預設的淘汰策略，再改成 allkeys-lru
 
 $ redis-cli CONFIG GET maxmemory-policy
@@ -644,7 +673,7 @@ $ redis-cli STRLEN cache:1
 $ redis-cli STRLEN cache:3000
 (integer) 0</code></pre>
 <p>看兩台的差別：<code>allkeys-lru</code> 那台 3,000 筆全部寫成功，還在的 428 把加上被淘汰的 2,572 把剛好是 3,000，最早寫的 <code>cache:1</code> 已經不在；<code>noeviction</code> 那台只寫進 440 筆，其餘 2,560 筆都回 OOM 錯誤，已經在的 key 一把都沒丟。兩個數要用同一個指令讀：這台頂著上限，實跑時分開下 <code>DBSIZE</code> 和 <code>INFO stats</code>，中間又淘汰了十幾把，加起來就超過 3,000。</p>
-<p>剩下幾把每次不一樣。Redis 的 LRU 是近似的：「隨機抽樣少量 key，淘汰其中最久沒被存取的」（It samples a small number of keys at random and then evicts the ones with the longest time since last access）<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a>，再加上 Redis 自己用的記憶體會小幅浮動，每台機器、每次啟動剩下的筆數不同。<code>noeviction</code> 那台也一樣：這次從第 430 筆開始回 OOM，中途又有 11 筆寫成功（三次實跑都是 11 筆，出現的位置每次不同），所以總共 440 筆。開源版的預設就是 <code>noeviction</code>（兩台剛啟動時的 <code>CONFIG GET</code> 都看得到），拿來當快取時要記得改。</p>
+<p>剩下幾把每次不一樣。Redis 的 LRU 是近似的：隨機抽樣少量 key，淘汰其中最久沒被存取的<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">出處</a>，再加上 Redis 自己用的記憶體會小幅浮動，每台機器、每次啟動剩下的筆數不同。<code>noeviction</code> 那台也一樣：這次從第 430 筆開始回 OOM，中途又有 11 筆寫成功（三次實跑都是 11 筆，出現的位置每次不同），所以總共 440 筆。開源版的預設就是 <code>noeviction</code>（兩台剛啟動時的 <code>CONFIG GET</code> 都看得到），拿來當快取時要記得改。</p>
 <p>面試被問「RDB 對 AOF」「記憶體滿了怎麼辦」，答題講法見〈系統設計：快取一致性與熱點〉。</p>
 <p class="formula">純快取可以不持久化；丟了會出事的至少 AOF（預設最多丟一秒）；當快取用，淘汰策略從預設的 noeviction 改成 allkeys-lru</p>
 
@@ -656,12 +685,12 @@ $ redis-cli STRLEN cache:3000
 <div class="drill">
   <p class="dq">開了 AOF、<code>appendfsync</code> 是預設的 <code>everysec</code>，機器突然斷電。最多可能丟掉多少寫入？</p>
   <ul class="dopts"><li>不會丟任何資料</li><li data-ok>約最後一秒的寫入</li><li>最後一次快照之後的所有寫入</li><li>全部資料都會不見</li></ul>
-  <p class="dexp">everysec 每秒 fsync 一次，官方說出事時可能丟掉一秒的資料。「最後一次快照之後」是 RDB 的情況。</p>
+  <p class="dexp">everysec 每秒 fsync 一次，出事時可能丟掉一秒的資料。「最後一次快照之後」是 RDB 的情況。</p>
 </div>
 <div class="drill">
   <p class="dq">只拿 Redis 放匯率、商品頁這種資料庫裡都有的快取。持久化怎麼設比較合理？</p>
   <ul class="dopts"><li>RDB 和 AOF 都開，appendfsync 設 always</li><li data-ok>可以不開，掛了從資料庫回填，但要防雪崩</li><li>一定要開 AOF，不然違反規定</li><li>只開 AOF，把 RDB 關掉</li></ul>
-  <p class="dexp">官方說不持久化「做快取時有時會這樣用」。資料庫才是正本，掛了可以回填；要注意重開後整批未命中造成的雪崩。</p>
+  <p class="dexp">做快取時有時會完全不持久化。資料庫才是正本，掛了可以回填；要注意重開後整批未命中造成的雪崩。</p>
 </div>
 <div class="drill">
   <p class="dq">預扣庫存放在 Redis，丟了會造成超賣。持久化最少要怎麼設？</p>
@@ -676,7 +705,7 @@ $ redis-cli STRLEN cache:3000
 <div class="drill">
   <p class="dq">淘汰策略設成 <code>volatile-lru</code>，但所有 key 都沒設 TTL。記憶體滿了會？</p>
   <ul class="dopts"><li>淘汰最近最少用的 key</li><li data-ok>等同 noeviction</li><li>隨機淘汰一些 key</li><li>淘汰最大的那幾把 key</li></ul>
-  <p class="dexp">volatile 系列只淘汰設了 TTL 的 key；官方寫明沒有 key 設 TTL 時行為等同 noeviction。</p>
+  <p class="dexp">volatile 系列只淘汰設了 TTL 的 key；沒有 key 設 TTL 時，行為等同 noeviction。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑的 <code>allkeys-lru</code> 那台，寫完 3,000 把之後 <code>STRLEN cache:1</code> 回 0。代表？</p>
@@ -697,13 +726,19 @@ $ redis-cli STRLEN cache:3000
 <figcaption>兩層快取難在本地那一層散在每一台機器上：要嘛 TTL 設短認了，要嘛發通知叫每一台自己刪。</figcaption>
 </figure>
 <ul class="plainlist">
-<li><strong>短 TTL 認了</strong>：本地層只留幾秒到幾十秒。Redis 官方說這是最簡單的做法：對本地快取的資訊設一個固定的最大存活時間（a fixed maximum "time to live"），過了就不再視為有效。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/client-side-caching/" target="_blank" rel="noopener">出處</a></li>
-<li><strong>廣播失效</strong>：同一頁官方文件接著說，較複雜的做法是「利用 Pub/Sub 送失效訊息給正在聽的用戶端」（leverage the Pub/Sub system in order to send invalidation messages to listening clients）。改資料的那台除了刪 Redis，再對一個頻道發布「哪把 key 失效了」，每台應用程式都訂閱這個頻道，收到就刪自己記憶體裡那一份。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/client-side-caching/" target="_blank" rel="noopener">出處</a></li>
-<li><strong>用戶端追蹤</strong>（client tracking）：官方說「Redis 6 直接支援用戶端快取」（Redis 6 implements direct support for client-side caching），由 Redis 替你記住哪個用戶端讀過哪把 key，key 被改時主動通知它們刪。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/client-side-caching/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>短 TTL 認了</strong>：本地層只留幾秒到幾十秒。這是最簡單的做法：對本地快取的資訊設一個固定的最大存活時間，過了就不再視為有效。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/client-side-caching/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>廣播失效</strong>：較複雜的做法，用 Pub/Sub 送失效訊息給正在聽的用戶端。改資料的那台除了刪 Redis，再對一個頻道發布「哪把 key 失效了」，每台應用程式都訂閱這個頻道，收到就刪自己記憶體裡那一份。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/client-side-caching/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>用戶端追蹤</strong>（client tracking）：Redis 6 起直接支援用戶端快取，由 Redis 替你記住哪個用戶端讀過哪把 key，key 被改時主動通知它們刪。<a class="fixsrc" href="https://redis.io/docs/latest/develop/reference/client-side-caching/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>面試被問「兩層快取資料改了怎麼讓兩層都失效」，三種做法的答題講法、代價與 Caffeine 的設定寫法，見〈系統設計：快取一致性與熱點〉。</p>
 <h4>Spring Cache 一眼</h4>
-<p>Spring 的快取抽象用註解宣告快取：「<code>@Cacheable</code> 觸發放入快取、<code>@CacheEvict</code> 觸發移除、<code>@CachePut</code> 不干擾方法執行地更新快取」（@Cacheable: Triggers cache population. @CacheEvict: Triggers cache eviction. @CachePut: Updates the cache without interfering with the method execution.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 擊穿那段的「只讓一個請求去重建」，在 Spring 裡是 <code>sync = true</code>：文件說「預設快取抽象不鎖任何東西，同一個值可能被算好幾次」（By default, the cache abstraction does not lock anything, and the same value may be computed several times），<code>sync</code> 會在算值時鎖住那筆快取項目，「結果只有一條執行緒在算，其他的等到項目更新進快取」（As a result, only one thread is busy computing the value, while the others are blocked until the entry is updated in the cache）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 下面用 Spring Framework 7.0.9 實跑（快取先用記憶體裡的 <code>ConcurrentMapCacheManager</code>；換成 Redis 時，改用 Spring Data Redis 提供的 CacheManager，註解寫法不變）：</p>
+<p>Spring 的快取抽象用註解宣告快取：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>@Cacheable</code>：觸發放入快取。</li>
+<li><code>@CacheEvict</code>：觸發移除。</li>
+<li><code>@CachePut</code>：不干擾方法執行地更新快取。</li>
+</ul>
+<p>擊穿那段的「只讓一個請求去重建」，在 Spring 裡是 <code>sync = true</code>。預設快取抽象不鎖任何東西，同一個值可能被算好幾次；<code>sync</code> 會在算值時鎖住那筆快取項目，結果只有一條執行緒在算，其他的等到項目更新進快取。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 下面用 Spring Framework 7.0.9 實跑（快取先用記憶體裡的 <code>ConcurrentMapCacheManager</code>；換成 Redis 時，改用 Spring Data Redis 提供的 CacheManager，註解寫法不變）：</p>
 <pre><code>import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -800,7 +835,7 @@ public class SpringCacheDemo {
 更新後再查：31.7，資料庫累計 2 次
 自己呼叫自己查兩次 JPY，資料庫被查 2 次
 8 條執行緒同時查冷的 key：沒加 sync 查資料庫 超過 1 次；加 sync = true 查資料庫 1 次</code></pre>
-<p>第三行是最常見的坑：同一個物件裡自己呼叫自己的 <code>@Cacheable</code> 方法，快取不會生效。文件寫：在預設的代理模式下，「只有從外面經過代理進來的呼叫才會被攔截」（only external method calls coming in through the proxy are intercepted），自己呼叫自己「在執行時不會真的用到快取，就算被呼叫的方法標了 <code>@Cacheable</code>」（does not lead to actual caching at runtime even if the invoked method is marked with @Cacheable）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 跟 <code>@Transactional</code> 自己呼叫自己會失效是同一個原因，見〈Spring 面試快答：IoC、Bean、AOP 與交易〉。程式裡還有一個同源的細節：<code>hits()</code> 要寫成方法，因為從外面拿到的是代理物件，直接讀它的欄位會拿到代理自己的空欄位。</p>
+<p>第三行是最常見的坑：同一個物件裡自己呼叫自己的 <code>@Cacheable</code> 方法，快取不會生效：在預設的代理模式下，只有從外面經過代理進來的呼叫才會被攔截，自己呼叫自己在執行時不會真的用到快取，就算被呼叫的方法標了 <code>@Cacheable</code>。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 跟 <code>@Transactional</code> 自己呼叫自己會失效是同一個原因，見〈Spring 面試快答：IoC、Bean、AOP 與交易〉。程式裡還有一個同源的細節：<code>hits()</code> 要寫成方法，因為從外面拿到的是代理物件，直接讀它的欄位會拿到代理自己的空欄位。</p>
 <p class="formula">兩層失效三招：本地短 TTL、Pub/Sub 廣播、用戶端追蹤；Spring：@Cacheable 放、@CacheEvict 刪、sync = true 防擊穿，自己呼叫自己不會生效</p>
 
 <div class="drill">
@@ -811,7 +846,7 @@ public class SpringCacheDemo {
 <div class="drill">
   <p class="dq">兩層快取最簡單、不用額外元件的失效做法是？</p>
   <ul class="dopts"><li>每次讀取前都清空本地快取</li><li data-ok>本地層只設很短的 TTL</li><li>整個系統不要用 Redis</li><li>每台機器都接資料庫的觸發器</li></ul>
-  <p class="dexp">Redis 官方說最簡單的做法就是對本地快取設固定的最大存活時間，代價是那段時間內可能讀到舊值。</p>
+  <p class="dexp">最簡單的做法就是對本地快取設固定的最大存活時間，代價是那段時間內可能讀到舊值。</p>
 </div>
 <div class="drill">
   <p class="dq">照上面的實跑，同一個 <code>@Cacheable</code> 方法用相同參數從外面呼叫兩次，資料庫被查幾次？</p>

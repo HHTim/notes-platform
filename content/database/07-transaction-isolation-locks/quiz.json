@@ -28,7 +28,7 @@
     "InnoDB 的 COUNT(*) 本來就有誤差",
     "FOR SHARE 會在背後另外開一筆新的交易"
    ],
-   "exp": "快照讀與鎖定讀看的是不同狀態；手冊也說快照適用於 SELECT，不一定適用於 DML。別人的插入已提交，鎖定讀看得到。"
+   "exp": "快照讀與鎖定讀看的是不同狀態；快照只適用於 SELECT，不一定適用於 DML。別人的插入已提交，鎖定讀看得到。"
   },
   {
    "q": "InnoDB 用什麼讓一般 SELECT 不必等別人的寫入鎖，就能讀到改之前的值？",
@@ -88,7 +88,7 @@
     "關掉 innodb_deadlock_detect",
     "把隔離層級調成 READ UNCOMMITTED"
    ],
-   "exp": "死結的受害交易已經整筆被還原，要從頭再做；手冊：Deadlocks are not dangerous. Just try again。再搭配固定的拿鎖順序減少發生。"
+   "exp": "死結的受害交易已經整筆被還原，要從頭再做；死結並不危險，再試一次就好。再搭配固定的拿鎖順序減少發生。"
   },
   {
    "q": "等鎖逾時（ERROR 1205）跟死結（ERROR 1213），預設各還原什麼？",
@@ -98,7 +98,7 @@
     "兩種都把整筆交易全部還原",
     "逾時還原整筆；死結只還原一句"
    ],
-   "exp": "innodb_lock_wait_timeout 預設 50 秒，逾時時 the current statement is rolled back (not the entire transaction)；死結偵測則還原整筆受害交易。收到 1205 要自己 ROLLBACK 再重試。"
+   "exp": "innodb_lock_wait_timeout 預設 50 秒，逾時時還原的是目前那一條語句，不是整筆交易；死結偵測則還原整筆受害交易。收到 1205 要自己 ROLLBACK 再重試。"
   }
  ]
 }

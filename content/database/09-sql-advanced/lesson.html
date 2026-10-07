@@ -113,7 +113,7 @@ ORDER BY a.account_id;</code></pre>
 |        106 | 黃小華    | 高雄分行     |
 +------------+-----------+--------------+
 6 rows in set (0.00 sec)</code></pre>
-<p>INNER JOIN 少了李志明，因為他的 <code>branch_id</code> 是 NULL，跟任何分行都配不上；LEFT JOIN 把他留下來，分行欄補 NULL。MySQL 手冊的說法是：LEFT JOIN 在 ON 或 USING 找不到配對的右表資料列時，「會用一列所有欄位都是 NULL 的資料列當作右表」（a row with all columns set to NULL is used for the right table）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/join.html" target="_blank" rel="noopener">出處</a> RIGHT JOIN 只是左右對調：</p>
+<p>INNER JOIN 少了李志明，因為他的 <code>branch_id</code> 是 NULL，跟任何分行都配不上；LEFT JOIN 把他留下來，分行欄補 NULL。LEFT JOIN 在 ON 或 USING 找不到配對的右表資料列時，會用一列所有欄位都是 NULL 的資料列當作右表。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/join.html" target="_blank" rel="noopener">出處</a> RIGHT JOIN 只是左右對調：</p>
 <pre><code>SELECT b.branch_id, b.name AS branch, a.owner
 FROM accounts a
 RIGHT JOIN branches b ON a.branch_id = b.branch_id
@@ -132,9 +132,9 @@ ORDER BY b.branch_id, a.account_id;</code></pre>
 |         7 | 信義簡易分行       | NULL      |
 +-----------+--------------------+-----------+
 9 rows in set (0.00 sec)</code></pre>
-<p>手冊說 RIGHT JOIN「跟 LEFT JOIN 的運作方式相同」，並建議「為了讓程式碼能在不同資料庫之間移植，用 LEFT JOIN 取代 RIGHT JOIN」（To keep code portable across databases, it is recommended that you use LEFT JOIN instead of RIGHT JOIN）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/join.html" target="_blank" rel="noopener">出處</a> 實務上把要全部保留的那張表寫在左邊就好。</p>
+<p>RIGHT JOIN 跟 LEFT JOIN 的運作方式相同；為了讓程式碼能在不同資料庫之間移植，建議用 LEFT JOIN 取代 RIGHT JOIN。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/join.html" target="_blank" rel="noopener">出處</a> 實務上把要全部保留的那張表寫在左邊就好。</p>
 <h4>FULL OUTER JOIN：MySQL 沒有，要自己拼</h4>
-<p>MySQL 8.4 手冊的 JOIN 語法定義裡，外連接只有 <code>{LEFT|RIGHT} [OUTER] JOIN</code> 兩種（table_reference {LEFT|RIGHT} [OUTER] JOIN table_reference join_specification），沒有 FULL OUTER JOIN。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/join.html" target="_blank" rel="noopener">出處</a> 實跑直接是語法錯誤：</p>
+<p>MySQL 8.4 的 JOIN 語法裡，外連接只有 <code>{LEFT|RIGHT} [OUTER] JOIN</code> 兩種，沒有 FULL OUTER JOIN。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/join.html" target="_blank" rel="noopener">出處</a> 實跑直接是語法錯誤：</p>
 <pre><code>SELECT a.owner, b.name AS branch
 FROM accounts a
 FULL OUTER JOIN branches b ON a.branch_id = b.branch_id;</code></pre>
@@ -161,7 +161,7 @@ WHERE a.account_id IS NULL;</code></pre>
 | NULL      | 信義簡易分行       |
 +-----------+--------------------+
 10 rows in set (0.00 sec)</code></pre>
-<p>PostgreSQL 支援 FULL OUTER JOIN，文件寫：先做內連接，再把左表配不到的列補上右表的 NULL、右表配不到的列補上左表的 NULL（FULL OUTER JOIN First, an inner join is performed. Then, for each row in T1 that does not satisfy the join condition with any row in T2, a joined row is added with null values in columns of T2...）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank" rel="noopener">出處</a> 同一段 <code>FULL OUTER JOIN</code> 在 PostgreSQL 18 實跑，一樣是 10 列（沒有 ORDER BY，所以列的順序跟上面不同）：</p>
+<p>PostgreSQL 支援 FULL OUTER JOIN：先做內連接，再把左表配不到的列補上右表的 NULL、右表配不到的列補上左表的 NULL。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank" rel="noopener">出處</a> 同一段 <code>FULL OUTER JOIN</code> 在 PostgreSQL 18 實跑，一樣是 10 列（沒有 ORDER BY，所以列的順序跟上面不同）：</p>
 <pre><code> owner  |    branch    
 --------+--------------
  王小明 | 台北分行
@@ -208,9 +208,14 @@ ORDER BY a.account_id;</code></pre>
 |        106 |              0 |
 +------------+----------------+
 6 rows in set (0.00 sec)</code></pre>
-<p>差在處理的時間點。PostgreSQL 文件講得最直白：「放在 ON 子句的條件在連接之前處理，放在 WHERE 子句的條件在連接之後處理。這對內連接沒差，對外連接影響很大」（a restriction placed in the ON clause is processed before the join, while a restriction placed in the WHERE clause is processed after the join. That does not matter with inner joins, but it matters a lot with outer joins）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank" rel="noopener">出處</a></p>
+<p>差在處理的時間點：</p>
+<ul>
+<li>放在 ON 子句的條件，在連接之前處理。</li>
+<li>放在 WHERE 子句的條件，在連接之後處理。</li>
+<li>這對內連接沒差，對外連接影響很大。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>放在 WHERE 時，沒提款的帳戶在連接時補了一列 NULL，接著 <code>t.tx_type = 'WITHDRAW'</code> 對 NULL 的結果不是 TRUE，那一列就被濾掉。</p>
-<p>這裡的 UNKNOWN（不知道）是 SQL 邏輯運算的第三種結果，手冊寫：「SQL 的所有邏輯運算子結果都是 TRUE、FALSE 或 NULL（UNKNOWN），在 MySQL 實作成 1、0 與 NULL」（In SQL, all logical operators evaluate to TRUE, FALSE, or NULL (UNKNOWN). In MySQL, these are implemented as 1 (TRUE), 0 (FALSE), and NULL.），所以 MySQL 顯示成 NULL。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/logical-operators.html" target="_blank" rel="noopener">出處</a> MySQL 手冊把這種條件叫「null-rejected」：條件對「補 NULL 的那些列」算出來是 FALSE 或 UNKNOWN 時，最佳化器乾脆把外連接改成內連接（it converts the outer join to an inner join）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/outer-join-simplification.html" target="_blank" rel="noopener">出處</a></p>
+<p>這裡的 UNKNOWN（不知道）是 SQL 邏輯運算的第三種結果：SQL 的所有邏輯運算子結果都是 TRUE、FALSE 或 NULL（UNKNOWN），在 MySQL 實作成 1、0 與 NULL，所以 MySQL 顯示成 NULL。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/logical-operators.html" target="_blank" rel="noopener">出處</a> 這種條件叫 null-rejected：條件對「補 NULL 的那些列」算出來是 FALSE 或 UNKNOWN 時，MySQL 最佳化器乾脆把外連接改成內連接。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/outer-join-simplification.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="LEFT JOIN 條件放 ON 與放 WHERE 的差別。左邊：條件寫在 ON，連接時只配對提款紀錄，配不到的帳戶補一列 NULL，最後 6 列都留下。右邊：條件寫在 WHERE，先連接全部交易，再用 WHERE 篩選，補 NULL 的那列因為 tx_type 是 NULL 而被濾掉，只剩有提款的 2 個帳戶">
 <text x="40" y="28" font-size="13" fill="var(--gold-deep)">條件放 ON：連接時就只配提款</text>
@@ -234,7 +239,7 @@ ORDER BY a.account_id;</code></pre>
 </svg>
 <figcaption>外連接的右表條件放 ON，才會「先配對、配不到補 NULL」；放 WHERE 會把補上的 NULL 列再篩掉。</figcaption>
 </figure>
-<p>同一個結果裡還有第二個坑：<code>COUNT(*)</code> 數的是列數，<code>COUNT(欄位)</code> 只數非 NULL 的值。手冊：「COUNT()、MIN()、SUM() 這類聚合函式會忽略 NULL 值，例外是 COUNT(*)，它數的是列，不是個別欄位的值」（The exception to this is COUNT(*), which counts rows and not individual column values）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/problems-with-null.html" target="_blank" rel="noopener">出處</a></p>
+<p>同一個結果裡還有第二個坑：<code>COUNT(*)</code> 數的是列數，<code>COUNT(欄位)</code> 只數非 NULL 的值：<code>COUNT()</code>、<code>MIN()</code>、<code>SUM()</code> 這類聚合函式會忽略 NULL 值，例外是 <code>COUNT(*)</code>，它數的是列，不是個別欄位的值。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/problems-with-null.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>SELECT a.account_id, COUNT(*) AS star, COUNT(t.tx_id) AS tx
 FROM accounts a
 LEFT JOIN transactions t ON t.account_id = a.account_id
@@ -300,7 +305,7 @@ ORDER BY t.tx_id;</code></pre>
 |     8 | 林大同     | 張美玲    |   3000 |
 +-------+------------+-----------+--------+
 2 rows in set (0.00 sec)</code></pre>
-<p>存提款的 <code>counterparty_id</code> 是 NULL，用 <code>=</code> 去配對永遠配不上。手冊寫：「在 SQL 裡，NULL 跟任何值比較都不會是 TRUE，連跟 NULL 比也一樣」（In SQL, the NULL value is never true in comparison to any other value, even NULL）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/problems-with-null.html" target="_blank" rel="noopener">出處</a></p>
+<p>存提款的 <code>counterparty_id</code> 是 NULL，用 <code>=</code> 去配對永遠配不上：在 SQL 裡，NULL 跟任何值比較都不會是 TRUE，連跟 NULL 比也一樣。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/problems-with-null.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">INNER 只留配得到的、LEFT 留左表全部；外連接的右表條件放 ON；外連接後數右表用 COUNT(右表欄位)；兩個一對多同時接會放大加總；NULL 用 = 永遠配不上</p>
 <div class="drill">
   <p class="dq">下面這段回傳幾列？</p>
@@ -335,7 +340,7 @@ WHERE b.name &lt;&gt; '台北分行';</code></pre>
 <div class="drill">
   <p class="dq">想找出「一筆交易都沒有的帳戶」，哪個寫法對？</p>
   <ul class="dopts"><li><code>LEFT JOIN transactions t ON … WHERE t.tx_id = NULL</code></li><li><code>JOIN transactions t ON … WHERE t.tx_id IS NULL</code></li><li><code>LEFT JOIN transactions t ON … AND t.tx_id IS NULL</code>（條件寫在 ON）</li><li data-ok><code>LEFT JOIN transactions t ON … WHERE t.tx_id IS NULL</code></li></ul>
-  <p class="dexp">LEFT JOIN 讓沒交易的帳戶補一列 NULL，再用 IS NULL 挑出來，實跑回 106。= NULL 永遠不成立（0 列）；內連接根本沒有補 NULL 的列（0 列）；把 IS NULL 放進 ON 只是讓所有帳戶都配不到，6 個帳戶全部回來。手冊用 LEFT JOIN … WHERE 右表.id IS NULL 這個寫法示範怎麼找「沒有對應資料」的列。</p>
+  <p class="dexp">LEFT JOIN 讓沒交易的帳戶補一列 NULL，再用 IS NULL 挑出來，實跑回 106。= NULL 永遠不成立（0 列）；內連接根本沒有補 NULL 的列（0 列）；把 IS NULL 放進 ON 只是讓所有帳戶都配不到，6 個帳戶全部回來。找「沒有對應資料」的列，標準寫法就是 LEFT JOIN … WHERE 右表.id IS NULL。</p>
 </div>
 <div class="drill">
   <p class="dq">「每個帳戶的提款筆數」寫成下面這樣，回傳幾列？</p>
@@ -437,7 +442,7 @@ ORDER BY a.account_id;</code></pre>
 +------------+-----------+
 5 rows in set (0.00 sec)</code></pre>
 <p>JOIN 版多了一列王小明：他有兩筆存款，配對出兩列。這題問的是「哪些帳戶」，不是「哪些存款」，所以要嘛加 DISTINCT，要嘛用 IN 或 EXISTS；後兩者只回答「有沒有」，不會因為對到多筆就重複。</p>
-<p>手冊說 IN 接子查詢時「是 = ANY 的別名」（the word IN is an alias for = ANY）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/any-in-some-subqueries.html" target="_blank" rel="noopener">出處</a>；EXISTS 則是「子查詢只要回傳任何一列，EXISTS 就是 TRUE，NOT EXISTS 就是 FALSE」，而且「MySQL 會忽略這種子查詢的 SELECT 清單」（MySQL ignores the SELECT list in such a subquery, so it makes no difference），所以寫 <code>SELECT 1</code> 或 <code>SELECT *</code> 都一樣。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/exists-and-not-exists-subqueries.html" target="_blank" rel="noopener">出處</a></p>
+<p>IN 接子查詢時，是 <code>= ANY</code> 的別名<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/any-in-some-subqueries.html" target="_blank" rel="noopener">出處</a>；EXISTS 則是子查詢只要回傳任何一列，EXISTS 就是 TRUE、NOT EXISTS 就是 FALSE，而且 MySQL 會忽略這種子查詢的 SELECT 清單，所以寫 <code>SELECT 1</code> 或 <code>SELECT *</code> 都一樣。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/exists-and-not-exists-subqueries.html" target="_blank" rel="noopener">出處</a></p>
 <p>哪種寫法比較快，要看執行計畫，見〈索引是怎麼運作的〉的 EXPLAIN 一段。</p>
 <h4>NOT IN 遇到 NULL：一列都不回</h4>
 <p>題目反過來：找出「從來沒當過轉帳對象」的帳戶。轉帳對象是 101、102、103、104，答案應該是 105 和 106：</p>
@@ -456,8 +461,8 @@ WHERE account_id NOT IN (SELECT counterparty_id FROM transactions);</code></pre>
 +---------+-----------+-----------+
 1 row in set (0.00 sec)</code></pre>
 <p>105 不在 (102, 101, 104, 103) 裡，結果是 1（TRUE）；清單多一個 NULL，結果變成 NULL。</p>
-<p>手冊寫：「為了符合 SQL 標準，IN() 不只在左邊是 NULL 時回傳 NULL，在清單裡找不到相符的值、而且清單裡有 NULL 時，也回傳 NULL」（IN() returns NULL not only if the expression on the left hand side is NULL, but also if no match is found in the list and one of the expressions in the list is NULL）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/comparison-operators.html" target="_blank" rel="noopener">出處</a>；NOT IN 就是 NOT (IN)，NOT NULL 還是 NULL。WHERE 只留結果是 TRUE 的列，NULL 不算，所以每一列都被濾掉。</p>
-<p>PostgreSQL 文件也是同樣的規則：「沒有相等的值、而且右邊至少有一列是 null 時，NOT IN 的結果是 null，不是 true」（the result of the NOT IN construct will be null, not true），PostgreSQL 18 實跑同一段一樣是 0 列。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-subquery.html" target="_blank" rel="noopener">出處</a></p>
+<p>為了符合 SQL 標準，IN() 不只在左邊是 NULL 時回傳 NULL，在清單裡找不到相符的值、而且清單裡有 NULL 時，也回傳 NULL<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/comparison-operators.html" target="_blank" rel="noopener">出處</a>；NOT IN 就是 NOT (IN)，NOT NULL 還是 NULL。WHERE 只留結果是 TRUE 的列，NULL 不算，所以每一列都被濾掉。</p>
+<p>PostgreSQL 也是同樣的規則：沒有相等的值、而且右邊至少有一列是 null 時，NOT IN 的結果是 null，不是 true；PostgreSQL 18 實跑同一段一樣是 0 列。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-subquery.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="NOT IN 遇到 NULL 的三值邏輯：105 NOT IN (102, 101, 104, 103, NULL) 展開成 105 不等於 102、不等於 101、不等於 104、不等於 103 都是 TRUE，但 105 不等於 NULL 是 UNKNOWN；全部用 AND 連起來，結果是 UNKNOWN，WHERE 不保留">
 <text x="40" y="30" font-size="13" class="mono" fill="currentColor">105 NOT IN (102, 101, 104, 103, NULL)  等於</text>
@@ -516,7 +521,7 @@ WHERE account_id NOT IN (SELECT counterparty_id FROM transactions);</code></pre>
 <div class="drill">
   <p class="dq">「從沒當過轉帳對象的帳戶」，哪個寫法對？</p>
   <ul class="dopts"><li><code>WHERE account_id NOT IN (SELECT counterparty_id FROM transactions)</code></li><li><code>WHERE account_id &lt;&gt; ANY (SELECT counterparty_id FROM transactions WHERE counterparty_id IS NOT NULL)</code></li><li data-ok><code>WHERE NOT EXISTS (SELECT 1 FROM transactions t WHERE t.counterparty_id = a.account_id)</code></li><li><code>WHERE account_id NOT IN (SELECT DISTINCT counterparty_id FROM transactions)</code></li></ul>
-  <p class="dexp">NOT EXISTS 只看有沒有配得到的列，NULL 不干擾，實跑回 105、106。加 DISTINCT 只是把 8 個 NULL 縮成 1 個，NOT IN 照樣一列不回。手冊說 NOT IN 是 &lt;&gt; ALL 的別名，不是 &lt;&gt; ANY；&lt;&gt; ANY 就算排除了 NULL，也是只要跟清單裡任一個不相等就成立，每個帳戶都會回來。</p>
+  <p class="dexp">NOT EXISTS 只看有沒有配得到的列，NULL 不干擾，實跑回 105、106。加 DISTINCT 只是把 8 個 NULL 縮成 1 個，NOT IN 照樣一列不回。NOT IN 是 &lt;&gt; ALL 的別名，不是 &lt;&gt; ANY；&lt;&gt; ANY 就算排除了 NULL，也是只要跟清單裡任一個不相等就成立，每個帳戶都會回來。</p>
 </div>
 <div class="drill">
   <p class="dq">「有存款的帳戶」用 <code>accounts JOIN transactions … WHERE tx_type = 'DEPOSIT'</code> 寫，回傳 6 列；用 <code>IN (子查詢)</code> 寫，回傳 5 列。差的那一列是怎麼來的？</p>
@@ -531,7 +536,7 @@ WHERE account_id NOT IN (SELECT counterparty_id FROM transactions);</code></pre>
 <div class="drill">
   <p class="dq">EXISTS 子查詢寫成 <code>SELECT 1</code>、<code>SELECT *</code> 或 <code>SELECT tx_id</code>，結果有差嗎？</p>
   <ul class="dopts"><li data-ok>沒差，MySQL 會忽略 EXISTS 子查詢的 SELECT 清單</li><li>SELECT * 比較慢，會把所有欄位讀出來</li><li>SELECT 1 會讓 EXISTS 永遠是 TRUE</li><li>SELECT tx_id 遇到 NULL 時 EXISTS 會變成 NULL</li></ul>
-  <p class="dexp">手冊：子查詢只要回傳任何一列，EXISTS 就是 TRUE；MySQL 會忽略這種子查詢的 SELECT 清單，所以寫什麼都一樣。</p>
+  <p class="dexp">子查詢只要回傳任何一列，EXISTS 就是 TRUE；MySQL 會忽略這種子查詢的 SELECT 清單，所以寫什麼都一樣。</p>
 </div>
 <div class="drill">
   <p class="dq">下面這段相關子查詢（子查詢用到外層的 t）回傳幾列？</p>
@@ -563,7 +568,7 @@ ORDER BY branch_id;</code></pre>
 |         6 |        2 |
 +-----------+----------+
 4 rows in set (0.00 sec)</code></pre>
-<p><strong>規則一：SELECT 裡的欄位，要嘛在 GROUP BY 裡，要嘛包在聚合函式裡。</strong>MySQL 8.4 預設開著 <code>ONLY_FULL_GROUP_BY</code>，手冊說它會拒絕「SELECT 清單、HAVING 條件或 ORDER BY 清單參考到沒聚合、又不在 GROUP BY 裡、也不在功能上依賴於它們的欄位」的查詢（MySQL rejects queries for which the select list, HAVING condition, or ORDER BY list refer to nonaggregated columns that are neither named in the GROUP BY clause nor are functionally dependent on them）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-handling.html" target="_blank" rel="noopener">出處</a> 一個分行有好幾個戶名，挑哪一個？資料庫不替你猜：</p>
+<p><strong>規則一：SELECT 裡的欄位，要嘛在 GROUP BY 裡，要嘛包在聚合函式裡。</strong>MySQL 8.4 預設開著 <code>ONLY_FULL_GROUP_BY</code>，會拒絕這種查詢：SELECT 清單、HAVING 條件或 ORDER BY 清單參考到沒聚合、又不在 GROUP BY 裡、也不在功能上依賴於它們的欄位。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-handling.html" target="_blank" rel="noopener">出處</a> 一個分行有好幾個戶名，挑哪一個？資料庫不替你猜：</p>
 <pre><code>SELECT branch_id, owner, COUNT(*) AS accounts
 FROM accounts
 GROUP BY branch_id;</code></pre>
@@ -585,7 +590,7 @@ ORDER BY a.account_id;</code></pre>
 |        106 | 黃小華    |  0 |
 +------------+-----------+----+
 6 rows in set (0.00 sec)</code></pre>
-<p><strong>規則二：WHERE 篩列、HAVING 篩組，聚合條件只能寫在 HAVING。</strong>手冊：「HAVING 子句可以參考聚合函式，WHERE 子句不行」（The HAVING clause can refer to aggregate functions, which the WHERE clause cannot）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a> 把 SUM 寫進 WHERE 是錯誤：</p>
+<p><strong>規則二：WHERE 篩列、HAVING 篩組，聚合條件只能寫在 HAVING。</strong>HAVING 子句可以參考聚合函式，WHERE 子句不行。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a> 把 SUM 寫進 WHERE 是錯誤：</p>
 <pre><code>SELECT account_id, SUM(amount) AS deposits
 FROM transactions
 WHERE SUM(amount) &gt;= 5000
@@ -604,7 +609,7 @@ ORDER BY account_id;</code></pre>
 |        104 |     8000 |
 +------------+----------+
 2 rows in set (0.00 sec)</code></pre>
-<p>WHERE 先把非存款的列排除，GROUP BY 再分組，HAVING 最後留下總和至少 5000 的組。<strong>規則三，跨資料庫的差異：HAVING 能不能用 SELECT 的別名。</strong>MySQL 可以，手冊說這是「MySQL 的延伸」（The MySQL extension permits the use of an alias in the HAVING clause for the aggregated column）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-handling.html" target="_blank" rel="noopener">出處</a>：</p>
+<p>WHERE 先把非存款的列排除，GROUP BY 再分組，HAVING 最後留下總和至少 5000 的組。<strong>規則三，跨資料庫的差異：HAVING 能不能用 SELECT 的別名。</strong>MySQL 可以，這是 MySQL 對標準的延伸<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/group-by-handling.html" target="_blank" rel="noopener">出處</a>：</p>
 <pre><code>SELECT account_id, SUM(amount) AS deposits
 FROM transactions
 WHERE tx_type = 'DEPOSIT'
@@ -645,7 +650,7 @@ FROM transactions;</code></pre>
 |       12 |                 4 |
 +----------+-------------------+
 1 row in set (0.00 sec)</code></pre>
-<p>王小明登入 5 次，但 10 月 3 日登入兩次，算「登入天數」要用 <code>COUNT(DISTINCT DATE(login_at))</code>，是 4。手冊：<code>COUNT(DISTINCT expr)</code>「回傳不同的非 NULL 值的列數」（Returns a count of the number of rows with different non-NULL expr values）；<code>COUNT(expr)</code> 只數非 NULL，所以 12 筆交易裡有對方帳號的是 4 筆。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/aggregate-functions.html" target="_blank" rel="noopener">出處</a></p>
+<p>王小明登入 5 次，但 10 月 3 日登入兩次，算「登入天數」要用 <code>COUNT(DISTINCT DATE(login_at))</code>，是 4。<code>COUNT(DISTINCT expr)</code> 回傳不同的非 NULL 值的個數；<code>COUNT(expr)</code> 只數非 NULL，所以 12 筆交易裡有對方帳號的是 4 筆。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/aggregate-functions.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">SELECT 的欄位要在 GROUP BY 裡、被聚合，或由分組欄位唯一決定；聚合條件寫 HAVING 不寫 WHERE；HAVING 用別名只有 MySQL 認，直接寫聚合函式最保險</p>
 <div class="drill">
   <p class="dq">下面這段回傳幾列？</p>
@@ -666,7 +671,7 @@ GROUP BY branch_id;</code></pre>
 <div class="drill">
   <p class="dq"><code>GROUP BY a.account_id</code>（帳戶表的主鍵），SELECT 裡同時寫 <code>a.owner</code>。在 MySQL 8.4 會怎樣？</p>
   <ul class="dopts"><li data-ok>可以跑：知道主鍵就能唯一決定戶名</li><li>報錯：owner 一定要加進 GROUP BY</li><li>可以跑，但戶名會是 NULL</li><li>只有關掉 ONLY_FULL_GROUP_BY 才能跑</li></ul>
-  <p class="dexp">owner 在功能上依賴於主鍵 account_id，手冊允許這種欄位不寫進 GROUP BY。實跑每個帳戶一列、戶名正確；PostgreSQL 18 也接受。</p>
+  <p class="dexp">owner 在功能上依賴於主鍵 account_id，MySQL 允許這種欄位不寫進 GROUP BY。實跑每個帳戶一列、戶名正確；PostgreSQL 18 也接受。</p>
 </div>
 <div class="drill">
   <p class="dq">想找「存款總和至少 5000 的帳戶」，哪個寫法對？</p>
@@ -707,7 +712,7 @@ HAVING COUNT(*) &gt;= 2;</code></pre>
 <section>
 <p class="era">不併列，也能算整組的事</p>
 <h3 class="head">視窗函式：ROW_NUMBER、RANK、DENSE_RANK、SUM OVER、LAG</h3>
-<p>GROUP BY 會把一組併成一列；視窗函式（window function）對「跟目前這列有關的一群列」做計算，但每一列都留著。MySQL 手冊說視窗函式不像聚合函式那樣把列併起來，「而是對每一列各產生一個結果」（Instead, they produce a result for each row）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-usage.html" target="_blank" rel="noopener">出處</a> 寫法是函式後面接 <code>OVER (…)</code>：<code>PARTITION BY</code> 決定怎麼分組（不寫就是全部一組），<code>ORDER BY</code> 決定組內順序。</p>
+<p>GROUP BY 會把一組併成一列；視窗函式（window function）對「跟目前這列有關的一群列」做計算，但每一列都留著。視窗函式不像聚合函式那樣把列併起來，而是對每一列各產生一個結果。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-usage.html" target="_blank" rel="noopener">出處</a> 寫法是函式後面接 <code>OVER (…)</code>：<code>PARTITION BY</code> 決定怎麼分組（不寫就是全部一組），<code>ORDER BY</code> 決定組內順序。</p>
 <h4>三種排名：同分怎麼辦</h4>
 <pre><code>SELECT tx_id, account_id, amount,
        ROW_NUMBER() OVER (ORDER BY amount DESC, tx_id) AS rn,
@@ -729,11 +734,11 @@ ORDER BY amount DESC, tx_id;</code></pre>
 6 rows in set (0.00 sec)</code></pre>
 <p>三筆 3000 同分：</p>
 <ul class="plainlist">
-<li><b><code>ROW_NUMBER</code></b> 硬是給 3、4、5，同分誰前誰後由 ORDER BY 決定，這裡加了 <code>tx_id</code> 當第二排序鍵；手冊提醒「沒有 ORDER BY，列的編號是不確定的」（Without ORDER BY, row numbering is nondeterministic）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a>；有 ORDER BY 但同分時，PostgreSQL 文件寫明同分的列「以不指定的順序編號」（with tied rows numbered in an unspecified order）<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a>，所以要自己補一個能分出先後的欄位。</li>
-<li><b><code>RANK</code></b> 給同分的列相同名次（Peers are considered ties and receive the same rank.），名次＝比它大的筆數＋1，所以 500 是第 6 名。</li>
-<li><b><code>DENSE_RANK</code></b>「同分給相同名次，但下一個名次只加一」（the next higher value has a rank one greater），500 是第 4 名。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></li>
+<li><b><code>ROW_NUMBER</code></b> 硬是給 3、4、5，同分誰前誰後由 ORDER BY 決定，這裡加了 <code>tx_id</code> 當第二排序鍵；沒有 ORDER BY，列的編號不確定<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a>；有 ORDER BY 但同分時，同分的列以不指定的順序編號<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a>，所以要自己補一個能分出先後的欄位。</li>
+<li><b><code>RANK</code></b> 給同分的列相同名次，名次＝比它大的筆數＋1，所以 500 是第 6 名。</li>
+<li><b><code>DENSE_RANK</code></b> 同分給相同名次，但下一個名次只加一，500 是第 4 名。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>PostgreSQL 文件的說法一樣：rank 有間隔，dense_rank「等於是在數有幾組同分」（this function effectively counts peer groups）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-window.html" target="_blank" rel="noopener">出處</a></p>
+<p>PostgreSQL 也一樣：rank 有間隔，dense_rank 等於是在數有幾組同分。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-window.html" target="_blank" rel="noopener">出處</a></p>
 <h4>聚合函式加上 OVER：每列都看得到整組的總和</h4>
 <pre><code>SELECT tx_id, account_id, amount,
        SUM(amount) OVER (PARTITION BY account_id) AS account_total,
@@ -775,7 +780,7 @@ ORDER BY account_id, tx_id;</code></pre>
 <figcaption>GROUP BY 把一組變成一列；視窗函式保留每一列，把整組的結果「貼」在每列旁邊。</figcaption>
 </figure>
 <h4>ORDER BY 進了 OVER：預設框架會把同分的列算在一起</h4>
-<p>OVER 裡寫了 ORDER BY，SUM 就變成「從頭加到目前這列」的累加。但「目前這列」到哪裡為止有個細節。手冊：沒寫框架（frame，算這一列時要納入哪幾列）時，有 ORDER BY 的預設框架是「從分組的第一列到目前這列，包含目前這列的所有同分列（依 ORDER BY 相等的列）」（including all peers of the current row），等於 <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-frames.html" target="_blank" rel="noopener">出處</a> 交易 2 和 3 剛好同一時間（14:30）：</p>
+<p>OVER 裡寫了 ORDER BY，SUM 就變成「從頭加到目前這列」的累加。但「目前這列」到哪裡為止有個細節：沒寫框架（frame，算這一列時要納入哪幾列）時，有 ORDER BY 的預設框架是從分組的第一列到目前這列，<strong>包含目前這列的所有同分列</strong>（依 ORDER BY 相等的列），等於 <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-frames.html" target="_blank" rel="noopener">出處</a> 交易 2 和 3 剛好同一時間（14:30）：</p>
 <pre><code>SELECT tx_id, tx_time, amount,
        SUM(amount) OVER (ORDER BY tx_time)                 AS by_range,
        SUM(amount) OVER (ORDER BY tx_time
@@ -812,14 +817,14 @@ ORDER BY account_id, tx_time, tx_id;</code></pre>
 |     8 |        103 | 2026-10-04 |  -3000 |        3000 | 2026-10-02 |
 +-------+------------+------------+--------+-------------+------------+
 6 rows in set (0.00 sec)</code></pre>
-<p><code>LAG(expr)</code> 回傳同一個分組裡往前 N 列的值，手冊：「沒有那一列時回傳 default」，而「N 或 default 沒給時，預設是 1 和 NULL」（If N or default are missing, the defaults are 1 and NULL, respectively），所以每個帳戶的第一筆是 NULL；寫成 <code>LAG(amount, 1, 0)</code> 第一筆就是 0。往後看用 LEAD。這裡也示範了 <code>WINDOW w AS (…)</code>：同一個視窗用好幾次時，取個名字只寫一次。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>LAG(expr)</code> 回傳同一個分組裡往前 N 列的值，沒有那一列時回傳 default；N 或 default 沒給時，預設是 1 和 NULL，所以每個帳戶的第一筆是 NULL；寫成 <code>LAG(amount, 1, 0)</code> 第一筆就是 0。往後看用 LEAD。這裡也示範了 <code>WINDOW w AS (…)</code>：同一個視窗用好幾次時，取個名字只寫一次。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></p>
 <h4>視窗函式不能放 WHERE</h4>
 <pre><code>SELECT tx_id, account_id, amount,
        ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY tx_time DESC) AS rn
 FROM transactions
 WHERE ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY tx_time DESC) = 1;</code></pre>
 <pre><code>ERROR 3593 (HY000) at line 1: You cannot use the window function 'row_number' in this context.'</code></pre>
-<p>手冊：「視窗函式只能出現在 SELECT 清單與 ORDER BY 子句」（Window functions are permitted only in the select list and ORDER BY clause）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-usage.html" target="_blank" rel="noopener">出處</a> 原因跟處理順序有關：視窗函式在 WHERE、GROUP BY、HAVING 之後才算，PostgreSQL 文件說視窗函式看到的是「FROM 子句產生、再經過 WHERE、GROUP BY、HAVING 篩過的虛擬資料表」（the “virtual table” produced by the query's FROM clause as filtered by its WHERE, GROUP BY, and HAVING clauses if any），所以它們「在 GROUP BY、HAVING 和 WHERE 子句裡是禁止的」（They are forbidden elsewhere, such as in GROUP BY, HAVING and WHERE clauses）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a> 要拿排名去篩，就把它包進子查詢或 CTE，在外層篩，下一段的經典題全部都是這個模式。</p>
+<p>視窗函式只能出現在 SELECT 清單與 ORDER BY 子句。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-usage.html" target="_blank" rel="noopener">出處</a> 原因跟處理順序有關：視窗函式在 WHERE、GROUP BY、HAVING 之後才算，它看到的是 FROM 子句產生、再經過 WHERE、GROUP BY、HAVING 篩過的虛擬資料表，所以在 GROUP BY、HAVING 和 WHERE 子句裡不能用。<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a> 要拿排名去篩，就把它包進子查詢或 CTE，在外層篩，下一段的經典題全部都是這個模式。</p>
 <p class="formula">視窗函式每列都留著；ROW_NUMBER 同分硬排、RANK 同分同名次會跳號、DENSE_RANK 不跳號；OVER 裡有 ORDER BY 時預設把同分列一起加；LAG 第一列預設 NULL；要篩排名就包一層子查詢</p>
 <div class="drill">
   <p class="dq">依存款金額由大到小排名（8000、5000、3000、3000、3000、500），500 那筆的 <code>RANK()</code> 與 <code>DENSE_RANK()</code> 各是多少？</p>
@@ -829,7 +834,7 @@ WHERE ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY tx_time DESC) = 1;</co
 <div class="drill">
   <p class="dq"><code>ROW_NUMBER() OVER (ORDER BY amount DESC)</code>（沒有第二排序鍵），三筆 3000 誰拿到 3？</p>
   <ul class="dopts"><li>tx_id 最小的那筆，因為主鍵小的先排</li><li>最早存入的那筆，照時間先後</li><li>每次執行都一定一樣，固定是同一筆</li><li data-ok>不保證，同分的先後由資料庫決定</li></ul>
-  <p class="dexp">手冊說沒有 ORDER BY 時編號不確定；有 ORDER BY 但同分時，PostgreSQL 文件寫明同分的列以不指定的順序編號。要固定就自己加第二排序鍵，例如 amount DESC, tx_id。</p>
+  <p class="dexp">沒有 ORDER BY 時編號不確定；有 ORDER BY 但同分時，同分的列以不指定的順序編號。要固定就自己加第二排序鍵，例如 amount DESC, tx_id。</p>
 </div>
 <div class="drill">
   <p class="dq">同樣兩個帳戶的 7 筆交易，<code>GROUP BY account_id</code> 回傳幾列？<code>SUM(amount) OVER (PARTITION BY account_id)</code> 回傳幾列？</p>
@@ -894,7 +899,7 @@ ORDER BY account_id, rn;</code></pre>
 |        105 |    11 |    500 |
 +------------+-------+--------+
 8 rows in set (0.00 sec)</code></pre>
-<p>林大同與李志明只有一筆存入，就只出現一列，不會補空列。換成 RANK 或 DENSE_RANK 的差別在同分：「前兩名」如果要把同分的都算進去，用 <code>DENSE_RANK() &lt;= 2</code>；只要剛好兩列，用 ROW_NUMBER 加第二排序鍵。PostgreSQL 文件舉的例子就是這個寫法：在子查詢算 row_number，外層 <code>WHERE pos &lt; 3</code>。<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a></p>
+<p>林大同與李志明只有一筆存入，就只出現一列，不會補空列。換成 RANK 或 DENSE_RANK 的差別在同分：「前兩名」如果要把同分的都算進去，用 <code>DENSE_RANK() &lt;= 2</code>；只要剛好兩列，用 ROW_NUMBER 加第二排序鍵。標準寫法是在子查詢算 row_number，外層 <code>WHERE pos &lt; 3</code>。<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a></p>
 <h4>連續登入：日期減掉序號，連續的會得到同一個值</h4>
 <p>題目：找出連續登入至少 3 天的帳戶與期間。關鍵是先把日期去重，再讓每個帳戶的日期依序編號；日期減掉編號，連續的日期會得到同一個「組別日期」：</p>
 <pre><code>WITH days AS (
@@ -1084,7 +1089,7 @@ LIMIT 1 OFFSET 1;</code></pre>
 |       NULL |
 +------------+
 1 row in set (0.00 sec)</code></pre>
-<p>另外注意 <code>DISTINCT</code>：存款金額有三筆 3000，找「第四高的金額」（答案是 500）時，不加 DISTINCT 的 <code>ORDER BY amount DESC LIMIT 1 OFFSET 3</code> 實跑拿到的是 3000，因為它跳過的是 8000、5000、3000 三列，不是三種金額；加了 DISTINCT 才是 500。DENSE_RANK 篩 <code>dr = 3</code> 則會回三列 3000，要的是一個值就再加 DISTINCT。手冊對 LIMIT 的說明：兩個參數時，「第一個是要回傳的第一列的位移，第二個是最多回傳幾列」（the first argument specifies the offset of the first row to return, and the second specifies the maximum number of rows to return）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a></p>
+<p>另外注意 <code>DISTINCT</code>：存款金額有三筆 3000，找「第四高的金額」（答案是 500）時，不加 DISTINCT 的 <code>ORDER BY amount DESC LIMIT 1 OFFSET 3</code> 實跑拿到的是 3000，因為它跳過的是 8000、5000、3000 三列，不是三種金額；加了 DISTINCT 才是 500。DENSE_RANK 篩 <code>dr = 3</code> 則會回三列 3000，要的是一個值就再加 DISTINCT。LIMIT 帶兩個參數時，第一個是要回傳的第一列的位移，第二個是最多回傳幾列。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">每組第 N 名＝子查詢裡 ROW_NUMBER／DENSE_RANK，外層篩；連續日期＝去重後「日期減序號」分組；累計＝SUM OVER 加分得出先後的排序；去重＝ROW_NUMBER 依時間倒序留 1；第二高＝DISTINCT 加 LIMIT OFFSET，沒有時要 NULL 就包成純量子查詢</p>
 <p class="muted">更多手寫題與寫錯版本的實跑結果，見面試集〈SQL 手寫題：第 N 高、連續天數、每組前幾名與去重〉。</p>
 <div class="drill">
@@ -1138,7 +1143,7 @@ WHERE dr = 3;</code></pre>
 <section>
 <p class="era">把長查詢拆成有名字的幾段</p>
 <h3 class="head">CTE 與遞迴 CTE</h3>
-<p>CTE（common table expression，共用資料表運算式）就是用 <code>WITH 名稱 AS (查詢)</code> 先替一段查詢取名字，後面像資料表一樣用。手冊：CTE 是「只存在於單一陳述式範圍內、有名字的暫時結果集，之後可以在那個陳述式裡被參考好幾次」（a named temporary result set that exists within the scope of a single statement and that can be referred to later within that statement, possibly multiple times）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a> 上一段的連續登入已經用過兩個 CTE 串起來；下面的 <code>deposits</code> 被用了兩次，一次接帳戶、一次算平均：</p>
+<p>CTE（common table expression，共用資料表運算式）就是用 <code>WITH 名稱 AS (查詢)</code> 先替一段查詢取名字，後面像資料表一樣用。它是只存在於單一陳述式範圍內、有名字的暫時結果集，在那個陳述式裡可以被參考好幾次。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a> 上一段的連續登入已經用過兩個 CTE 串起來；下面的 <code>deposits</code> 被用了兩次，一次接帳戶、一次算平均：</p>
 <pre><code>WITH deposits AS (
     SELECT account_id, SUM(amount) AS total
     FROM transactions
@@ -1160,7 +1165,7 @@ ORDER BY d.total DESC, a.owner;</code></pre>
 2 rows in set (0.00 sec)</code></pre>
 <p>存款總和的平均是 4500，高於平均的是張美玲與王小明。不用 CTE 也寫得出來，但同一段子查詢要寫兩次，讀的人也得自己比對兩段是不是一樣。</p>
 <h4>遞迴 CTE：走一棵樹</h4>
-<p>CTE 可以參考自己，就是遞迴 CTE，手冊說常見用途是「產生序列，以及走訪階層或樹狀資料」（series generation and traversal of hierarchical or tree-structured data）。結構是兩段用 UNION ALL 接起來：第一段（非遞迴部分）給起點，第二段（遞迴部分）拿上一輪的結果再往下找一層，直到找不到新的列為止。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a> 分行表的 <code>parent_id</code> 就是一棵樹，從總行往下走：</p>
+<p>CTE 可以參考自己，就是遞迴 CTE，常見用途是產生序列，以及走訪階層或樹狀資料。結構是兩段用 UNION ALL 接起來：第一段（非遞迴部分）給起點，第二段（遞迴部分）拿上一輪的結果再往下找一層，直到找不到新的列為止。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a> 分行表的 <code>parent_id</code> 就是一棵樹，從總行往下走：</p>
 <pre><code>WITH RECURSIVE tree AS (
     SELECT branch_id, name, parent_id, 1 AS lvl, name AS path
     FROM branches
@@ -1172,7 +1177,7 @@ ORDER BY d.total DESC, a.owner;</code></pre>
 )
 SELECT branch_id, lvl, path FROM tree ORDER BY path;</code></pre>
 <pre><code>ERROR 1406 (22001) at line 1: Data too long for column 'path' at row 1</code></pre>
-<p>出錯了。手冊寫明：「CTE 結果欄位的型別，只從非遞迴部分的欄位型別推斷」（The types of the CTE result columns are inferred from the column types of the nonrecursive SELECT part only）。起點的 <code>path</code> 來自 <code>name</code>，是 VARCHAR(20)；往下串到「總行 &gt; 北區營運處 &gt; 台北分行 &gt; 信義簡易分行」超過 20 個字，嚴格模式下就是這個錯誤。手冊給的修法是在非遞迴部分用 CAST 把欄位放寬：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a></p>
+<p>出錯了：CTE 結果欄位的型別，只從非遞迴部分的欄位型別推斷。起點的 <code>path</code> 來自 <code>name</code>，是 VARCHAR(20)；往下串到「總行 &gt; 北區營運處 &gt; 台北分行 &gt; 信義簡易分行」超過 20 個字，嚴格模式下就是這個錯誤。修法是在非遞迴部分用 CAST 把欄位放寬：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>WITH RECURSIVE tree AS (
     SELECT branch_id, name, parent_id, 1 AS lvl, CAST(name AS CHAR(200)) AS path
     FROM branches
@@ -1225,7 +1230,7 @@ ORDER BY dates.d;</code></pre>
 | 2026-10-07 |      0 |
 +------------+--------+
 7 rows in set (0.00 sec)</code></pre>
-<p>10 月 7 日沒人登入，LEFT JOIN 補了一列 NULL，<code>COUNT(l.account_id)</code> 是 0；寫成 <code>COUNT(*)</code> 會變成 1，跟 JOIN 那段的坑一樣。遞迴部分一定要有停止條件（這裡的 <code>WHERE d &lt; '2026-10-07'</code>）。忘了寫的話，MySQL 預設遞迴超過 1000 層就中止：手冊說 <code>cte_max_recursion_depth</code> 預設是 1000，讓 CTE「遞迴超過 1000 層時中止」（causing the CTE to terminate when it recurses past 1000 levels）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a></p>
+<p>10 月 7 日沒人登入，LEFT JOIN 補了一列 NULL，<code>COUNT(l.account_id)</code> 是 0；寫成 <code>COUNT(*)</code> 會變成 1，跟 JOIN 那段的坑一樣。遞迴部分一定要有停止條件（這裡的 <code>WHERE d &lt; '2026-10-07'</code>）。忘了寫的話，MySQL 預設遞迴超過 1000 層就中止：<code>cte_max_recursion_depth</code> 預設是 1000。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>WITH RECURSIVE n AS (
     SELECT 1 AS i
     UNION ALL
@@ -1233,7 +1238,7 @@ ORDER BY dates.d;</code></pre>
 )
 SELECT COUNT(*) FROM n;</code></pre>
 <pre><code>ERROR 3636 (HY000) at line 1: Recursive query aborted after 1001 iterations. Try increasing @@cte_max_recursion_depth to a larger value.</code></pre>
-<p>還有一個常見的錯：遞迴 CTE 一定要寫 <code>WITH RECURSIVE</code>。手冊說忘了 RECURSIVE「很可能得到」<code>ERROR 1146 (42S02): Table 'cte_name' doesn't exist</code><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a>，實跑把上面的計數改成三層、拿掉 RECURSIVE，得到的就是 <code>ERROR 1146 (42S02): Table 'bank.n' doesn't exist</code>。PostgreSQL 的寫法一樣是 <code>WITH RECURSIVE</code>，文件說加上 RECURSIVE，「WITH 查詢就能參考自己的輸出」（Using RECURSIVE, a WITH query can refer to its own output）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-with.html" target="_blank" rel="noopener">出處</a></p>
+<p>還有一個常見的錯：遞迴 CTE 一定要寫 <code>WITH RECURSIVE</code>。忘了 RECURSIVE 很可能得到 <code>ERROR 1146 (42S02): Table 'cte_name' doesn't exist</code><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/with.html" target="_blank" rel="noopener">出處</a>，實跑把上面的計數改成三層、拿掉 RECURSIVE，得到的就是 <code>ERROR 1146 (42S02): Table 'bank.n' doesn't exist</code>。PostgreSQL 的寫法一樣是 <code>WITH RECURSIVE</code>，加上 RECURSIVE，WITH 查詢就能參考自己的輸出。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-with.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">CTE＝先替子查詢取名字、可以用好幾次；遞迴 CTE＝起點 UNION ALL 往下一層，一定要有停止條件、一定要寫 RECURSIVE；MySQL 的欄位型別看起點，字串會變長就先 CAST 放寬</p>
 <div class="drill">
   <p class="dq">分行樹的遞迴 CTE 裡，「信義簡易分行」的層級 <code>lvl</code> 是多少？</p>
@@ -1269,7 +1274,7 @@ SELECT * FROM n;</code></pre>
 <div class="drill">
   <p class="dq"><code>WITH deposits AS (…)</code> 在主查詢裡同時被 JOIN 一次、又在子查詢 <code>(SELECT AVG(total) FROM deposits)</code> 裡用一次。可以嗎？</p>
   <ul class="dopts"><li data-ok>可以，同一個陳述式裡能參考好幾次</li><li>不行，一個 CTE 在一個陳述式裡只能用一次</li><li>可以，但要寫成 WITH RECURSIVE</li><li>不行，CTE 不能出現在 WHERE 的子查詢裡</li></ul>
-  <p class="dexp">手冊對 CTE 的定義就包括「可以在那個陳述式裡被參考好幾次」。實跑回張美玲與王小明兩列。</p>
+  <p class="dexp">CTE 在同一個陳述式裡可以被參考好幾次。實跑回張美玲與王小明兩列。</p>
 </div>
 
 </section>

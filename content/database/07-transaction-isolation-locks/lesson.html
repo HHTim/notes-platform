@@ -5,7 +5,7 @@
 <p class="era">同時跑，會互相踩到</p>
 <h3 class="head">為什麼需要隔離：兩筆轉帳同時扣同一個帳戶</h3>
 <p>〈SQL 三種子語言：DDL、DML、DQL〉講過交易的 ACID，其中的隔離性（Isolation）是「同時在跑的交易，彼此看不看得到對方的中間狀態」。只有一筆交易時不會有問題；銀行系統每秒有上千筆交易，同一個帳戶可能同時被 ATM 提款、網銀轉帳、自動扣款碰到，這時就要決定：A 交易改到一半的資料，B 交易看不看得到？兩筆都要改同一列時，誰等誰？</p>
-<p>MySQL 手冊說，隔離層級是在「好幾筆交易同時修改與查詢時，在效能與可靠性、一致性、結果可重現性之間做微調」的設定（the setting that fine-tunes the balance between performance and reliability, consistency, and reproducibility of results when multiple transactions are making changes and performing queries at the same time）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a> 隔離得越嚴，越不會出怪事，但互相等待的機會越多。</p>
+<p>隔離層級是一個設定：好幾筆交易同時修改與查詢時，用它在效能與可靠性、一致性、結果可重現性之間做微調。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a> 隔離得越嚴，越不會出怪事，但互相等待的機會越多。</p>
 <p>以下示範用一張帳戶表，在 MySQL 8.4.11 開<strong>兩個連線同時跑</strong>，用 <code>DO SLEEP(秒數)</code> 排好先後，圖的時間軸照腳本的時間畫：</p>
 <pre><code>CREATE TABLE account (
   id      INT PRIMARY KEY,
@@ -33,7 +33,7 @@ INSERT INTO account (id, owner, balance) VALUES
 <div class="drill">
   <p class="dq">MySQL 8.4 的 InnoDB 預設隔離層級是哪一個？</p>
   <ul class="dopts"><li>READ UNCOMMITTED</li><li>READ COMMITTED</li><li>SERIALIZABLE</li><li data-ok>REPEATABLE READ</li></ul>
-  <p class="dexp">手冊：The default isolation level for InnoDB is REPEATABLE READ。實跑 @@transaction_isolation 也是 REPEATABLE-READ。</p>
+  <p class="dexp">InnoDB 預設的隔離層級是 REPEATABLE READ。實跑 @@transaction_isolation 也是 REPEATABLE-READ。</p>
 </div>
 <div class="drill">
   <p class="dq">autocommit 是開著的（預設）。只下一條 <code>UPDATE account SET balance = balance - 100 WHERE id = 1;</code>，沒有 START TRANSACTION，會怎樣？</p>
@@ -43,18 +43,18 @@ INSERT INTO account (id, owner, balance) VALUES
 <div class="drill">
   <p class="dq">隔離層級調得越嚴格，最直接的代價是什麼？</p>
   <ul class="dopts"><li>資料比較容易在當機時遺失</li><li>SQL 的語法會變得比較複雜</li><li>資料表就不能再使用任何索引</li><li data-ok>互相等待變多，同時能跑的量變少</li></ul>
-  <p class="dexp">手冊說隔離層級是效能與一致性之間的平衡：越嚴越少怪事，但要多加鎖、多等待。</p>
+  <p class="dexp">隔離層級是效能與一致性之間的平衡：越嚴越少怪事，但要多加鎖、多等待。</p>
 </div>
 </section>
 
 <section>
 <p class="era">讀到不該讀的三種情況</p>
 <h3 class="head">三種讀異常：髒讀、不可重複讀、幻讀</h3>
-<p>SQL 標準用三種「現象」來定義隔離層級。PostgreSQL 文件的定義最簡潔：<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></p>
+<p>SQL 標準用三種「現象」來定義隔離層級：<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><strong>髒讀</strong>（dirty read）：「交易讀到另一筆並行中、還沒提交的交易寫入的資料」（A transaction reads data written by a concurrent uncommitted transaction.）。</li>
-<li><strong>不可重複讀</strong>（nonrepeatable read）：「交易重讀先前讀過的資料，發現被另一筆（在第一次讀之後提交的）交易改掉了」（A transaction re-reads data it has previously read and finds that data has been modified by another transaction (that committed since the initial read).）。</li>
-<li><strong>幻讀</strong>（phantom read）：「交易重跑一個條件查詢，發現符合條件的那一組列，因為另一筆剛提交的交易而變了」（A transaction re-executes a query returning a set of rows that satisfy a search condition and finds that the set of rows satisfying the condition has changed due to another recently-committed transaction.）。</li>
+<li><strong>髒讀</strong>（dirty read）：交易讀到另一筆並行中、還沒提交的交易寫入的資料。</li>
+<li><strong>不可重複讀</strong>（nonrepeatable read）：交易重讀先前讀過的資料，發現被另一筆（在第一次讀之後提交的）交易改掉了。</li>
+<li><strong>幻讀</strong>（phantom read）：交易重跑一個條件查詢，發現符合條件的那一組列，因為另一筆剛提交的交易而變了。</li>
 </ul>
 <p>差別一句話：髒讀讀到「沒提交的」；不可重複讀是「同一列的值」變了；幻讀是「符合條件的列數」變了（多了或少了列）。</p>
 <h4>髒讀</h4>
@@ -238,17 +238,23 @@ COMMIT;</code></pre>
 <section>
 <p class="era">擋住幾種，代價多少</p>
 <h3 class="head">四個隔離層級</h3>
-<p>SQL 標準定義四個層級，越往下擋得越多。PostgreSQL 文件的表照標準列出允許哪些現象，再註明它自己的實作：<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></p>
+<p>SQL 標準定義四個層級，越往下擋得越多，各層級允許的現象如下：<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>隔離層級</th><th>髒讀</th><th>不可重複讀</th><th>幻讀</th><th>InnoDB 的做法</th></tr></thead><tbody>
 <tr><th>READ UNCOMMITTED</th><td>可能</td><td>可能</td><td>可能</td><td>一般 SELECT 可能讀到還沒提交的版本</td></tr>
 <tr><th>READ COMMITTED</th><td>不會</td><td>可能</td><td>可能</td><td>每次讀都拿一份新的快照</td></tr>
 <tr><th>REPEATABLE READ（MySQL 預設）</th><td>不會</td><td>不會</td><td>標準允許</td><td>整筆交易用第一次讀時的快照；鎖定讀加 Next-Key 鎖</td></tr>
 <tr><th>SERIALIZABLE</th><td>不會</td><td>不會</td><td>不會</td><td>autocommit 關閉時，一般 SELECT 都變成 SELECT … FOR SHARE</td></tr>
 </tbody></table></div>
-<p>InnoDB 那一欄照 MySQL 手冊：REPEATABLE READ 是預設，「同一筆交易裡的一致性讀，讀的是第一次讀取時建立的快照」（Consistent reads within the same transaction read the snapshot established by the first read.）；READ COMMITTED「每一次一致性讀，即使在同一筆交易裡，都建立並讀取自己的新快照」（Each consistent read, even within the same transaction, sets and reads its own fresh snapshot.）；READ UNCOMMITTED 的 SELECT「可能用到某一列較早的版本……這也叫髒讀」；SERIALIZABLE「跟 REPEATABLE READ 很像，但 autocommit 關閉時，InnoDB 把所有一般 SELECT 隱含轉成 SELECT … FOR SHARE」（InnoDB implicitly converts all plain SELECT statements to SELECT ... FOR SHARE if autocommit is disabled.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a></p>
-<p>兩個資料庫的預設不一樣：MySQL InnoDB 預設 REPEATABLE READ；PostgreSQL 預設 READ COMMITTED，而且它的 REPEATABLE READ 不會出現幻讀（表上那格寫 Allowed, but not in PG）。同一段程式從 MySQL 搬到 PostgreSQL，行為可能不同，見〈資料庫面試題：索引、交易隔離與鎖〉的對照表。</p>
+<p>InnoDB 那一欄展開：</p>
+<ul>
+<li>REPEATABLE READ（預設）：同一筆交易裡的一致性讀，讀的是第一次讀取時建立的快照。</li>
+<li>READ COMMITTED：每一次一致性讀，即使在同一筆交易裡，都建立並讀取自己的新快照。</li>
+<li>READ UNCOMMITTED：SELECT 可能用到某一列較早的版本，這也叫髒讀。</li>
+<li>SERIALIZABLE：跟 REPEATABLE READ 很像，但 autocommit 關閉時，InnoDB 把所有一般 SELECT 隱含轉成 SELECT … FOR SHARE。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>兩個資料庫的預設不一樣：MySQL InnoDB 預設 REPEATABLE READ；PostgreSQL 預設 READ COMMITTED，而且它的 REPEATABLE READ 不會出現幻讀（標準允許，PostgreSQL 的實作擋掉了）。同一段程式從 MySQL 搬到 PostgreSQL，行為可能不同，見〈資料庫面試題：索引、交易隔離與鎖〉的對照表。</p>
 <h4>InnoDB 的 REPEATABLE READ 擋得住幻讀嗎</h4>
-<p>要分兩種讀。<strong>一般 SELECT</strong>（快照讀）讀的是交易開始時的快照，別人新增的列看不到，上面示範數出 3、3。<strong>鎖定讀</strong>（FOR SHARE、FOR UPDATE）與 UPDATE、DELETE 讀的是最新版本，並用 Next-Key 鎖把掃過的範圍鎖住，別人插不進來（下面 Next-Key 鎖那一段的示範）。但如果在別人插入<strong>之後</strong>才做鎖定讀，就會看到那一列，所以示範第三次是 4。手冊也特別提醒：快照只適用於 SELECT，不一定適用於 DML；交易若「更新或刪除了別的交易已提交的列，那些變更就會變成對目前交易可見」（If a transaction does update or delete rows committed by a different transaction, those changes do become visible to the current transaction.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></p>
+<p>要分兩種讀。<strong>一般 SELECT</strong>（快照讀）讀的是交易開始時的快照，別人新增的列看不到，上面示範數出 3、3。<strong>鎖定讀</strong>（FOR SHARE、FOR UPDATE）與 UPDATE、DELETE 讀的是最新版本，並用 Next-Key 鎖把掃過的範圍鎖住，別人插不進來（下面 Next-Key 鎖那一段的示範）。但如果在別人插入<strong>之後</strong>才做鎖定讀，就會看到那一列，所以示範第三次是 4。還要注意：快照只適用於 SELECT，不一定適用於 DML；交易若更新或刪除了別的交易已提交的列，那些變更就會變成對目前交易可見。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></p>
 <p>設定方式：<code>SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;</code> 只影響目前連線之後的交易；用 <code>SET GLOBAL</code> 影響之後新開的連線；也可以寫在設定檔的 <code>transaction-isolation</code>。Spring 的 <code>@Transactional(isolation = …)</code> 則是在交易開始前，透過 JDBC 替那條連線設定隔離層級。</p>
 
 <div class="drill">
@@ -259,12 +265,12 @@ COMMIT;</code></pre>
 <div class="drill">
   <p class="dq">InnoDB 在 READ COMMITTED 下，同一筆交易裡的兩次一般 SELECT 讀的是什麼？</p>
   <ul class="dopts"><li>都讀交易開始時的同一份快照</li><li data-ok>每次各自建立一份新的快照</li><li>都讀到未提交的最新資料</li><li>都要先加共享鎖</li></ul>
-  <p class="dexp">手冊：Each consistent read, even within the same transaction, sets and reads its own fresh snapshot。所以會出現不可重複讀。</p>
+  <p class="dexp">READ COMMITTED 下每一次一致性讀，即使在同一筆交易裡，都建立並讀取自己的新快照，所以會出現不可重複讀。</p>
 </div>
 <div class="drill">
   <p class="dq">SERIALIZABLE 下（autocommit 關閉），InnoDB 對一般的 <code>SELECT</code> 做了什麼？</p>
   <ul class="dopts"><li>完全不加鎖，跟 REPEATABLE READ 一樣</li><li>改成 SELECT … FOR UPDATE</li><li>拒絕執行，要求改寫</li><li data-ok>隱含轉成 SELECT … FOR SHARE</li></ul>
-  <p class="dexp">手冊：implicitly converts all plain SELECT statements to SELECT ... FOR SHARE if autocommit is disabled。讀也加共享鎖，所以最安全也最容易互相等待。</p>
+  <p class="dexp">autocommit 關閉時，一般 SELECT 都隱含轉成 SELECT … FOR SHARE，讀也加共享鎖，所以最安全也最容易互相等待。</p>
 </div>
 <div class="drill">
   <p class="dq">InnoDB 在 REPEATABLE READ 下，同一筆交易「一般 SELECT 數出 3、加 FOR SHARE 數出 4」，原因是什麼？</p>
@@ -286,8 +292,17 @@ COMMIT;</code></pre>
 <section>
 <p class="era">讀的人不用等寫的人</p>
 <h3 class="head">MVCC 與 undo log：快照讀怎麼做到</h3>
-<p>上面的示範有一個值得注意的地方：B 正在改帳戶 1（還沒提交）時，A 在 READ COMMITTED 或 REPEATABLE READ 下讀帳戶 1，<strong>不用等</strong>，直接拿到舊值 10000。這是 <strong>MVCC</strong>（multi-version concurrency control，多版本並行控制：同一列同時保留好幾個版本，讀的人看舊版本、寫的人改新版本）。手冊：一致性讀「表示 InnoDB 用多版本，讓查詢看到資料庫在某個時間點的快照。查詢看得到那個時間點之前提交的變更，看不到之後或還沒提交的變更」（A consistent read means that InnoDB uses multi-versioning to present to a query a snapshot of the database at a point in time. The query sees the changes made by transactions that committed before that point in time, and no changes made by later or uncommitted transactions.）；而且「一致性讀不對它讀的表加任何鎖，所以其他連線可以同時修改這些表」（A consistent read does not set any locks on the tables it accesses, and therefore other sessions are free to modify those tables at the same time）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></p>
-<p>舊版本存在哪？手冊：InnoDB 保留被改過的列的舊版本資訊，「存在 undo 表空間裡一個叫還原區段的資料結構」（This information is stored in undo tablespaces in a data structure called a rollback segment.），同一份資訊既拿來做 ROLLBACK，也拿來「替一致性讀建出某一列較早的版本」。每一列還藏著幾個欄位，其中「6 位元組的 DB_TRX_ID 記錄最後插入或更新這一列的交易編號」，「7 位元組的 DB_ROLL_PTR 叫還原指標，指向寫在還原區段裡的一筆 undo log 記錄；如果這一列被更新過，那筆記錄裡有把這一列重建成更新前內容所需的資訊」（The roll pointer points to an undo log record written to the rollback segment. If the row was updated, the undo log record contains the information necessary to rebuild the content of the row before it was updated.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener">出處</a></p>
+<p>上面的示範有一個值得注意的地方：B 正在改帳戶 1（還沒提交）時，A 在 READ COMMITTED 或 REPEATABLE READ 下讀帳戶 1，<strong>不用等</strong>，直接拿到舊值 10000。這是 <strong>MVCC</strong>（multi-version concurrency control，多版本並行控制：同一列同時保留好幾個版本，讀的人看舊版本、寫的人改新版本）。一致性讀的意思：</p>
+<ul>
+<li>InnoDB 用多版本，讓查詢看到資料庫在某個時間點的快照。</li>
+<li>查詢看得到那個時間點之前提交的變更，看不到之後或還沒提交的變更。</li>
+<li>一致性讀不對它讀的表加任何鎖，所以其他連線可以同時修改這些表。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>舊版本存在哪？InnoDB 把被改過的列的舊版本資訊，存在 undo 表空間裡一個叫還原區段（rollback segment）的資料結構；同一份資訊既拿來做 ROLLBACK，也拿來替一致性讀建出某一列較早的版本。每一列還藏著幾個欄位，其中：</p>
+<ul>
+<li><code>DB_TRX_ID</code>（6 位元組）：最後插入或更新這一列的交易編號。</li>
+<li><code>DB_ROLL_PTR</code>（7 位元組）：還原指標，指向寫在還原區段裡的一筆 undo log 記錄；如果這一列被更新過，那筆記錄裡有把這一列重建成更新前內容所需的資訊。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <figure>
 <svg viewBox="0 0 760 200" role="img" aria-label="MVCC 的版本鏈：資料表裡的最新版本是餘額 7000，由交易 2201 寫入，DB_ROLL_PTR 指向 undo log 裡的舊版本餘額 10000。快照較早的讀取看到交易編號太新，就沿著指標找回舊版本">
   <defs><marker id="tx-9a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
@@ -299,7 +314,7 @@ COMMIT;</code></pre>
 </svg>
 <figcaption>MVCC 的版本鏈（交易編號是示意）：讀到一列時比對 DB_TRX_ID，這個版本比自己的快照新，就沿著 DB_ROLL_PTR 到 undo log 找回舊版本。</figcaption>
 </figure>
-<p><strong>長交易的代價。</strong>只要還有交易的快照可能用到某段 undo log，它就不能清掉。手冊建議「定期提交交易，連只做一致性讀的交易也一樣。否則 InnoDB 沒辦法丟掉 update undo log 裡的資料，還原區段可能長得太大，塞滿它所在的 undo 表空間」（It is recommend that you commit transactions regularly, including transactions that issue only consistent reads.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener">出處</a> 實務上，報表程式開了交易一直不關、或連線池裡的連線忘了提交，都會讓 undo 越積越多。</p>
+<p><strong>長交易的代價。</strong>只要還有交易的快照可能用到某段 undo log，它就不能清掉。所以要定期提交交易，連只做一致性讀的交易也一樣；否則 InnoDB 沒辦法丟掉 update undo log 裡的資料，還原區段可能長得太大，塞滿它所在的 undo 表空間。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener">出處</a> 實務上，報表程式開了交易一直不關、或連線池裡的連線忘了提交，都會讓 undo 越積越多。</p>
 <p class="formula">快照讀（一般 SELECT）讀舊版本、不加鎖；鎖定讀（FOR SHARE、FOR UPDATE）與 UPDATE、DELETE 讀最新版本、要加鎖</p>
 
 <div class="drill">
@@ -310,7 +325,7 @@ COMMIT;</code></pre>
 <div class="drill">
   <p class="dq">InnoDB 把一列「改之前的內容」存在哪裡？</p>
   <ul class="dopts"><li data-ok>undo 表空間裡的還原區段</li><li>二級索引的葉節點裡</li><li>慢查詢日誌的檔案裡</li><li>只存在用戶端的記憶體</li></ul>
-  <p class="dexp">手冊：stored in undo tablespaces in a data structure called a rollback segment。同一份資訊拿來 ROLLBACK，也拿來建快照。</p>
+  <p class="dexp">舊版本存在 undo 表空間裡的還原區段。同一份資訊拿來 ROLLBACK，也拿來建快照。</p>
 </div>
 <div class="drill">
   <p class="dq">InnoDB 每一列藏著的 <code>DB_ROLL_PTR</code> 是做什麼的？</p>
@@ -320,20 +335,25 @@ COMMIT;</code></pre>
 <div class="drill">
   <p class="dq">某個報表程式開了交易之後跑了兩小時都沒提交（只做 SELECT）。對資料庫最可能的影響是什麼？</p>
   <ul class="dopts"><li>沒有影響，只讀的交易不佔任何資源</li><li>其他交易全都不能讀這張表</li><li data-ok>undo log 清不掉，越積越多</li><li>它讀到的資料會隨時間越來越新</li></ul>
-  <p class="dexp">手冊建議連只做一致性讀的交易也要定期提交，否則 undo log 無法丟棄、還原區段長得太大。它也不會擋住別人讀。</p>
+  <p class="dexp">連只做一致性讀的交易也要定期提交，否則 undo log 無法丟棄、還原區段長得太大。它也不會擋住別人讀。</p>
 </div>
 </section>
 
 <section>
 <p class="era">我要讀、我要改</p>
 <h3 class="head">共享鎖、排他鎖與 SELECT … FOR UPDATE</h3>
-<p>要改同一列時，版本救不了，得排隊。手冊：InnoDB 實作兩種列級鎖，「共享鎖（S）讓持有它的交易讀一列；排他鎖（X）讓持有它的交易更新或刪除一列」（A shared (S) lock permits the transaction that holds the lock to read a row. An exclusive (X) lock permits the transaction that holds the lock to update or delete a row.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a> 相容規則：</p>
+<p>要改同一列時，版本救不了，得排隊。InnoDB 有兩種列級鎖：</p>
+<ul>
+<li>共享鎖（S）：持有它的交易可以讀一列。</li>
+<li>排他鎖（X）：持有它的交易可以更新或刪除一列。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>相容規則：</p>
 <div class="tablewrap"><table><thead><tr><th>已經有人持有 ＼ 我要</th><th>共享鎖 S</th><th>排他鎖 X</th></tr></thead><tbody>
 <tr><th>共享鎖 S</th><td>可以，大家一起讀</td><td>要等</td></tr>
 <tr><th>排他鎖 X</th><td>要等</td><td>要等</td></tr>
 </tbody></table></div>
 <p>（這裡的「讀」指鎖定讀；一般 SELECT 走快照，根本不看這些鎖。）</p>
-<p>主動加鎖的寫法是<strong>鎖定讀</strong>：<code>SELECT … FOR SHARE</code> 加共享鎖；<code>SELECT … FOR UPDATE</code> 手冊說它對搜尋碰到的索引記錄「鎖住那些列與相關的索引項目，就跟對那些列下 UPDATE 一樣」，其他交易不能更新、不能 FOR SHARE（locks the rows and any associated index entries, the same as if you issued an UPDATE statement for those rows）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a> 鎖要到交易提交或還原才放，所以要包在 <code>START TRANSACTION … COMMIT</code> 裡；autocommit 下單獨一句 FOR UPDATE，執行完就提交、鎖就放了。</p>
+<p>主動加鎖的寫法是<strong>鎖定讀</strong>：<code>SELECT … FOR SHARE</code> 加共享鎖；<code>SELECT … FOR UPDATE</code> 對搜尋碰到的索引記錄，鎖住那些列與相關的索引項目，就跟對那些列下 UPDATE 一樣，其他交易不能更新、不能 FOR SHARE。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a> 鎖要到交易提交或還原才放，所以要包在 <code>START TRANSACTION … COMMIT</code> 裡；autocommit 下單獨一句 FOR UPDATE，執行完就提交、鎖就放了。</p>
 <pre><code>-- 連線 A                                              -- 連線 B
 START TRANSACTION;                                     DO SLEEP(1);
 SELECT balance FROM account WHERE id = 1 FOR UPDATE;   START TRANSACTION;
@@ -388,7 +408,7 @@ COMMIT;                                                COMMIT;
 </svg>
 <figcaption>實跑結果：A 讀到 10000；B 的 FOR UPDATE 回傳 7000，執行時間 2.00 秒（等 A 提交）；最後餘額 3000。兩筆扣款都正確算進去。</figcaption>
 </figure>
-<p>B 還在等的時候（第 2 秒），用第三個連線查 <code>performance_schema.data_locks</code>，手冊說這張表「顯示被持有與被請求的資料鎖」（The data_locks table shows data locks held and requested.）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/performance-schema-data-locks-table.html" target="_blank" rel="noopener">出處</a>：</p>
+<p>B 還在等的時候（第 2 秒），用第三個連線查 <code>performance_schema.data_locks</code>，這張表顯示被持有與被請求的資料鎖<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/performance-schema-data-locks-table.html" target="_blank" rel="noopener">出處</a>：</p>
 <pre><code>mysql&gt; SELECT engine_transaction_id AS trx, index_name, lock_type, lock_mode, lock_status, lock_data
     -&gt; FROM performance_schema.data_locks WHERE object_name = 'account' ORDER BY engine_transaction_id, lock_type DESC;
 +------+------------+-----------+---------------+-------------+-----------+
@@ -399,9 +419,9 @@ COMMIT;                                                COMMIT;
 | 2589 | NULL       | TABLE     | IX            | GRANTED     | NULL      |
 | 2589 | PRIMARY    | RECORD    | X,REC_NOT_GAP | WAITING     | 1         |
 +------+------------+-----------+---------------+-------------+-----------+</code></pre>
-<p>怎麼讀：交易 2588（A）在主鍵 <code>id = 1</code> 那筆記錄上持有（GRANTED）排他鎖 <code>X,REC_NOT_GAP</code>，意思是「只鎖這筆記錄、不鎖間隙」；交易 2589（B）要同一把鎖，狀態 WAITING。兩邊表層級都有一個 <code>IX</code>，這是<strong>意向鎖</strong>：手冊說意向鎖是「表層級的鎖，表示交易等一下要對表裡的某些列加哪一種鎖」（Intention locks are table-level locks that indicate which type of lock (shared or exclusive) a transaction requires later for a row in a table.），IX 之間互不衝突，它的用途是讓「鎖整張表」的操作能快速知道有沒有人鎖著某些列。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a></p>
+<p>怎麼讀：交易 2588（A）在主鍵 <code>id = 1</code> 那筆記錄上持有（GRANTED）排他鎖 <code>X,REC_NOT_GAP</code>，意思是「只鎖這筆記錄、不鎖間隙」；交易 2589（B）要同一把鎖，狀態 WAITING。兩邊表層級都有一個 <code>IX</code>，這是<strong>意向鎖</strong>：表層級的鎖，表示交易等一下要對表裡的某些列加哪一種鎖（共享或排他），IX 之間互不衝突，它的用途是讓「鎖整張表」的操作能快速知道有沒有人鎖著某些列。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a></p>
 <h4>等不到鎖會怎樣</h4>
-<p>等鎖最多等 <code>innodb_lock_wait_timeout</code> 秒，預設 50 秒；逾時報 ERROR 1205，而且手冊特別說明「逾時時還原的是目前那一條語句，不是整筆交易」（When a lock wait timeout occurs, the current statement is rolled back (not the entire transaction).）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a> 把 B 的等待上限改成 1 秒、A 照樣鎖 3 秒：</p>
+<p>等鎖最多等 <code>innodb_lock_wait_timeout</code> 秒，預設 50 秒；逾時報 ERROR 1205，而且<strong>逾時時還原的是目前那一條語句，不是整筆交易</strong>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a> 把 B 的等待上限改成 1 秒、A 照樣鎖 3 秒：</p>
 <pre><code>-- 連線 B
 DO SLEEP(1);
 SET SESSION innodb_lock_wait_timeout = 1;
@@ -409,7 +429,7 @@ START TRANSACTION;
 UPDATE account SET balance = balance - 4000 WHERE id = 1;
 
 ERROR 1205 (HY000) at line 4: Lock wait timeout exceeded; try restarting transaction</code></pre>
-<p>因為只還原那一條語句，交易還開著、前面語句的效果與鎖都還在。應用程式收到 1205 時，要自己 ROLLBACK 整筆交易再重試，不能當作「整筆已經取消」接著做別的事。不想排隊的話，可以加 <code>NOWAIT</code>（有鎖就立刻報錯）或 <code>SKIP LOCKED</code>（跳過被鎖的列，手冊說它回傳的是不一致的資料，只適合佇列這類用途）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html#innodb-locking-reads-nowait-skip-locked" target="_blank" rel="noopener">出處</a></p>
+<p>因為只還原那一條語句，交易還開著、前面語句的效果與鎖都還在。應用程式收到 1205 時，要自己 ROLLBACK 整筆交易再重試，不能當作「整筆已經取消」接著做別的事。不想排隊的話，可以加 <code>NOWAIT</code>（有鎖就立刻報錯）或 <code>SKIP LOCKED</code>（跳過被鎖的列，回傳的是不一致的資料，只適合佇列這類用途）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html#innodb-locking-reads-nowait-skip-locked" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">交易 A 持有某一列的共享鎖（S）。交易 B 也要這一列的共享鎖，會怎樣？</p>
@@ -439,23 +459,23 @@ ERROR 1205 (HY000) at line 4: Lock wait timeout exceeded; try restarting transac
 <div class="drill">
   <p class="dq">innodb_lock_wait_timeout 逾時（ERROR 1205）之後，預設被還原的是什麼？</p>
   <ul class="dopts"><li>整筆交易</li><li>整條連線的所有交易</li><li data-ok>只有正在等鎖的那一條語句</li><li>什麼都不還原，語句繼續等</li></ul>
-  <p class="dexp">手冊：the current statement is rolled back (not the entire transaction)。交易還開著，應用程式要自己 ROLLBACK 再重試。要整筆還原得開 --innodb-rollback-on-timeout。</p>
+  <p class="dexp">逾時還原的是目前那一條語句，不是整筆交易。交易還開著，應用程式要自己 ROLLBACK 再重試。要整筆還原得開 --innodb-rollback-on-timeout。</p>
 </div>
 <div class="drill">
   <p class="dq">一個「搶單」佇列表，多台機器同時要各拿一筆還沒被拿走的工作，不想互相等待。最適合加什麼？</p>
   <ul class="dopts"><li><code>FOR SHARE</code></li><li data-ok><code>FOR UPDATE SKIP LOCKED</code></li><li><code>LOCK IN SHARE MODE</code></li><li>把隔離層級調成 READ UNCOMMITTED</li></ul>
-  <p class="dexp">SKIP LOCKED 跳過別人鎖住的列，各拿各的；手冊也說它回傳不一致的資料，所以只適合這種佇列用途。調低隔離層級會讀到別人沒提交的資料。</p>
+  <p class="dexp">SKIP LOCKED 跳過別人鎖住的列，各拿各的；它回傳不一致的資料，所以只適合這種佇列用途。調低隔離層級會讀到別人沒提交的資料。</p>
 </div>
 </section>
 
 <section>
 <p class="era">連「中間的空位」也鎖起來</p>
 <h3 class="head">記錄鎖、間隙鎖與 Next-Key 鎖</h3>
-<p>鎖是加在<strong>索引記錄</strong>上的（〈索引是怎麼運作的〉講的那些記錄）。手冊列了三種：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a></p>
+<p>鎖是加在<strong>索引記錄</strong>上的（〈索引是怎麼運作的〉講的那些記錄），有三種：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><strong>記錄鎖</strong>（record lock）：「鎖一筆索引記錄」（A record lock is a lock on an index record.）。表沒有索引時，InnoDB 也會鎖它自己產生的隱藏叢集索引。</li>
-<li><strong>間隙鎖</strong>（gap lock）：「鎖住索引記錄之間的間隙，或第一筆之前、最後一筆之後的間隙」（a lock on a gap between index records, or a lock on the gap before the first or after the last index record）。它是「純粹禁止」的鎖，唯一的目的是不讓別人插入那段間隙；不同交易的間隙鎖可以同時存在、彼此不衝突（Gap locks in InnoDB are “purely inhibitive”, which means that their only purpose is to prevent other transactions from inserting to the gap.）。</li>
-<li><strong>Next-Key 鎖</strong>：「索引記錄上的記錄鎖，加上那筆記錄前面那段間隙的間隙鎖」（a combination of a record lock on the index record and a gap lock on the gap before the index record）。</li>
+<li><strong>記錄鎖</strong>（record lock）：鎖一筆索引記錄。表沒有索引時，InnoDB 也會鎖它自己產生的隱藏叢集索引。</li>
+<li><strong>間隙鎖</strong>（gap lock）：鎖住索引記錄之間的間隙，或第一筆之前、最後一筆之後的間隙。它是純粹禁止的鎖，唯一的目的是不讓別人插入那段間隙；不同交易的間隙鎖可以同時存在、彼此不衝突。</li>
+<li><strong>Next-Key 鎖</strong>：索引記錄上的記錄鎖，加上那筆記錄前面那段間隙的間隙鎖。</li>
 </ul>
 <p>InnoDB 在 REPEATABLE READ 下，鎖定讀與 UPDATE、DELETE 掃描索引時用的就是 Next-Key 鎖，把「已經有的記錄」與「記錄之間可以插入的位置」一起鎖住，別人就插不進你掃過的範圍，這是它擋住幻讀的方法。實跑：A 鎖住「餘額 8000 以上」的帳戶，B 想新增一個 9000 的帳戶：</p>
 <pre><code>-- 連線 A                                                -- 連線 B
@@ -484,7 +504,7 @@ COMMIT;</code></pre>
 <li><code>idx_balance</code> 上三筆 <code>X</code>（沒有 REC_NOT_GAP）就是 Next-Key 鎖，鎖在餘額 8000（id 5）、10000（id 1）、12000（id 9）三筆記錄上，<code>lock_data</code> 前半是 DECIMAL 在索引裡的編碼、後半是主鍵。每一把都連帶鎖住記錄前面那段間隙。</li>
 <li><code>supremum pseudo-record</code> 是索引最後面的「虛擬記錄」，鎖它等於鎖住 12000 之後到無限大的間隙，所以 13000 也插不進去。</li>
 <li>主鍵上三筆 <code>X,REC_NOT_GAP</code>：找到的列，在叢集索引上只鎖記錄。</li>
-<li>B 的 <code>X,GAP,INSERT_INTENTION</code> 是<strong>插入意向鎖</strong>，手冊說它是「INSERT 在插入列之前設的一種間隙鎖」（a type of gap lock set by INSERT operations prior to row insertion）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a> 它等在 10000 那筆記錄前面的間隙，也就是 9000 要放的位置。</li>
+<li>B 的 <code>X,GAP,INSERT_INTENTION</code> 是<strong>插入意向鎖</strong>：INSERT 在插入列之前設的一種間隙鎖。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a> 它等在 10000 那筆記錄前面的間隙，也就是 9000 要放的位置。</li>
 </ul>
 <figure>
 <svg viewBox="0 0 760 210" role="img" aria-label="Next-Key 鎖的範圍：idx_balance 上有 5000、8000、10000、12000 四筆記錄。交易 A 執行 balance 大於等於 8000 的 FOR UPDATE，鎖住 8000、10000、12000 三筆記錄與它們前面的間隙（從 5000 之後開始），以及 12000 之後到正無限的間隙。交易 B 想插入 9000，落在 8000 到 10000 之間的間隙，只能等待">
@@ -520,18 +540,18 @@ COMMIT;</code></pre>
 <figcaption>依實跑的 data_locks 畫：A 的三把 Next-Key 鎖加上 supremum，把 5000 之後的範圍全部鎖住；B 要插的 9000 落在 (8000, 10000] 裡，只能等。注意 5000 那筆記錄本身沒被鎖。</figcaption>
 </figure>
 <h4>什麼時候只鎖記錄、不鎖間隙</h4>
-<p>手冊：「用唯一索引搜尋唯一一列時，不需要間隙鎖」（Gap locking is not needed for statements that lock rows using a unique index to search for a unique row.），只鎖那一筆。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a> 上一段的 <code>WHERE id = 1 FOR UPDATE</code> 就是這樣，data_locks 只有 <code>X,REC_NOT_GAP</code>。另外，READ COMMITTED 下鎖定讀、UPDATE、DELETE「只鎖索引記錄，不鎖它前面的間隙，因此允許在被鎖住的記錄旁邊自由插入新的記錄」（InnoDB locks only index records, not the gaps before them, and thus permits the free insertion of new records next to locked records.）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>，等待變少，但會出現幻讀。</p>
-<p class="muted">鎖加在索引上，所以 WHERE 用不到索引時，InnoDB 只能邊掃邊鎖，鎖住的列會多很多。手冊減少死結的建議裡也有一條：替表建好合適的索引，讓查詢掃過較少的索引記錄、加較少的鎖（Add well-chosen indexes to your tables so that your queries scan fewer index records and set fewer locks.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a></p>
+<p>用唯一索引搜尋唯一一列時，不需要間隙鎖，只鎖那一筆。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html" target="_blank" rel="noopener">出處</a> 上一段的 <code>WHERE id = 1 FOR UPDATE</code> 就是這樣，data_locks 只有 <code>X,REC_NOT_GAP</code>。另外，READ COMMITTED 下鎖定讀、UPDATE、DELETE 只鎖索引記錄，不鎖它前面的間隙，因此允許在被鎖住的記錄旁邊自由插入新的記錄<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>，等待變少，但會出現幻讀。</p>
+<p class="muted">鎖加在索引上，所以 WHERE 用不到索引時，InnoDB 只能邊掃邊鎖，鎖住的列會多很多。減少死結的做法裡也有一條：替表建好合適的索引，讓查詢掃過較少的索引記錄、加較少的鎖。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">間隙鎖唯一的目的是什麼？</p>
   <ul class="dopts"><li>不讓別人讀那段範圍</li><li data-ok>不讓別人插入那段間隙</li><li>不讓別人刪除那段範圍的記錄</li><li>不讓別人建立索引</li></ul>
-  <p class="dexp">手冊：purely inhibitive，only purpose is to prevent other transactions from inserting to the gap。所以兩筆交易可以同時持有同一段間隙的間隙鎖。</p>
+  <p class="dexp">間隙鎖是純粹禁止的鎖，唯一的目的是不讓別人插入那段間隙，所以兩筆交易可以同時持有同一段間隙的間隙鎖。</p>
 </div>
 <div class="drill">
   <p class="dq">Next-Key 鎖是哪兩種鎖的組合？</p>
   <ul class="dopts"><li data-ok>記錄鎖，加上記錄前面那段的間隙鎖</li><li>共享鎖，加上同一列的排他鎖</li><li>整張表的表鎖，加上其中一列的列鎖</li><li>意向鎖，加上一把插入意向鎖</li></ul>
-  <p class="dexp">手冊的定義：a record lock on the index record and a gap lock on the gap before the index record。</p>
+  <p class="dexp">Next-Key 鎖＝索引記錄上的記錄鎖，加上那筆記錄前面那段間隙的間隙鎖。</p>
 </div>
 <div class="drill">
   <p class="dq">示範中 A 鎖住餘額 8000 以上的列（索引上有 5000、8000、10000、12000）。B 想插入餘額 6000 的帳戶，會怎樣？</p>
@@ -551,12 +571,12 @@ COMMIT;</code></pre>
 <div class="drill">
   <p class="dq"><code>SELECT * FROM account WHERE id = 1 FOR UPDATE</code>（id 是主鍵）會加間隙鎖嗎？</p>
   <ul class="dopts"><li>會，REPEATABLE READ 一律用 Next-Key 鎖</li><li data-ok>不會，用唯一索引找唯一一列只鎖那筆記錄</li><li>會，而且鎖整張表</li><li>不會加任何鎖</li></ul>
-  <p class="dexp">手冊：Gap locking is not needed for statements that lock rows using a unique index to search for a unique row。實跑 data_locks 是 X,REC_NOT_GAP。</p>
+  <p class="dexp">用唯一索引搜尋唯一一列時不需要間隙鎖。實跑 data_locks 是 X,REC_NOT_GAP。</p>
 </div>
 <div class="drill">
   <p class="dq">把示範改成 READ COMMITTED，A 一樣鎖「餘額 8000 以上」，B 插入 9000 會怎樣？</p>
   <ul class="dopts"><li>一樣要等 A 提交之後才能插入</li><li>直接報錯，餘額重複不能插入</li><li data-ok>不用等，RC 不鎖間隙</li><li>插入成功，但 A 提交時會被還原</li></ul>
-  <p class="dexp">手冊說 READ COMMITTED 下 InnoDB locks only index records, not the gaps before them，允許在旁邊自由插入（實跑：READ COMMITTED 下 B 插入 9000 立刻成功）。代價是 A 再鎖定讀一次會看到幻讀。</p>
+  <p class="dexp">READ COMMITTED 下 InnoDB 只鎖索引記錄，不鎖它前面的間隙，允許在旁邊自由插入（實跑：READ COMMITTED 下 B 插入 9000 立刻成功）。代價是 A 再鎖定讀一次會看到幻讀。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼 <code>UPDATE … WHERE</code> 用到的欄位最好有索引？跟鎖有什麼關係？</p>
@@ -625,7 +645,7 @@ COMMIT;                                         UPDATE account SET balance = 600
 <tr><th>悲觀鎖</th><td>先 <code>SELECT … FOR UPDATE</code> 鎖住，再算、再寫，最後 COMMIT</td><td>衝突多、或一定要在 Java 裡做複雜檢查才能決定怎麼改（上一段的示範：最後 3000，正確）</td></tr>
 <tr><th>樂觀鎖</th><td>表多一個 <code>version</code> 欄位，<code>UPDATE … SET …, version = version + 1 WHERE id = ? AND version = 讀到的版本</code>，影響 0 列就重試</td><td>讀多寫少、衝突少；不必長時間持有鎖，也適合跨好幾個 HTTP 請求的流程</td></tr>
 </tbody></table></div>
-<p>名詞表的定義：<strong>悲觀</strong>是「犧牲效能或並行度換取安全的方法，適合可能失敗的比例很高、或失敗後果很嚴重的情況」（A methodology that sacrifices performance or concurrency in favor of safety. It is appropriate if a high proportion of requests or attempts might fail, or if the consequences of a failed request are severe.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_pessimistic" target="_blank" rel="noopener">出處</a> 樂觀則反過來，假設大多數請求不會衝突，先做、少數失敗再處理。樂觀鎖實跑：</p>
+<p><strong>悲觀</strong>是犧牲效能或並行度換取安全的方法，適合可能失敗的比例很高、或失敗後果很嚴重的情況。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_pessimistic" target="_blank" rel="noopener">出處</a> 樂觀則反過來，假設大多數請求不會衝突，先做、少數失敗再處理。樂觀鎖實跑：</p>
 <pre><code>-- 連線 A（autocommit）                            -- 連線 B（autocommit）
 SELECT balance, version FROM account WHERE id = 1;  DO SLEEP(1);
 DO SLEEP(2);                                        SELECT balance, version FROM account WHERE id = 1;
@@ -679,8 +699,8 @@ UPDATE account SET balance = 7000,                  DO SLEEP(2);
 </svg>
 <figcaption>實跑結果：A 的 UPDATE 是 Rows matched: 1；B 的是 Rows matched: 0，最後是 balance 7000、version 2。B 的程式看到 0 列，就重新讀出 7000 再扣 4000。</figcaption>
 </figure>
-<p>JPA 的 <code>@Version</code> 做的就是這件事。Jakarta Persistence 文件：它宣告實體的版本欄位，「用來偵測樂觀鎖失敗」（which is used to detect optimistic lock failures），讀出之後、更新之前資料庫裡的版本變了就算失敗<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/version" target="_blank" rel="noopener">出處</a>，這時丟 <code>OptimisticLockException</code>（Thrown by the persistence provider when an optimistic locking conflict occurs.）<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/optimisticlockexception" target="_blank" rel="noopener">出處</a>。</p>
-<p>經過 Spring 的例外轉換後，會變成 <code>ObjectOptimisticLockingFailureException</code> 這一族；一般 JPA 轉換得到的是它的子類別 <code>JpaOptimisticLockingFailureException</code>，用 Hibernate 時可能直接是父類別，用父類別一起接最保險（JPA-specific subclass of ObjectOptimisticLockingFailureException. Converts JPA's OptimisticLockException.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/orm/jpa/JpaOptimisticLockingFailureException.html" target="_blank" rel="noopener">出處</a></p>
+<p>JPA 的 <code>@Version</code> 做的就是這件事。它宣告實體的版本欄位，用來偵測樂觀鎖失敗：讀出之後、更新之前資料庫裡的版本變了就算失敗<a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/version" target="_blank" rel="noopener">出處</a>，這時丟 <code>OptimisticLockException</code><a class="fixsrc" href="https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/optimisticlockexception" target="_blank" rel="noopener">出處</a>。</p>
+<p>經過 Spring 的例外轉換後，會變成 <code>ObjectOptimisticLockingFailureException</code> 這一族；一般 JPA 轉換得到的是它的子類別 <code>JpaOptimisticLockingFailureException</code>，用 Hibernate 時可能直接是父類別，用父類別一起接最保險。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/orm/jpa/JpaOptimisticLockingFailureException.html" target="_blank" rel="noopener">出處</a></p>
 <p>多台機器、多個資料庫之間要搶同一份資源時，資料庫的鎖管不到，見〈分散式鎖與 Redis〉；那一課也說，只有一個資料庫時，FOR UPDATE 或版本號常比自己架分散式鎖更穩。</p>
 
 <div class="drill">
@@ -723,7 +743,7 @@ UPDATE account SET balance = 7000,                  DO SLEEP(2);
 <section>
 <p class="era">互相等對方手上的鑰匙</p>
 <h3 class="head">死結：怎麼發生、怎麼看、怎麼減少</h3>
-<p>手冊的定義：死結是「多筆交易都沒辦法往下做，因為每一筆都持有另一筆需要的鎖。大家都在等同一個資源，所以誰都不會放掉手上的鎖」（A deadlock is a situation in which multiple transactions are unable to proceed because each transaction holds a lock that is needed by another one.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a> 轉帳最容易寫出來：A 從帳戶 1 轉 1000 到帳戶 2，B 同時從帳戶 2 轉 500 到帳戶 1，兩邊鎖帳戶的順序剛好相反：</p>
+<p><strong>死結</strong>是多筆交易都沒辦法往下做，因為每一筆都持有另一筆需要的鎖；大家都在等同一個資源，所以誰都不會放掉手上的鎖。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a> 轉帳最容易寫出來：A 從帳戶 1 轉 1000 到帳戶 2，B 同時從帳戶 2 轉 500 到帳戶 1，兩邊鎖帳戶的順序剛好相反：</p>
 <pre><code>-- 連線 A                                              -- 連線 B
 START TRANSACTION;                                     DO SLEEP(1);
 UPDATE account SET balance = balance - 1000            START TRANSACTION;
@@ -781,8 +801,8 @@ ERROR 1213 (40001) at line 4: Deadlock found when trying to get lock; try restar
 </svg>
 <figcaption>實跑結果：A 收到 ERROR 1213、整筆被還原；B 的第二個 UPDATE 等了約 1 秒（1 row affected (1.01 sec)）後完成並提交。最後帳戶 1 是 10500、帳戶 2 是 4500：只有 B 的轉帳生效。</figcaption>
 </figure>
-<p><strong>InnoDB 怎麼處理：</strong>手冊說死結偵測預設開啟時，InnoDB「自動偵測交易死結，並還原一筆或多筆交易來解開」，而且「盡量挑小的交易還原，交易的大小以插入、更新、刪除的列數計」（InnoDB tries to pick small transactions to roll back, where the size of a transaction is determined by the number of rows inserted, updated, or deleted.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 跟等鎖逾時不同，死結的受害者是<strong>整筆交易</strong>被還原。</p>
-<p><strong>怎麼看：</strong><code>SHOW ENGINE INNODB STATUS</code> 的 <code>LATEST DETECTED DEADLOCK</code> 區段，手冊說它列出「牽涉哪些交易、各自正在執行的語句、持有與需要的鎖，以及 InnoDB 決定還原哪一筆」（which transactions are involved, the statement each was attempting to execute, the locks they have and need, and which transaction InnoDB decided to roll back）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-standard-monitor.html" target="_blank" rel="noopener">出處</a> 實跑的內容（省略了每筆記錄的十六進位欄位）：</p>
+<p><strong>InnoDB 怎麼處理：</strong>死結偵測預設開啟，InnoDB 自動偵測交易死結，並還原一筆或多筆交易來解開；它盡量挑小的交易還原，交易的大小以插入、更新、刪除的列數計。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 跟等鎖逾時不同，死結的受害者是<strong>整筆交易</strong>被還原。</p>
+<p><strong>怎麼看：</strong><code>SHOW ENGINE INNODB STATUS</code> 的 <code>LATEST DETECTED DEADLOCK</code> 區段，列出牽涉哪些交易、各自正在執行的語句、持有與需要的鎖，以及 InnoDB 決定還原哪一筆。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-standard-monitor.html" target="_blank" rel="noopener">出處</a> 實跑的內容（省略了每筆記錄的十六進位欄位）：</p>
 <pre><code>LATEST DETECTED DEADLOCK
 ------------------------
 *** (1) TRANSACTION:
@@ -800,8 +820,15 @@ RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X
 *** (2) WAITING FOR THIS LOCK TO BE GRANTED:
 RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X locks rec but not gap waiting
 *** WE ROLL BACK TRANSACTION (2)</code></pre>
-<p>讀法：(1) 是 B（交易 2615，正在跑 <code>… WHERE id = 1</code>），(2) 是 A（2614，正在跑 <code>… WHERE id = 2</code>）；每一邊都 HOLDS 一把、WAITING 一把；最後一行說還原了 (2)，就是 A。這裡兩筆都只改了一列，InnoDB 選了 A。這個區段只保留最近一次死結；要每一次都記錄，手冊建議開 <code>innodb_print_all_deadlocks</code>，寫進錯誤日誌。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>怎麼減少：</strong>手冊「How to Minimize and Handle Deadlocks」的清單，最常用的幾條：交易保持小而短、做完一組相關變更就提交；不同交易<strong>用同樣的順序</strong>存取多筆列或多張表（轉帳一律先鎖帳號小的那個，A、B 就不會交叉）；替 FOR UPDATE 與 UPDATE … WHERE 用到的欄位建好索引；最重要的一句是「隨時準備好在交易因死結失敗時重新送出。死結並不危險，再試一次就好」（Always be prepared to re-issue a transaction if it fails due to deadlock. Deadlocks are not dangerous. Just try again.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 所以應用程式收到 1213（死結）或 1205（等鎖逾時）時，要整筆重試，重試次數設上限。</p>
+<p>讀法：(1) 是 B（交易 2615，正在跑 <code>… WHERE id = 1</code>），(2) 是 A（2614，正在跑 <code>… WHERE id = 2</code>）；每一邊都 HOLDS 一把、WAITING 一把；最後一行說還原了 (2)，就是 A。這裡兩筆都只改了一列，InnoDB 選了 A。這個區段只保留最近一次死結；要每一次都記錄，開 <code>innodb_print_all_deadlocks</code>，寫進錯誤日誌。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>怎麼減少：</strong>最常用的幾條：</p>
+<ul>
+<li>交易保持小而短，做完一組相關變更就提交。</li>
+<li>不同交易<strong>用同樣的順序</strong>存取多筆列或多張表（轉帳一律先鎖帳號小的那個，A、B 就不會交叉）。</li>
+<li>替 FOR UPDATE 與 UPDATE … WHERE 用到的欄位建好索引。</li>
+<li>最重要的一條：隨時準備好在交易因死結失敗時重新送出。死結並不危險，再試一次就好。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>所以應用程式收到 1213（死結）或 1205（等鎖逾時）時，要整筆重試，重試次數設上限。</p>
 
 <div class="drill">
   <p class="dq">死結示範中，A 和 B 各自持有哪一把鎖、等待哪一把？</p>
@@ -821,7 +848,7 @@ RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X
 <div class="drill">
   <p class="dq">InnoDB 偵測到死結時，挑哪一筆交易來還原？</p>
   <ul class="dopts"><li>一定是最先開始的那一筆</li><li>一定是最後才開始的那一筆</li><li>每次都隨機挑一筆還原</li><li data-ok>盡量挑改動列數少的那筆</li></ul>
-  <p class="dexp">手冊：tries to pick small transactions to roll back。示範中兩筆一樣小，InnoDB 選了 A。</p>
+  <p class="dexp">InnoDB 盡量挑小的交易還原。示範中兩筆一樣小，InnoDB 選了 A。</p>
 </div>
 <div class="drill">
   <p class="dq">轉帳程式要避免「A→B 與 B→A 同時發生」造成的死結，最直接的寫法是什麼？</p>
@@ -831,16 +858,16 @@ RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X
 <div class="drill">
   <p class="dq">應用程式收到 ERROR 1213 時，正確的處理是？</p>
   <ul class="dopts"><li>回報使用者「系統錯誤」，不再嘗試</li><li>只重送最後那一條 UPDATE</li><li data-ok>整筆交易重新做一次，重試次數設上限</li><li>關掉死結偵測，避免再發生</li></ul>
-  <p class="dexp">死結時整筆已經被還原，要從頭再做整筆。手冊：Always be prepared to re-issue a transaction if it fails due to deadlock。</p>
+  <p class="dexp">死結時整筆已經被還原，要從頭再做整筆；隨時準備好在交易因死結失敗時重新送出。</p>
 </div>
 </section>
 
 <section>
 <p class="era">改結構時，表還能用嗎</p>
 <h3 class="head">點到為止：Online DDL</h3>
-<p>正式環境替大表加欄位、加索引，最怕把表鎖住、交易全部卡住。Online DDL 讓多數 <code>ALTER TABLE</code> 用「即時」（INSTANT，只改中繼資料）或「就地」（INPLACE，不複製整張表）的方式做，同時允許其他連線讀寫；明寫 <code>LOCK=NONE</code> 時，「要求的並行程度做不到，語句會立刻停止」（The operation halts immediately if the requested level of concurrency is not available.），不會默默鎖表。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a></p>
+<p>正式環境替大表加欄位、加索引，最怕把表鎖住、交易全部卡住。Online DDL 讓多數 <code>ALTER TABLE</code> 用「即時」（INSTANT，只改中繼資料）或「就地」（INPLACE，不複製整張表）的方式做，同時允許其他連線讀寫；明寫 <code>LOCK=NONE</code> 時，要求的並行程度做不到，語句會立刻停止，不會默默鎖表。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a></p>
 <p>下面四行實跑：加欄位 INSTANT、加二級索引 INPLACE 都成功；改欄位型別兩種都被拒，要複製整張表、至少 LOCK=SHARED（期間不能寫）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html" target="_blank" rel="noopener">出處</a></p>
-<p>就算線上做，提交新的表定義時仍要短暫拿排他中繼資料鎖，手冊說線上 DDL「可能要等持有這張表中繼資料鎖的並行交易提交或還原」（an online DDL operation may have to wait for concurrent transactions that hold metadata locks on the table to commit or rollback.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-performance.html" target="_blank" rel="noopener">出處</a> 前面有長交易沒結束時，ALTER 會一直等，見〈資料庫面試題：索引、交易隔離與鎖〉那題。（錯誤訊息裡的腳本行號已省略。）</p>
+<p>就算線上做，提交新的表定義時仍要短暫拿排他中繼資料鎖，線上 DDL 可能要等持有這張表中繼資料鎖的並行交易提交或還原。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-performance.html" target="_blank" rel="noopener">出處</a> 前面有長交易沒結束時，ALTER 會一直等，見〈資料庫面試題：索引、交易隔離與鎖〉那題。（錯誤訊息裡的腳本行號已省略。）</p>
 <pre><code>mysql&gt; ALTER TABLE account ADD COLUMN branch VARCHAR(10), ALGORITHM=INSTANT;
 Query OK, 0 rows affected (0.01 sec)
 
@@ -861,7 +888,7 @@ ERROR 1846 (0A000): LOCK=NONE is not supported. Reason: Cannot change column typ
 <div class="drill">
   <p class="dq">在 ALTER TABLE 明寫 <code>LOCK=NONE</code>，如果這個操作其實做不到不鎖表，會怎樣？</p>
   <ul class="dopts"><li>自動改成鎖整張表，照樣執行</li><li data-ok>語句立刻停止並報錯，不會開始執行</li><li>先執行一半再停下來</li><li>忽略 LOCK=NONE，照預設方式做</li></ul>
-  <p class="dexp">手冊：The operation halts immediately if the requested level of concurrency is not available。實跑改欄位型別就是 ERROR 1846，建議改用 LOCK=SHARED。</p>
+  <p class="dexp">要求的並行程度做不到，語句會立刻停止。實跑改欄位型別就是 ERROR 1846，建議改用 LOCK=SHARED。</p>
 </div>
 </section>
 
