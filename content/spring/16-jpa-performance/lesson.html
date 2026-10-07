@@ -1,10 +1,10 @@
 <!-- 來源：依 Hibernate ORM 7.4 使用指南（docs.hibernate.org/orm/7.4/userguide，Flushing、Fetching、Batching、HQL、Performance Tuning and Best Practices、Configuration Settings 各章）、Hibernate ORM 6.0 遷移指南、Spring Data JPA 4.1 參考文件（Query Methods、Projections）、Spring Boot 4.1 文件（Common Application Properties）與 v4.1.1 原始碼（JpaBaseConfiguration）、Spring Framework 7.0 參考文件（JPA）與 API 文件（OpenEntityManagerInViewInterceptor）、Jakarta Persistence 3.2 API 文件、MySQL Connector/J 文件新寫；範例與練習題全部自編，示範專案以 Spring Boot 4.1.1（Spring Framework 7.0.9、Spring Data JPA 4.1.1、Hibernate 7.4.5）、Java 21 在 H2 2.4.240 與 Docker 的 MySQL 8.4（Connector/J 9.7.0）實際執行，SQL 次數用 datasource-proxy 1.11.0 實測 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看一段 JPA 程式就算得出會送幾次 SQL，說清楚 N+1 查詢怎麼發生，以及多對一預設 EAGER 為什麼也會造成它</li><li>依情境選 JOIN FETCH、<code>@EntityGraph</code>、批次抓取（<code>@BatchSize</code>、<code>hibernate.<wbr>default_<wbr>batch_<wbr>fetch_<wbr>size</code>）或 DTO 投影，知道各自的代價</li><li>解釋 <code>spring.jpa.open-in-view</code> 開著與關掉時的差別，以及為什麼關掉之後會冒出 <code>LazyInitializationException</code></li><li>說出一級快取擋掉了哪些查詢、flush 在什麼時候發生，並用 <code>hibernate.<wbr>jdbc.<wbr>batch_<wbr>size</code> 做批次寫入，知道 IDENTITY 主鍵會讓它失效</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>算出一段 JPA 程式送幾次 SQL</li><li>選對 N+1 的解法與代價</li><li><code>open-in-view</code> 開與關的差別</li><li>一級快取、flush 與批次寫入</li></ul></div>
 
 <section>
 <p class="era">程式只寫了一行，資料庫卻被問了好幾次</p>
 <h3 class="head">N+1 查詢怎麼發生：先數清楚送了幾次 SQL</h3>
-<p>〈Hibernate 入門與環境〉講過延遲載入（關聯的資料等程式真的去讀才查），〈Hibernate 查詢與關聯〉講過 LAZY、EAGER 怎麼設定。這一課只問一件事：<strong>同一段程式送了幾次 SQL？</strong>每一次都是一個來回（round trip，送出一句 SQL、等資料庫回覆），來回越多，回應越慢。</p>
+<p>看 JPA 效能先數一件事：<strong>同一段程式送了幾次 SQL？</strong>每一次都是一個來回（round trip，送出一句 SQL、等資料庫回覆），來回越多，回應越慢。延遲載入與 LAZY、EAGER 的設定見〈Hibernate 入門與環境〉〈Hibernate 查詢與關聯〉。</p>
 <p>示範專案用 Spring Boot 4.1.1（Spring Framework 7.0.9、Hibernate 7.4.5）、Java 21、H2 記憶體資料庫，資料是三個部門、六名員工（研發部 2 人、業務部 3 人、客服部 1 人）：</p>
 <pre><code>@Entity
 public class Department {

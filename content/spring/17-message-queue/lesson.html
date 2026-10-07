@@ -1,10 +1,10 @@
 <!-- 來源：依 Apache Kafka 4.3 文件 https://kafka.apache.org/43/ 與 RabbitMQ 4.3 文件 https://www.rabbitmq.com/docs 新寫（另參考 Spring for Apache Kafka 4.1、Spring AMQP 4.1、Spring Boot 4.1 參考文件，以及 microservices.io 的交易式 Outbox；程式全部自編，以 Spring Boot 4.1.1、Java 21 搭配 Docker 的 apache/kafka 4.3.1（KRaft 單節點）與 rabbitmq 4.3.6 實際執行） · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出什麼時候值得在兩個服務中間放一個訊息佇列，以及它帶來的三個代價</li><li>用主題、分區、位移、消費者群組描述 Kafka，用交換器、佇列、綁定描述 RabbitMQ，看得懂一則訊息會送到哪裡、被誰讀</li><li>分清至多一次、至少一次、剛好一次各要什麼前提，並在 Spring 裡用 <code>@KafkaListener</code> 加手動 ack 做到「處理完才確認」</li><li>寫出去重表讓消費者冪等，設定重試與死信，並寫出交易式 Outbox 的表、交易與轉送器</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷什麼時候值得加訊息佇列</li><li>說清 Kafka 與 RabbitMQ 的模型</li><li>在 Spring 做到處理完才確認</li><li>去重表、死信與交易式 Outbox</li></ul></div>
 
 <section>
 <p class="era">中間多一站，兩邊就不用互等</p>
 <h3 class="head">為什麼要佇列：解耦、緩衝尖峰、非同步</h3>
-<p>你把信丟進郵筒就可以走了，不用站在收件人門口等他開門。<strong>訊息佇列</strong>（message queue）就是程式之間的郵筒：送訊息的程式叫<strong>生產者</strong>（producer），收訊息的叫<strong>消費者</strong>（consumer），中間保管訊息的那台伺服器叫 <strong>broker</strong>（訊息代理）。面試集〈系統設計：訊息佇列與最終一致性〉已經講過什麼時候該用、代價是什麼；這課從那裡往下，把 Kafka 與 RabbitMQ 的模型、Spring 怎麼接、怎麼不丟不重，一步一步做出來。</p>
+<p>你把信丟進郵筒就可以走了，不用站在收件人門口等他開門。<strong>訊息佇列</strong>（message queue）就是程式之間的郵筒：送訊息的程式叫<strong>生產者</strong>（producer），收訊息的叫<strong>消費者</strong>（consumer），中間保管訊息的那台伺服器叫 <strong>broker</strong>（訊息代理）。</p>
 <p>放一個 broker 在中間，換到三件事：</p>
 <ul class="plainlist">
 <li><strong>解耦</strong>：轉帳服務只管把「A 轉出 1000」送出去，不需要知道誰要收、對方現在活著沒。</li>
@@ -40,7 +40,7 @@
 <figcaption>上面：通知服務一掛，轉帳跟著失敗。下面：訊息先放在 broker，通知服務晚一點恢復也不會漏。</figcaption>
 </figure>
 <p>代價跟面試集那課講的一樣，三份帳單：結果從「馬上」變成「稍後」、每個消費者都要能承受同一則訊息來兩次（後面的冪等）、多一套系統要監控。要馬上拿到結果（例如查餘額）就直接呼叫。</p>
-<p>這課用兩個 broker 示範：Apache Kafka 4.3.1 與 RabbitMQ 4.3.6，都用 Docker 起。Kafka 跑 KRaft 模式單節點。KRaft 是 Kafka 自己管叢集的中繼資料，不再需要 ZooKeeper。</p>
+<p>以下用兩個 broker：Apache Kafka 4.3.1 與 RabbitMQ 4.3.6，都用 Docker 起。Kafka 跑 KRaft 模式單節點。KRaft 是 Kafka 自己管叢集的中繼資料，不再需要 ZooKeeper。</p>
 <pre><code># Kafka：單節點同時當 broker 與 controller，對本機的 39092 埠開放
 docker run -d --name mq17-kafka -p 127.0.0.1:39092:39092 \
   -e KAFKA_NODE_ID=1 -e KAFKA_PROCESS_ROLES=broker,controller \

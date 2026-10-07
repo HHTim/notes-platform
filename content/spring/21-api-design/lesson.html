@@ -1,11 +1,11 @@
 <!-- 來源：依 https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html 新寫（Spring Framework 7.0.9 參考文件：API Versioning、Error Responses、MVC Config 的 API Version；Spring Boot 4.1 參考文件 web/servlet；RFC 9457、RFC 9110、RFC 9745、RFC 8594；IETF draft-ietf-httpapi-idempotency-key-header-07（已過期的草案）；OpenAPI Specification v3.1.0；springdoc-openapi 3.1.1 文件；Spring Data Commons 參考文件 Scrolling；gRPC 與 GraphQL 官方文件；範例程式全部自編，以 Spring Boot 4.1.1、Java 21、springdoc-openapi 3.1.1、H2 與 MySQL 8.4 實際執行，curl 與 EXPLAIN ANALYZE 都是實跑結果的節錄；冪等鍵一節在 2026-10-03 改成連 4xx 結果也存並重跑；另引 Spring Framework v6.2.14 與 Spring Boot v4.1.1 原始碼） · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷一個改動要不要開新版，說出版本放在路徑、標頭、媒體類型三種做法的取捨，並用 Spring Framework 7 內建的 API 版本功能實作，送出棄用通知</li><li>寫出偏移分頁與游標分頁（鍵集分頁），用實測說明偏移分頁在大表上為什麼慢、翻頁途中有新資料時為什麼會重複</li><li>依 IETF 的 Idempotency-Key 草案做出「轉帳重送只扣一次」，知道 400、409、422 各用在哪</li><li>用 ProblemDetail（RFC 9457）統一錯誤格式並加上擴充欄位，用 springdoc 產生 OpenAPI 文件、知道哪裡要手動補，並依需求在 REST、gRPC、GraphQL 之間選擇</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷要不要開新版、版本放哪</li><li>偏移分頁與游標分頁的取捨</li><li>用冪等鍵讓轉帳重送只扣一次</li><li>用 ProblemDetail 統一錯誤格式</li></ul></div>
 
 <section>
 <p class="era">先講好範圍</p>
-<h3 class="head">這課接在哪裡</h3>
-<p>〈Spring MVC 與 RESTful API〉教了控制器、<code>@PathVariable</code>、<code>@RequestBody</code>、<code>@Valid</code> 與 <code>ResponseEntity</code>；〈Maven、微服務與全域例外〉教了 <code>@RestControllerAdvice</code> 統一處理例外；HTTP 方法的安全與冪等、REST 的幾條約束，在面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉。這課不重講，往上接四件「API 上線之後才會痛」的事：<strong>改版</strong>、<strong>分頁</strong>、<strong>重送</strong>、<strong>錯誤格式</strong>，最後補上文件與選型。</p>
-<p>全課用同一個自編的小銀行 API 實跑：Spring Boot 4.1.1（內含 Spring Framework 7.0.9）、Java 21、H2 記憶體資料庫，文件用 springdoc-openapi 3.1.1。相依是 <code>spring-boot-starter-webmvc</code>（Boot 4 的 Spring MVC starter）、<code>spring-boot-starter-validation</code>、<code>spring-boot-starter-jdbc</code>、<code>h2</code> 與 <code>springdoc-openapi-starter-webmvc-ui</code>（3.1.1）。</p>
+<h3 class="head">上線之後才會痛的四件事</h3>
+<p>API 上線之後最常痛的四件事：<strong>改版</strong>、<strong>分頁</strong>、<strong>重送</strong>、<strong>錯誤格式</strong>，最後補上文件與選型。</p>
+<p>控制器與統一例外處理的基本寫法見〈Spring MVC 與 RESTful API〉〈Maven、微服務與全域例外〉。以下用一個小銀行 API：Spring Boot 4.1.1（內含 Spring Framework 7.0.9）、Java 21、H2 記憶體資料庫，文件用 springdoc-openapi 3.1.1。相依是 <code>spring-boot-starter-webmvc</code>（Boot 4 的 Spring MVC starter）、<code>spring-boot-starter-validation</code>、<code>spring-boot-starter-jdbc</code>、<code>h2</code> 與 <code>springdoc-openapi-starter-webmvc-ui</code>（3.1.1）。</p>
 </section>
 
 <section>
@@ -603,7 +603,7 @@ HTTP/1.1 400
 <section>
 <p class="era">選型</p>
 <h3 class="head">REST、gRPC、GraphQL</h3>
-<p>三者的基本比較（契約、序列化、HTTP/2）面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉已經整理過，這裡只用本課的四個主題（改版、錯誤、分頁、文件）再對一次：</p>
+<p>三者的基本比較（契約、序列化、HTTP/2）面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉已經整理過，這裡用改版、錯誤、分頁、文件四個主題再對一次：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>REST（HTTP＋JSON）</th><th>gRPC</th><th>GraphQL</th></tr></thead><tbody>
 <tr><th>改版</th><td>路徑、標頭、媒體類型三選一，本課做法</td><td>.proto 加欄位通常相容；不相容就換服務或套件名稱</td><td>傾向不開版本，新增欄位、標記舊欄位棄用（GraphQL takes a strong opinion on avoiding versioning）<a class="fixsrc" href="https://graphql.org/learn/schema-design/" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><th>錯誤</th><td>HTTP 狀態碼＋ProblemDetail</td><td>gRPC 自己的狀態碼（gRPC uses a set of well defined status codes as part of the RPC API）<a class="fixsrc" href="https://grpc.io/docs/guides/status-codes/" target="_blank" rel="noopener">出處</a></td><td>有資料就回 2xx，錯誤放在回應的 errors（since HTTP does not yet have a status code representing "partial success."）<a class="fixsrc" href="https://graphql.org/learn/serving-over-http/" target="_blank" rel="noopener">出處</a></td></tr>

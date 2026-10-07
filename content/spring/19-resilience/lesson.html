@@ -1,9 +1,9 @@
 <!-- 來源：依 Resilience4j 官方文件（resilience4j.readme.io 的 CircuitBreaker、Retry、Bulkhead、RateLimiter、TimeLimiter、Spring Boot 2&amp;3 Getting Started 各頁；文件站標示 v2.2.0）、resilience4j v2.4.0 發佈說明與 resilience4j-spring-boot4 說明檔、Spring Boot 4.0 遷移指南與 resilience4j v2.4.0 原始碼（IntervalFunction、CommonRetryConfigurationProperties、CommonCircuitBreakerConfigurationProperties、CircuitBreakersHealthIndicator、TimeLimiterConfig）、Azure 架構中心 Circuit Breaker／Retry／Bulkhead 模式、Google SRE 書〈Addressing Cascading Failures〉、Java SE 21 API 文件 CompletableFuture 新寫；範例程式全部自編，以 Spring Boot 4.1.1（Spring Framework 7.0.9）、resilience4j-spring-boot4 2.4.0、Java 21 實際執行，課文輸出照實跑結果 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看著斷路器的事件紀錄，說出 CLOSED、OPEN、HALF_OPEN 在哪一次呼叫切換、為什麼是那一次，並算出失敗率與慢呼叫比例</li><li>寫對降級回呼的方法簽名，知道回呼什麼時候會被叫到、自我呼叫為什麼讓註解全部失效</li><li>設定指數退避加抖動的重試，算出每次等多久，並避開「重試去敲已經跳開的斷路器」這個疊用陷阱</li><li>分清隔艙、限流、逾時各擋住什麼，並從 Actuator 的 health、metrics、prometheus 端點讀出斷路器的狀態</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看事件紀錄說出斷路器何時切換</li><li>寫對降級回呼，避開自我呼叫</li><li>設定指數退避加抖動的重試</li><li>分清隔艙、限流與逾時</li></ul></div>
 
 <section>
 <p class="era">一個下游變慢，整串一起倒</p>
-<h3 class="head">為什麼要韌性模式，以及這課的實驗環境</h3>
+<h3 class="head">為什麼要韌性模式，以及實驗環境</h3>
 <p>〈Maven、微服務與全域例外〉講過：拆成微服務不等於故障自動隔離，要另外做逾時、重試上限、斷路器與降級。Google 的 SRE 書把不做的後果叫<strong>連鎖故障</strong>（cascading failure）：「因為正回饋而隨時間擴大的故障」，系統的一部分出事，「讓其他部分出事的機率跟著升高」（A cascading failure is a failure that grows over time as a result of positive feedback. It can occur when a portion of an overall system fails, increasing the probability that other portions of the system fail.）。<a class="fixsrc" href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="連鎖故障：核心帳務變慢，餘額服務的執行緒都卡在等它回覆；網銀前台呼叫餘額服務也跟著等，最後三層一起變慢或逾時">
@@ -18,7 +18,7 @@
 </svg>
 <figcaption>連鎖故障：源頭只是一個下游變慢，沒有保護的呼叫端會把「慢」一層一層往上傳。</figcaption>
 </figure>
-<p>這課用 Resilience4j 把這幾種保護一個一個開起來看。各參數的完整對照表與面試答法在〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉，斷路器三態的通用定義在〈系統設計：秒殺與限流〉；這課不重抄表格，改用實驗把每個參數的效果印出來。</p>
+<p>以下用 Resilience4j 把這幾種保護一個一個開起來看。</p>
 
 <h4>實驗環境</h4>
 <p>專案用 Spring Boot 4.1.1（Spring Framework 7.0.9）、Java 21 與 <code>resilience4j-<wbr>spring-<wbr>boot4</code> 2.4.0。Resilience4j 從 2.4.0 起才有 Spring Boot 4 的模組，發佈說明寫「新增對 Spring Boot 4／Spring Cloud 5 的支援」（Add support for Spring Boot 4 / Spring Cloud 5）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/releases/tag/v2.4.0" target="_blank" rel="noopener">出處</a>；這個模組的說明檔把詳細用法指向 Spring Boot 2&amp;3 那份使用指南（For detailed documentation look at our Usage Guide）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/README.adoc" target="_blank" rel="noopener">出處</a>，所以下面引的設定文件都出自那一頁。那一頁寫模組「預期執行時已經有 actuator 與 aop 兩個 starter」（The module expects that org<wbr>.springframework<wbr>.boot<wbr>:spring-<wbr>boot-<wbr>starter-<wbr>actuator and org<wbr>.springframework<wbr>.boot<wbr>:spring-<wbr>boot-<wbr>starter-<wbr>aop are already provided at runtime.）<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a>；Spring Boot 4 把 AOP 的 starter 改名為 <code>spring-<wbr>boot-<wbr>starter-<wbr>aspectj</code>，Web MVC 與 RestClient 也各有自己的 starter（遷移指南的對照表：AspectJ spring-<wbr>boot-<wbr>starter-<wbr>aspectj、Spring Web MVC spring-<wbr>boot-<wbr>starter-<wbr>webmvc、Spring’s Imperative RestClient and RestTemplate spring-<wbr>boot-<wbr>starter-<wbr>restclient）<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a>。實驗的 <code>pom.xml</code>：</p>
@@ -45,7 +45,7 @@ public class Downstream {
         };
     }
 }</code></pre>
-<p>下面每段的輸出都是這個專案實跑印出來的。每行開頭是從實驗開始算起的毫秒數，每次跑會差幾毫秒，順序與次數不變。</p>
+<p>輸出每行開頭是從實驗開始算起的毫秒數，每次跑會差幾毫秒，順序與次數不變。</p>
 <p class="formula">連鎖故障＝一處出事讓別處更容易出事；韌性模式的工作，是讓下游的壞停在下游</p>
 
 <div class="drill">

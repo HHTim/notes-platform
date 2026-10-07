@@ -1,11 +1,11 @@
 <!-- 來源：依 https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html 新寫；另參考 MySQL 8.4 參考手冊（optimization-indexes、index-btree-hash、innodb-index-types、innodb-physical-structure、multiple-column-indexes、range-optimization、glossary、explain-output、explain、index-condition-pushdown-optimization、index-merge-optimization、type-conversion、create-index、storage-requirements、slow-query-log）；SQL 與 EXPLAIN 在 Docker mysql:8.4（8.4.11）實跑，例子與練習題全部自編 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出沒有索引時 MySQL 怎麼找資料，以及 InnoDB 的索引為什麼是一棵又矮又胖的 B+ 樹</li><li>分清叢集索引與二級索引，說明回表、覆蓋索引是什麼，從 EXPLAIN 看出有沒有回表</li><li>照最左前綴判斷一個查詢用不用得到複合索引，認出函式包欄位、隱式轉型、前導 %、OR 這幾種讓索引失效的寫法</li><li>逐欄讀懂 EXPLAIN，用慢查詢日誌找出慢的 SQL，並判斷哪些欄位不該建索引</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>InnoDB 的索引為什麼是 B+ 樹</li><li>叢集索引、二級索引與回表</li><li>判斷查詢用不用得到複合索引</li><li>讀懂 EXPLAIN、找出慢查詢</li></ul></div>
 
 <section>
 <p class="era">書後面的索引，不用一頁一頁翻</p>
 <h3 class="head">索引是什麼：沒有索引時怎麼找</h3>
 <p>想在一本八百頁的法規書裡找「洗錢防制」，最笨的方法是從第一頁翻到最後一頁；聰明的方法是翻到書後面的索引，查到「洗錢防制……第 512 頁」，直接翻過去。資料庫的<strong>索引</strong>（index）就是書後面那份索引：照某個欄位排好序、另外存的一份目錄。MySQL 手冊開宗明義：「索引用來快速找到某個欄位是特定值的資料列。沒有索引時，MySQL 必須從第一列開始，讀完整張表才找得到相關的資料列。表越大，代價越高。」（Indexes are used to find rows with specific column values quickly. Without an index, MySQL must begin with the first row and then read through the entire table to find the relevant rows. The larger the table, the more this costs.）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a></p>
-<p>這一課用銀行的交易明細表當例子：20 萬筆交易、2,000 個帳號（每個帳號 100 筆），日期分散在 2025-01-01 到 2026-10-02；95% 是 ATM、5% 是臨櫃。最常見的查詢是「某個帳號、某段日期的交易」，所以替（帳號, 日期）建一個索引。下面所有 SQL 都在 Docker 的 <code>mysql:8.4</code>（8.4.11）實跑：</p>
+<p>例子是銀行的交易明細表：20 萬筆交易、2,000 個帳號（每個帳號 100 筆），日期分散在 2025-01-01 到 2026-10-02；95% 是 ATM、5% 是臨櫃。最常見的查詢是「某個帳號、某段日期的交易」，所以替（帳號, 日期）建一個索引。以下用 MySQL 8.4.11：</p>
 <pre><code>CREATE TABLE tx (
   id         BIGINT AUTO_INCREMENT PRIMARY KEY,   -- 主鍵：叢集索引
   account_no CHAR(10)      NOT NULL,              -- 帳號，字串
@@ -476,7 +476,7 @@ mysql&gt; EXPLAIN ANALYZE SELECT COUNT(memo) FROM tx IGNORE INDEX (idx_channel) 
 <section>
 <p class="era">看懂最佳化器打算怎麼做</p>
 <h3 class="head">EXPLAIN 逐欄看</h3>
-<p>EXPLAIN 每一列代表查詢裡的一張表（這課都只有一張，所以只有一列）。最常看的幾欄，意思照手冊（id、select_type、table、partitions、ref 在多表與子查詢時才有變化，這裡略過）：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a></p>
+<p>EXPLAIN 每一列代表查詢裡的一張表（這裡都只有一張，所以只有一列）。最常看的幾欄，意思照手冊（id、select_type、table、partitions、ref 在多表與子查詢時才有變化，這裡略過）：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>欄位</th><th>意思</th><th>先看什麼</th></tr></thead><tbody>
 <tr><th>type</th><td>存取方式（手冊叫 join type）</td><td><strong>最重要</strong>，見下表</td></tr>
 <tr><th>possible_keys</th><td>「MySQL 可以選來找列的索引」；NULL 表示沒有相關的索引</td><td>NULL 時檢查 WHERE 的欄位要不要建索引</td></tr>

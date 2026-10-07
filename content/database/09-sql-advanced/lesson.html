@@ -1,11 +1,10 @@
 <!-- 來源：依 MySQL 8.4 參考手冊（JOIN、Outer Join Simplification、IN／EXISTS 子查詢、比較運算子、GROUP BY 處理、SELECT、聚合函式、視窗函式概念／函式說明／框架、WITH 共用資料表運算式、Problems with NULL Values 各節）與 PostgreSQL 18 文件（Table Expressions、Subquery Expressions、Window Functions、WITH Queries）新寫；資料表與查詢全部自編，以 Docker 映像 mysql:8.4（MySQL 8.4.11，預設 sql_mode）實際執行，對照段落另以 postgres:18（PostgreSQL 18.6）實際執行；動手練只列 LeetCode 題號與題名並連到原題 · 收錄日期：2026-10-03 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>看一段 JOIN 算得出回傳幾列，知道 LEFT JOIN 的條件放 ON 和放 WHERE 為什麼結果不同，以及一對多連接讓加總變大的原因</li><li>分辨子查詢、IN、EXISTS 各適合什麼，說得出 NOT IN 遇到 NULL 為什麼一列都不回</li><li>用 GROUP BY、HAVING 與視窗函式（ROW_NUMBER、RANK、DENSE_RANK、SUM OVER、LAG）寫出每組第 N 名、連續登入、累計餘額、去重保留最新一筆、第二高這幾種經典題</li><li>用 CTE 把長查詢拆成好讀的幾段，用遞迴 CTE 走階層資料與產生日期序列</li></ul></div>
-<p class="muted">學完這課想練面試的現場手寫題，見面試集〈SQL 手寫題：第 N 高、連續天數、每組前幾名與去重〉：十題不同角度的題目，每題附寫錯版本的實跑結果。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>算得出 JOIN 回傳幾列</li><li>子查詢、IN、EXISTS 與 NOT IN 的坑</li><li>用視窗函式寫每組第 N 名、累計</li><li>用 CTE 拆長查詢、走階層資料</li></ul></div>
 
 <section>
-<p class="era">先把這課要查的資料準備好</p>
+<p class="era">先把要查的資料準備好</p>
 <h3 class="head">一組銀行的小資料表</h3>
-<p>〈SQL 三種子語言：DDL、DML、DQL〉已經講過 SELECT、WHERE、GROUP BY、HAVING 的基本寫法，以及查詢的概念處理順序（FROM／JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT）。這課接著往下走，專講面試現場寫 SQL 最常考的幾招。整課用同一組自編的銀行資料：分行（有上下層關係）、帳戶、交易明細、登入紀錄、手機號碼異動紀錄。下面是建表與資料的全文，可以直接貼進 MySQL 8.4 跑：</p>
+<p>〈SQL 三種子語言：DDL、DML、DQL〉已經講過 SELECT、WHERE、GROUP BY、HAVING 的基本寫法，以及查詢的概念處理順序（FROM／JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT）。以下用一組銀行資料：分行（有上下層關係）、帳戶、交易明細、登入紀錄、手機號碼異動紀錄。下面是建表與資料的全文，可以直接貼進 MySQL 8.4 跑：</p>
 <pre><code>CREATE TABLE branches (
     branch_id  INT PRIMARY KEY,
     name       VARCHAR(20) NOT NULL,
@@ -1075,6 +1074,7 @@ LIMIT 1 OFFSET 1;</code></pre>
 1 row in set (0.00 sec)</code></pre>
 <p>另外注意 <code>DISTINCT</code>：存款金額有三筆 3000，找「第四高的金額」（答案是 500）時，不加 DISTINCT 的 <code>ORDER BY amount DESC LIMIT 1 OFFSET 3</code> 實跑拿到的是 3000，因為它跳過的是 8000、5000、3000 三列，不是三種金額；加了 DISTINCT 才是 500。DENSE_RANK 篩 <code>dr = 3</code> 則會回三列 3000，要的是一個值就再加 DISTINCT。手冊對 LIMIT 的說明：兩個參數時，「第一個是要回傳的第一列的位移，第二個是最多回傳幾列」（the first argument specifies the offset of the first row to return, and the second specifies the maximum number of rows to return）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/select.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">每組第 N 名＝子查詢裡 ROW_NUMBER／DENSE_RANK，外層篩；連續日期＝去重後「日期減序號」分組；累計＝SUM OVER 加分得出先後的排序；去重＝ROW_NUMBER 依時間倒序留 1；第二高＝DISTINCT 加 LIMIT OFFSET，沒有時要 NULL 就包成純量子查詢</p>
+<p class="muted">更多手寫題與寫錯版本的實跑結果，見面試集〈SQL 手寫題：第 N 高、連續天數、每組前幾名與去重〉。</p>
 <div class="drill">
   <p class="dq">「每個帳戶金額最大的兩筆存入」的查詢回傳幾列？（王小明、陳小美、張美玲各有 2 筆以上存入；林大同、李志明各 1 筆；黃小華沒有）</p>
   <ul class="dopts"><li>10</li><li>6</li><li data-ok>8</li><li>12</li></ul>

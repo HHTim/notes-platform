@@ -1,12 +1,12 @@
 <!-- 來源：依 https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html 新寫；另參考 MySQL 8.4 參考手冊（innodb-consistent-read、innodb-multi-versioning、innodb-locking、innodb-locking-reads、innodb-deadlocks、innodb-deadlock-detection、innodb-deadlocks-handling、innodb-standard-monitor、innodb-parameters、performance-schema-data-locks-table、innodb-online-ddl、innodb-online-ddl-operations、glossary）、PostgreSQL 現行版文件 transaction-iso；SQL 在 Docker mysql:8.4（8.4.11）用兩個連線交錯實跑，例子與練習題全部自編 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用「兩個交易的時間軸」說明髒讀、不可重複讀、幻讀，說出四個隔離層級各擋住哪幾種，以及 MySQL 預設是哪一個</li><li>解釋 InnoDB 怎麼靠 MVCC 與 undo log 讓「讀」不必等「寫」，以及快照讀與鎖定讀為什麼會看到不同的結果</li><li>分清共享鎖、排他鎖、記錄鎖、間隙鎖、Next-Key 鎖，用 <code>performance_schema.data_locks</code> 看出誰鎖了什麼、誰在等</li><li>處理「兩筆轉帳同時扣同一個帳戶」：知道遺失更新怎麼發生，會用 <code>SELECT … FOR UPDATE</code>（悲觀鎖）或版本號（樂觀鎖）擋住，並看懂死結訊息、寫好重試</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>三種讀異常與四個隔離層級</li><li>MVCC 怎麼讓讀不必等寫</li><li>看出誰鎖了什麼、誰在等</li><li>用悲觀鎖或樂觀鎖擋遺失更新</li></ul></div>
 
 <section>
 <p class="era">同時跑，會互相踩到</p>
 <h3 class="head">為什麼需要隔離：兩筆轉帳同時扣同一個帳戶</h3>
 <p>〈SQL 三種子語言：DDL、DML、DQL〉講過交易的 ACID，其中的隔離性（Isolation）是「同時在跑的交易，彼此看不看得到對方的中間狀態」。只有一筆交易時不會有問題；銀行系統每秒有上千筆交易，同一個帳戶可能同時被 ATM 提款、網銀轉帳、自動扣款碰到，這時就要決定：A 交易改到一半的資料，B 交易看不看得到？兩筆都要改同一列時，誰等誰？</p>
 <p>MySQL 手冊說，隔離層級是在「好幾筆交易同時修改與查詢時，在效能與可靠性、一致性、結果可重現性之間做微調」的設定（the setting that fine-tunes the balance between performance and reliability, consistency, and reproducibility of results when multiple transactions are making changes and performing queries at the same time）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a> 隔離得越嚴，越不會出怪事，但互相等待的機會越多。</p>
-<p>這課用一張帳戶表，每個示範都在 Docker 的 <code>mysql:8.4</code>（8.4.11）開<strong>兩個連線同時跑</strong>，用 <code>DO SLEEP(秒數)</code> 排好先後，圖裡的時間軸就是照腳本的時間畫的，每個結果都是實跑輸出：</p>
+<p>以下示範用一張帳戶表，在 MySQL 8.4.11 開<strong>兩個連線同時跑</strong>，用 <code>DO SLEEP(秒數)</code> 排好先後，圖的時間軸照腳本的時間畫：</p>
 <pre><code>CREATE TABLE account (
   id      INT PRIMARY KEY,
   owner   VARCHAR(20)   NOT NULL,

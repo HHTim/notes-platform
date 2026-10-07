@@ -1,5 +1,5 @@
 <!-- 來源：依 https://docs.spring.io/spring-boot/reference/ 新寫（Spring Boot 4.1.1 參考文件：using/auto-configuration、using/using-the-springbootapplication-annotation、features/developing-auto-configuration、features/external-config、features/profiles、actuator/endpoints、actuator/metrics；Spring Boot 4.0 與 3.0 遷移指南 https://github.com/spring-projects/spring-boot/wiki ；範例程式全部自編，以 Spring Boot 4.1.1、Java 21 實際執行，條件報告與 Actuator 回應都是實跑結果的節錄） · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>拆開 @SpringBootApplication，說明自動組態怎麼從 AutoConfiguration.imports 找候選、靠 @Conditional 家族決定生效，並自己寫一個會「退開」的自動組態</li><li>用 --debug 的條件報告與 /actuator/conditions 查出某個組態為什麼生效或沒生效</li><li>說出外部化設定的優先順序（命令列、系統屬性、環境變數、設定檔），用 Profile 切換環境</li><li>決定 Actuator 要暴露哪些端點，把健康檢查接到 K8s 的存活與就緒探針，並用 Micrometer 加一個自訂指標</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>自動組態怎麼找候選、怎麼決定生效</li><li>用條件報告查組態為什麼沒生效</li><li>外部化設定的優先順序與 Profile</li><li>設定 Actuator 端點與 K8s 探針</li></ul></div>
 
 <section>
 <p class="era">一個註解，三件事</p>
@@ -40,7 +40,7 @@ public class BootdemoApplication {
 
 }</code></pre>
 <p>兩條使用規則：「你只該加一個 <code>@SpringBootApplication</code> 或 <code>@EnableAutoConfiguration</code>」；以及<strong>自動組態是可以被你取代的</strong>：「自動組態是非侵入式的。任何時候你都可以開始定義自己的組態，取代自動組態的特定部分。例如加了自己的 <code>DataSource</code> Bean，預設的內嵌資料庫支援就會退開（backs away）。」<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">本課範例用 Spring Boot 4.1.1（撰寫時的最新穩定版，內含 Spring Framework 7.0）、Java 21 實際執行。跟 Boot 3 有差的地方會標出來，最明顯的是 Boot 4 把程式拆成很多小模組，starter（一包預先配好的相依組合）改名（例如 Web 改叫 <code>spring-boot-starter-webmvc</code>），套件名稱也改成 <code>org.springframework.boot.&lt;模組&gt;</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">以下用 Spring Boot 4.1.1（內含 Spring Framework 7.0）、Java 21。跟 Boot 3 有差的地方會標出來，最明顯的是 Boot 4 把程式拆成很多小模組，starter（一包預先配好的相依組合）改名（例如 Web 改叫 <code>spring-boot-starter-webmvc</code>），套件名稱也改成 <code>org.springframework.boot.&lt;模組&gt;</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq"><code>@SpringBootApplication</code> 包含哪三個註解？</p>

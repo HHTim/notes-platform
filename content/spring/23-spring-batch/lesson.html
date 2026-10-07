@@ -1,5 +1,5 @@
 <!-- 來源：依 Spring Batch 6.0 參考文件（spring-batch-intro、domain、step/chunk-oriented-processing 及其 configuring、commit-interval、configuring-skip、retry-logic、restart 各頁、readers-and-writers/flat-files/file-item-reader、item-reader-writer-implementations、scalability、job/running、whatsnew）與 Spring Boot 4.1 參考文件 how-to/batch 新寫；範例以 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 映像 mysql:8.4（MySQL 8.4.11）實際執行，課文輸出皆為實跑結果，交易檔為自行產生的 1 萬筆假資料 · 收錄日期：2026-10-03 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 Job、Step、chunk（讀、處理、寫）的結構，以及 chunk 大小就是交易邊界</li><li>分清 JobInstance 與 JobExecution，解釋為什麼同樣的參數成功過就不能再跑</li><li>用 FlatFileItemReader 讀交易檔、JdbcBatchItemWriter 寫進 MySQL，並設定跳過與重試</li><li>看懂 BATCH_STEP_EXECUTION 的 READ_COUNT、COMMIT_COUNT，失敗後從斷點重啟；知道分割平行與排程怎麼分工</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>Job、Step、chunk 的結構</li><li>同參數成功過為什麼不能再跑</li><li>讀交易檔寫進 MySQL，跳過與重試</li><li>失敗後從斷點重啟</li></ul></div>
 
 <section>
 <p class="era">日終、月底、整批</p>
@@ -12,7 +12,7 @@
 </svg>
 <figcaption>chunk 導向：一筆一筆讀與處理，湊滿一包才一起寫、一起提交。</figcaption>
 </figure>
-<p>這課的例子：日終把 1 萬筆交易從 CSV 檔寫進 MySQL 的 <code>tx</code> 表，chunk 大小 1,000。環境是 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 跑的 MySQL 8.4。Spring Boot 4.1 文件列出批次紀錄可以自動設定的三種存放方式：「記憶體、JDBC、MongoDB」（the following stores can be auto-configured: In-memory, JDBC, MongoDB）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/io/spring-batch.html" target="_blank" rel="noopener">出處</a> 只加 <code>spring-boot-starter-batch</code> 是記在記憶體，程式一結束就沒了；要存進資料庫，相依套件用 <code>spring-boot-starter-batch-jdbc</code>：</p>
+<p>例子：日終把 1 萬筆交易從 CSV 檔寫進 MySQL 的 <code>tx</code> 表，chunk 大小 1,000。環境是 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 跑的 MySQL 8.4。Spring Boot 4.1 文件列出批次紀錄可以自動設定的三種存放方式：「記憶體、JDBC、MongoDB」（the following stores can be auto-configured: In-memory, JDBC, MongoDB）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/io/spring-batch.html" target="_blank" rel="noopener">出處</a> 只加 <code>spring-boot-starter-batch</code> 是記在記憶體，程式一結束就沒了；要存進資料庫，相依套件用 <code>spring-boot-starter-batch-jdbc</code>：</p>
 <pre><code>&lt;dependencies&gt;
   &lt;dependency&gt;
     &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
