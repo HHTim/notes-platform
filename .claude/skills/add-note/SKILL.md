@@ -91,6 +91,7 @@ description: 把一篇筆記收錄進筆記平台。輸入是一個網址、一�
 <div class="keys"><p class="lbl">重點整理</p><ul><li>…4〜7 條…</li></ul></div>
 ```
 
+  - **開頭不寫關於這課本身的話**（Tim 2026-10-07：「前言都太多了，你有很多都把你思考的東西寫進去」）：learn 每條約 25 字內、一條一件事；learn 後面直接進第一個 section，不放「X 見〈A〉，Y 見〈B〉」的指路長串、「本課只留面試答法」、「全部實跑、輸出照貼、題目自編、這課不重講」這類寫法與驗證的自述。指路放在正文用到的那一段；實跑標註放在輸出旁邊。細則見 `docs/superpowers/plans/2026-10-07-trim-preambles.md`。
   - 可用的內容類別（樣式都在模板裡）：`formula`（金句條）、`muted`（補充小字）、`q`（提問框）、
     `plainlist`、`ledger`＋`box`（對照卡）、`terms`＋`term`（名詞卡）、`tablewrap`＋表格、
     `card`／`badge`／`pit`／`pits`／`grid2`（Redis 課用過的元件）。
