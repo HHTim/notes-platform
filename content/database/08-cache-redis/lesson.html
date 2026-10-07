@@ -322,7 +322,12 @@ $ redis-cli BF.EXISTS bf:accounts Z999
 <section>
 <p class="era">一把太紅、一把太重</p>
 <h3 class="head">熱 key 與大 key</h3>
-<p><strong>大 key</strong>（big key）是一把 key 的值很大，例如幾十萬個成員的 Set。危險在 Redis 用單一執行緒處理指令：「當一個請求很慢，所有其他用戶端都得等它」（when a request is slow to serve all the other clients will wait for this request to be served）。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a> 找它用 <code>redis-cli --bigkeys</code>：它用 SCAN 一批一批掃，不會像 <code>KEYS *</code> 一次卡住整台。<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a> 刪它用 <code>UNLINK</code> 而不是 <code>DEL</code>：文件說 UNLINK「在另一條執行緒做真正的記憶體回收，所以不會卡住，DEL 會」（the command performs the actual memory reclaiming in a different thread, so it is not blocking, while DEL is.）。<a class="fixsrc" href="https://redis.io/docs/latest/commands/unlink/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>大 key</strong>（big key）是一把 key 的值很大，例如幾十萬個成員的 Set。</p>
+<ul class="plainlist">
+<li><b>危險</b>在 Redis 用單一執行緒處理指令：「當一個請求很慢，所有其他用戶端都得等它」。<span class="orig">when a request is slow to serve all the other clients will wait for this request to be served<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>找它</b>用 <code>redis-cli --bigkeys</code>：它用 SCAN 一批一批掃，不會像 <code>KEYS *</code> 一次卡住整台。<a class="fixsrc" href="https://redis.io/docs/latest/develop/tools/cli/" target="_blank" rel="noopener">出處</a></li>
+<li><b>刪它</b>用 <code>UNLINK</code> 而不是 <code>DEL</code>：文件說 UNLINK「在另一條執行緒做真正的記憶體回收，所以不會卡住，DEL 會」。<span class="orig">the command performs the actual memory reclaiming in a different thread, so it is not blocking, while DEL is.<a class="fixsrc" href="https://redis.io/docs/latest/commands/unlink/" target="_blank" rel="noopener">出處</a></span></li>
+</ul>
 <pre><code># 用 Lua 在伺服器裡一次塞 20 萬個成員進同一個 Set
 
 $ redis-cli EVAL "for i=1,200000 do redis.call('SADD', KEYS[1], 'member:'..i) end return redis.call('SCARD', KEYS[1])" 1 big:blacklist
@@ -426,7 +431,16 @@ $ redis-cli CLUSTER KEYSLOT product:1001:3
 <section>
 <p class="era">依資料的長相選</p>
 <h3 class="head">Redis 資料結構：一個值、一筆紀錄、一串、一群、一份排行</h3>
-<p>Redis 不只能存字串。選結構看「值的形狀」，定義照官方資料型別頁：String 是「最基本的型別，一串位元組」（the most basic Redis data type, representing a sequence of bytes）；Hash 是「以欄位—值配對組成的紀錄型別」（record types modeled as collections of field-value pairs），像 Java 的 <code>HashMap</code>；List 是「依插入順序排列的字串串列」（lists of strings sorted by insertion order）；Set 是「無序、不重複的字串集合」（unordered collections of unique strings）；Sorted Set 是「不重複的字串，依各自的分數維持順序」（collections of unique strings that maintain order by each string's associated score）。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">出處</a> Bitmap 不是獨立的型別，是「定義在 String 上的一組位元操作」（a set of bit-oriented operations defined on the String type），每個帳號一個位元記今天有沒有登入<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/strings/bitmaps/" target="_blank" rel="noopener">出處</a>；HyperLogLog 估算不重複的個數，「最多用 12 KB 記憶體」（uses up to 12 KB of memory），有一點誤差<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/hyperloglogs/" target="_blank" rel="noopener">出處</a>。</p>
+<p>Redis 不只能存字串。選結構看「值的形狀」，定義照官方資料型別頁：</p>
+<ul class="plainlist">
+<li><b>String</b> 是「最基本的型別，一串位元組」。<span class="orig">the most basic Redis data type, representing a sequence of bytes</span></li>
+<li><b>Hash</b> 是「以欄位—值配對組成的紀錄型別」（record types modeled as collections of field-value pairs），像 Java 的 <code>HashMap</code>。</li>
+<li><b>List</b> 是「依插入順序排列的字串串列」。<span class="orig">lists of strings sorted by insertion order</span></li>
+<li><b>Set</b> 是「無序、不重複的字串集合」。<span class="orig">unordered collections of unique strings</span></li>
+<li><b>Sorted Set</b> 是「不重複的字串，依各自的分數維持順序」。<span class="orig">collections of unique strings that maintain order by each string's associated score<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>Bitmap</b> 不是獨立的型別，是「定義在 String 上的一組位元操作」（a set of bit-oriented operations defined on the String type），每個帳號一個位元記今天有沒有登入<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/strings/bitmaps/" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>HyperLogLog</b> 估算不重複的個數，「最多用 12 KB 記憶體」（uses up to 12 KB of memory），有一點誤差<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/hyperloglogs/" target="_blank" rel="noopener">出處</a>。</li>
+</ul>
 <pre><code>$ redis-cli INCR counter:login:2025-10-02
 (integer) 1
 

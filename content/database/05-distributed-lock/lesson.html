@@ -456,7 +456,12 @@
       <div class="card">
         <span class="badge">Kleppmann（質疑方）</span>
         <h3>拿鎖是為了效率，還是為了正確？</h3>
-        <p>他先把用鎖的目的分成兩種：效率（Efficiency）——「拿鎖讓你不必白白把同一件工作做兩次」；正確性（Correctness）——「拿鎖防止並行的行程互相踩到腳、弄壞系統狀態」<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。為了效率，單一 Redis 就夠，鎖偶爾破了頂多多做一次；為了正確性，他的結論是：「如果你需要鎖來保證正確性，請不要用 Redlock。請改用正規的共識系統，例如 ZooKeeper」（if you need locks for correctness, please don't use Redlock. Instead, please use a proper consensus system such as ZooKeeper）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
+        <p>他先把用鎖的目的分成兩種：</p>
+<ul class="plainlist">
+<li><b>效率</b>（Efficiency）——「拿鎖讓你不必白白把同一件工作做兩次」。</li>
+<li><b>正確性</b>（Correctness）——「拿鎖防止並行的行程互相踩到腳、弄壞系統狀態」<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</li>
+</ul>
+<p>為了效率，單一 Redis 就夠，鎖偶爾破了頂多多做一次；為了正確性，他的結論是：「如果你需要鎖來保證正確性，請不要用 Redlock。請改用正規的共識系統，例如 ZooKeeper」（if you need locks for correctness, please don't use Redlock. Instead, please use a proper consensus system such as ZooKeeper）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
       </div>
       <div class="card">
         <span class="badge">Kleppmann（質疑方）</span>
@@ -479,7 +484,9 @@
 <section>
     <p class="era">補洞的正解</p>
     <h3 class="head">Fencing token：真正擋住重複的是資料那一端</h3>
-    <p>回到「鎖過期但工作沒做完」。Kleppmann 提出的解法叫 fencing token（圍籬號碼牌；fencing 是「用圍籬把東西擋在外面」）：「一個每次有用戶端取得鎖時就會增加的數字（例如由鎖服務遞增）」（a fencing token is simply a number that increases (e.g. incremented by the lock service) every time a client acquires the lock）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。用戶端寫資料時把號碼一起帶上，<strong>被保護的資料那一端</strong>只接受比它看過的最大號碼更大的請求。他的例子：A 拿到 33 號後卡住，鎖過期，B 拿到 34 號並寫入；A 醒來帶著 33 號來寫，「儲存伺服器記得它已經處理過一個更高號碼（34）的寫入，所以拒絕了號碼 33 的請求」（the storage server remembers that it has already processed a write with a higher token number (34), and so it rejects the request with token 33）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>回到「鎖過期但工作沒做完」。Kleppmann 提出的解法叫 fencing token（圍籬號碼牌；fencing 是「用圍籬把東西擋在外面」）：「一個每次有用戶端取得鎖時就會增加的數字（例如由鎖服務遞增）」（a fencing token is simply a number that increases (e.g. incremented by the lock service) every time a client acquires the lock）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>用戶端寫資料時把號碼一起帶上，<strong>被保護的資料那一端</strong>只接受比它看過的最大號碼更大的請求。</p>
+<p>他的例子：A 拿到 33 號後卡住，鎖過期，B 拿到 34 號並寫入；A 醒來帶著 33 號來寫，「儲存伺服器記得它已經處理過一個更高號碼（34）的寫入，所以拒絕了號碼 33 的請求」（the storage server remembers that it has already processed a write with a higher token number (34), and so it rejects the request with token 33）<a class="fixsrc" href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html" target="_blank" rel="noopener">出處</a>。</p>
 
     <figure>
       <svg viewBox="0 0 760 250" role="img" aria-label="遞增號碼：A 拿到 33 號、B 拿到 34 號，資料庫只接受比看過的最大號碼更大的請求">

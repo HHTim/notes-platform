@@ -208,7 +208,9 @@ ORDER BY a.account_id;</code></pre>
 |        106 |              0 |
 +------------+----------------+
 6 rows in set (0.00 sec)</code></pre>
-<p>差在處理的時間點。PostgreSQL 文件講得最直白：「放在 ON 子句的條件在連接之前處理，放在 WHERE 子句的條件在連接之後處理。這對內連接沒差，對外連接影響很大」（a restriction placed in the ON clause is processed before the join, while a restriction placed in the WHERE clause is processed after the join. That does not matter with inner joins, but it matters a lot with outer joins）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank" rel="noopener">出處</a> 放在 WHERE 時，沒提款的帳戶在連接時補了一列 NULL，接著 <code>t.tx_type = 'WITHDRAW'</code> 對 NULL 的結果不是 TRUE，那一列就被濾掉。這裡的 UNKNOWN（不知道）是 SQL 邏輯運算的第三種結果，手冊寫：「SQL 的所有邏輯運算子結果都是 TRUE、FALSE 或 NULL（UNKNOWN），在 MySQL 實作成 1、0 與 NULL」（In SQL, all logical operators evaluate to TRUE, FALSE, or NULL (UNKNOWN). In MySQL, these are implemented as 1 (TRUE), 0 (FALSE), and NULL.），所以 MySQL 顯示成 NULL。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/logical-operators.html" target="_blank" rel="noopener">出處</a> MySQL 手冊把這種條件叫「null-rejected」：條件對「補 NULL 的那些列」算出來是 FALSE 或 UNKNOWN 時，最佳化器乾脆把外連接改成內連接（it converts the outer join to an inner join）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/outer-join-simplification.html" target="_blank" rel="noopener">出處</a></p>
+<p>差在處理的時間點。PostgreSQL 文件講得最直白：「放在 ON 子句的條件在連接之前處理，放在 WHERE 子句的條件在連接之後處理。這對內連接沒差，對外連接影響很大」（a restriction placed in the ON clause is processed before the join, while a restriction placed in the WHERE clause is processed after the join. That does not matter with inner joins, but it matters a lot with outer joins）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank" rel="noopener">出處</a></p>
+<p>放在 WHERE 時，沒提款的帳戶在連接時補了一列 NULL，接著 <code>t.tx_type = 'WITHDRAW'</code> 對 NULL 的結果不是 TRUE，那一列就被濾掉。</p>
+<p>這裡的 UNKNOWN（不知道）是 SQL 邏輯運算的第三種結果，手冊寫：「SQL 的所有邏輯運算子結果都是 TRUE、FALSE 或 NULL（UNKNOWN），在 MySQL 實作成 1、0 與 NULL」（In SQL, all logical operators evaluate to TRUE, FALSE, or NULL (UNKNOWN). In MySQL, these are implemented as 1 (TRUE), 0 (FALSE), and NULL.），所以 MySQL 顯示成 NULL。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/logical-operators.html" target="_blank" rel="noopener">出處</a> MySQL 手冊把這種條件叫「null-rejected」：條件對「補 NULL 的那些列」算出來是 FALSE 或 UNKNOWN 時，最佳化器乾脆把外連接改成內連接（it converts the outer join to an inner join）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/outer-join-simplification.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="LEFT JOIN 條件放 ON 與放 WHERE 的差別。左邊：條件寫在 ON，連接時只配對提款紀錄，配不到的帳戶補一列 NULL，最後 6 列都留下。右邊：條件寫在 WHERE，先連接全部交易，再用 WHERE 篩選，補 NULL 的那列因為 tx_type 是 NULL 而被濾掉，只剩有提款的 2 個帳戶">
 <text x="40" y="28" font-size="13" fill="var(--gold-deep)">條件放 ON：連接時就只配提款</text>
@@ -434,7 +436,9 @@ ORDER BY a.account_id;</code></pre>
 |        105 | 李志明    |
 +------------+-----------+
 5 rows in set (0.00 sec)</code></pre>
-<p>JOIN 版多了一列王小明：他有兩筆存款，配對出兩列。這題問的是「哪些帳戶」，不是「哪些存款」，所以要嘛加 DISTINCT，要嘛用 IN 或 EXISTS；後兩者只回答「有沒有」，不會因為對到多筆就重複。手冊說 IN 接子查詢時「是 = ANY 的別名」（the word IN is an alias for = ANY）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/any-in-some-subqueries.html" target="_blank" rel="noopener">出處</a>；EXISTS 則是「子查詢只要回傳任何一列，EXISTS 就是 TRUE，NOT EXISTS 就是 FALSE」，而且「MySQL 會忽略這種子查詢的 SELECT 清單」（MySQL ignores the SELECT list in such a subquery, so it makes no difference），所以寫 <code>SELECT 1</code> 或 <code>SELECT *</code> 都一樣。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/exists-and-not-exists-subqueries.html" target="_blank" rel="noopener">出處</a> 哪種寫法比較快，要看執行計畫，見〈索引是怎麼運作的〉的 EXPLAIN 一段。</p>
+<p>JOIN 版多了一列王小明：他有兩筆存款，配對出兩列。這題問的是「哪些帳戶」，不是「哪些存款」，所以要嘛加 DISTINCT，要嘛用 IN 或 EXISTS；後兩者只回答「有沒有」，不會因為對到多筆就重複。</p>
+<p>手冊說 IN 接子查詢時「是 = ANY 的別名」（the word IN is an alias for = ANY）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/any-in-some-subqueries.html" target="_blank" rel="noopener">出處</a>；EXISTS 則是「子查詢只要回傳任何一列，EXISTS 就是 TRUE，NOT EXISTS 就是 FALSE」，而且「MySQL 會忽略這種子查詢的 SELECT 清單」（MySQL ignores the SELECT list in such a subquery, so it makes no difference），所以寫 <code>SELECT 1</code> 或 <code>SELECT *</code> 都一樣。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/exists-and-not-exists-subqueries.html" target="_blank" rel="noopener">出處</a></p>
+<p>哪種寫法比較快，要看執行計畫，見〈索引是怎麼運作的〉的 EXPLAIN 一段。</p>
 <h4>NOT IN 遇到 NULL：一列都不回</h4>
 <p>題目反過來：找出「從來沒當過轉帳對象」的帳戶。轉帳對象是 101、102、103、104，答案應該是 105 和 106：</p>
 <pre><code>SELECT account_id, owner
@@ -451,7 +455,9 @@ WHERE account_id NOT IN (SELECT counterparty_id FROM transactions);</code></pre>
 |       1 |      NULL |         0 |
 +---------+-----------+-----------+
 1 row in set (0.00 sec)</code></pre>
-<p>105 不在 (102, 101, 104, 103) 裡，結果是 1（TRUE）；清單多一個 NULL，結果變成 NULL。手冊寫：「為了符合 SQL 標準，IN() 不只在左邊是 NULL 時回傳 NULL，在清單裡找不到相符的值、而且清單裡有 NULL 時，也回傳 NULL」（IN() returns NULL not only if the expression on the left hand side is NULL, but also if no match is found in the list and one of the expressions in the list is NULL）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/comparison-operators.html" target="_blank" rel="noopener">出處</a>；NOT IN 就是 NOT (IN)，NOT NULL 還是 NULL。WHERE 只留結果是 TRUE 的列，NULL 不算，所以每一列都被濾掉。PostgreSQL 文件也是同樣的規則：「沒有相等的值、而且右邊至少有一列是 null 時，NOT IN 的結果是 null，不是 true」（the result of the NOT IN construct will be null, not true），PostgreSQL 18 實跑同一段一樣是 0 列。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-subquery.html" target="_blank" rel="noopener">出處</a></p>
+<p>105 不在 (102, 101, 104, 103) 裡，結果是 1（TRUE）；清單多一個 NULL，結果變成 NULL。</p>
+<p>手冊寫：「為了符合 SQL 標準，IN() 不只在左邊是 NULL 時回傳 NULL，在清單裡找不到相符的值、而且清單裡有 NULL 時，也回傳 NULL」（IN() returns NULL not only if the expression on the left hand side is NULL, but also if no match is found in the list and one of the expressions in the list is NULL）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/comparison-operators.html" target="_blank" rel="noopener">出處</a>；NOT IN 就是 NOT (IN)，NOT NULL 還是 NULL。WHERE 只留結果是 TRUE 的列，NULL 不算，所以每一列都被濾掉。</p>
+<p>PostgreSQL 文件也是同樣的規則：「沒有相等的值、而且右邊至少有一列是 null 時，NOT IN 的結果是 null，不是 true」（the result of the NOT IN construct will be null, not true），PostgreSQL 18 實跑同一段一樣是 0 列。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-subquery.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="NOT IN 遇到 NULL 的三值邏輯：105 NOT IN (102, 101, 104, 103, NULL) 展開成 105 不等於 102、不等於 101、不等於 104、不等於 103 都是 TRUE，但 105 不等於 NULL 是 UNKNOWN；全部用 AND 連起來，結果是 UNKNOWN，WHERE 不保留">
 <text x="40" y="30" font-size="13" class="mono" fill="currentColor">105 NOT IN (102, 101, 104, 103, NULL)  等於</text>
@@ -721,7 +727,13 @@ ORDER BY amount DESC, tx_id;</code></pre>
 |    11 |        105 |    500 |  6 |   6 |     4 |
 +-------+------------+--------+----+-----+-------+
 6 rows in set (0.00 sec)</code></pre>
-<p>三筆 3000 同分。<code>ROW_NUMBER</code> 硬是給 3、4、5，同分誰前誰後由 ORDER BY 決定，這裡加了 <code>tx_id</code> 當第二排序鍵；手冊提醒「沒有 ORDER BY，列的編號是不確定的」（Without ORDER BY, row numbering is nondeterministic）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a>；有 ORDER BY 但同分時，PostgreSQL 文件寫明同分的列「以不指定的順序編號」（with tied rows numbered in an unspecified order）<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a>，所以要自己補一個能分出先後的欄位。<code>RANK</code> 給同分的列相同名次（Peers are considered ties and receive the same rank.），名次＝比它大的筆數＋1，所以 500 是第 6 名；<code>DENSE_RANK</code>「同分給相同名次，但下一個名次只加一」（the next higher value has a rank one greater），500 是第 4 名。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a> PostgreSQL 文件的說法一樣：rank 有間隔，dense_rank「等於是在數有幾組同分」（this function effectively counts peer groups）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-window.html" target="_blank" rel="noopener">出處</a></p>
+<p>三筆 3000 同分。</p>
+<ul class="plainlist">
+<li><code>ROW_NUMBER</code> 硬是給 3、4、5，同分誰前誰後由 ORDER BY 決定，這裡加了 <code>tx_id</code> 當第二排序鍵；手冊提醒「沒有 ORDER BY，列的編號是不確定的」（Without ORDER BY, row numbering is nondeterministic）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a>；有 ORDER BY 但同分時，PostgreSQL 文件寫明同分的列「以不指定的順序編號」（with tied rows numbered in an unspecified order）<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a>，所以要自己補一個能分出先後的欄位。</li>
+<li><code>RANK</code> 給同分的列相同名次（Peers are considered ties and receive the same rank.），名次＝比它大的筆數＋1，所以 500 是第 6 名。</li>
+<li><code>DENSE_RANK</code>「同分給相同名次，但下一個名次只加一」（the next higher value has a rank one greater），500 是第 4 名。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>PostgreSQL 文件的說法一樣：rank 有間隔，dense_rank「等於是在數有幾組同分」（this function effectively counts peer groups）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-window.html" target="_blank" rel="noopener">出處</a></p>
 <h4>聚合函式加上 OVER：每列都看得到整組的總和</h4>
 <pre><code>SELECT tx_id, account_id, amount,
        SUM(amount) OVER (PARTITION BY account_id) AS account_total,
