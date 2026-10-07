@@ -365,8 +365,8 @@ for (Future&lt;?&gt; f : fs) {
 // ConcurrentHashMap 總和：800000（四次都是）</code></pre>
 <p><strong>為什麼快又安全。</strong></p>
 <ul class="plainlist">
-<li><b>讀取</b>：文件：它「支援完整並行的讀取與高度並行的更新」，「所有操作都是執行緒安全的，但讀取操作不涉及鎖定，也不支援鎖住整張表」；讀取（包括 <code>get</code>）「一般不會阻塞，可以跟更新重疊」。<span class="orig">retrieval operations do not entail locking<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a></span></li>
-<li><b>寫入</b>：OpenJDK 21 原始碼的註解：在空的桶放進第一個節點「只靠 CAS 就完成」，這是最常見的情況；其他更新需要鎖，但不想替每個桶配一個鎖物件，「所以直接用桶裡串列的第一個節點當鎖」，靠內建的 <code>synchronized</code> 監視器。<span class="orig">performed by just CASing it to the bin<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>讀取</b>：文件：它「支援完整並行的讀取與高度並行的更新」，「所有操作都是執行緒安全的，但讀取操作不涉及鎖定，也不支援鎖住整張表」；讀取（包括 <code>get</code>）「一般不會阻塞，可以跟更新重疊」。<span class="orig">Java 文件：retrieval operations do not entail locking<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>寫入</b>：OpenJDK 21 原始碼的註解：在空的桶放進第一個節點「只靠 CAS 就完成」，這是最常見的情況；其他更新需要鎖，但不想替每個桶配一個鎖物件，「所以直接用桶裡串列的第一個節點當鎖」，靠內建的 <code>synchronized</code> 監視器。<span class="orig">OpenJDK 原始碼：performed by just CASing it to the bin<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java" target="_blank" rel="noopener">出處</a></span></li>
 </ul>
 <p>不同的桶互不影響，所以 8 條執行緒同時寫不同分行，大多不會互等。CAS 是什麼見〈執行緒與並行〉。</p>
 <p><strong>兩個用法提醒。</strong>第一，它「不允許 null 當鍵或值」（does not allow null to be used as a key or value）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a>，實跑 <code>put("中正", null)</code> 丟 <code>NullPointerException</code>。第二，「先 get 再 put」是兩次呼叫，中間會被別的執行緒插隊；要一次做完就用 <code>merge</code>、<code>compute</code>、<code>computeIfAbsent</code>：</p>
