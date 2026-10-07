@@ -1,10 +1,10 @@
 <!-- 來源：依 AWS 官方使用指南（Elastic Load Balancing：Application Load Balancer、Network Load Balancer；Amazon EC2 Auto Scaling；Amazon SQS；Amazon SNS）新寫；SQS、SNS 指令以 AWS CLI 2.37.8 對 LocalStack 4.14（Docker 裡的 AWS 模擬器，社群版）實際執行；ALB、NLB、Auto Scaling 沒有可實跑的環境，設定範例只經 AWS CLI 參數檢查、沒有輸出 · 收錄日期：2026-10-03 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 ALB（第 7 層）與 NLB（第 4 層），看懂依路徑、依主機名稱分流的規則，知道後端怎麼拿到使用者的 IP</li><li>看懂目標群組的健康檢查參數，算出一台壞掉的機器多久會被拿掉、修好多久才回來</li><li>設定 Auto Scaling 群組的最小、期望、最大台數，比較目標追蹤、步進、排程三種擴展，以及冷卻與暖機的差別</li><li>用 SQS 標準佇列與 FIFO 佇列處理工作，掌握可見性逾時、死信佇列、長輪詢，並用 SNS 把一則事件扇出到多條佇列</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 ALB 與 NLB，看懂分流規則</li><li>算出健康檢查多久拿掉壞機器</li><li>設定 Auto Scaling 並比較三種擴展</li><li>用 SQS、SNS 處理工作與扇出</li></ul></div>
 
 <section>
 <p class="era">一個入口、一群機器、一個留言板</p>
 <h3 class="head">這課的五個服務怎麼拼在一起</h3>
-<p>〈EC2 運算資源〉講的是一台機器。上線時流量大了要多開幾台、壞了要有人換掉，使用者也不該知道是哪一台在服務他。這課的服務各管一段：</p>
+<p>〈EC2 運算資源〉講的是一台機器。上線時流量大了要多開幾台、壞了要有人換掉，使用者也不該知道是哪一台在服務他。下面這些服務各管一段：</p>
 <ul class="plainlist">
 <li><strong>負載平衡器</strong>（Elastic Load Balancing）：對外一個入口，把請求分給後面好幾台，並定期檢查哪台還活著。常用 <strong>ALB</strong> 與 <strong>NLB</strong> 兩種。</li>
 <li><strong>Auto Scaling 群組</strong>：一群照同一個範本開的 EC2，台數依負載增減，壞掉的會被換掉。</li>

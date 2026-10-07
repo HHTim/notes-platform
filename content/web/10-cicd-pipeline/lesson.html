@@ -1,10 +1,10 @@
 <!-- 來源：依 GitHub Docs（Understanding GitHub Actions、Continuous integration、Continuous deployment、Workflow syntax、Events that trigger workflows、Evaluate expressions、Dependency caching、Running variations of jobs、Secrets、GITHUB_TOKEN、Secure use reference、OpenID Connect、Deployments and environments、Reviewing deployments、Viewing deployment history、Control workflow concurrency、About protected branches、Using custom workflows with GitHub Pages）、actions/configure-pages 與 upload-pages-artifact 的 action.yml、actions/starter-workflows 的 pages/static.yml、actions/runner-images 的 Ubuntu 24.04 清單、Martin Fowler〈Continuous Integration〉與〈ContinuousDelivery〉、Docker 文件〈GitHub Actions〉、docker/build-push-action README、Argo CD 文件新寫；範例 YAML 全部以 actionlint 1.7.12 檢查通過，本站 deploy.yml 的執行紀錄查自 2026-10-02 的 Actions 頁 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清持續整合、持續交付、持續部署，說出上線要審核的環境（例如銀行）為什麼常停在持續交付</li><li>畫出一條管線的階段（建置、測試、靜態檢查、安全掃描、打映像檔、推上 registry、部署），知道哪一格失敗後面會怎樣</li><li>讀懂 GitHub Actions 的 workflow、event、job、step、runner，判斷一段 YAML 會不會被觸發、job 依什麼順序跑；會用 <code>needs</code>、矩陣、快取、secrets、environments 的人工核准與 concurrency，並能逐行講解本站自己的 <code>deploy.yml</code></li><li>說出部署到 Kubernetes 的「推」與「拉」（GitOps）兩種做法，以及銀行情境下變更審核與稽核紀錄要怎麼留</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清持續整合、持續交付、持續部署</li><li>畫出一條管線的階段，知道哪格失敗會怎樣</li><li>讀懂 GitHub Actions 的 workflow 與 job</li><li>說出部署到 K8s 的推與拉兩種做法</li></ul></div>
 
 <section>
 <p class="era">常常合、自動驗、隨時能上線</p>
 <h3 class="head">CI 與 CD 是什麼</h3>
-<p>〈軟體開發生命週期〉講過實作階段要用「版本控制、程式碼審查與持續整合」。這課把最後那一項，以及從「程式合進去」到「使用者用得到」的那段路講完整。</p>
+<p>〈軟體開發生命週期〉講過實作階段要用「版本控制、程式碼審查與持續整合」。</p>
 
 <h4>持續整合（CI）：每天都合，每次都自動驗</h4>
 <p>Martin Fowler 的定義：「持續整合是一種軟體開發實務：團隊每個成員至少每天一次，把自己的變更跟同事的變更合進同一份程式碼。每次整合都由自動化的建置（包含測試）驗證，盡快發現整合錯誤」（Continuous Integration is a software development practice where each member of a team merges their changes into a codebase together with their colleagues changes at least daily. Each of these integrations is verified by an automated build (including test) to detect integration errors as quickly as possible.）。<a class="fixsrc" href="https://martinfowler.com/articles/continuousIntegration.html" target="_blank" rel="noopener">出處</a></p>

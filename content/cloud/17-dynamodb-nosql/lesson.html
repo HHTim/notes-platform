@@ -1,5 +1,5 @@
 <!-- 來源：依 Amazon DynamoDB 開發者指南（HowItWorks.CoreComponents、HowItWorks.Partitions、HowItWorks.ReadConsistency、bp-partition-key-design、bp-partition-key-uniform-load、bp-partition-key-sharding、burst-adaptive-capacity、bp-general-nosql-design、bp-modeling-nosql、data-modeling-foundations、bp-sort-keys、SecondaryIndexes、GSI、LSI、Query、bp-query-scan、read-write-operations、WorkingWithItems、Expressions.ConditionExpressions、DynamoDBMapper.OptimisticLocking、BestPractices_ImplementingVersionControl、transaction-apis、capacity-mode、on-demand-capacity-mode、provisioned-capacity-mode、SQLtoNoSQL.WhyDynamoDB、DynamoDBLocal.UsageNotes）新寫；AWS CLI 輸出以 Docker 映像 amazon/dynamodb-local:3.3.1 加 amazon/aws-cli（2.37.8）實際執行，例子與練習題全部自編 · 收錄日期：2026-10-03 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出分割鍵與排序鍵怎麼決定資料存在哪裡、怎麼排，並認出會造成熱分割區的鍵</li><li>先列存取模式再設計鍵：用單表設計把帳戶與交易明細放在一起，必要時加全域或本地次要索引</li><li>分清最終一致讀與強一致讀，算得出讀寫各吃幾個容量單位，選對隨需或佈建模式</li><li>用條件寫入、版本號與交易 API 守住餘額，並說出 DynamoDB 跟 RDS 各適合銀行系統的哪一塊</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用分割鍵與排序鍵決定資料怎麼存</li><li>先列存取模式再設計鍵與索引</li><li>分清兩種讀取一致性、算容量單位</li><li>用條件寫入與交易守住餘額</li></ul></div>
 
 <section>
 <p class="era">先認識零件，再談怎麼放</p>
@@ -13,8 +13,8 @@
 <figcaption>同一個帳戶的資料（分割鍵相同）住在一起、照排序鍵排好，所以「拿某帳戶某段時間的明細」只要讀連續的一段。</figcaption>
 </figure>
 <p>主鍵的屬性只能是字串、數字或二進位（The only data types allowed for primary key attributes are string, number, or binary），單一項目最大 400 KB（The maximum size of an individual item is 400 KB）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a></p>
-<h4>這課的實跑環境：DynamoDB Local</h4>
-<p>這課的指令都在自己電腦上跑：Docker 映像 <code>amazon/dynamodb-local:3.3.1</code>（AWS 提供、可下載的 DynamoDB）加 AWS CLI 2.37.8。每個指令都要加 <code>--endpoint-url http://localhost:8000</code>（you must specify --endpoint-url with each AWS CLI command），範例版面上省略。本地版只供開發與測試，這課會碰到的差別有三條（同一頁出處）：<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html" target="_blank" rel="noopener">出處</a></p>
+<h4>實跑環境：DynamoDB Local</h4>
+<p>以下指令都在自己電腦上跑：Docker 映像 <code>amazon/dynamodb-local:3.3.1</code>（AWS 提供、可下載的 DynamoDB）加 AWS CLI 2.37.8。每個指令都要加 <code>--endpoint-url http://localhost:8000</code>（you must specify --endpoint-url with each AWS CLI command），範例版面上省略。本地版只供開發與測試，會碰到的差別有三條（同一頁出處）：<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li>佈建的吞吐量設定會被忽略（Provisioned throughput settings are ignored），所以<strong>限流</strong>（throttling，請求超過上限時被拒絕、要你稍後重試）在本地做不出來；差異頁在講串流時也提到本地沒有分割表格（there is no table partitioning），熱分割區只能用算的。</li>
 <li>讀取照樣是最終一致，但本地跑得快，「大部分讀取看起來像強一致」（most reads appear to be strongly consistent），「讀到舊值」也做不出來。</li>

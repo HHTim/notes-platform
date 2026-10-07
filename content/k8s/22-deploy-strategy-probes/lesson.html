@@ -1,10 +1,10 @@
 <!-- 來源：依 Kubernetes v1.36 官方文件（v1-36.docs.kubernetes.io：Deployments、Liveness, Readiness, and Startup Probes、Configure Liveness, Readiness and Startup Probes、Resource Management for Pods and Containers、Pod Quality of Service Classes、Assign Memory Resources、Disruptions、Specifying a Disruption Budget）、Spring Boot 4.1 參考文件（Endpoints 的 Kubernetes Probes、SpringApplication 的 Application Availability、Deploying to the Cloud 的 Kubernetes、Application Properties 附錄）、Java 21 java 指令手冊、Argo Rollouts 官方文件新寫；範例與練習題全部自編，在 kind v0.33 建的 Kubernetes v1.36.4 叢集上用自寫的 Spring Boot 4.1 程式（Java 21）實際執行 · 收錄日期：2026-10-03 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>算出滾動更新每一步有幾份新舊 Pod，會用 <code>kubectl rollout undo</code> 退回上一版，並知道 undo 跟 Git 裡的設定檔會打架</li><li>在 K8s 上用原生做法做藍綠與金絲雀，知道 Argo Rollouts 多給了什麼</li><li>分清啟動、存活、就緒三種探針失敗時各會怎樣，並對上 Spring Boot Actuator 的 liveness、readiness 兩個群組</li><li>說明 QoS 等級與 OOMKilled，替 Java 服務在容器裡設對記憶體，用 PodDisruptionBudget 擋住維運時一次被搬走太多份</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>算出滾動更新每一步的新舊 Pod 數，會退版</li><li>用原生做法做藍綠與金絲雀</li><li>分清三種探針失敗時各會怎樣</li><li>替 Java 服務設對記憶體，用 PDB 擋住維運</li></ul></div>
 
 <section>
 <p class="era">先把換版本看清楚</p>
 <h3 class="head">滾動更新一步一步看，以及怎麼退回</h3>
-<p>〈Deployment：下單〉講過滾動更新的原理：分批換，一批好了才換下一批，一批幾份由 <code>maxSurge</code> 與 <code>maxUnavailable</code> 決定。這一課在一個真的叢集上做一次。實驗環境是用 kind（在 Docker 裡開 Kubernetes 節點的工具，跟〈K8s 上手：Minikube 與上雲〉的 Minikube 是同一類）建的 v1.36.4 單節點叢集，程式是一支自己寫的 Spring Boot 4.1 小程式 <code>teller</code>，<code>/version</code> 會回應目前的版本。</p>
+<p>〈Deployment：下單〉講過滾動更新的原理：分批換，一批好了才換下一批，一批幾份由 <code>maxSurge</code> 與 <code>maxUnavailable</code> 決定。以下用 kind（在 Docker 裡開 Kubernetes 節點的工具，跟〈K8s 上手：Minikube 與上雲〉的 Minikube 是同一類）建的 v1.36.4 單節點叢集實跑，程式是一支 Spring Boot 4.1 小程式 <code>teller</code>，<code>/version</code> 會回應目前的版本。</p>
 <p>官方文件對兩個旋鈕的定義：<code>maxUnavailable</code> 是「更新過程中最多可以有幾個 Pod 不可用」，百分比換算成個數時「無條件捨去」；<code>maxSurge</code> 是「最多可以比期望數多建立幾個 Pod」，換算時「無條件進位」；兩個預設都是 25%，而且不能同時是 0（The value cannot be 0 if maxUnavailable is 0.）。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a> 銀行的櫃台服務不想在換版時少任何一份，就設 <code>maxUnavailable: 0</code>、<code>maxSurge: 1</code>：</p>
 <pre><code>apiVersion: apps/v1
 kind: Deployment
