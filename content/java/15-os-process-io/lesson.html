@@ -4,8 +4,13 @@
 <section>
 <p class="era">先分清楚三個詞</p>
 <h3 class="head">行程與執行緒：各自有什麼、共用什麼</h3>
-<p>〈執行緒與並行〉用工廠比喻過：程式是藍圖，<strong>行程</strong>（process）是照藍圖開起來、拿到資源的工廠，<strong>執行緒</strong>（thread）是工廠裡做事的員工。OSTEP（一本免費的作業系統教科書）說，執行緒「很像一個獨立的行程，只差一點：它們共用同一個位址空間，所以能存取同樣的資料」（each thread is very much like a separate process, except for one difference: they share the same address space and thus can access the same data）。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener">出處</a> <strong>位址空間</strong>（address space）就是一個行程看得到的那一整片記憶體，後面講虛擬記憶體時再細講。</p>
-<p>Linux 的 pthreads(7) 手冊把共用與各自擁有的東西列得很清楚：同一個行程的執行緒「共用同樣的全域記憶體（資料區與堆），但每條執行緒有自己的堆疊（自動變數）」（These threads share the same global memory (data and heap segments), but each thread has its own stack (automatic variables).）；POSIX 還要求它們共用行程 ID、開啟的檔案描述子、目前目錄、資源限制等屬性，而執行緒 ID、訊號遮罩、<code>errno</code> 是每條各自一份。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/pthreads.7.html" target="_blank" rel="noopener">出處</a> OSTEP 補充每條執行緒還有自己的程式計數器（PC，目前執行到哪一條指令）與一組暫存器（CPU 裡存放正在運算的數值的幾個小格子，是最快的儲存空間）。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>〈執行緒與並行〉用工廠比喻過：程式是藍圖，<strong>行程</strong>（process）是照藍圖開起來、拿到資源的工廠，<strong>執行緒</strong>（thread）是工廠裡做事的員工。執行緒很像一個獨立的行程，只差一點：同一個行程的執行緒<strong>共用同一個位址空間</strong>，所以能存取同樣的資料。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener">出處</a> <strong>位址空間</strong>（address space）就是一個行程看得到的那一整片記憶體，後面講虛擬記憶體時再細講。</p>
+<p>同一個行程的執行緒，哪些共用、哪些各自一份：<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/pthreads.7.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><b>共用</b>：全域記憶體（資料區與堆）、行程 ID、開啟的檔案描述子、目前目錄、資源限制等屬性（後面這幾項是 POSIX 的要求）</li>
+<li><b>各自一份</b>：堆疊（自動變數）、執行緒 ID、訊號遮罩、<code>errno</code></li>
+<li><b>也是各自一份</b>：程式計數器（PC，目前執行到哪一條指令）與一組暫存器（CPU 裡存放正在運算的數值的幾個小格子，是最快的儲存空間）<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="一個行程裡有三條執行緒：程式碼、堆、開啟的檔案描述子是整個行程共用的；每條執行緒各有自己的堆疊、程式計數器與暫存器">
   <rect x="20" y="20" width="720" height="250" rx="10" fill="none" stroke="currentColor" stroke-opacity=".5"/>
@@ -38,10 +43,20 @@
 </svg>
 <figcaption>同一個行程的執行緒共用程式碼、堆與檔案描述子；堆疊、程式計數器、暫存器每條各一份。</figcaption>
 </figure>
-<p>行程之間就不共用了。fork(2) 手冊：用 <code>fork()</code> 複製出來的子行程與父行程「在各自的記憶體空間執行……其中一方的記憶體寫入、檔案對應與解除對應，都不影響另一方」。<span class="orig">fork(2)：The child process and the parent process run in separate memory spaces.<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/fork.2.html" target="_blank" rel="noopener">出處</a></span></p>
-<p>Linux 建立執行緒其實也用同一套機制：clone(2) 帶上 <code>CLONE_VM</code> 旗標時，呼叫者與子行程「在同一個記憶體空間執行，一方寫入的記憶體，另一方也看得到」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/clone.2.html" target="_blank" rel="noopener">出處</a> clone(2) 的說明開頭也是這麼講的：它跟 fork 一樣建立「子行程」，但「能更精確地控制呼叫者與子行程共用哪些執行環境」，例如要不要共用虛擬位址空間、檔案描述子表。<span class="orig">clone(2)：provide more precise control over what pieces of execution context are shared between the calling process and the child process<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/clone.2.html" target="_blank" rel="noopener">出處</a></span></p>
+<p>行程之間就不共用了：用 <code>fork()</code> 複製出來的子行程與父行程在各自的記憶體空間執行，其中一方的記憶體寫入、檔案對應與解除對應，都不影響另一方。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/fork.2.html" target="_blank" rel="noopener">出處</a></p>
+<p>Linux 建立執行緒其實也用同一套機制，系統呼叫是 clone(2)：</p>
+<ul>
+<li>它跟 fork 一樣建立「子行程」，但能更精確地控制呼叫者與子行程共用哪些執行環境，例如要不要共用虛擬位址空間、檔案描述子表<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/clone.2.html" target="_blank" rel="noopener">出處</a></li>
+<li>帶上 <code>CLONE_VM</code> 旗標時，呼叫者與子行程在同一個記憶體空間執行，一方寫入的記憶體，另一方也看得到</li>
+</ul>
 <p>所以在 Linux 上，「行程」與「執行緒」的差別，主要就在共用了多少東西。</p>
-<p><strong>對到 Java：</strong>一個 JVM 就是一個行程；JVM 堆疊每條執行緒一個、堆所有執行緒共用，正是上圖的樣子（JVM 的五塊記憶體見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉）。<code>Thread</code> 的文件說，平台執行緒「通常與作業系統排程的核心執行緒一對一對應」（typically mapped 1:1 to kernel threads scheduled by the operating system），「通常有很大的堆疊與其他由作業系統維護的資源」，「可能是有限的資源」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html" target="_blank" rel="noopener">出處</a> 在 Linux 上，<code>/proc/self/status</code> 的 <code>Threads</code> 欄位就是「這個行程有幾條執行緒」（Number of threads in process containing this thread.）<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_status.5.html" target="_blank" rel="noopener">出處</a>，可以直接數給你看：</p>
+<p><strong>對到 Java：</strong>一個 JVM 就是一個行程；JVM 堆疊每條執行緒一個、堆所有執行緒共用，正是上圖的樣子（JVM 的五塊記憶體見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉）。平台執行緒：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>通常與作業系統排程的核心執行緒一對一對應</li>
+<li>通常有很大的堆疊與其他由作業系統維護的資源</li>
+<li>可能是有限的資源</li>
+</ul>
+<p>在 Linux 上，<code>/proc/self/status</code> 的 <code>Threads</code> 欄位就是這個行程有幾條執行緒<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_status.5.html" target="_blank" rel="noopener">出處</a>，可以直接數給你看：</p>
 <pre><code>static String status(String key) throws IOException {
     for (String line : Files.readAllLines(Path.of("/proc/self/status"))) {
         if (line.startsWith(key)) {
@@ -86,12 +101,12 @@ System.out.println("平台執行緒都結束之後 Threads: " + status("Threads:
 <div class="drill">
   <p class="dq">Linux 的 clone(2) 帶上 <code>CLONE_VM</code> 旗標，產生的東西跟呼叫者是什麼關係？</p>
   <ul class="dopts"><li>完全獨立的記憶體，跟 fork 一樣</li><li data-ok>共用同一個記憶體空間，寫入互相看得到</li><li>只共用程式碼，資料各自一份</li><li>只共用檔案描述子，記憶體各自一份</li></ul>
-  <p class="dexp">clone(2) 的 <code>CLONE_VM</code> 說明：呼叫者與子行程在同一個記憶體空間執行，記憶體寫入互相可見。這正是「執行緒」在 Linux 上的樣子。</p>
+  <p class="dexp">clone(2) 帶 <code>CLONE_VM</code> 時，呼叫者與子行程在同一個記憶體空間執行，記憶體寫入互相可見。這正是「執行緒」在 Linux 上的樣子。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的實驗，開了 200 條平台執行緒後，<code>Threads</code> 從 18 變成 226。這說明什麼？</p>
   <ul class="dopts"><li data-ok>平台執行緒與作業系統執行緒一對一</li><li>JVM 會自動把 200 條合併成 1 條再交給作業系統</li><li>平台執行緒只存在 JVM 裡，作業系統看不到它們</li><li>多出來的 8 條是那 200 條執行緒的備份</li></ul>
-  <p class="dexp">作業系統那邊多了 200 條，跟 <code>Thread</code> 文件說的「通常與核心執行緒一對一對應」相符。多出來的另外 8 條是 JVM 自己的執行緒，數量會隨執行情況變動。</p>
+  <p class="dexp">作業系統那邊多了 200 條，跟平台執行緒「通常與核心執行緒一對一對應」相符。多出來的另外 8 條是 JVM 自己的執行緒，數量會隨執行情況變動。</p>
 </div>
 <div class="drill">
   <p class="dq">一個剛啟動、只跑 <code>main</code> 的 Java 程式，作業系統看到它有幾條執行緒？</p>
@@ -101,16 +116,21 @@ System.out.println("平台執行緒都結束之後 Threads: " + status("Threads:
 <div class="drill">
   <p class="dq">為什麼一個執行緒寫壞了堆裡的共用物件，同一個行程的其他執行緒會受影響，另一個行程卻不會？</p>
   <ul class="dopts"><li data-ok>因為執行緒共用位址空間，行程之間不共用</li><li>因為執行緒的執行速度比行程慢很多</li><li>因為作業系統會自動修復其他行程的記憶體</li><li>因為堆只存在第一條執行緒的堆疊裡</li></ul>
-  <p class="dexp">OSTEP：執行緒跟行程只差在共用同一個位址空間。這是多執行緒好溝通、也容易互相踩到的根源；行程之間隔離較好，但交換資料要靠行程間通訊。</p>
+  <p class="dexp">執行緒跟行程只差在共用同一個位址空間。這是多執行緒好溝通、也容易互相踩到的根源；行程之間隔離較好，但交換資料要靠行程間通訊。</p>
 </div>
 </section>
 
 <section>
 <p class="era">程式不能自己碰硬體</p>
 <h3 class="head">使用者態、核心態與系統呼叫</h3>
-<p>如果每個程式都能直接讀寫磁碟，權限檢查就形同虛設。所以 CPU 提供兩種模式：OSTEP 說，在<strong>使用者態</strong>（user mode）執行的程式碼「能做的事受到限制」，例如不能直接發出 I/O 請求，硬做會引發例外，作業系統多半就把那個行程終止；作業系統本身在<strong>核心態</strong>（kernel mode）執行，「想做什麼都可以，包括發出 I/O 請求、執行各種受限制的指令」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a> <strong>核心</strong>（kernel）是作業系統常駐在核心態、管理硬體與資源的那部分。</p>
-<p>使用者程式要讀檔、開網路連線、建立行程，就要請核心代勞，這叫<strong>系統呼叫</strong>（system call）。syscalls(2) 手冊的第一句：「系統呼叫是應用程式與 Linux 核心之間最根本的介面」；而且通常不是直接呼叫，而是透過 glibc（Linux 上最常用的 C 語言標準函式庫）裡的包裝函式。<span class="orig">syscalls(2)：The system call is the fundamental interface between an application and the Linux kernel.<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/syscalls.2.html" target="_blank" rel="noopener">出處</a></span></p>
-<p>OSTEP 描述它的機制：程式執行一個特別的 <strong>trap 指令</strong>，「同時跳進核心並把權限提高到核心態」；核心做完事後執行 return-from-trap 指令，回到使用者程式並把權限降回使用者態。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>如果每個程式都能直接讀寫磁碟，權限檢查就形同虛設。所以 CPU 提供兩種模式：<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><strong>使用者態</strong>（user mode）：一般程式碼在這裡執行，能做的事受到限制，例如不能直接發出 I/O 請求，硬做會引發例外，作業系統多半就把那個行程終止</li>
+<li><strong>核心態</strong>（kernel mode）：作業系統本身在這裡執行，想做什麼都可以，包括發出 I/O 請求、執行各種受限制的指令</li>
+</ul>
+<p><strong>核心</strong>（kernel）是作業系統常駐在核心態、管理硬體與資源的那部分。</p>
+<p>使用者程式要讀檔、開網路連線、建立行程，就要請核心代勞，這叫<strong>系統呼叫</strong>（system call）。系統呼叫是應用程式與 Linux 核心之間最根本的介面；而且通常不是直接呼叫，而是透過 glibc（Linux 上最常用的 C 語言標準函式庫）裡的包裝函式。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/syscalls.2.html" target="_blank" rel="noopener">出處</a></p>
+<p>機制是這樣：程式執行一個特別的 <strong>trap 指令</strong>，同時跳進核心並把權限提高到核心態；核心做完事後執行 return-from-trap 指令，回到使用者程式並把權限降回使用者態。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="使用者態的 Java 程式經過 JVM 與 glibc 呼叫 write，透過 trap 進入核心態，由核心操作硬體，再用 return-from-trap 回到使用者態">
   <defs><marker id="os-2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" fill-opacity=".6"/></marker><marker id="os-2-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold-deep)"/></marker></defs>
@@ -150,7 +170,7 @@ System.out.println("平台執行緒都結束之後 Threads: " + status("Threads:
 // write(1, "\350\275\211\345\270\263\346\210\220\345\212\237\n", 13) = 13
 // 用 strace -f -c 統計整個 JVM 從啟動到結束，一次實跑共 1260 次系統呼叫</code></pre>
 <p><code>write</code> 的第一個參數 1 是標準輸出的檔案描述子（下一段會講），後面是「轉帳成功」加換行的 UTF-8 位元組（每個中文字 3 個位元組，共 13 個）。這個 Hello World 光是 JVM 啟動、載入類別、建立執行緒就做了一千多次系統呼叫（確切次數每次執行略有不同）。</p>
-<p>系統呼叫有成本：要切換模式、保存與恢復暫存器。OSTEP 引用的量測：1996 年 200 MHz 的 CPU 上，一次系統呼叫大約 4 微秒；現代 2〜3 GHz 的處理器已經在一微秒以內。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a> 這也是 <code>BufferedWriter</code> 這類緩衝存在的理由之一：攢多一點資料，一次系統呼叫寫出去（緩衝流見〈檔案與資料流〉）。它的文件建議「凡是 write() 操作可能很花成本的 Writer，都最好包一層 BufferedWriter」（it is advisable to wrap a BufferedWriter around any Writer whose write() operations may be costly, such as FileWriters and OutputStreamWriters.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/BufferedWriter.html" target="_blank" rel="noopener">出處</a> 緩衝流見〈檔案與資料流〉。</p>
+<p>系統呼叫有成本：要切換模式、保存與恢復暫存器。1996 年 200 MHz 的 CPU 上，一次系統呼叫大約 4 微秒；現代 2〜3 GHz 的處理器已經在一微秒以內。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a> 這也是 <code>BufferedWriter</code> 這類緩衝存在的理由之一：攢多一點資料，一次系統呼叫寫出去。凡是 <code>write()</code> 可能很花成本的 Writer（例如 <code>FileWriter</code>、<code>OutputStreamWriter</code>），都最好包一層 <code>BufferedWriter</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/BufferedWriter.html" target="_blank" rel="noopener">出處</a> 緩衝流見〈檔案與資料流〉。</p>
 
 <div class="drill">
   <p class="dq">一般的應用程式（例如 Java 程式）預設在哪一種 CPU 模式下執行？</p>
@@ -158,14 +178,14 @@ System.out.println("平台執行緒都結束之後 Threads: " + status("Threads:
   <p class="dexp">應用程式在使用者態執行，能做的事受限；要做 I/O 這類受限的操作，就透過系統呼叫請在核心態執行的作業系統代勞。</p>
 </div>
 <div class="drill">
-  <p class="dq">在使用者態的程式直接執行一條發出 I/O 請求的受限指令，依 OSTEP 的描述會怎樣？</p>
+  <p class="dq">在使用者態的程式直接執行一條發出 I/O 請求的受限指令，會怎樣？</p>
   <ul class="dopts"><li data-ok>處理器引發例外，行程多半被終止</li><li>指令照樣執行，只是速度比較慢</li><li>CPU 會自動切到核心態替它執行</li><li>作業系統會把它排進佇列稍後執行</li></ul>
-  <p class="dexp">OSTEP：使用者態不能發出 I/O 請求，硬做會讓處理器引發例外，作業系統可能就把行程殺掉。正確的路是系統呼叫。</p>
+  <p class="dexp">使用者態不能發出 I/O 請求，硬做會讓處理器引發例外，作業系統可能就把行程殺掉。正確的路是系統呼叫。</p>
 </div>
 <div class="drill">
   <p class="dq">程式要讀檔案時，從使用者態進到核心態，是靠什麼？</p>
   <ul class="dopts"><li>直接呼叫核心裡某個函式的記憶體位址</li><li>改寫自己行程的記憶體權限，再自己讀磁碟</li><li data-ok>執行 trap 指令發出系統呼叫</li><li>等作業系統定時來檢查有沒有要讀的檔案</li></ul>
-  <p class="dexp">OSTEP：系統呼叫要執行特別的 trap 指令，它同時跳進核心並把權限提到核心態；做完再用 return-from-trap 回來並降回使用者態。</p>
+  <p class="dexp">系統呼叫要執行特別的 trap 指令，它同時跳進核心並把權限提到核心態；做完再用 return-from-trap 回來並降回使用者態。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Linux 上，<code>System.out.println("轉帳成功")</code> 最後把字寫出去的系統呼叫是哪一個？</p>
@@ -187,9 +207,14 @@ System.out.println("平台執行緒都結束之後 Threads: " + status("Threads:
 <section>
 <p class="era">CPU 只有一顆，怎麼輪流</p>
 <h3 class="head">上下文切換：在切什麼、為什麼有成本</h3>
-<p>核心數有限，行程與執行緒卻很多，作業系統的<strong>排程器</strong>（scheduler）要決定現在讓誰跑。決定換人時，就做一次<strong>上下文切換</strong>（context switch）：OSTEP 說它概念上很簡單，作業系統「把目前執行中行程的幾個暫存器值存起來（例如存到它的核心堆疊），再把接下來要執行的那個的暫存器值還原」，於是 return-from-trap 回去時，接著跑的是另一個行程。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>執行緒之間也要切換，但 OSTEP 指出一個關鍵差別：同一個行程的執行緒之間切換時，「位址空間不變，也就是不必切換正在使用的頁表」（the address space remains the same (i.e., there is no need to switch which page table we are using)）。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener">出處</a> 頁表是下一段的主角。</p>
-<p><strong>成本：</strong>OSTEP 引用的量測，1996 年的 Linux 上一次上下文切換約 6 微秒，現代處理器已在一微秒以內；但它也提醒，作業系統的很多操作吃的是記憶體頻寬，而記憶體頻寬進步得沒有處理器速度快。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a> 一次很便宜，但如果幾千條執行緒搶幾個核心、一直切來切去，加起來就可觀；這是「平台執行緒不要開太多」的原因之一。</p>
+<p>核心數有限，行程與執行緒卻很多，作業系統的<strong>排程器</strong>（scheduler）要決定現在讓誰跑。決定換人時，就做一次<strong>上下文切換</strong>（context switch），概念上很簡單：作業系統把目前執行中行程的幾個暫存器值存起來（例如存到它的核心堆疊），再把接下來要執行的那個的暫存器值還原，於是 return-from-trap 回去時，接著跑的是另一個行程。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>執行緒之間也要切換，但有一個關鍵差別：同一個行程的執行緒之間切換時，<strong>位址空間不變</strong>，不必切換正在使用的頁表。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener">出處</a> 頁表是下一段的主角。</p>
+<p><strong>成本：</strong></p>
+<ul>
+<li>1996 年的 Linux 上，一次上下文切換約 6 微秒；現代處理器已在一微秒以內</li>
+<li>作業系統的很多操作吃的是記憶體頻寬，而記憶體頻寬進步得沒有處理器速度快<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>一次很便宜，但如果幾千條執行緒搶幾個核心、一直切來切去，加起來就可觀；這是「平台執行緒不要開太多」的原因之一。</p>
 <p>Linux 會替每條執行緒記錄切換次數：<code>voluntary_ctxt_switches</code> 與 <code>nonvoluntary_ctxt_switches</code>，分別是自願與非自願的上下文切換次數。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_status.5.html" target="_blank" rel="noopener">出處</a> 自願的意思是執行緒自己要等（睡覺、等 I/O、等鎖），把 CPU 讓出來；非自願是時間到了被排程器換下來。讓一條執行緒睡 100 次：</p>
 <pre><code>Thread t = Thread.ofPlatform().start(() -&gt; {
     try {
@@ -216,12 +241,12 @@ t.join();
 <div class="drill">
   <p class="dq">上下文切換主要在保存與還原什麼？</p>
   <ul class="dopts"><li>整個行程的堆，要搬到另一塊記憶體</li><li>磁碟上那個行程開啟的檔案內容</li><li data-ok>目前執行者的暫存器與程式計數器</li><li>所有開啟的網路連線，要先斷線再重連</li></ul>
-  <p class="dexp">OSTEP：上下文切換就是把目前執行者的暫存器（含 PC、核心堆疊指標）存起來，再還原下一個執行者的。堆不必搬，它一直在記憶體裡。</p>
+  <p class="dexp">上下文切換就是把目前執行者的暫存器（含 PC、核心堆疊指標）存起來，再還原下一個執行者的。堆不必搬，它一直在記憶體裡。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個行程的兩條執行緒之間切換，跟兩個行程之間切換相比，少了哪一件事？</p>
   <ul class="dopts"><li>不必保存與還原暫存器</li><li data-ok>不必切換頁表，位址空間相同</li><li>不必經過核心的排程器</li><li>不必進入核心態，在使用者態就切完</li></ul>
-  <p class="dexp">OSTEP：執行緒之間切換時位址空間不變，不必換頁表；暫存器一樣要存、一樣由核心的排程器決定。</p>
+  <p class="dexp">執行緒之間切換時位址空間不變，不必換頁表；暫存器一樣要存、一樣由核心的排程器決定。</p>
 </div>
 <div class="drill">
   <p class="dq">一條執行緒呼叫 <code>Thread.sleep(1)</code> 之後讓出 CPU，這屬於哪一種上下文切換？</p>
@@ -229,9 +254,9 @@ t.join();
   <p class="dexp">執行緒自己要等而讓出 CPU，算自願切換（<code>voluntary_ctxt_switches</code>）；時間片用完被排程器換下來才是非自願。實驗裡睡 100 次，自願切換多了一百出頭次。</p>
 </div>
 <div class="drill">
-  <p class="dq">依 OSTEP 引用的量測，現代 2〜3 GHz 的處理器上，一次上下文切換大約多久？</p>
+  <p class="dq">現代 2〜3 GHz 的處理器上，一次上下文切換大約多久？</p>
   <ul class="dopts"><li>幾毫秒</li><li>幾秒</li><li>幾奈秒以內，可以忽略</li><li data-ok>一微秒以內</li></ul>
-  <p class="dexp">OSTEP：1996 年約 6 微秒，現代系統在一微秒以內。單次很便宜，但數千條執行緒頻繁切換，累積起來就不能忽略。</p>
+  <p class="dexp">1996 年約 6 微秒，現代系統在一微秒以內。單次很便宜，但數千條執行緒頻繁切換，累積起來就不能忽略。</p>
 </div>
 <div class="drill">
   <p class="dq">一台有 8 個邏輯處理器的伺服器（<code>Runtime.<wbr>getRuntime().<wbr>availableProcessors()</code> 回傳 8）開了 5,000 條平台執行緒都在忙著算東西（不等 I/O），最可能出現什麼情況？</p>
@@ -243,20 +268,26 @@ t.join();
 <section>
 <p class="era">每個行程都以為自己有一整塊記憶體</p>
 <h3 class="head">虛擬記憶體與分頁：頁表、分頁錯誤與 swap</h3>
-<p>每個行程看到的記憶體位址，都不是實體記憶體上的真正位置。OSTEP：虛擬記憶體系統「負責替每個執行中的程式提供一個很大、稀疏、私有的位址空間的假象」（The VM system is responsible for providing the illusion of a large, sparse, private address space to each running program），作業系統在硬體協助下，把每一個虛擬位址轉成實體位址；它還特別強調「你在程式裡印出的任何位址，都是虛擬位址」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf" target="_blank" rel="noopener">出處</a> 這就是為什麼兩個行程可以用同一個位址存不同的東西，也不會讀到對方的資料。</p>
+<p>每個行程看到的記憶體位址，都不是實體記憶體上的真正位置：<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>虛擬記憶體系統替每個執行中的程式，提供一個很大、稀疏、私有的位址空間的假象</li>
+<li>作業系統在硬體協助下，把每一個虛擬位址轉成實體位址</li>
+<li>你在程式裡印出的任何位址，都是虛擬位址</li>
+</ul>
+<p>這就是為什麼兩個行程可以用同一個位址存不同的東西，也不會讀到對方的資料。</p>
 <p><strong>分頁</strong>（paging）是做法：</p>
 <ul class="plainlist">
-<li><b>頁與頁框</b>：OSTEP 把位址空間切成固定大小的單位叫<strong>頁</strong>（page），實體記憶體切成同樣大小的格子叫<strong>頁框</strong>（page frame）。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-paging.pdf" target="_blank" rel="noopener">出處</a></li>
-<li><b>頁表</b>：哪一頁放在哪一格，記在<strong>頁表</strong>（page table）裡，而且「頁表是每個行程一份的資料結構」。<span class="orig">OSTEP：this page table is a per-process data structure<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-paging.pdf" target="_blank" rel="noopener">出處</a></span></li>
-<li><b>TLB</b>：每次存取記憶體都查頁表太慢，所以 CPU 裡有 <strong>TLB</strong>（translation-lookaside buffer），OSTEP 說它其實就是「常用的虛擬到實體位址轉換的硬體快取」，更好的名字是「位址轉換快取」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><b>頁與頁框</b>：位址空間切成固定大小的單位叫<strong>頁</strong>（page），實體記憶體切成同樣大小的格子叫<strong>頁框</strong>（page frame）。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-paging.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><b>頁表</b>：哪一頁放在哪一格，記在<strong>頁表</strong>（page table）裡，而且頁表是每個行程一份的資料結構。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-paging.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><b>TLB</b>：每次存取記憶體都查頁表太慢，所以 CPU 裡有 <strong>TLB</strong>（translation-lookaside buffer），它其實就是常用的虛擬到實體位址轉換的硬體快取，更好的名字是「位址轉換快取」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p><strong>分頁錯誤與 swap。</strong>實體記憶體不夠時，作業系統把暫時不用的頁搬到磁碟上一塊叫 <strong>swap 空間</strong>（swap space）的地方。</p>
 <ul class="plainlist">
-<li><b>分頁錯誤</b>：頁表的每一筆有一個「存在位元」（present bit）：是 1 表示這頁在實體記憶體裡；是 0 表示不在，存取它就觸發<strong>分頁錯誤</strong>（page fault），由作業系統把它載進來。OSTEP 說這其實是合法的存取，「應該叫 page miss 才對」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf" target="_blank" rel="noopener">出處</a></li>
-<li><b>需求分頁</b>：多數頁採<strong>需求分頁</strong>（demand paging）：「在被存取的時候才把那頁載進記憶體」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf" target="_blank" rel="noopener">出處</a></li>
-<li><b>thrashing</b>：如果所有行程要的記憶體遠超過實體記憶體，系統就會一直在換頁，OSTEP 稱為 <strong>thrashing</strong>（不停換頁、幾乎做不了正事的狀態），這時機器看起來像當掉一樣慢。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><b>分頁錯誤</b>：頁表的每一筆有一個「存在位元」（present bit）：是 1 表示這頁在實體記憶體裡；是 0 表示不在，存取它就觸發<strong>分頁錯誤</strong>（page fault），由作業系統把它載進來。這其實是合法的存取，叫 page miss 會更貼切。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><b>需求分頁</b>：多數頁採<strong>需求分頁</strong>（demand paging）：在被存取的時候才把那頁載進記憶體。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf" target="_blank" rel="noopener">出處</a></li>
+<li><b>thrashing</b>：如果所有行程要的記憶體遠超過實體記憶體，系統就會一直在換頁，這叫 <strong>thrashing</strong>（不停換頁、幾乎做不了正事的狀態），這時機器看起來像當掉一樣慢。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>Linux 記錄每個行程的分頁錯誤次數：<code>/proc/self/stat</code> 的第 10 欄 <code>minflt</code> 是「不需要從磁碟載入分頁」的次數，第 12 欄 <code>majflt</code> 是「需要從磁碟載入」的次數。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html" target="_blank" rel="noopener">出處</a> Java 的 <code>FileChannel.map</code> 在 Linux 上用 mmap(2)（「在呼叫者的虛擬位址空間建立一個新的對應」）把檔案對應進記憶體<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/mmap.2.html" target="_blank" rel="noopener">出處</a>，正好看得到「對應了不等於載入了」：</p>
+<p>Linux 記錄每個行程的分頁錯誤次數：<code>/proc/self/stat</code> 的第 10 欄 <code>minflt</code> 是不需要從磁碟載入分頁的次數，第 12 欄 <code>majflt</code> 是需要從磁碟載入的次數。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html" target="_blank" rel="noopener">出處</a> Java 的 <code>FileChannel.map</code> 在 Linux 上用 mmap(2)（在呼叫者的虛擬位址空間建立一個新的對應）把檔案對應進記憶體<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/mmap.2.html" target="_blank" rel="noopener">出處</a>，正好看得到「對應了不等於載入了」：</p>
 <pre><code>// /proc/self/stat 第 10 欄是 minflt，第 12 欄是 majflt
 static long[] faults() throws IOException {
     String stat = Files.readString(Path.of("/proc/self/stat"));
@@ -283,13 +314,13 @@ try (FileChannel ch = FileChannel.open(file, StandardOpenOption.READ, StandardOp
 // 每頁碰一次之後再增加 minflt=3256〜3258（64 MB ÷ 4 KB = 16384 頁）
 // strace 看到 map 那一行是：mmap(NULL, 67108864, PROT_READ|PROT_WRITE, MAP_SHARED, 6, 0)</code></pre>
 <p>對應 64 MB 時幾乎沒有分頁錯誤，真的去寫那些頁，分頁錯誤才一口氣多了幾千次。次數跟頁數不是一比一，那是核心處理分頁錯誤時的實作細節；要看的是「第一次碰到才處理」這件事。</p>
-<p class="muted">fork(2) 手冊的附註：Linux 的 <code>fork()</code> 用<strong>寫入時複製</strong>（copy-on-write）的分頁實作，所以「唯一的代價是複製父行程頁表的時間與記憶體」，資料頁要等有人寫入才真的複製。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/fork.2.html" target="_blank" rel="noopener">出處</a> JVM 的堆、Metaspace 也都在這個行程的虛擬位址空間裡，各自怎麼設上限見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+<p class="muted">Linux 的 <code>fork()</code> 用<strong>寫入時複製</strong>（copy-on-write）的分頁實作，所以唯一的代價是複製父行程頁表的時間與記憶體，資料頁要等有人寫入才真的複製。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/fork.2.html" target="_blank" rel="noopener">出處</a> JVM 的堆、Metaspace 也都在這個行程的虛擬位址空間裡，各自怎麼設上限見〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
 <p class="formula">位址都是虛擬的；頁表每個行程一份；頁不在實體記憶體就分頁錯誤；記憶體嚴重不足就不停換頁（thrashing）</p>
 
 <div class="drill">
   <p class="dq">Java 程式裡印出一個物件的記憶體位址（假設能印），那是什麼位址？</p>
   <ul class="dopts"><li>實體記憶體上的真正位置</li><li data-ok>這個行程虛擬位址空間裡的位址</li><li>磁碟上 swap 空間裡的位置</li><li>CPU 快取裡那一格的編號</li></ul>
-  <p class="dexp">OSTEP：使用者程式看得到的任何位址都是虛擬位址，只有作業系統與硬體知道它實際在實體記憶體的哪裡。</p>
+  <p class="dexp">使用者程式看得到的任何位址都是虛擬位址，只有作業系統與硬體知道它實際在實體記憶體的哪裡。</p>
 </div>
 <div class="drill">
   <p class="dq">兩個不同的行程都存取虛擬位址 <code>0x1000</code>，會讀到同一份資料嗎？</p>
@@ -299,12 +330,12 @@ try (FileChannel ch = FileChannel.open(file, StandardOpenOption.READ, StandardOp
 <div class="drill">
   <p class="dq">TLB 是什麼？</p>
   <ul class="dopts"><li data-ok>CPU 裡快取位址轉換結果的硬體</li><li>磁碟上存放被換出分頁的那塊區域</li><li>每個行程一份、記錄頁在哪一格的頁表</li><li>作業系統決定下一個誰執行的排程佇列</li></ul>
-  <p class="dexp">OSTEP：TLB 是記憶體管理單元的一部分，就是常用位址轉換的硬體快取，所以更好的名字是「位址轉換快取」。磁碟上那塊是 swap 空間。</p>
+  <p class="dexp">TLB 是記憶體管理單元的一部分，就是常用位址轉換的硬體快取，所以更好的名字是「位址轉換快取」。磁碟上那塊是 swap 空間。</p>
 </div>
 <div class="drill">
   <p class="dq">程式存取一個「存在位元」是 0 的頁，會發生什麼事？</p>
   <ul class="dopts"><li>程式立刻被作業系統終止</li><li>CPU 讀到的資料全部是 0</li><li>作業系統改給它別的行程的那一頁</li><li data-ok>分頁錯誤，作業系統把頁載入</li></ul>
-  <p class="dexp">存在位元是 0 表示那頁不在實體記憶體（可能在 swap 上）。存取它觸發分頁錯誤，由作業系統處理，OSTEP 說這是合法存取，應該叫 page miss。</p>
+  <p class="dexp">存在位元是 0 表示那頁不在實體記憶體（可能在 swap 上）。存取它觸發分頁錯誤，由作業系統處理，這是合法存取，叫 page miss 會更貼切。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的實驗，<code>ch.map(...)</code> 對應了 64 MB，分頁錯誤卻只多了 70 次左右。為什麼？</p>
@@ -319,7 +350,7 @@ try (FileChannel ch = FileChannel.open(file, StandardOpenOption.READ, StandardOp
 <div class="drill">
   <p class="dq">一台伺服器上所有行程要的記憶體遠超過實體記憶體，系統一直在把頁換進換出，這叫什麼？</p>
   <ul class="dopts"><li>死結（deadlock）</li><li>上下文切換（context switch）</li><li>競爭條件（race condition）</li><li data-ok>thrashing（不停換頁）</li></ul>
-  <p class="dexp">OSTEP：記憶體被過度要求、系統不斷在換頁的狀況叫 thrashing。這時大部分時間花在等磁碟，什麼都很慢。</p>
+  <p class="dexp">記憶體被過度要求、系統不斷在換頁的狀況叫 thrashing。這時大部分時間花在等磁碟，什麼都很慢。</p>
 </div>
 <div class="drill">
   <p class="dq">Linux 的 <code>fork()</code> 為什麼不會一開始就把父行程的記憶體全部複製一份？</p>
@@ -331,7 +362,14 @@ try (FileChannel ch = FileChannel.open(file, StandardOpenOption.READ, StandardOp
 <section>
 <p class="era">檔案、網路連線都是一個號碼</p>
 <h3 class="head">檔案描述子</h3>
-<p>open(2) 手冊：<code>open()</code> 的回傳值是一個<strong>檔案描述子</strong>（file descriptor），「一個小的非負整數，是這個行程開啟檔案描述子表裡某一筆的索引」，之後的 <code>read</code>、<code>write</code>、<code>lseek</code> 等系統呼叫都用它指稱那個開啟的檔案；而且新拿到的會是「目前沒在用的最小號碼」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a> 不只檔案：socket、pipe、epoll 實體也都是檔案描述子。<code>/proc/self/fd/</code> 目錄裡每個開啟的檔案一個項目，0 是標準輸入、1 是標準輸出、2 是標準錯誤。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_fd.5.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>open()</code> 的回傳值是一個<strong>檔案描述子</strong>（file descriptor）：<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>它是一個小的非負整數，是這個行程「開啟檔案描述子表」裡某一筆的索引</li>
+<li>之後的 <code>read</code>、<code>write</code>、<code>lseek</code> 等系統呼叫都用它指稱那個開啟的檔案</li>
+<li>新拿到的會是目前沒在用的最小號碼</li>
+<li>不只檔案：socket、pipe、epoll 實體也都是檔案描述子</li>
+</ul>
+<p><code>/proc/self/fd/</code> 目錄裡每個開啟的檔案一個項目，0 是標準輸入、1 是標準輸出、2 是標準錯誤。<a class="fixsrc" href="https://man7.org/linux/man-pages/man5/proc_pid_fd.5.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>static long openFds() throws IOException {
     try (var s = Files.list(Path.of("/proc/self/fd"))) {
         return s.count();
@@ -352,7 +390,7 @@ System.out.println("關掉之後：" + openFds());
 // 一開始打開的檔案描述子數量：8
 // 多開三個之後：11
 // 關掉之後：8</code></pre>
-<p>檔案描述子是有限的：open(2) 的錯誤碼 <code>EMFILE</code> 表示「已經達到每個行程開啟檔案描述子數量的上限」（The per-process limit on the number of open file descriptors has been reached）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a> errno(3) 列出 <code>EMFILE</code> 的說明文字就是「Too many open files」<a class="fixsrc" href="https://man7.org/linux/man-pages/man3/errno.3.html" target="_blank" rel="noopener">出處</a>，Java 丟出的 <code>IOException</code> 訊息裡看到的也是這句。檔案、連線用完沒關，描述子就一直占著，這也是 try-with-resources 一定要用的原因（見〈例外機制〉）。</p>
+<p>檔案描述子是有限的：open(2) 的錯誤碼 <code>EMFILE</code> 表示已經達到每個行程開啟檔案描述子數量的上限。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a> <code>EMFILE</code> 的說明文字是 <code>Too many open files</code><a class="fixsrc" href="https://man7.org/linux/man-pages/man3/errno.3.html" target="_blank" rel="noopener">出處</a>，Java 丟出的 <code>IOException</code> 訊息裡看到的也是這句。檔案、連線用完沒關，描述子就一直占著，這也是 try-with-resources 一定要用的原因（見〈例外機制〉）。</p>
 
 <div class="drill">
   <p class="dq">檔案描述子是什麼？</p>
@@ -391,10 +429,15 @@ System.out.println("關掉之後：" + openFds());
 <tr><th>I/O 多工</th><td>一條執行緒同時盯很多個描述子，誰好了就處理誰</td><td><code>select</code>、<code>poll</code>、<code>epoll</code></td><td>NIO 的 <code>Selector</code></td></tr>
 <tr><th>非同步</th><td>先交出請求、馬上回來，做完再通知或去查</td><td>POSIX AIO、<code>io_uring</code></td><td><code>AsynchronousFileChannel</code> 這類 API（OpenJDK 在 Linux 上用執行緒池模擬，見表下說明）</td></tr>
 </tbody></table></div>
-<p class="muted">表格最後一列的補充：<code>AsynchronousFileChannel</code> 的 API 是非同步的，但 OpenJDK 21 在 Linux 上沒有用 POSIX AIO 或 <code>io_uring</code>，而是用執行緒池跑一般的阻塞讀寫來模擬。Linux 走的 <code>UnixChannelFactory</code> 直接回傳 <code>SimpleAsynchronousFileChannelImpl</code>（註解寫 for now use simple implementation）<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/unix/classes/sun/nio/fs/UnixChannelFactory.java#L171" target="_blank" rel="noopener">出處</a>，這個類別的說明是「可攜的實作，給不支援非同步檔案 I/O 的作業系統用」（"Portable" implementation of AsynchronousFileChannel for use on operating systems that don't support asynchronous file I/O.）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/sun/nio/ch/SimpleAsynchronousFileChannelImpl.java#L37" target="_blank" rel="noopener">出處</a></p>
-<p><strong>阻塞與非阻塞。</strong>OSTEP 的旁註：阻塞（或稱同步）介面「把工作全部做完才回到呼叫者」，非阻塞（或稱非同步）介面「開始做一些工作就立刻回來」；阻塞最常見的原因就是 I/O。<span class="orig">OSTEP：Blocking (or synchronous) interfaces do all of their work before returning to the caller; non-blocking (or asynchronous) interfaces begin some work but return immediately<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener">出處</a></span></p>
-<p>OSTEP 這裡把「同步」當成「阻塞」的同義詞、「非同步」當成「非阻塞」的同義詞；上面的表格照常見的分法，把「立刻回來說現在沒有、要自己再問」的非阻塞，跟「交出請求、做完再通知」的非同步拆成兩種。這種四分法沒有一份標準文件統一定義，不同書的切法略有出入。</p>
-<p>Linux 用 <code>O_NONBLOCK</code> 旗標開成非阻塞模式後，「之後在這個檔案描述子上的 I/O 都不會讓呼叫的行程等待」<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a>；這時讀 socket 讀不到，<code>read</code> 回傳錯誤 <code>EAGAIN</code>（或 <code>EWOULDBLOCK</code>）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/read.2.html" target="_blank" rel="noopener">出處</a> Java 的非阻塞 <code>SocketChannel</code> 讀不到時回傳 0：</p>
+<p class="muted">表格最後一列的補充：<code>AsynchronousFileChannel</code> 的 API 是非同步的，但 OpenJDK 21 在 Linux 上沒有用 POSIX AIO 或 <code>io_uring</code>，而是用執行緒池跑一般的阻塞讀寫來模擬。Linux 走的 <code>UnixChannelFactory</code> 直接回傳 <code>SimpleAsynchronousFileChannelImpl</code>（OpenJDK 目前先用這個簡單的實作）<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/unix/classes/sun/nio/fs/UnixChannelFactory.java#L171" target="_blank" rel="noopener">出處</a>，這個類別是給不支援非同步檔案 I/O 的作業系統用的可攜實作。這是 OpenJDK 的實作做法，API 規格沒有規定。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/sun/nio/ch/SimpleAsynchronousFileChannelImpl.java#L37" target="_blank" rel="noopener">出處</a></p>
+<p><strong>阻塞與非阻塞。</strong></p>
+<ul>
+<li><b>阻塞</b>（或稱同步）介面：把工作全部做完才回到呼叫者</li>
+<li><b>非阻塞</b>（或稱非同步）介面：開始做一些工作就立刻回來</li>
+<li>阻塞最常見的原因就是 I/O<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>有些教科書（例如 OSTEP）把「同步」當成「阻塞」的同義詞、「非同步」當成「非阻塞」的同義詞；上面的表格照常見的分法，把「立刻回來說現在沒有、要自己再問」的非阻塞，跟「交出請求、做完再通知」的非同步拆成兩種。這種四分法沒有一份標準文件統一定義，不同書的切法略有出入。</p>
+<p>Linux 用 <code>O_NONBLOCK</code> 旗標開成非阻塞模式後，之後在這個檔案描述子上的 I/O 都不會讓呼叫的行程等待<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/open.2.html" target="_blank" rel="noopener">出處</a>；這時讀 socket 讀不到，<code>read</code> 回傳錯誤 <code>EAGAIN</code>（或 <code>EWOULDBLOCK</code>）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/read.2.html" target="_blank" rel="noopener">出處</a> Java 的非阻塞 <code>SocketChannel</code> 讀不到時回傳 0：</p>
 <pre><code>try (ServerSocketChannel server = ServerSocketChannel.open().bind(new InetSocketAddress("127.0.0.1", 0));
      SocketChannel client = SocketChannel.open(server.getLocalAddress());
      SocketChannel accepted = server.accept()) {
@@ -413,14 +456,14 @@ System.out.println("關掉之後：" + openFds());
 // 對方寫了 3 個位元組之後，read 回傳 3</code></pre>
 <p><strong>I/O 多工</strong>（I/O multiplexing）解決的是「一條執行緒顧很多條連線」：與其一條一條輪流去試，不如請核心一次盯住全部，有誰好了再叫醒我。三代做法：</p>
 <ul class="plainlist">
-<li><strong><code>select</code></strong>：等到一個或多個描述子「準備好」做某類 I/O；但手冊開頭就警告它「只能監看號碼小於 <code>FD_SETSIZE</code>（1024）的描述子」，「現代的應用程式都應該改用 poll(2) 或 epoll(7)」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/select.2.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong><code>select</code></strong>：等到一個或多個描述子「準備好」做某類 I/O；但它只能監看號碼小於 <code>FD_SETSIZE</code>（1024）的描述子，現代的應用程式都應該改用 poll(2) 或 epoll(7)。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/select.2.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong><code>poll</code></strong>：做的事跟 select 類似，傳入一個描述子陣列，沒有 1024 的限制。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/poll.2.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong><code>epoll</code></strong>（Linux 專有）：在核心裡建一個 epoll 實體，裡面有「關注清單」與「就緒清單」，就緒清單由核心依 I/O 活動動態填入；手冊說它「在監看大量描述子時擴充性很好」（scales well to large numbers of watched file descriptors）。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/epoll.7.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong><code>epoll</code></strong>（Linux 專有）：在核心裡建一個 epoll 實體，裡面有「關注清單」與「就緒清單」，就緒清單由核心依 I/O 活動動態填入；監看大量描述子時擴充性很好。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/epoll.7.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p><strong>非同步 I/O</strong>：OSTEP 說它讓應用程式「發出 I/O 請求後立刻拿回控制權，不必等 I/O 完成」，另有介面查詢哪些 I/O 已經做完。它要解決的是事件迴圈的死穴：只有一條執行緒在跑迴圈時，任何一個會阻塞的呼叫都會讓整台伺服器停住，所以 OSTEP 寫下規則「不准有阻塞的呼叫」。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener">出處</a> Linux 較新的非同步介面是 io_uring，用使用者空間與核心空間共用的環狀緩衝區交換請求與結果。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/io_uring.7.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>非同步 I/O</strong>：應用程式發出 I/O 請求後立刻拿回控制權，不必等 I/O 完成，另有介面查詢哪些 I/O 已經做完。它要解決的是事件迴圈的死穴：只有一條執行緒在跑迴圈時，任何一個會阻塞的呼叫都會讓整台伺服器停住，所以事件迴圈的規則是<strong>不准有阻塞的呼叫</strong>。<a class="fixsrc" href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener">出處</a> Linux 較新的非同步介面是 io_uring，用使用者空間與核心空間共用的環狀緩衝區交換請求與結果。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/io_uring.7.html" target="_blank" rel="noopener">出處</a></p>
 <p><strong>Java 的 Selector 在 Linux 上就是 epoll。</strong></p>
 <ul class="plainlist">
-<li><b>文件</b>：<code>Selector</code> 的文件說它是「SelectableChannel 物件的多工器」，用 <code>open()</code> 建立時採用「系統預設的 selector 提供者」。<span class="orig">Java 文件：A multiplexor of SelectableChannel objects.<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/channels/Selector.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>API 規定</b>：<code>Selector</code> 是 SelectableChannel 物件的多工器，用 <code>open()</code> 建立時採用系統預設的 selector 提供者。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/channels/Selector.html" target="_blank" rel="noopener">出處</a></li>
 <li><b>原始碼</b>：OpenJDK 21 的 Linux 版原始碼裡，預設提供者直接寫死成 <code>EPollSelectorProvider::new</code><a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/linux/classes/sun/nio/ch/DefaultSelectorProvider.java" target="_blank" rel="noopener">出處</a>，底層呼叫的是 <code>epoll_create1</code>、<code>epoll_ctl</code>、<code>epoll_wait</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/linux/native/libnio/ch/EPoll.c" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>實跑對照：</p>
@@ -458,9 +501,9 @@ try (Selector sel = Selector.open();
   <p class="dexp">實跑回傳 0、幾乎不花時間。Java 用 -1 表示對方已經關閉連線，跟「現在沒資料」分開。</p>
 </div>
 <div class="drill">
-  <p class="dq">為什麼 select(2) 手冊建議現代程式改用 poll 或 epoll？</p>
+  <p class="dq">為什麼現代程式建議改用 poll 或 epoll，不用 select(2)？</p>
   <ul class="dopts"><li>因為 select 只能用在檔案，不能用在 socket</li><li data-ok>因為 select 只能監看號碼小於 1024 的描述子</li><li>因為 select 一定會阻塞</li><li>因為 select 已經從 Linux 移除</li></ul>
-  <p class="dexp">手冊開頭的警告：select 只能監看號碼小於 FD_SETSIZE（1024）的描述子，而且這個限制不會改。select 本身還在，也能設逾時。</p>
+  <p class="dexp">select 只能監看號碼小於 FD_SETSIZE（1024）的描述子，而且這個限制不會改。select 本身還在，也能設逾時。</p>
 </div>
 <div class="drill">
   <p class="dq">epoll 實體裡的「就緒清單」是誰填的？</p>
@@ -475,19 +518,25 @@ try (Selector sel = Selector.open();
 <div class="drill">
   <p class="dq">用「一條執行緒跑事件迴圈」的伺服器（例如用一個 Selector 顧所有連線），在處理某個事件時呼叫了一個會阻塞的資料庫查詢，會怎樣？</p>
   <ul class="dopts"><li>只有那條連線變慢</li><li data-ok>整個事件迴圈停住，所有連線都等它</li><li>Selector 會自動開新執行緒處理</li><li>資料庫查詢會自動變成非阻塞</li></ul>
-  <p class="dexp">OSTEP：事件式的系統只有主迴圈一條在跑，任何阻塞呼叫都會讓整個伺服器停住，所以規則是「不准有阻塞的呼叫」。實務上把阻塞工作交給另外的執行緒池。</p>
+  <p class="dexp">事件式的系統只有主迴圈一條在跑，任何阻塞呼叫都會讓整個伺服器停住，所以規則是不准有阻塞的呼叫。實務上把阻塞工作交給另外的執行緒池。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一個描述最接近「非同步 I/O」？</p>
   <ul class="dopts"><li>呼叫後一直等到資料到了才回來</li><li>呼叫後馬上回來告訴你「現在沒有」，要自己再來問</li><li>一次盯很多描述子，誰準備好了就告訴你</li><li data-ok>交出請求先回來，I/O 做完再通知或讓你查</li></ul>
-  <p class="dexp">「一直等到資料到了才回來」是阻塞；「馬上回來告訴你現在沒有」是非阻塞；「一次盯很多描述子」是 I/O 多工；「交出請求先回來，做完再通知或讓你查」才是非同步。OSTEP：非同步 I/O 讓程式發出請求後立刻拿回控制權，另有介面判斷哪些 I/O 已完成。</p>
+  <p class="dexp">「一直等到資料到了才回來」是阻塞；「馬上回來告訴你現在沒有」是非阻塞；「一次盯很多描述子」是 I/O 多工；「交出請求先回來，做完再通知或讓你查」才是非同步。非同步 I/O 讓程式發出請求後立刻拿回控制權，另有介面判斷哪些 I/O 已完成。</p>
 </div>
 </section>
 
 <section>
 <p class="era">Java 這一側怎麼對上</p>
 <h3 class="head">平台執行緒、虛擬執行緒與零拷貝</h3>
-<p>阻塞 I/O 寫起來最直覺（一條連線一條執行緒、照順序寫），但每條平台執行緒都是一條作業系統執行緒，開不了太多；I/O 多工省執行緒，程式卻要寫成事件迴圈。<strong>虛擬執行緒</strong>想兩邊都要：JEP 444 說，虛擬執行緒在作業系統執行緒上跑 Java 程式碼，但「不會在程式碼的整個生命期占住那條作業系統執行緒」；它被 JDK 的排程器<strong>掛載</strong>（mount）到一條平台執行緒（叫載體，carrier）上執行，「通常在 I/O 或 <code>BlockingQueue.take()</code> 這類阻塞操作時卸載（unmount）」，等操作可以完成（例如 socket 收到資料）再交回排程器。<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a> 所以你照阻塞的方式寫，底層的作業系統執行緒卻沒有被卡住。同樣的計數實驗：</p>
+<p>阻塞 I/O 寫起來最直覺（一條連線一條執行緒、照順序寫），但每條平台執行緒都是一條作業系統執行緒，開不了太多；I/O 多工省執行緒，程式卻要寫成事件迴圈。<strong>虛擬執行緒</strong>想兩邊都要：<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>虛擬執行緒在作業系統執行緒上跑 Java 程式碼，但不會在程式碼的整個生命期占住那條作業系統執行緒</li>
+<li>它被 JDK 的排程器<strong>掛載</strong>（mount）到一條平台執行緒（叫載體，carrier）上執行</li>
+<li>通常在 I/O 或 <code>BlockingQueue.take()</code> 這類阻塞操作時<strong>卸載</strong>（unmount），等操作可以完成（例如 socket 收到資料）再交回排程器</li>
+</ul>
+<p>所以你照阻塞的方式寫，底層的作業系統執行緒卻沒有被卡住。同樣的計數實驗：</p>
 <pre><code>CountDownLatch vdone = new CountDownLatch(1);
 List&lt;Thread&gt; virtual = new ArrayList&lt;&gt;();
 for (int i = 0; i &lt; 10_000; i++) {
@@ -502,11 +551,11 @@ for (Thread t : virtual) t.join();
 // 在 10 核心的 Linux 容器實跑：
 // 開 10000 條虛擬執行緒（都在等）之後 Threads: 36
 // （單獨跑這一段時是 30，一開始同樣是 18）</code></pre>
-<p>一萬條虛擬執行緒都在等，作業系統那邊只多了十來條。這些多半是載體執行緒：JEP 444 說虛擬執行緒的排程器是一個 ForkJoinPool，平行度預設「等於可用的處理器數量」<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a>，這台容器有 10 個可用處理器；同樣的事用平台執行緒就是一萬條作業系統執行緒。虛擬執行緒不能池化、何時會被「釘住」載體、Java 24 起的改變，見〈Java 並行快答：執行緒池、鎖與並行集合〉；語言層面的介紹見〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。</p>
+<p>一萬條虛擬執行緒都在等，作業系統那邊只多了十來條。這些多半是載體執行緒：虛擬執行緒的排程器是一個 ForkJoinPool，平行度預設等於可用的處理器數量<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a>，這台容器有 10 個可用處理器；同樣的事用平台執行緒就是一萬條作業系統執行緒。虛擬執行緒不能池化、何時會被「釘住」載體、Java 24 起的改變，見〈Java 並行快答：執行緒池、鎖與並行集合〉；語言層面的介紹見〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。</p>
 <p><strong>零拷貝</strong>（zero-copy，資料不必在核心與使用者空間之間來回複製）。把檔案傳到網路，最直覺的寫法是迴圈 <code>read</code> 進使用者空間的緩衝區、再 <code>write</code> 到 socket，資料要在核心與使用者空間之間來回複製。</p>
 <ul class="plainlist">
-<li><b>sendfile(2) 手冊</b>：它在兩個檔案描述子之間複製資料，「因為複製是在核心裡完成的，sendfile() 比 read(2) 加 write(2) 有效率，後者需要把資料在使用者空間進出」。<span class="orig">sendfile(2)：Because this copying is done within the kernel, sendfile() is more efficient than the combination of read(2) and write(2), which would require transferring data to and from user space.<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/sendfile.2.html" target="_blank" rel="noopener">出處</a></span></li>
-<li><b>FileChannel.transferTo</b>：Java 對應的是 <code>FileChannel.transferTo</code>，文件說它「可能比一個從這個通道讀、往目標通道寫的簡單迴圈有效率得多」，「很多作業系統可以直接從檔案系統快取把位元組傳到目標通道，不必實際複製」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/channels/FileChannel.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>sendfile(2)</b>：在兩個檔案描述子之間複製資料；因為複製是在核心裡完成的，比 read(2) 加 write(2) 有效率，後者需要把資料在使用者空間進出。<a class="fixsrc" href="https://man7.org/linux/man-pages/man2/sendfile.2.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>FileChannel.transferTo</b>：Java 對應的方法。它可能比一個從這個通道讀、往目標通道寫的簡單迴圈有效率得多，因為很多作業系統可以直接從檔案系統快取把位元組傳到目標通道，不必實際複製。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/nio/channels/FileChannel.html" target="_blank" rel="noopener">出處</a></li>
 <li><b>OpenJDK 實作</b>：OpenJDK 21 的 Linux 實作先試 <code>copy_file_range</code>，不適用時再改用 <code>sendfile64</code><a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/linux/native/libnio/ch/FileDispatcherImpl.c" target="_blank" rel="noopener">出處</a>，strace 看得到：</li>
 </ul>
 <pre><code>// 檔案 → 檔案，與檔案 → socket，各 transferTo 一次 1 MB（節錄 OsDemo 的 transfer 段）
@@ -521,7 +570,7 @@ long m = in.transferTo(0, in.size(), accepted);   // accepted 是一條 socket �
 <div class="drill">
   <p class="dq">一條虛擬執行緒在讀 socket、資料還沒來，它底下的作業系統執行緒在做什麼？</p>
   <ul class="dopts"><li>跟著一起阻塞，等資料進來</li><li>被作業系統終止，資料到了再重建</li><li data-ok>虛擬執行緒卸載，它去跑別的虛擬執行緒</li><li>改成忙碌等待，不停檢查有沒有資料</li></ul>
-  <p class="dexp">JEP 444：虛擬執行緒通常在阻塞 I/O 時卸載，載體與底下的作業系統執行緒就空出來做別的事；資料到了再被排回去。少數「釘住」的情況例外。</p>
+  <p class="dexp">虛擬執行緒通常在阻塞 I/O 時卸載，載體與底下的作業系統執行緒就空出來做別的事；資料到了再被排回去。少數「釘住」的情況例外。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的實驗，一萬條在等待的虛擬執行緒讓作業系統的執行緒數變成多少左右？</p>
@@ -531,7 +580,7 @@ long m = in.transferTo(0, in.size(), accepted);   // accepted 是一條 socket �
 <div class="drill">
   <p class="dq">下面哪一種工作，換成虛擬執行緒最可能有幫助？</p>
   <ul class="dopts"><li data-ok>呼叫兩個外部 API 並等回應</li><li>把一張大圖片做影像處理，全程都在計算</li><li>用單一執行緒批次加總十億個數字</li><li>已經只用一條執行緒顧所有連線的事件迴圈</li></ul>
-  <p class="dexp">Thread 文件：虛擬執行緒適合大部分時間在阻塞、多半在等 I/O 的工作，不適合長時間 CPU 密集的運算。等外部 API 正是前者。</p>
+  <p class="dexp">虛擬執行緒適合大部分時間在阻塞、多半在等 I/O 的工作，不適合長時間 CPU 密集的運算。等外部 API 正是前者。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼 sendfile 比「read 到緩衝區再 write 到 socket」有效率？</p>
@@ -548,8 +597,12 @@ long m = in.transferTo(0, in.size(), accepted);   // accepted 是一條 socket �
 <section>
 <p class="era">接上容器那幾課</p>
 <h3 class="head">容器裡的行程：namespace 與 cgroup</h3>
-<p>〈容器〉與〈容器不等於 Docker〉講過，容器是「Linux 本來就內建兩個機制」打開而已：namespace 管看得到什麼，cgroup 管能用多少。從這一課的角度看，容器裡的程式就是主機上的普通行程。namespaces(7)：命名空間「把一個全域的系統資源包起來，讓命名空間裡的行程以為自己擁有一份隔離的那個資源」，「命名空間的一個用途就是實作容器」。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/namespaces.7.html" target="_blank" rel="noopener">出處</a> cgroups(7)：控制群組讓行程「被組織成階層式的群組，可以限制與監看各種資源的用量」，記憶體、CPU 各有自己的子系統。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/cgroups.7.html" target="_blank" rel="noopener">出處</a></p>
-<p>本課第一個實驗印出 <code>pid = 30</code>，就是 PID 命名空間的效果：pid_namespaces(7) 說，新命名空間裡建立的第一個行程「PID 是 1」，而且一個行程在它所屬的每一層 PID 命名空間各有一個行程編號。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/pid_namespaces.7.html" target="_blank" rel="noopener">出處</a> 所以容器裡從 1 開始算，主機上看同一個 JVM 是另一個號碼。〈容器不等於 Docker〉也提到，K8s 寫的 <code>requests</code> 與 <code>limits</code> 落到節點上就是 cgroup 的設定。</p>
+<p>〈容器〉與〈容器不等於 Docker〉講過，容器是把 Linux 本來就內建的兩個機制打開而已：namespace 管看得到什麼，cgroup 管能用多少。從這一課的角度看，容器裡的程式就是主機上的普通行程。</p>
+<ul>
+<li><b>命名空間</b>（namespace）：把一個全域的系統資源包起來，讓命名空間裡的行程以為自己擁有一份隔離的那個資源；用途之一就是實作容器<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/namespaces.7.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>控制群組</b>（cgroup）：把行程組織成階層式的群組，可以限制與監看各種資源的用量，記憶體、CPU 各有自己的子系統<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/cgroups.7.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>本課第一個實驗印出 <code>pid = 30</code>，就是 PID 命名空間的效果：新命名空間裡建立的第一個行程 PID 是 1，而且一個行程在它所屬的每一層 PID 命名空間各有一個行程編號。<a class="fixsrc" href="https://man7.org/linux/man-pages/man7/pid_namespaces.7.html" target="_blank" rel="noopener">出處</a> 所以容器裡從 1 開始算，主機上看同一個 JVM 是另一個號碼。〈容器不等於 Docker〉也提到，K8s 寫的 <code>requests</code> 與 <code>limits</code> 落到節點上就是 cgroup 的設定。</p>
 
 <div class="drill">
   <p class="dq">從作業系統的角度，一個在 Docker 容器裡跑的 JVM 是什麼？</p>

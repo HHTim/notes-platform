@@ -18,7 +18,7 @@
     "先全部 map 成大寫，再 filter",
     "三筆分給多條執行緒同時處理"
    ],
-   "exp": "套件說明說惰性讓篩選與轉換「可以合併成走一次資料」，JDK 的循序流實作就是這樣：每個元素依序經過 filter、map，Java 21 實跑印出的順序也是如此。流預設是循序的，不會自己平行。"
+   "exp": "惰性讓篩選與轉換可以合併成走一次資料，JDK 的循序流實作就是這樣：每個元素依序經過 filter、map，Java 21 實跑印出的順序也是如此。流預設是循序的，不會自己平行。"
   },
   {
    "q": "在 Java 21 實跑，同一個 Stream 物件先呼叫 count()，再呼叫一次 count()，會怎樣？",
@@ -28,7 +28,7 @@
     "第二次丟出 NoSuchElementException，因為元素已讀完",
     "編譯錯誤：編譯器禁止對同一個流呼叫兩次終端操作"
    ],
-   "exp": "終端操作執行後，這條管線就被消耗了；文件說實作偵測到重複使用時可能丟 IllegalStateException，JDK 實跑就是丟這個。編譯器看不出流被用了兩次，所以能編譯。要再算一次就重新呼叫 txs.stream()。"
+   "exp": "終端操作執行後，這條管線就被消耗了；實作偵測到重複使用時可能丟 IllegalStateException，JDK 實跑就是丟這個。編譯器看不出流被用了兩次，所以能編譯。要再算一次就重新呼叫 txs.stream()。"
   },
   {
    "q": "用本課的 txs（同一家分行有好幾筆）依分行計算交易筆數，txs.stream() .collect(…) 的括號裡放哪個收集器，能執行成功並得到 Map&lt;String, Long&gt;？",
@@ -48,7 +48,7 @@
     "保留前面那一筆的金額，後面的被忽略",
     "自動用 Long::sum 把兩筆金額加起來"
    ],
-   "exp": "Collectors.toMap 的文件：取出的鍵重複時，收集時丟 IllegalStateException。要加總就用三個參數的版本，傳 Long::sum 當合併函式。"
+   "exp": "Collectors.toMap 取出的鍵重複時，收集時丟 IllegalStateException。要加總就用三個參數的版本，傳 Long::sum 當合併函式。"
   },
   {
    "q": "Collectors.partitioningBy(tx -&gt; tx.amount() &gt; 1_000_000) 套在一份沒有任何大額交易的清單上，結果的 Map 有哪些鍵？",
@@ -58,7 +58,7 @@
     "只有 true 一個鍵，對到空清單",
     "沒有任何鍵：清單裡沒有大額交易就回傳空的 Map"
    ],
-   "exp": "文件：partitioningBy 回傳的 Map 一定同時有 false 與 true 兩個鍵，沒有元素的那組是空清單。"
+   "exp": "partitioningBy 回傳的 Map 一定同時有 false 與 true 兩個鍵，沒有元素的那組是空清單。"
   },
   {
    "q": "List&lt;String&gt; ids = txs.stream() .map(Tx::id) .toList(); 之後呼叫 ids.add(\"T9\") 會怎樣？",
@@ -98,7 +98,7 @@
     "編譯錯誤，平行流不能呼叫 forEach",
     "沒有問題，parallelStream 會自動加鎖"
    ],
-   "exp": "套件說明：行為參數有副作用一般不鼓勵，平行時 ArrayList 不是執行緒安全的，會造成錯誤的結果；實跑筆數遠少於應有的數量，dev.java 也提醒可能丟 ArrayIndexOutOfBoundsException。把收集交給終端操作，例如 toList()。"
+   "exp": "行為參數有副作用一般不鼓勵，平行時 ArrayList 不是執行緒安全的，會造成錯誤的結果；實跑筆數遠少於應有的數量，也可能丟 ArrayIndexOutOfBoundsException。把收集交給終端操作，例如 toList()。"
   }
  ]
 }

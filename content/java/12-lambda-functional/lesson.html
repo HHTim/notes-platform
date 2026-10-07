@@ -22,7 +22,11 @@ txs.sort((a, b) -&gt; Long.compare(b.amount(), a.amount()));   // Java 8 起：l
 System.out.println(txs);
 // [Tx[id=T3, amount=980], Tx[id=T1, amount=500], Tx[id=T2, amount=120]]</code></pre>
 <p class="muted"><code>record</code> 是 Java 16 起的精簡資料類別：一行宣告就自動有建構子、讀取方法 <code>amount()</code>、<code>equals</code>、<code>hashCode</code> 與上面印出來的那種 <code>toString</code>，細節在〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。</p>
-<p>匿名類別五行裡真正在做事的只有 <code>return</code> 那一行，其餘都是格式。lambda 把格式拿掉，只留「參數」與「本體」。dev.java 的教學說，lambda 是在某些特定情況下「寫匿名類別實例的另一種、更簡單的方式」（lambda expressions are another, simpler way of writing instances of anonymous classes, in some precise cases）<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a>；Java 語言規格（JLS）的定義是「lambda 運算式就像一個方法：它提供一串形式參數，以及用這些參數寫成的本體（一個運算式或一個區塊）」（A lambda expression is like a method: it provides a list of formal parameters and a body - an expression or block - expressed in terms of those parameters.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a></p>
+<p>匿名類別五行裡真正在做事的只有 <code>return</code> 那一行，其餘都是格式。lambda 把格式拿掉，只留「參數」與「本體」：</p>
+<ul>
+<li>在某些特定情況下，lambda 是寫匿名類別實例的另一種、更簡單的方式<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></li>
+<li>lambda 運算式就像一個方法：它提供一串形式參數，以及用這些參數寫成的本體（一個運算式或一個區塊）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>好處在設計上：方法只負責流程，「挑哪幾筆」這種會變的規則改由呼叫端傳進來。下面的 <code>select</code> 寫一次，就能配任何篩選條件（<code>Predicate</code> 是下一段會介紹的現成介面，意思是「回答是或否的規則」）：</p>
 <pre><code>static List&lt;Tx&gt; select(List&lt;Tx&gt; txs, Predicate&lt;Tx&gt; rule) {
     List&lt;Tx&gt; result = new ArrayList&lt;&gt;();
@@ -36,7 +40,7 @@ System.out.println(txs);
 
 select(txs, tx -&gt; tx.amount() &gt;= 500);      // [Tx[id=T3, amount=980], Tx[id=T1, amount=500]]
 select(txs, tx -&gt; tx.id().equals("T2"));    // [Tx[id=T2, amount=120]]</code></pre>
-<p>還有一件常被忽略的事：<strong>寫下 lambda 不等於執行它。</strong>JLS 說，對 lambda 運算式求值會產生一個<strong>函式介面</strong>（只有一個抽象方法的介面，後面「函式介面與 @FunctionalInterface」那一段細講）的實例，「但不會執行運算式的本體；本體可能在之後、當函式介面對應的方法被呼叫時才執行」（Lambda expression evaluation does not cause the execution of the expression's body; instead, this may occur at a later time when an appropriate method of the functional interface is invoked.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 上面 <code>select</code> 裡，是 <code>rule.test(tx)</code> 這一行才真的跑了呼叫端寫的那段程式碼。</p>
+<p>還有一件常被忽略的事：<strong>寫下 lambda 不等於執行它。</strong>對 lambda 運算式求值會產生一個<strong>函式介面</strong>（只有一個抽象方法的介面，後面「函式介面與 @FunctionalInterface」那一段細講）的實例，但不會執行本體；本體要等之後函式介面對應的方法被呼叫時才執行。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 上面 <code>select</code> 裡，是 <code>rule.test(tx)</code> 這一行才真的跑了呼叫端寫的那段程式碼。</p>
 <p class="formula">lambda＝只留參數與本體的匿名方法；寫下它只是「準備好」，被呼叫時才執行</p>
 
 <div class="drill">
@@ -64,14 +68,15 @@ System.out.println("建立完成");</code></pre>
 <div class="drill">
   <p class="dq">一個 lambda 運算式的型別由什麼決定？</p>
   <ul class="dopts"><li data-ok>看它放在哪裡：那個位置要的是哪個函式介面</li><li>一律是 <code>Object</code></li><li>一律先當成 <code>java.util.function.Function</code>，執行時再轉成需要的介面</li><li>由本體最後一行的回傳值決定</li></ul>
-  <p class="dexp">dev.java：lambda 的型別「必須是函式介面」，可以來自變數、欄位、方法參數或方法的回傳型別。同一段 <code>s -&gt; s.isEmpty()</code> 放進 <code>Predicate&lt;String&gt;</code> 就是 <code>Predicate</code>，放進 <code>Function&lt;String, Boolean&gt;</code> 就是 <code>Function</code>。</p>
+  <p class="dexp">lambda 的型別必須是函式介面，可以來自變數、欄位、方法參數或方法的回傳型別。同一段 <code>s -&gt; s.isEmpty()</code> 放進 <code>Predicate&lt;String&gt;</code> 就是 <code>Predicate</code>，放進 <code>Function&lt;String, Boolean&gt;</code> 就是 <code>Function</code>。</p>
 </div>
 </section>
 
 <section>
 <p class="era">參數、箭頭、本體，以及能省的地方</p>
 <h3 class="head">lambda 的各種寫法與型別推論</h3>
-<p>語法只有三塊：參數列、箭頭 <code>-></code>、本體。dev.java 的說明是「一組參數、一個畫成箭頭的小符號 <code>-></code>、一段程式碼也就是方法的本體」（a block of parameters; a little piece of ASCII art depicting an arrow: -> ... a block of code which is the body of the method）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a> 下表的合法與不合法寫法都取自 JLS 的範例清單：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a></p>
+<p>語法只有三塊：參數列、箭頭 <code>-></code>、本體（就是方法的本體）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">下表的合法與不合法寫法取自 Java 語言規格的範例清單：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>寫法</th><th>說明</th></tr></thead><tbody>
 <tr><td><code>() -> 42</code></td><td>沒有參數，括號不能省</td></tr>
 <tr><td><code>x -> x + 1</code></td><td>只有一個參數、不寫型別時，括號可以省</td></tr>
@@ -86,13 +91,13 @@ System.out.println("建立完成");</code></pre>
 <li><b>運算式本體</b>：一個運算式，它的值就是回傳值，不寫 <code>return</code> 也不寫分號。</li>
 <li><b>區塊本體</b>：大括號包起來的一般程式碼，要回傳值就得寫 <code>return</code>。</li>
 </ul>
-<p>JLS 說「lambda 本體不是單一運算式就是一個區塊」。<span class="orig">JLS：A lambda body is either a single expression or a block<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></span></p>
-<p>參數的型別也可以寫 <code>var</code>（JLS 的參數語法列了 <code>var</code> 這個選項<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.1" target="_blank" rel="noopener">出處</a>；它由 JEP 323 在 Java 11 加入，目標是讓 lambda 參數的寫法「跟區域變數宣告的寫法一致」，Align the syntax of a formal parameter declaration in an implicitly typed lambda expression with the syntax of a local variable declaration.<a class="fixsrc" href="https://openjdk.org/jeps/323" target="_blank" rel="noopener">出處</a>），但同一個參數列裡要嘛全寫、要嘛全不寫，混用會被 javac 擋下。</p>
-<p><strong>型別推論</strong>（type inference，編譯器從上下文猜出型別）能成立，是因為 lambda 永遠有一個「目標型別」：它被指定給的變數、被傳進的參數、或被轉型成的型別。JLS 規定 lambda 只能出現在指定、方法呼叫、轉型這三種場合，放在別處就是編譯錯誤（It is a compile-time error if a lambda expression occurs in a program in someplace other than an assignment context (§5.2), an invocation context (§5.3), or a casting context (§5.5).）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 所以下面這行編不過——<code>var</code> 要從右邊推型別，lambda 卻要從左邊拿型別，兩邊都在等對方：</p>
+<p>lambda 本體不是單一運算式，就是一個區塊。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></p>
+<p>參數的型別也可以寫 <code>var</code><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.1" target="_blank" rel="noopener">出處</a>：它由 JEP 323 在 Java 11 加入，目的是讓 lambda 參數的寫法跟區域變數宣告一致。<a class="fixsrc" href="https://openjdk.org/jeps/323" target="_blank" rel="noopener">出處</a> 但同一個參數列裡要嘛全寫、要嘛全不寫，混用會被 javac 擋下。</p>
+<p><strong>型別推論</strong>（type inference，編譯器從上下文猜出型別）能成立，是因為 lambda 永遠有一個「目標型別」：它被指定給的變數、被傳進的參數、或被轉型成的型別。lambda 只能出現在<strong>指定、方法呼叫、轉型</strong>這三種場合，放在別處就是編譯錯誤。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 所以下面這行編不過——<code>var</code> 要從右邊推型別，lambda 卻要從左邊拿型別，兩邊都在等對方：</p>
 <pre><code>var f = x -&gt; x + 1;
 // error: cannot infer type for local variable f
 //   (lambda expression needs an explicit target-type)</code></pre>
-<p class="muted"><strong>Java 22 起的差異：</strong>用不到的 lambda 參數可以寫成底線 <code>_</code>，表示「這裡一定要有個參數，但我不用它」。JEP 456 的目標之一是「表達開發者的意圖：某個繫結或 lambda 參數不會被使用，並且強制做到」（Capture developer intent that a given binding or lambda parameter is unused, and enforce that property）。<a class="fixsrc" href="https://openjdk.org/jeps/456" target="_blank" rel="noopener">出處</a> 這個寫法在 Java 21 還是<strong>預覽功能</strong>（preview feature：規格與實作都已完成、但還不是永久定案的功能，要加 <code>--enable-preview</code> 才能用；JEP 12 的定義是 fully specified, fully implemented, and yet impermanent）<a class="fixsrc" href="https://openjdk.org/jeps/12" target="_blank" rel="noopener">出處</a>，直接編譯會報 <code>unnamed variables are a preview feature and are disabled by default</code>；以 Java 25 執行：</p>
+<p class="muted"><strong>Java 22 起的差異：</strong>用不到的 lambda 參數可以寫成底線 <code>_</code>（JEP 456），表示「這裡一定要有個參數，但我不用它」，而且編譯器會強制它真的沒被用到。<a class="fixsrc" href="https://openjdk.org/jeps/456" target="_blank" rel="noopener">出處</a> 這個寫法在 Java 21 還是<strong>預覽功能</strong>（preview feature：規格與實作都已完成、但還不是永久定案的功能，要加 <code>--enable-preview</code> 才能用）<a class="fixsrc" href="https://openjdk.org/jeps/12" target="_blank" rel="noopener">出處</a>，直接編譯會報 <code>unnamed variables are a preview feature and are disabled by default</code>；以 Java 25 執行：</p>
 <pre><code>// Java 22 起（以 Java 25 執行）
 Map&lt;String, Long&gt; balances = new TreeMap&lt;&gt;(Map.of("A001", 3_000L, "A002", 12_500L));
 balances.forEach((_, balance) -&gt; System.out.println(balance));   // 只用值，不用鍵
@@ -107,7 +112,7 @@ balances.forEach((_, balance) -&gt; System.out.println(balance));   // 只用值
 <div class="drill">
   <p class="dq">要寫一個不收參數、回傳 42 的 <code>Supplier&lt;Integer&gt;</code>，哪一個寫法正確？</p>
   <ul class="dopts"><li>-&gt; 42</li><li data-ok>() -&gt; 42</li><li>(void) -&gt; 42</li><li>{} -&gt; 42</li></ul>
-  <p class="dexp">沒有參數時一定要寫一對空括號 <code>()</code>。JLS 說明沒有特別的無參數寫法，因為單寫 <code>-&gt;</code> 會跟轉型的語法打架。</p>
+  <p class="dexp">沒有參數時一定要寫一對空括號 <code>()</code>。沒有特別的無參數寫法，因為單寫 <code>-&gt;</code> 會跟轉型的語法打架。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>Function&lt;Integer, Integer&gt; f = x -&gt; { x * 2; };</code> 會怎樣？</p>
@@ -139,8 +144,8 @@ balances.forEach((_, balance) -&gt; System.out.println(balance));   // 只用值
 <section>
 <p class="era">lambda 能放進哪種介面</p>
 <h3 class="head">函式介面與 @FunctionalInterface</h3>
-<p><strong>函式介面</strong>（functional interface）就是「只有一個抽象方法的介面」，lambda 就是在實作那唯一的方法。<code>FunctionalInterface</code> 的 API 文件：「概念上，函式介面恰好有一個抽象方法。default 方法有實作，所以不算抽象方法。」（Conceptually, a functional interface has exactly one abstract method. Since default methods have an implementation, they are not abstract.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a> 介面的 default、static 方法在〈介面與抽象類別〉講過，它們都不影響「是不是函式介面」。</p>
-<p>還有一個容易看漏的例外：介面裡如果宣告了跟 <code>Object</code> 公開方法一樣的抽象方法（例如 <code>boolean equals(Object obj)</code>），也不算進去，「因為任何實作都會從 <code>java.lang.Object</code> 或別處得到實作」（since any implementation of the interface will have an implementation from java.lang.Object or elsewhere）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a> <code>Comparator</code> 就是這樣：它的文件列了 <code>compare</code> 與 <code>equals</code> 兩個抽象方法，卻標著「這是一個函式介面」（This is a functional interface）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Comparator.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>函式介面</strong>（functional interface）就是「只有一個抽象方法的介面」，lambda 就是在實作那唯一的方法。default 方法有實作，所以不算抽象方法。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a> 介面的 default、static 方法在〈介面與抽象類別〉講過，它們都不影響「是不是函式介面」。</p>
+<p>還有一個容易看漏的例外：介面裡如果宣告了跟 <code>Object</code> 公開方法一樣的抽象方法（例如 <code>boolean equals(Object obj)</code>），也不算進去，因為任何實作都會從 <code>java.lang.Object</code> 或別處得到實作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a> <code>Comparator</code> 就是這樣：它列了 <code>compare</code> 與 <code>equals</code> 兩個抽象方法，卻是函式介面。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Comparator.html" target="_blank" rel="noopener">出處</a></p>
 <p>自己也能定義函式介面。銀行的手續費規則就很適合：</p>
 <pre><code>@FunctionalInterface
 interface FeeRule {
@@ -155,7 +160,12 @@ FeeRule flat = amount -&gt; 15;                 // 每筆固定 15 元
 FeeRule perMille = amount -&gt; amount / 1000;  // 千分之一
 System.out.println(flat.fee(50_000) + " " + perMille.fee(50_000) + " " + perMille.describe());
 // 15 50 手續費規則</code></pre>
-<p><code>@FunctionalInterface</code> 是給編譯器看的「我打算讓它當函式介面」。加了之後如果不符合條件，編譯器一定要報錯；但沒加也照樣能用 lambda。API 文件：「不論介面宣告上有沒有 <code>FunctionalInterface</code> 標註，編譯器都會把任何符合函式介面定義的介面當成函式介面。」（the compiler will treat any interface meeting the definition of a functional interface as a functional interface regardless of whether or not a FunctionalInterface annotation is present on the interface declaration.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a> 它的價值在防呆：哪天有人往 <code>FeeRule</code> 多加一個抽象方法，編譯會直接失敗，而不是讓所有寫成 lambda 的地方一起壞掉。</p>
+<p><code>@FunctionalInterface</code> 是給編譯器看的「我打算讓它當函式介面」：</p>
+<ul>
+<li>加了之後如果不符合條件，編譯器一定要報錯</li>
+<li>沒加也照樣能用 lambda：不論有沒有這個標註，編譯器都會把符合定義的介面當成函式介面<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/FunctionalInterface.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>它的價值在防呆：哪天有人往 <code>FeeRule</code> 多加一個抽象方法，編譯會直接失敗，而不是讓所有寫成 lambda 的地方一起壞掉。</p>
 <pre><code>@FunctionalInterface
 interface FeeRule {
     long fee(long amount);
@@ -164,7 +174,7 @@ interface FeeRule {
 // error: Unexpected @FunctionalInterface annotation
 //   FeeRule is not a functional interface
 //     multiple non-overriding abstract methods found in interface FeeRule</code></pre>
-<p>呼叫 lambda 就是呼叫那個抽象方法；呼叫 default 方法則跑介面裡寫好的程式碼。dev.java 特別說明「lambda 沒有辦法覆寫 default 方法」（There is no way a lambda can override a default method.）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
+<p>呼叫 lambda 就是呼叫那個抽象方法；呼叫 default 方法則跑介面裡寫好的程式碼。lambda 沒有辦法覆寫 default 方法。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">下面哪一個介面是函式介面？</p>
@@ -172,14 +182,14 @@ interface FeeRule {
   <p class="dexp">A 只有 <code>run</code> 一個抽象方法，default 方法不算。B 有兩個抽象方法；C、D 一個抽象方法都沒有，lambda 沒有東西可以實作。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>Comparator</code> 的文件列了 <code>compare</code> 與 <code>equals</code> 兩個抽象方法，為什麼它還是函式介面？</p>
+  <p class="dq"><code>Comparator</code> 列了 <code>compare</code> 與 <code>equals</code> 兩個抽象方法，為什麼它還是函式介面？</p>
   <ul class="dopts"><li>因為 <code>equals</code> 其實是 default 方法</li><li>因為 <code>Comparator</code> 是類別不是介面</li><li data-ok>因為 <code>equals</code> 對應 <code>Object</code> 的公開方法，不算數</li><li>因為加了 <code>@FunctionalInterface</code> 就能有兩個抽象方法</li></ul>
-  <p class="dexp">任何物件都從 <code>Object</code> 繼承了 <code>equals</code> 的實作，所以介面裡重新宣告它不會多要求實作者什麼，<code>FunctionalInterface</code> 的文件明講這種方法不計數。</p>
+  <p class="dexp">任何物件都從 <code>Object</code> 繼承了 <code>equals</code> 的實作，所以介面裡重新宣告它不會多要求實作者什麼，這種方法不計數。</p>
 </div>
 <div class="drill">
   <p class="dq">把一個只有一個抽象方法的介面上的 <code>@FunctionalInterface</code> 拿掉，會怎樣？</p>
   <ul class="dopts"><li>原本指定給它的 lambda 全部編譯失敗，要改回匿名類別</li><li data-ok>照樣能用 lambda，只少了編譯器的檢查</li><li>執行時才會丟出例外</li><li>編譯器會自動把它改成抽象類別</li></ul>
-  <p class="dexp">標註只是「宣告意圖、請編譯器幫忙檢查」。符合定義的介面不管有沒有標註都是函式介面，<code>java.util.function</code> 套件說明也說它「不是編譯器認得函式介面的必要條件」。</p>
+  <p class="dexp">標註只是「宣告意圖、請編譯器幫忙檢查」。符合定義的介面不管有沒有標註都是函式介面，標註不是編譯器認得函式介面的必要條件。</p>
 </div>
 <div class="drill">
   <p class="dq">替帶有 <code>@FunctionalInterface</code> 的 <code>FeeRule</code> 多加一個抽象方法 <code>long discount(long amount);</code>，會怎樣？</p>
@@ -196,7 +206,7 @@ interface FeeRule {
 <section>
 <p class="era">不用自己定義，JDK 先準備好了</p>
 <h3 class="head">java.util.function：七個常用介面與基本型別版</h3>
-<p>大部分情況不必自己寫函式介面，<code>java.util.function</code> 已經備齊常見的形狀。套件說明：這些介面「是 JDK 使用的通用函式介面，使用者的程式碼也可以使用」，雖然沒有涵蓋所有可能的形狀，但「足以應付常見需求」（they provide enough to cover common requirements）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a> 用「收什麼、回什麼」來分：</p>
+<p>大部分情況不必自己寫函式介面，<code>java.util.function</code> 已經備齊常見的形狀：這些是 JDK 自己使用的通用函式介面，使用者的程式碼也可以用；雖然沒有涵蓋所有可能的形狀，但足以應付常見需求。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a> 用「收什麼、回什麼」來分：</p>
 <div class="tablewrap"><table><thead><tr><th>介面</th><th>收什麼 → 回什麼</th><th>抽象方法</th><th>銀行例子</th></tr></thead><tbody>
 <tr><th><code>Function&lt;T, R&gt;</code></th><td>一個 T → 一個 R</td><td><code>apply</code></td><td>帳號 → 戶名</td></tr>
 <tr><th><code>Predicate&lt;T&gt;</code></th><td>一個 T → <code>boolean</code></td><td><code>test</code></td><td>這筆交易是不是大額</td></tr>
@@ -206,7 +216,9 @@ interface FeeRule {
 <tr><th><code>UnaryOperator&lt;T&gt;</code></th><td>一個 T → 同型別的 T</td><td><code>apply</code></td><td>帳號 → 遮罩後的帳號</td></tr>
 <tr><th><code>BinaryOperator&lt;T&gt;</code></th><td>兩個 T → 同型別的 T</td><td><code>apply</code></td><td>兩筆金額相加</td></tr>
 </tbody></table></div>
-<p>表中各列的根據：套件說明列出基本形狀「<code>Function</code>（T 到 R 的一元函式）、<code>Consumer</code>（T 到 void）、<code>Predicate</code>（T 到 boolean）、<code>Supplier</code>（無參數到 R）」，其中「一元」就是只收一個參數；加上前綴 Bi 表示兩個參數，<code>UnaryOperator</code> 延伸 <code>Function</code>、<code>BinaryOperator</code> 延伸 <code>BiFunction</code>（UnaryOperator (extends Function) and BinaryOperator (extends BiFunction)）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a> <code>Consumer</code> 的文件另外提醒，它跟大多數函式介面不同，「預期透過副作用運作」（Consumer is expected to operate via side-effects）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/Consumer.html" target="_blank" rel="noopener">出處</a> 副作用（side effect）指方法除了回傳值以外對外界造成的改變，例如印出東西、寫進資料庫。</p>
+<p class="muted">出處：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">java.util.function 套件</a></p>
+<p>命名規則：基本形狀是 <code>Function</code>（T 到 R）、<code>Consumer</code>（T 到 void）、<code>Predicate</code>（T 到 boolean）、<code>Supplier</code>（無參數到 R）；加上前綴 Bi 表示兩個參數；<code>UnaryOperator</code> 延伸 <code>Function</code>、<code>BinaryOperator</code> 延伸 <code>BiFunction</code>。</p>
+<p><code>Consumer</code> 跟大多數函式介面不同，它預期透過副作用運作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/Consumer.html" target="_blank" rel="noopener">出處</a> 副作用（side effect）指方法除了回傳值以外對外界造成的改變，例如印出東西、寫進資料庫。</p>
 <pre><code>Function&lt;String, Integer&gt; length = s -&gt; s.length();
 Predicate&lt;Long&gt; isLarge = amount -&gt; amount &gt;= 500_000;
 Consumer&lt;String&gt; log = msg -&gt; System.out.println("[LOG] " + msg);
@@ -232,13 +244,13 @@ Predicate&lt;String&gt; hasText = Predicate.not(String::isBlank);
 Predicate&lt;String&gt; isTW = s -&gt; s.startsWith("TW");
 hasText.and(isTW).test("TW123");       // true
 hasText.test("  ");                    // false</code></pre>
-<p><strong>基本型別版：</strong>泛型只能放參考型別，所以 <code>Predicate&lt;Integer&gt;</code> 每次判斷都要把 <code>int</code> 包成 <code>Integer</code>（裝箱，boxing）再拆開（拆箱）。dev.java 說這個裝箱與拆箱「不是免費的」，多數時候比起查資料庫不算什麼，但有時無法接受。<span class="orig">dev.java：This boxing / unboxing does not come for free.<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/functional-interfaces/" target="_blank" rel="noopener">出處</a></span></p>
+<p><strong>基本型別版：</strong>泛型只能放參考型別，所以 <code>Predicate&lt;Integer&gt;</code> 每次判斷都要把 <code>int</code> 包成 <code>Integer</code>（裝箱，boxing）再拆開（拆箱）。裝箱與拆箱不是免費的，多數時候比起查資料庫不算什麼，但有時無法接受。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/functional-interfaces/" target="_blank" rel="noopener">出處</a></p>
 <p>所以 JDK 另外準備了直接收基本型別的版本，命名有規則：</p>
 <ul class="plainlist">
 <li><b>參數是基本型別</b>：前綴 <code>Int</code>、<code>Long</code>、<code>Double</code>。</li>
-<li><b>回傳基本型別</b>：<code>ToInt</code> 這類前綴。<span class="orig">Java 文件：To specialize the return type ... we prefix ToXxx, as in ToIntFunction.<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>回傳基本型別</b>：<code>ToInt</code> 這類前綴，例如 <code>ToIntFunction</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>例如 <code>IntPredicate</code> 是「<code>Predicate</code> 收 <code>int</code> 的基本型別特化版」。<span class="orig">API 文件：This is the int-consuming primitive type specialization of Predicate.<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/IntPredicate.html" target="_blank" rel="noopener">出處</a></span></p>
+<p>例如 <code>IntPredicate</code> 就是收 <code>int</code> 的 <code>Predicate</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/IntPredicate.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>IntPredicate isEven = n -&gt; n % 2 == 0;          // 收 int，不裝箱
 ToLongFunction&lt;Tx&gt; amountOf = Tx::amount;        // 回傳 long，不裝箱
 IntUnaryOperator plusOne = n -&gt; n + 1;
@@ -270,7 +282,7 @@ plusOne.applyAsInt(41);                  // 42</code></pre>
 <div class="drill">
   <p class="dq"><code>UnaryOperator&lt;String&gt;</code> 和 <code>Function&lt;String, String&gt;</code> 是什麼關係？</p>
   <ul class="dopts"><li>兩者無關，只是剛好方法同名</li><li data-ok>UnaryOperator 延伸 Function，輸入輸出同型別</li><li>Function 延伸 UnaryOperator，是比較一般化的版本</li><li>UnaryOperator 只能用在數字</li></ul>
-  <p class="dexp">文件：<code>UnaryOperator</code> 是 <code>Function</code> 在「運算元與結果同型別」時的特化版，介面宣告就是延伸 <code>Function&lt;T, T&gt;</code>，所以它的抽象方法一樣叫 <code>apply</code>。</p>
+  <p class="dexp"><code>UnaryOperator</code> 是 <code>Function</code> 在「運算元與結果同型別」時的特化版，介面宣告就是延伸 <code>Function&lt;T, T&gt;</code>，所以它的抽象方法一樣叫 <code>apply</code>。</p>
 </div>
 <div class="drill">
   <p class="dq">這段程式印出什麼？</p>
@@ -296,7 +308,7 @@ System.out.println(addFee.andThen(doubled).apply(100L));</code></pre>
 c.accept("twd");
 System.out.println("結束");</code></pre>
   <ul class="dopts"><li>TWD 換行 結束</li><li>twd 換行 結束</li><li data-ok>結束</li><li>編譯錯誤，Consumer 不能接有回傳值的運算式</li></ul>
-  <p class="dexp"><code>toUpperCase()</code> 回傳一個新字串，但 <code>accept</code> 沒有回傳值，這個結果就被丟掉了；它也沒有印東西。JLS 允許回傳 void 的函式介面接「本身就能當一行敘述的運算式」，例如方法呼叫（the lambda body is either a statement expression (§14.8) or a void-compatible block）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.3" target="_blank" rel="noopener">出處</a>，所以能編譯；換成 <code>s -&gt; s.length() + 1</code> 這種不能單獨成為敘述的運算式就編不過。</p>
+  <p class="dexp"><code>toUpperCase()</code> 回傳一個新字串，但 <code>accept</code> 沒有回傳值，這個結果就被丟掉了；它也沒有印東西。回傳 void 的函式介面可以接「本身就能當一行敘述的運算式」，例如方法呼叫<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.3" target="_blank" rel="noopener">出處</a>，所以能編譯；換成 <code>s -&gt; s.length() + 1</code> 這種不能單獨成為敘述的運算式就編不過。</p>
 </div>
 <div class="drill">
   <p class="dq">JDK 為什麼要另外準備 <code>IntPredicate</code>，而不是全部用 <code>Predicate&lt;Integer&gt;</code>？</p>
@@ -308,14 +320,19 @@ System.out.println("結束");</code></pre>
 <section>
 <p class="era">lambda 只是在轉呼叫時</p>
 <h3 class="head">方法參考的四種寫法</h3>
-<p>很多 lambda 只是把參數原封不動交給另一個現成的方法，例如 <code>s -> System.out.println(s)</code>。這時可以改寫成<strong>方法參考</strong>（method reference），用兩個冒號 <code>::</code> 指出「就用那個方法」。JLS：方法參考「用來指稱一個方法的呼叫，而不實際執行那個呼叫」（is used to refer to the invocation of a method without actually performing the invocation）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a> dev.java 把它分成四類，下表的「等價 lambda」欄照它的總表：<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+<p>很多 lambda 只是把參數原封不動交給另一個現成的方法，例如 <code>s -> System.out.println(s)</code>。這時可以改寫成<strong>方法參考</strong>（method reference），用兩個冒號 <code>::</code> 指出「就用那個方法」：它指稱一個方法的呼叫，但不實際執行那個呼叫。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a> 方法參考分成四類：<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>種類</th><th>寫法</th><th>等價的 lambda</th><th>例子</th></tr></thead><tbody>
 <tr><th>靜態方法</th><td><code>類別::靜態方法</code></td><td><code>(args) -> 類別.靜態方法(args)</code></td><td><code>Integer::parseInt</code></td></tr>
 <tr><th>特定物件的實例方法</th><td><code>物件::實例方法</code></td><td><code>(args) -> 物件.實例方法(args)</code></td><td><code>System.out::println</code></td></tr>
 <tr><th>某型別任意物件的實例方法</th><td><code>型別::實例方法</code></td><td><code>(<wbr>arg0, rest) -> arg0.實例方法(<wbr>rest)</code></td><td><code>String::toUpperCase</code></td></tr>
 <tr><th>建構子</th><td><code>類別::new</code></td><td><code>(args) -> new 類別(args)</code></td><td><code>ArrayList::new</code></td></tr>
 </tbody></table></div>
-<p>最容易搞混的是第二、三種。dev.java 叫它們「綁定」（bound）與「未綁定」（unbound）：特定物件那種，「呼叫方法的物件寫在方法參考裡」（the object on which the method is called is defined in the method reference itself）；任意物件那種，物件不在寫法裡，而是「當成 lambda 的參數傳進來」（it is provided as an argument of the lambda expression）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a> 所以 <code>String::toUpperCase</code> 看起來像呼叫靜態方法，其實是「拿第一個參數來呼叫 <code>toUpperCase()</code>」；<code>String::equalsIgnoreCase</code> 放進 <code>BiFunction</code> 時，第一個參數是呼叫者、第二個參數變成方法的引數。</p>
+<p>最容易搞混的是第二、三種，分別叫「綁定」（bound）與「未綁定」（unbound）：<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><b>綁定</b>（特定物件）：呼叫方法的物件寫在方法參考裡</li>
+<li><b>未綁定</b>（任意物件）：物件不在寫法裡，而是當成 lambda 的參數傳進來</li>
+</ul>
+<p>所以 <code>String::toUpperCase</code> 看起來像呼叫靜態方法，其實是「拿第一個參數來呼叫 <code>toUpperCase()</code>」；<code>String::equalsIgnoreCase</code> 放進 <code>BiFunction</code> 時，第一個參數是呼叫者、第二個參數變成方法的引數。</p>
 <pre><code>Function&lt;String, Integer&gt; parse = Integer::parseInt;            // 靜態方法
 Consumer&lt;String&gt; printer = System.out::println;                 // 特定物件的實例方法
 Function&lt;String, String&gt; upper = String::toUpperCase;           // 任意物件的實例方法
@@ -329,8 +346,8 @@ upper.apply("twd");                              // TWD
 same.apply("USD", "usd");                        // true，等於 "USD".equalsIgnoreCase("usd")
 make.get();                                      // []
 toMoney.apply("1250.50").add(BigDecimal.ONE);    // 1251.50</code></pre>
-<p>建構子參考要看目標型別才知道呼叫哪一個建構子：dev.java 的例子是同一個 <code>ArrayList::new</code>，放進 <code>Supplier</code> 呼叫無參數建構子，放進 <code>Function&lt;Integer, …&gt;</code> 就呼叫帶容量的那個，「它們指的不是同一個建構子」（they do not refer to the same constructor）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">dev.java 的範例用的是 <code>IO::println</code>：<code>java.lang.IO</code> 是 JEP 512 在 Java 25 加入的新類別（we add a new class, java.lang.IO）<a class="fixsrc" href="https://openjdk.org/jeps/512" target="_blank" rel="noopener">出處</a>，Java 21 請照上面寫 <code>System.out::println</code>。</p>
+<p>建構子參考要看目標型別才知道呼叫哪一個建構子：同一個 <code>ArrayList::new</code>，放進 <code>Supplier</code> 呼叫無參數建構子，放進 <code>Function&lt;Integer, …&gt;</code> 就呼叫帶容量的那個，兩者指的不是同一個建構子。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">有些教材的範例寫 <code>IO::println</code>：<code>java.lang.IO</code> 是 JEP 512 在 Java 25 加入的新類別<a class="fixsrc" href="https://openjdk.org/jeps/512" target="_blank" rel="noopener">出處</a>，Java 21 請照上面寫 <code>System.out::println</code>。</p>
 
 <div class="drill">
   <p class="dq"><code>Integer::parseInt</code> 屬於哪一種方法參考？</p>
@@ -374,7 +391,7 @@ System.out.println(parse.apply("42") + 1);</code></pre>
 <section>
 <p class="era">lambda 看得到外面的什麼</p>
 <h3 class="head">變數捕獲：effectively final，以及 this 指誰</h3>
-<p>lambda 本體可以讀外面的區域變數，這叫<strong>捕獲</strong>（capture）。但有條件：JLS 規定 lambda 裡用到、卻不是在 lambda 裡宣告的區域變數、方法參數或例外參數，「必須是 final 或 effectively final」（must either be final or effectively final）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> <strong>effectively final</strong>（實質上不變）是「沒寫 <code>final</code>，但行為跟 final 一樣」：宣告時給了值之後，從沒被重新指派，也從沒被 <code>++</code>、<code>--</code> 改過。JLS 的判準是「加上 <code>final</code> 修飾字也不會產生任何編譯錯誤」（If a variable is effectively final, adding the final modifier to its declaration will not introduce any compile-time errors.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.4" target="_blank" rel="noopener">出處</a></p>
+<p>lambda 本體可以讀外面的區域變數，這叫<strong>捕獲</strong>（capture）。但有條件：lambda 裡用到、卻不是在 lambda 裡宣告的區域變數、方法參數或例外參數，必須是 <strong>final 或 effectively final</strong>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> <strong>effectively final</strong>（實質上不變）是「沒寫 <code>final</code>，但行為跟 final 一樣」：宣告時給了值之後，從沒被重新指派，也從沒被 <code>++</code>、<code>--</code> 改過。判準是：加上 <code>final</code> 修飾字也不會產生任何編譯錯誤。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.12.4" target="_blank" rel="noopener">出處</a></p>
 <pre><code>long limit = 1_000;
 Predicate&lt;Long&gt; over = amount -&gt; amount &gt; limit;
 limit = 2_000;   // 這一行讓 limit 不再是 effectively final
@@ -383,9 +400,13 @@ limit = 2_000;   // 這一行讓 limit 不再是 effectively final
 <pre><code>long total = 0;
 amounts.forEach(a -&gt; total += a);
 // error: local variables referenced from a lambda expression must be final or effectively final</code></pre>
-<p>為什麼要這樣限制？JLS 的說明：限制成 effectively final，「禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題」（prohibits access to dynamically-changing local variables, whose capture would likely introduce concurrency problems）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> lambda 可能被交給別的執行緒、在之後才執行，那時外面的變數早就不是原來的值了。dev.java 的說法更短：lambda「不能捕獲變數，只能捕獲值」（lambdas cannot capture variables, they can only capture values）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a> 要加總就換個做法：用一般迴圈，或用〈Stream API：把迴圈寫成資料流〉的 <code>mapToLong(...).sum()</code>，讓加總變成回傳值而不是去改外面的變數。</p>
-<p>兩個細節：一般 <code>for (int i = 0; ...; i++)</code> 的 <code>i</code> 每圈都被 <code>++</code> 改，所以不能捕獲；增強型 <code>for (String id : ids)</code> 的 <code>id</code> 卻可以，JLS 說它「被當成每一圈各自不同的變數」（enhanced-for loop variables, which are treated as distinct for each iteration of the loop）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> 另外，這條限制只管區域變數、參數與例外參數，物件的欄位不在其中，lambda 可以改欄位——但多執行緒時改欄位一樣要自己處理同步，見〈執行緒與並行〉。</p>
-<p><strong>this 指誰：</strong>匿名類別是一個新的類別，裡面的 <code>this</code> 指那個匿名類別的物件；lambda 不是新類別，JLS：「不像匿名類別宣告裡的程式碼，lambda 本體裡的名稱以及 <code>this</code>、<code>super</code> 關鍵字的意義，跟周圍的程式碼相同」（Unlike code appearing in anonymous class declarations, the meaning of names and the this and super keywords appearing in a lambda body ... are the same as in the surrounding context）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></p>
+<p>為什麼要這樣限制？為了禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> lambda 可能被交給別的執行緒、在之後才執行，那時外面的變數早就不是原來的值了。一句話：lambda <strong>不能捕獲變數，只能捕獲值</strong>。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a> 要加總就換個做法：用一般迴圈，或用〈Stream API：把迴圈寫成資料流〉的 <code>mapToLong(...).sum()</code>，讓加總變成回傳值而不是去改外面的變數。</p>
+<p>兩個細節：</p>
+<ul>
+<li>一般 <code>for (int i = 0; ...; i++)</code> 的 <code>i</code> 每圈都被 <code>++</code> 改，所以不能捕獲；增強型 <code>for (String id : ids)</code> 的 <code>id</code> 卻可以，因為它被當成每一圈各自不同的變數。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></li>
+<li>這條限制只管區域變數、參數與例外參數，物件的欄位不在其中，lambda 可以改欄位——但多執行緒時改欄位一樣要自己處理同步，見〈執行緒與並行〉。</li>
+</ul>
+<p><strong>this 指誰：</strong>匿名類別是一個新的類別，裡面的 <code>this</code> 指那個匿名類別的物件；lambda 不是新類別，本體裡的名稱以及 <code>this</code>、<code>super</code> 的意義，都跟周圍的程式碼相同。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></p>
 <pre><code>class Teller {
     String name = "櫃員 A";
 
@@ -405,7 +426,7 @@ amounts.forEach(a -&gt; total += a);
 // new Teller().demo() 印出：
 // lambda 裡的 this：櫃員 A
 // 匿名類別裡的 this：匿名類別自己</code></pre>
-<p>受檢例外也有限制。<code>Function.apply</code>、<code>Consumer.accept</code> 這些方法都沒宣告 <code>throws</code>，JLS 規定 lambda 本體丟出的受檢例外，必須是目標函式介面方法 <code>throws</code> 子句所宣告例外的子類別，否則編譯錯誤。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a> 所以在 <code>forEach</code> 裡直接讀檔會編不過，要在 lambda 裡自己 <code>try</code>／<code>catch</code>，或改用一般迴圈；受檢例外本身見〈例外機制〉。</p>
+<p>受檢例外也有限制。<code>Function.apply</code>、<code>Consumer.accept</code> 這些方法都沒宣告 <code>throws</code>，而 lambda 本體丟出的受檢例外，必須是目標函式介面方法 <code>throws</code> 子句所宣告例外的子類別，否則編譯錯誤。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a> 所以在 <code>forEach</code> 裡直接讀檔會編不過，要在 lambda 裡自己 <code>try</code>／<code>catch</code>，或改用一般迴圈；受檢例外本身見〈例外機制〉。</p>
 <pre><code>paths.forEach(p -&gt; System.out.println(Files.readString(p)));
 // error: unreported exception IOException; must be caught or declared to be thrown</code></pre>
 
@@ -431,17 +452,17 @@ System.out.println(over.test(1_500L));</code></pre>
 <div class="drill">
   <p class="dq">下面兩段，哪一段能編譯？<br>甲：<code>for (<wbr>int i = 0; i &lt; 3; i++) { Runnable r = () -&gt; System.<wbr>out.<wbr>println(<wbr>i); }</code><br>乙：<code>for (<wbr>String id : ids) { Runnable r = () -&gt; System.<wbr>out.<wbr>println(<wbr>id); }</code></p>
   <ul class="dopts"><li>兩段都能</li><li>只有甲</li><li data-ok>只有乙</li><li>兩段都不能</li></ul>
-  <p class="dexp">甲的 <code>i</code> 每圈被 <code>i++</code> 修改，不是 effectively final；乙的 <code>id</code> 在 JLS 裡被當成每一圈各自獨立的變數，每個都沒被改過，可以捕獲。</p>
+  <p class="dexp">甲的 <code>i</code> 每圈被 <code>i++</code> 修改，不是 effectively final；乙的 <code>id</code> 被當成每一圈各自獨立的變數，每個都沒被改過，可以捕獲。</p>
 </div>
 <div class="drill">
   <p class="dq">上面 <code>Teller</code> 的例子，為什麼 lambda 印「櫃員 A」，匿名類別印「匿名類別自己」？</p>
   <ul class="dopts"><li data-ok>lambda 的 this 指外面的 Teller；匿名類別的 this 指自己</li><li>lambda 裡的 this 指 Runnable 介面本身</li><li>匿名類別裡的 this 指 Teller，lambda 裡的 this 指 lambda 物件</li><li>因為兩個 name 宣告的先後順序不同</li></ul>
-  <p class="dexp">JLS：lambda 本體裡 <code>this</code>、<code>super</code> 與名稱的意義跟周圍程式碼相同；匿名類別裡就不是，它有自己的欄位 <code>name</code>，<code>this.name</code> 就讀到它自己的。</p>
+  <p class="dexp">lambda 本體裡 <code>this</code>、<code>super</code> 與名稱的意義跟周圍程式碼相同；匿名類別裡就不是，它有自己的欄位 <code>name</code>，<code>this.name</code> 就讀到它自己的。</p>
 </div>
 <div class="drill">
-  <p class="dq">JLS 說限制 lambda 只能用 effectively final 的區域變數，主要是為了避免什麼？</p>
+  <p class="dq">限制 lambda 只能用 effectively final 的區域變數，主要是為了避免什麼？</p>
   <ul class="dopts"><li>避免 lambda 佔用太多記憶體</li><li>避免 lambda 執行得比匿名類別慢</li><li>避免 lambda 讀到物件的欄位</li><li data-ok>避免捕獲一直在變的區域變數而引出並行問題</li></ul>
-  <p class="dexp">JLS 原句：這個限制「禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題」。lambda 可能在別的執行緒、之後才執行。欄位反而不受這條限制。</p>
+  <p class="dexp">這個限制禁止存取一直在變動的區域變數，因為捕獲它們很可能引出並行問題。lambda 可能在別的執行緒、之後才執行。欄位反而不受這條限制。</p>
 </div>
 <div class="drill">
   <p class="dq">這段程式印出什麼？</p>
@@ -467,7 +488,13 @@ System.out.println(c.count);</code></pre>
 <section>
 <p class="era">多鍵排序一行寫完</p>
 <h3 class="head">Comparator 的組合：comparing、thenComparing、reversed</h3>
-<p><code>Comparator</code> 是函式介面，所以可以用 lambda 寫；但更好讀的是它的工廠方法與 default 方法。<code>Comparator.comparing(取鍵的函式)</code>「接受一個從 T 取出可比較排序鍵的函式，回傳依那個鍵比較的 <code>Comparator&lt;T&gt;</code>」（Accepts a function that extracts a Comparable sort key from a type T, and returns a Comparator&lt;T&gt; that compares by that sort key.）；<code>thenComparing(other)</code> 在「這個 Comparator 認為兩個元素相等，也就是 <code>compare(a, b) == 0</code> 時，用 other 決定順序」（If this Comparator considers two elements equal, i.e. compare(a, b) == 0, other is used to determine the order.）；<code>reversed()</code>「回傳順序相反的 comparator」（Returns a comparator that imposes the reverse ordering of this comparator.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Comparator.html" target="_blank" rel="noopener">出處</a> 跟 <code>Comparable</code>、<code>TreeSet</code> 怎麼用比較結果判斷重複的關係，見〈集合與泛型〉。</p>
+<p><code>Comparator</code> 是函式介面，所以可以用 lambda 寫；但更好讀的是它的工廠方法與 default 方法：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Comparator.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>Comparator.comparing(取鍵的函式)</code>：收一個從 T 取出可比較排序鍵的函式，回傳依那個鍵比較的 <code>Comparator&lt;T&gt;</code></li>
+<li><code>thenComparing(other)</code>：這個 Comparator 認為兩個元素相等（<code>compare(a, b) == 0</code>）時，用 other 決定順序</li>
+<li><code>reversed()</code>：回傳順序相反的 comparator</li>
+</ul>
+<p>跟 <code>Comparable</code>、<code>TreeSet</code> 怎麼用比較結果判斷重複的關係，見〈集合與泛型〉。</p>
 <p>職場例子：轉帳清單依<strong>金額由大到小</strong>排，同金額再依<strong>時間由早到晚</strong>排。</p>
 <pre><code>record Transfer(String id, long amount, LocalTime time) {}
 
@@ -498,8 +525,8 @@ list.sort(Comparator.comparing(Transfer::amount, Comparator.reverseOrder())
 // T2 5000 10:15
 // T3 3000 09:05
 // T1 3000 09:30</code></pre>
-<p><code>comparingLong</code>、<code>comparingInt</code> 是基本型別版，取出的鍵不必裝箱。dev.java 提到這些特化版本，就是為了處理比較器裡的裝箱成本。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/writing-comparators/" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">一個常見的編譯錯誤：<code>Comparator.<wbr>comparing(<wbr>t -> t.<wbr>amount()).<wbr>reversed()</code> 編不過，javac 報 <code>cannot find symbol: method amount()</code>、<code>location: variable t of type Object</code>。因為 <code>.reversed()</code> 是呼叫在 <code>comparing(...)</code> 的結果上，<code>comparing(...)</code> 這段就不再位於指定或方法引數的位置；JLS 規定方法呼叫要「出現在指定或方法呼叫的場合」才會從外面拿目標型別（The invocation appears in an assignment context or an invocation context）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.12" target="_blank" rel="noopener">出處</a>，於是 lambda 參數 <code>t</code> 只好推成 <code>Object</code>。改用方法參考 <code>Transfer::amount</code>，或把參數型別寫出來 <code>(Transfer t) -> t.amount()</code>，就能編譯。</p>
+<p><code>comparingLong</code>、<code>comparingInt</code> 是基本型別版，取出的鍵不必裝箱；這些特化版本就是為了省掉比較器裡的裝箱成本。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/writing-comparators/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">一個常見的編譯錯誤：<code>Comparator.<wbr>comparing(<wbr>t -> t.<wbr>amount()).<wbr>reversed()</code> 編不過，javac 報 <code>cannot find symbol: method amount()</code>、<code>location: variable t of type Object</code>。因為 <code>.reversed()</code> 是呼叫在 <code>comparing(...)</code> 的結果上，<code>comparing(...)</code> 這段就不再位於指定或方法引數的位置；方法呼叫要出現在指定或方法呼叫的場合，才會從外面拿目標型別<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.12" target="_blank" rel="noopener">出處</a>，於是 lambda 參數 <code>t</code> 只好推成 <code>Object</code>。改用方法參考 <code>Transfer::amount</code>，或把參數型別寫出來 <code>(Transfer t) -> t.amount()</code>，就能編譯。</p>
 
 <div class="drill">
   <p class="dq">用上面四筆轉帳（T1 3000／09:30、T2 5000／10:15、T3 3000／09:05、T4 5000／09:45），<code>comparingLong(<wbr>Transfer::amount).<wbr>reversed().<wbr>thenComparing(<wbr>Transfer::time)</code> 排完後，第一筆是哪一筆？</p>
@@ -514,7 +541,7 @@ list.sort(Comparator.comparing(Transfer::amount, Comparator.reverseOrder())
 <div class="drill">
   <p class="dq"><code>thenComparing</code> 裡的比較規則，什麼時候才會被用到？</p>
   <ul class="dopts"><li>每一次比較都會先用它</li><li>只有排序最後一輪才用</li><li data-ok>前面的比較結果是 0 時</li><li>前面的比較器丟出例外時</li></ul>
-  <p class="dexp">文件：「如果這個 Comparator 認為兩個元素相等，也就是 <code>compare(a, b) == 0</code>，就用 other 決定順序」。金額不同時，時間根本不會被比較。</p>
+  <p class="dexp">這個 Comparator 認為兩個元素相等（<code>compare(a, b) == 0</code>）時，才用 other 決定順序。金額不同時，時間根本不會被比較。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>list.<wbr>sort(<wbr>Comparator.<wbr>comparing(<wbr>t -&gt; t.<wbr>amount()).<wbr>reversed());</code> 編譯失敗，訊息說 <code>t</code> 的型別是 <code>Object</code>。怎麼改最直接？</p>
@@ -540,7 +567,11 @@ System.out.println(words);</code></pre>
 <section>
 <p class="era">「可能查不到」寫進型別裡</p>
 <h3 class="head">Optional：用回傳型別表達「沒有結果」</h3>
-<p>查帳戶戶名，查不到時以前多半回傳 <code>null</code>，呼叫端一忘記檢查就是 <code>NullPointerException</code>。<code>Optional</code> 把「可能沒有值」寫進回傳型別，逼呼叫端面對它。文件：它是「可能裝著、也可能沒裝著一個非 null 值的容器物件」（A container object which may or may not contain a non-null value.），並說明 <code>Optional</code>「主要是設計來當方法的回傳型別，用在明確需要表達『沒有結果』、而用 null 很可能出錯的地方」（Optional is primarily intended for use as a method return type where there is a clear need to represent "no result," and where using null is likely to cause errors.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></p>
+<p>查帳戶戶名，查不到時以前多半回傳 <code>null</code>，呼叫端一忘記檢查就是 <code>NullPointerException</code>。<code>Optional</code> 把「可能沒有值」寫進回傳型別，逼呼叫端面對它：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>它是可能裝著、也可能沒裝著一個非 null 值的容器物件</li>
+<li>主要設計來當方法的回傳型別，用在明確需要表達「沒有結果」、而用 null 很可能出錯的地方</li>
+</ul>
 <div class="tablewrap"><table><thead><tr><th>方法</th><th>做什麼</th></tr></thead><tbody>
 <tr><td><code>Optional.of(v)</code></td><td>包一個<strong>不是 null</strong> 的值；傳 null 會丟 <code>NullPointerException</code></td></tr>
 <tr><td><code>Optional.ofNullable(v)</code></td><td>v 不是 null 就包起來，是 null 就回傳空的 Optional</td></tr>
@@ -551,7 +582,8 @@ System.out.println(words);</code></pre>
 <tr><td><code>orElseGet(supplier)</code></td><td>有值回傳值，沒值才呼叫 supplier 產生一個</td></tr>
 <tr><td><code>orElseThrow()</code>／<code>orElseThrow(supplier)</code></td><td>有值回傳值，沒值丟 <code>NoSuchElementException</code>／丟 supplier 產生的例外</td></tr>
 </tbody></table></div>
-<p>表中每一列都照 <code>Optional</code> 的方法說明；其中 <code>orElseThrow()</code> 是 Java 10 加的，文件說它是 <code>get()</code>「比較建議的替代寫法」（The preferred alternative to this method is orElseThrow().）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">出處：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">Optional</a></p>
+<p><code>orElseThrow()</code> 是 Java 10 加的，是 <code>get()</code> 比較建議的替代寫法。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>static final Map&lt;String, String&gt; OWNERS = Map.of("A001", "王小明", "A002", "陳美玲");
 
 static Optional&lt;String&gt; findOwner(String accountId) {
@@ -564,7 +596,11 @@ findOwner("Z999").isPresent();                     // false
 findOwner("Z999").orElseThrow(() -&gt; new IllegalArgumentException("查無帳戶：Z999"));
 // 丟出 IllegalArgumentException：查無帳戶：Z999
 Optional.of(null);                                 // 丟出 NullPointerException</code></pre>
-<p><strong><code>orElse</code> 與 <code>orElseGet</code> 的差別</strong>在「預設值什麼時候算」。Java 呼叫方法前，會先把所有引數算出來（JLS 列的方法呼叫執行步驟裡，第二步就是「對引數運算式求值」，the argument expressions are evaluated）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.12.4" target="_blank" rel="noopener">出處</a>，所以 <code>orElse(查資料庫())</code> 不管有沒有值都會先查一次。dev.java：<code>orElseGet</code> 做的事一樣，但「不必建立那個回傳的物件……提供的 supplier 只在需要時才被呼叫」（the provided supplier is invoked only if needed）。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></p>
+<p><strong><code>orElse</code> 與 <code>orElseGet</code> 的差別</strong>在「預設值什麼時候算」：</p>
+<ul>
+<li>Java 呼叫方法前，會先把所有引數算出來（方法呼叫的執行步驟裡，第二步就是對引數運算式求值）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.12.4" target="_blank" rel="noopener">出處</a>，所以 <code>orElse(查資料庫())</code> 不管有沒有值都會先查一次</li>
+<li><code>orElseGet</code> 做的事一樣，但不必先建立那個預設物件，提供的 supplier 只在需要時才被呼叫<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <pre><code>static String loadDefaultBranch() {
     System.out.println("（去資料庫查預設分行）");
     return "總行";
@@ -580,10 +616,10 @@ String c = Optional.&lt;String&gt;empty().orElseGet(() -&gt; loadDefaultBranch()
 // c 是 總行</code></pre>
 <p><strong>不要怎麼用：</strong></p>
 <ul class="plainlist">
-<li><b>不放欄位、參數、集合</b>：dev.java 的使用守則第五條是「不要把 Optional 用在欄位、方法參數、集合與 Map 裡」。<span class="orig">dev.java：Rule #5 Do not use optional in fields, method parameters, collections, and maps.</span></li>
-<li><b>本身不是 null</b>：第一條是「Optional 型別的變數或回傳值永遠不要是 null」。<span class="orig">dev.java：Rule #1 Never use null for an optional variable or returned value.<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></span>API 文件也說「型別是 Optional 的變數本身永遠不該是 null，應該一律指向一個 Optional 實例」。</li>
-<li><b>不用 == 比</b>：API 文件提醒不要拿 <code>==</code> 跟 <code>Optional.empty()</code> 比，「它不保證是同一個物件」，要用 <code>isEmpty()</code> 或 <code>isPresent()</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></li>
-<li><b>少用 get</b>：先 <code>isPresent()</code> 再 <code>get()</code> 雖然不會錯，但跟直接判斷 null 沒有兩樣，<code>map</code>、<code>orElse</code> 這些方法才是 <code>Optional</code> 好用的地方；dev.java 同一頁的第三條也是這個意思：「優先用 <code>ifPresent()</code>、<code>orElseThrow()</code>、<code>get()</code> 以外的替代寫法」。<span class="orig">dev.java：Rule #3 Prefer alternatives to ifPresent(), orElseThrow(), or get().<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>不放欄位、參數、集合</b>：不要把 Optional 用在欄位、方法參數、集合與 Map 裡。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></li>
+<li><b>本身不是 null</b>：Optional 型別的變數或回傳值永遠不要是 null，應該一律指向一個 Optional 實例。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>不用 == 比</b>：不要拿 <code>==</code> 跟 <code>Optional.empty()</code> 比，它不保證是同一個物件，要用 <code>isEmpty()</code> 或 <code>isPresent()</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>少用 get</b>：先 <code>isPresent()</code> 再 <code>get()</code> 雖然不會錯，但跟直接判斷 null 沒有兩樣，<code>map</code>、<code>orElse</code> 這些方法才是 <code>Optional</code> 好用的地方；優先用 <code>ifPresent()</code>、<code>orElseThrow()</code>、<code>get()</code> 以外的替代寫法。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p class="formula">Optional 當回傳型別用；查不到回傳 Optional.empty()，不回傳 null；預設值很貴就用 orElseGet</p>
 
@@ -595,7 +631,7 @@ String c = Optional.&lt;String&gt;empty().orElseGet(() -&gt; loadDefaultBranch()
 <div class="drill">
   <p class="dq"><code>Optional.of(null)</code> 會怎樣？</p>
   <ul class="dopts"><li data-ok>丟出 NullPointerException</li><li>回傳空的 Optional</li><li>回傳裝著 null 的 Optional</li><li>編譯錯誤</li></ul>
-  <p class="dexp"><code>of</code> 要求傳入非 null 的值，文件寫明傳 null 會丟 <code>NullPointerException</code>。值可能是 null 時要用 <code>ofNullable</code>。</p>
+  <p class="dexp"><code>of</code> 要求傳入非 null 的值，傳 null 會丟 <code>NullPointerException</code>。值可能是 null 時要用 <code>ofNullable</code>。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>Optional.<wbr>ofNullable(<wbr>OWNERS.<wbr>get(<wbr>"Z999")).<wbr>map(<wbr>String::length).<wbr>orElse(-1)</code> 回傳什麼？</p>
@@ -613,9 +649,9 @@ System.out.println(Optional.of("信義分行").orElse(loadDefault()));</code></p
   <p class="dexp">Java 先算引數才呼叫方法，<code>loadDefault()</code> 一定會先跑、印出「查預設值」；Optional 有值，所以 <code>orElse</code> 回傳「信義分行」。換成 <code>orElseGet(<wbr>() -&gt; loadDefault())</code> 就不會查。</p>
 </div>
 <div class="drill">
-  <p class="dq">依 dev.java 的使用守則，下面哪一種用法是<strong>不建議</strong>的？</p>
+  <p class="dq">照 Optional 的使用守則，下面哪一種用法是<strong>不建議</strong>的？</p>
   <ul class="dopts"><li>查詢方法回傳 <code>Optional&lt;Account&gt;</code></li><li>對回傳的 Optional 呼叫 <code>map</code> 再 <code>orElse</code></li><li data-ok>欄位宣告成 <code>Optional&lt;String&gt;</code></li><li>查不到時回傳 <code>Optional.empty()</code></li></ul>
-  <p class="dexp">守則第五條：不要把 Optional 用在欄位、方法參數、集合與 Map 裡。它設計來當回傳型別，其餘三個都是正常用法。</p>
+  <p class="dexp">不要把 Optional 用在欄位、方法參數、集合與 Map 裡。它設計來當回傳型別，其餘三個都是正常用法。</p>
 </div>
 <div class="drill">
   <p class="dq">一個回傳 <code>Optional&lt;String&gt;</code> 的查詢方法，查不到時應該回傳什麼？</p>
@@ -625,12 +661,12 @@ System.out.println(Optional.of("信義分行").orElse(loadDefault()));</code></p
 <div class="drill">
   <p class="dq"><code>Optional.<wbr>of(<wbr>"A001").<wbr>map(<wbr>id -&gt; OWNERS.<wbr>get(<wbr>"Z999")).<wbr>isPresent()</code> 回傳什麼？</p>
   <ul class="dopts"><li>true，因為原本的 Optional 有值</li><li>丟出 NullPointerException</li><li>編譯錯誤</li><li data-ok>false</li></ul>
-  <p class="dexp"><code>map</code> 的函式回傳 null（查不到 Z999）時，文件寫明 <code>map</code> 回傳空的 Optional，所以 <code>isPresent()</code> 是 false。</p>
+  <p class="dexp"><code>map</code> 的函式回傳 null（查不到 Z999）時，<code>map</code> 回傳空的 Optional，所以 <code>isPresent()</code> 是 false。</p>
 </div>
 <div class="drill">
-  <p class="dq">依 API 文件的建議，要判斷一個 Optional 是不是空的，該用哪個寫法？</p>
+  <p class="dq">要判斷一個 Optional 是不是空的，該用哪個寫法？</p>
   <ul class="dopts"><li>opt == Optional.empty()</li><li>opt == null</li><li data-ok>opt.isEmpty()</li><li>opt.get() == null</li></ul>
-  <p class="dexp">文件提醒 <code>Optional.empty()</code> 不保證每次都是同一個物件，不要用 <code>==</code> 比；Optional 變數本身不該是 null；對空的 Optional 呼叫 <code>get()</code> 會丟 <code>NoSuchElementException</code>。<code>isEmpty()</code> 是 Java 11 起的方法。</p>
+  <p class="dexp"><code>Optional.empty()</code> 不保證每次都是同一個物件，不要用 <code>==</code> 比；Optional 變數本身不該是 null；對空的 Optional 呼叫 <code>get()</code> 會丟 <code>NoSuchElementException</code>。<code>isEmpty()</code> 是 Java 11 起的方法。</p>
 </div>
 </section>
 

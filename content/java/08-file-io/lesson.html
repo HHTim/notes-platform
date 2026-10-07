@@ -55,7 +55,7 @@ Files.readString(path);</code></pre>
 <p>這四個都是抽象的，你只能用它們的子類別建立物件，但都可以拿父類別來做多型操作。</p>
 <p>「一個 <code>char</code> 就是一個 Unicode 字元」在今天已經不成立。<code>char</code> 是 16 位元的 UTF-16 <strong>編碼單位</strong>，Unicode 的碼位到 U+10FFFF（超過一百萬個），像表情符號和部分罕用漢字這類補充字元，要用兩個 <code>char</code>（代理對，surrogate pair，前後兩個編碼單位合起來才代表一個字）才裝得下——所以 <code>"😀".length()</code> 會是 2<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Character.html#unicode" target="_blank" rel="noopener">出處</a>。</p>
 <p>更重要的是：<strong>位元組跟文字之間一定要有一個字元編碼（charset）做翻譯。</strong>處理文字時把編碼寫清楚，不要靠環境的預設值。</p>
-<p>位元組流之所以「處理中文有困難」，原因就在這裡：它只搬位元組、不懂編碼，中文要靠字元流搭配明確指定的字元編碼才處理得對。另一件相關但不同的事是<strong>預設編碼</strong>：Java 18 起，標準函式庫的預設編碼統一成 UTF-8，不再跟著作業系統跑，跨平台的亂碼問題少了很多。<code>System.out</code> 與 <code>System.err</code> 不在這個預設值的範圍內——同一份文件明寫這兩個串流的編碼由 <code>Console.charset()</code> 決定<a class="fixsrc" href="https://openjdk.org/jeps/400" target="_blank" rel="noopener">出處</a>。不過明寫編碼仍然是好習慣——舊版本不是這樣，而且寫出來讀的人也比較安心。</p>
+<p>位元組流之所以「處理中文有困難」，原因就在這裡：它只搬位元組、不懂編碼，中文要靠字元流搭配明確指定的字元編碼才處理得對。另一件相關但不同的事是<strong>預設編碼</strong>：Java 18 起，標準函式庫的預設編碼統一成 UTF-8，不再跟著作業系統跑，跨平台的亂碼問題少了很多。<code>System.out</code> 與 <code>System.err</code> 不在這個預設值的範圍內，這兩個串流的編碼由 <code>Console.charset()</code> 決定<a class="fixsrc" href="https://openjdk.org/jeps/400" target="_blank" rel="noopener">出處</a>。不過明寫編碼仍然是好習慣——舊版本不是這樣，而且寫出來讀的人也比較安心。</p>
 </section>
 
 <section>

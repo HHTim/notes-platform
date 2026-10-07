@@ -4,7 +4,11 @@
 <section>
 <p class="era">JVM 這個行程裡面分成幾塊</p>
 <h3 class="head">執行期資料區：誰共用、誰獨有</h3>
-<p>〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉講過，一個 JVM 就是一個行程，它有自己的虛擬位址空間。JVM 把這塊空間再分成幾個用途不同的區域，Java 虛擬機規格（JVMS）叫<strong>執行期資料區</strong>（run-time data areas）：「有些在 JVM 啟動時建立、JVM 結束時才銷毀；其他是每條執行緒一份，隨執行緒建立與銷毀」（Some of these data areas are created on Java Virtual Machine start-up and are destroyed only when the Java Virtual Machine terminates. Other data areas are per thread.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5" target="_blank" rel="noopener">出處</a></p>
+<p>〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉講過，一個 JVM 就是一個行程，它有自己的虛擬位址空間。JVM 把這塊空間再分成幾個用途不同的區域，叫<strong>執行期資料區</strong>（run-time data areas，Java 虛擬機規格 JVMS 的用語）：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>有些在 JVM 啟動時建立、JVM 結束時才銷毀</li>
+<li>其他是每條執行緒一份，隨執行緒建立與銷毀</li>
+</ul>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="JVM 執行期資料區：堆與方法區所有執行緒共用；每條執行緒各有 pc 暫存器、JVM 堆疊、本機方法堆疊">
   <rect x="20" y="20" width="720" height="260" rx="10" fill="none" stroke="currentColor" stroke-opacity=".5"/>
@@ -39,41 +43,41 @@
 </svg>
 <figcaption>五塊執行期資料區：堆與方法區共用；pc 暫存器、JVM 堆疊、本機方法堆疊每條執行緒一份。</figcaption>
 </figure>
-<p>JVMS 第 2.5 節的定義：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5" target="_blank" rel="noopener">出處</a></p>
-<div class="tablewrap"><table><thead><tr><th>區域</th><th>規格怎麼說</th><th>誰擁有</th><th>出事時</th></tr></thead><tbody>
-<tr><th>pc 暫存器</th><td>「每條 JVM 執行緒有自己的 pc（程式計數器）暫存器」，記著目前執行到哪一條指令</td><td>每條執行緒</td><td>—</td></tr>
-<tr><th>JVM 堆疊</th><td>「與執行緒同時建立」，存放「框」（frame）：區域變數與運算中的部分結果，「參與方法的呼叫與回傳」</td><td>每條執行緒</td><td>需要的深度超過允許值丟 <code>StackOverflowError</code>；配不出記憶體丟 <code>OutOfMemoryError</code></td></tr>
-<tr><th>堆</th><td>「所有 JVM 執行緒共用」，是「配置所有類別實體與陣列的執行期資料區」；物件「從不明確釋放」，由垃圾回收器回收</td><td>共用</td><td><code>OutOfMemoryError</code></td></tr>
-<tr><th>方法區</th><td>「所有 JVM 執行緒共用」，存放每個類別的結構：執行期常數池、欄位與方法的資料、方法與建構子的程式碼</td><td>共用</td><td><code>OutOfMemoryError</code></td></tr>
+<p class="muted">出處：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5" target="_blank" rel="noopener">JVM 規格第 2.5 節</a></p>
+<div class="tablewrap"><table><thead><tr><th>區域</th><th>內容</th><th>誰擁有</th><th>出事時</th></tr></thead><tbody>
+<tr><th>pc 暫存器</th><td>每條 JVM 執行緒有自己的 pc（程式計數器）暫存器，記著目前執行到哪一條指令</td><td>每條執行緒</td><td>—</td></tr>
+<tr><th>JVM 堆疊</th><td>與執行緒同時建立，存放「框」（frame）：區域變數與運算中的部分結果，參與方法的呼叫與回傳</td><td>每條執行緒</td><td>需要的深度超過允許值丟 <code>StackOverflowError</code>；配不出記憶體丟 <code>OutOfMemoryError</code></td></tr>
+<tr><th>堆</th><td>所有 JVM 執行緒共用，所有類別實體與陣列都配置在這裡；物件從不明確釋放，由垃圾回收器回收</td><td>共用</td><td><code>OutOfMemoryError</code></td></tr>
+<tr><th>方法區</th><td>所有 JVM 執行緒共用，存放每個類別的結構：執行期常數池、欄位與方法的資料、方法與建構子的程式碼</td><td>共用</td><td><code>OutOfMemoryError</code></td></tr>
 <tr><th>本機方法堆疊</th><td>執行 C 這類原生方法時用的堆疊</td><td>每條執行緒</td><td><code>StackOverflowError</code> 或 <code>OutOfMemoryError</code></td></tr>
 </tbody></table></div>
-<p>每次呼叫方法就推一個框進那條執行緒的 JVM 堆疊，方法結束就彈出。所以區域變數只有自己那條執行緒看得到，天生不必同步；堆上的物件大家都拿得到參考，才需要〈執行緒與並行〉講的那些鎖。方法區在 HotSpot 裡的實作叫 <strong>Metaspace</strong>：Java 8 的 JEP 122「從 HotSpot JVM 移除永久代，因此也不再需要調整永久代的大小」（Remove the permanent generation from the Hotspot JVM and thus the need to tune the size of the permanent generation.）<a class="fixsrc" href="https://openjdk.org/jeps/122" target="_blank" rel="noopener">出處</a>，類別中繼資料改放在原生記憶體（native memory，作業系統直接給行程、不在 Java 堆裡的記憶體）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
+<p>每次呼叫方法就推一個框進那條執行緒的 JVM 堆疊，方法結束就彈出。所以區域變數只有自己那條執行緒看得到，天生不必同步；堆上的物件大家都拿得到參考，才需要〈執行緒與並行〉講的那些鎖。方法區在 HotSpot 裡的實作叫 <strong>Metaspace</strong>：Java 8（JEP 122）從 HotSpot 移除了永久代，也就不必再調永久代的大小<a class="fixsrc" href="https://openjdk.org/jeps/122" target="_blank" rel="noopener">出處</a>，類別中繼資料改放在原生記憶體（native memory，作業系統直接給行程、不在 Java 堆裡的記憶體）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">堆與方法區共用；JVM 堆疊、pc、本機方法堆疊每條執行緒一份</p>
 
 <div class="drill">
   <p class="dq">方法裡宣告的區域變數 <code>int count = 0;</code> 放在哪一塊？</p>
   <ul class="dopts"><li>堆，跟物件放在一起</li><li data-ok>那條執行緒的 JVM 堆疊</li><li>方法區，跟類別資料放一起</li><li>pc 暫存器</li></ul>
-  <p class="dexp">JVMS：JVM 堆疊存放框，框裡是區域變數與運算中的部分結果。每條執行緒的堆疊各自獨立，所以區域變數不會被別的執行緒看到。</p>
+  <p class="dexp">JVM 堆疊存放框，框裡是區域變數與運算中的部分結果。每條執行緒的堆疊各自獨立，所以區域變數不會被別的執行緒看到。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>new Account("A001")</code> 建立出來的物件實體放在哪一塊？</p>
   <ul class="dopts"><li>呼叫者的 JVM 堆疊</li><li>方法區</li><li data-ok>堆</li><li>本機方法堆疊</li></ul>
-  <p class="dexp">JVMS：堆是「配置所有類別實體與陣列」的區域。指向它的參考變數若是區域變數，那個參考放在堆疊上，但物件本身在堆裡。</p>
+  <p class="dexp">所有類別實體與陣列都配置在堆。指向它的參考變數若是區域變數，那個參考放在堆疊上，但物件本身在堆裡。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一塊是所有執行緒共用的？</p>
   <ul class="dopts"><li>pc 暫存器</li><li>JVM 堆疊</li><li>本機方法堆疊</li><li data-ok>方法區</li></ul>
-  <p class="dexp">JVMS：堆與方法區由所有 JVM 執行緒共用；pc 暫存器、JVM 堆疊、本機方法堆疊每條執行緒各一份。</p>
+  <p class="dexp">堆與方法區由所有 JVM 執行緒共用；pc 暫存器、JVM 堆疊、本機方法堆疊每條執行緒各一份。</p>
 </div>
 <div class="drill">
   <p class="dq">類別的結構、執行期常數池、方法的程式碼，放在哪一塊？</p>
   <ul class="dopts"><li data-ok>方法區（Metaspace）</li><li>堆的老年代，跟長壽物件一起</li><li>每條執行緒各自的 JVM 堆疊</li><li>pc 暫存器</li></ul>
-  <p class="dexp">JVMS 2.5.4：方法區存放每個類別的結構，例如執行期常數池、欄位與方法資料、方法與建構子的程式碼。Java 8 起 HotSpot 把它放在原生記憶體的 Metaspace。</p>
+  <p class="dexp">方法區存放每個類別的結構，例如執行期常數池、欄位與方法資料、方法與建構子的程式碼。Java 8 起 HotSpot 把它放在原生記憶體的 Metaspace。</p>
 </div>
 <div class="drill">
-  <p class="dq">Java 8 的 JEP 122 移除了什麼？</p>
+  <p class="dq">Java 8（JEP 122）移除了什麼？</p>
   <ul class="dopts"><li>整個垃圾回收器</li><li>年輕代裡的 Survivor 空間</li><li data-ok>永久代（PermGen）</li><li>每條執行緒的 JVM 堆疊</li></ul>
-  <p class="dexp">JEP 122：從 HotSpot 移除永久代，也就不必再調永久代的大小；類別中繼資料改放原生記憶體（Metaspace）。</p>
+  <p class="dexp">Java 8 從 HotSpot 移除永久代，也就不必再調永久代的大小；類別中繼資料改放原生記憶體（Metaspace）。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼方法裡的區域變數不需要用 <code>synchronized</code> 保護？</p>
@@ -85,7 +89,7 @@
 <section>
 <p class="era">多數物件很快就死</p>
 <h3 class="head">堆的分代：Eden、Survivor、老年代與晉升</h3>
-<p>最笨的回收法是每次把所有活物件都走一遍，調校指南說這樣花的時間跟活物件數成正比，「對保有大量活資料的大型應用程式來說代價太高」。HotSpot 改用<strong>分代回收</strong>（generational collection），依據的是<strong>弱分代假說</strong>（weak generational hypothesis）：「大多數物件只存活很短的時間」（most objects survive for only a short period of time）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a></p>
+<p>最笨的回收法是每次把所有活物件都走一遍，花的時間跟活物件數成正比，對保有大量活資料的大型應用程式來說代價太高。HotSpot 改用<strong>分代回收</strong>（generational collection），依據的是<strong>弱分代假說</strong>（weak generational hypothesis）：大多數物件只存活很短的時間。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 240" role="img" aria-label="新物件配置在 Eden；年輕代回收時活物件複製到空的那塊 Survivor，在兩塊 Survivor 之間來回，被複製夠多次就晉升到老年代">
   <defs><marker id="jg-2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" fill-opacity=".6"/></marker><marker id="jg-2-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold-deep)"/></marker></defs>
@@ -115,7 +119,14 @@
 </svg>
 <figcaption>分代回收：新物件進 Eden，活過幾輪年輕代回收、在兩塊 Survivor 之間被複製夠多次，才晉升到老年代。</figcaption>
 </figure>
-<p>調校指南的描述：「絕大多數物件配置在專門給年輕物件的池（年輕代），而且大部分死在那裡」；年輕代滿了就做一次<strong>年輕代回收</strong>（minor collection），「只回收年輕代」，成本大致跟活物件數成正比，所以「滿是死物件的年輕代回收得非常快」；老年代最後也會滿，那時做<strong>主要回收</strong>（major collection），「整個堆都要回收」，通常比年輕代回收久得多。年輕代由 Eden 與兩塊 Survivor 組成：「大多數物件一開始配置在 Eden」，任何時候都有一塊 Survivor 是空的，回收時當作 Eden 與另一塊 Survivor 裡活物件的目的地；物件就這樣在兩塊 Survivor 之間來回複製，「直到被複製過一定次數、或那邊空間不夠，就複製進老年代」，這叫<strong>老化</strong>（aging）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a></p>
+<p>分代回收怎麼運作：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>絕大多數物件配置在專門給年輕物件的池（<strong>年輕代</strong>），而且大部分死在那裡</li>
+<li>年輕代滿了就做一次<strong>年輕代回收</strong>（minor collection），只回收年輕代；成本大致跟活物件數成正比，所以滿是死物件的年輕代回收得非常快</li>
+<li>老年代最後也會滿，那時做<strong>主要回收</strong>（major collection），整個堆都要回收，通常比年輕代回收久得多</li>
+<li>年輕代由 Eden 與兩塊 Survivor 組成：大多數物件一開始配置在 Eden；任何時候都有一塊 Survivor 是空的，回收時當作 Eden 與另一塊 Survivor 裡活物件的目的地</li>
+<li>物件就這樣在兩塊 Survivor 之間來回複製，直到被複製過一定次數、或那邊空間不夠，就複製進老年代，這叫<strong>老化</strong>（aging）</li>
+</ul>
 <p>實跑一個「交易字串大量產生、千分之一留下來」的程式，用 <code>-Xlog:gc</code> 看回收：</p>
 <pre><code>public class Churn {
     public static void main(String[] args) {
@@ -137,29 +148,35 @@
 // [0.034s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 38M-&gt;1M(64M) 0.486ms
 // [0.039s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 38M-&gt;1M(64M) 0.490ms</code></pre>
 <p><code>38M->1M(64M)</code> 是「回收前用了 38 MB、回收後剩 1 MB、堆目前 64 MB」。括號裡的堆大小跟機器記憶體有關：初始堆是實體記憶體的 1/64，在 2 GB 的容器裡跑同一個程式，日誌就變成 <code>19M->1M(34M)</code> 這樣。不管哪一種，每次年輕代回收，幾乎全部都是死物件，零點幾毫秒就清掉了，這就是弱分代假說的效果。</p>
-<p><strong>堆多大：</strong>調校指南列的預設值是「初始堆大小為實體記憶體的 1/64」「最大堆大小為實體記憶體的 1/4」，最小與最大堆分別用 <code>-Xms</code>、<code>-Xmx</code> 設。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a> 它還說 HotSpot 啟動時「在位址空間裡保留整個 Java 堆，但除非需要，不會替它配置實體記憶體」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a>，這正是〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉的需求分頁：<code>-Xmx4g</code> 不代表一啟動就吃掉 4 GB 實體記憶體。在只給 2 GB 記憶體的容器裡實跑 <code>java -XX:+PrintCommandLineFlags -version</code>，看到 <code>-XX:InitialHeapSize=33554432</code>（32 MB，2 GB 的 1/64）與 <code>-XX:MaxHeapSize=536870912</code>（512 MB，2 GB 的 1/4）：JVM 認的「實體記憶體」是容器給的上限。</p>
-<p class="muted">小容器有例外：<code>java</code> 指令手冊說，堆很小（約 125 MB 以下）時改用 <code>-XX:MinRAMPercentage</code>，預設是 50%（A small heap is a heap of approximately 125 MB. The default value is 50 percent.）。Java 21 實跑：容器給 128 MB 時最大堆是 64 MiB、256 MB 時是 126 MiB，都比 1/4 大；512 MB 起才是 1/4。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>堆多大：</strong><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>初始堆大小預設為實體記憶體的 1/64，用 <code>-Xms</code> 設</li>
+<li>最大堆大小預設為實體記憶體的 1/4，用 <code>-Xmx</code> 設</li>
+<li>HotSpot 啟動時在位址空間裡保留整個 Java 堆，但除非需要，不會替它配置實體記憶體<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>最後一條正是〈作業系統怎麼跑程式：行程、執行緒、記憶體與 I/O〉的需求分頁：<code>-Xmx4g</code> 不代表一啟動就吃掉 4 GB 實體記憶體。在只給 2 GB 記憶體的容器裡實跑 <code>java -XX:+PrintCommandLineFlags -version</code>，看到 <code>-XX:InitialHeapSize=33554432</code>（32 MB，2 GB 的 1/64）與 <code>-XX:MaxHeapSize=536870912</code>（512 MB，2 GB 的 1/4）：JVM 認的「實體記憶體」是容器給的上限。</p>
+<p class="muted">小容器有例外：堆很小（約 125 MB 以下）時改用 <code>-XX:MinRAMPercentage</code>，預設是 50%。Java 21 實跑：容器給 128 MB 時最大堆是 64 MiB、256 MB 時是 126 MiB，都比 1/4 大；512 MB 起才是 1/4。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">新物件進 Eden；年輕代回收快，因為大多數都死了；活得夠久才晉升老年代</p>
 
 <div class="drill">
   <p class="dq">HotSpot 把堆分代，依據的是什麼觀察？</p>
   <ul class="dopts"><li>大物件比小物件更常被存取</li><li>老物件比新物件更容易變成垃圾</li><li data-ok>大多數物件只活很短的時間</li><li>每個物件的壽命其實都差不多長</li></ul>
-  <p class="dexp">這是弱分代假說。調校指南：最直接的演算法每次走過所有活物件，太慢；分代回收利用「大多數物件很快就死」，把力氣集中在年輕代。</p>
+  <p class="dexp">這是弱分代假說。最直接的演算法每次走過所有活物件，太慢；分代回收利用「大多數物件很快就死」，把力氣集中在年輕代。</p>
 </div>
 <div class="drill">
   <p class="dq">一個剛 <code>new</code> 出來的一般物件，大多配置在哪裡？</p>
   <ul class="dopts"><li>老年代</li><li>空的那塊 Survivor</li><li data-ok>Eden</li><li>Metaspace</li></ul>
-  <p class="dexp">調校指南：大多數物件一開始配置在 Eden。Survivor 是年輕代回收時活物件的目的地；Metaspace 放的是類別中繼資料，不是物件。</p>
+  <p class="dexp">大多數物件一開始配置在 Eden。Survivor 是年輕代回收時活物件的目的地；Metaspace 放的是類別中繼資料，不是物件。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼年輕代回收通常很快？</p>
   <ul class="dopts"><li data-ok>年輕代裡大多是死物件，只要處理活的</li><li>因為年輕代回收完全不暫停應用程式</li><li>因為年輕代用了比較快的記憶體</li><li>因為年輕代回收只檢查一半的物件</li></ul>
-  <p class="dexp">調校指南：回收成本大致跟被回收那一代的活物件數成正比，「滿是死物件的年輕代回收得非常快」。實跑的日誌裡，每次 38 MB 回收後只剩 1 MB，停頓不到一毫秒。</p>
+  <p class="dexp">回收成本大致跟被回收那一代的活物件數成正比，滿是死物件的年輕代回收得非常快。實跑的日誌裡，每次 38 MB 回收後只剩 1 MB，停頓不到一毫秒。</p>
 </div>
 <div class="drill">
   <p class="dq">物件在什麼情況下會晉升到老年代？</p>
   <ul class="dopts"><li>物件第一次被其他執行緒讀取時</li><li>物件所屬的類別被宣告成 static 時</li><li data-ok>在 Survivor 間被複製夠多次</li><li>物件所屬的類別第一次被載入時</li></ul>
-  <p class="dexp">調校指南：物件在兩塊 Survivor 之間來回複製，直到複製過一定次數或那邊空間不夠，就複製進老年代，這個過程叫老化。</p>
+  <p class="dexp">物件在兩塊 Survivor 之間來回複製，直到複製過一定次數或那邊空間不夠，就複製進老年代，這個過程叫老化。</p>
 </div>
 <div class="drill">
   <p class="dq">GC 日誌 <code>Pause Young (<wbr>Normal) (<wbr>G1 Evacuation Pause) 38M->1M(64M) 0.486ms</code> 裡的 <code>38M->1M</code> 是什麼意思？</p>
@@ -169,19 +186,19 @@
 <div class="drill">
   <p class="dq">沒設 <code>-Xmx</code> 時，Java 21 的最大堆大小預設是多少？</p>
   <ul class="dopts"><li data-ok>實體記憶體的 1/4</li><li>固定 256 MB</li><li>實體記憶體的 1/64</li><li>實體記憶體的全部</li></ul>
-  <p class="dexp">調校指南的預設值：初始堆是實體記憶體的 1/64、最大堆是 1/4。容器給 2 GB 時實跑得到最大堆 512 MB、初始 32 MB，剛好是 1/4 與 1/64。</p>
+  <p class="dexp">預設值：初始堆是實體記憶體的 1/64、最大堆是 1/4。容器給 2 GB 時實跑得到最大堆 512 MB、初始 32 MB，剛好是 1/4 與 1/64。</p>
 </div>
 <div class="drill">
   <p class="dq">設了 <code>-Xmx4g</code>，JVM 一啟動就會占掉 4 GB 實體記憶體嗎？</p>
   <ul class="dopts"><li>會，堆一開始就全部配置好</li><li data-ok>不會，需要時才配實體記憶體</li><li>會，但只有用 G1 時才會這樣</li><li>不會，因為 -Xmx 只限制老年代</li></ul>
-  <p class="dexp">調校指南：HotSpot 啟動時在位址空間保留整個 Java 堆，但除非需要不配置實體記憶體。這跟作業系統的需求分頁是同一件事。</p>
+  <p class="dexp">HotSpot 啟動時在位址空間保留整個 Java 堆，但除非需要不配置實體記憶體。這跟作業系統的需求分頁是同一件事。</p>
 </div>
 </section>
 
 <section>
 <p class="era">誰還活著，從根開始算</p>
 <h3 class="head">GC Root 與可達性</h3>
-<p>垃圾回收器怎麼知道一個物件是垃圾？調校指南的定義：物件「再也無法從執行中程式的任何活物件的任何參考到達」時，就被視為垃圾，記憶體可以重用（An object is considered garbage and its memory can be reused by the VM when it can no longer be reached from any reference of any other live object in the running program.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a> 「到達」要有起點，這些起點叫 <strong>GC Root</strong>。HotSpot 詞彙表的定義：「從堆外指進 Java 物件堆的指標，例如來自類別的靜態欄位、執行中方法框裡的區域參考等」（A pointer into the Java object heap from outside the heap. These come up, e.g., from static fields of classes, local references in activation frames, etc.）。<a class="fixsrc" href="https://openjdk.org/groups/hotspot/docs/HotSpotGlossary.html" target="_blank" rel="noopener">出處</a> 「執行中方法框裡的區域參考」就是各條執行緒 JVM 堆疊上的區域變數與參數。回收器從根出發，沿著參考把走得到的都標成活的，其餘就是垃圾，這叫<strong>可達性分析</strong>。</p>
+<p>垃圾回收器怎麼知道一個物件是垃圾？物件再也無法從執行中程式的任何活物件的任何參考到達時，就被視為垃圾，記憶體可以重用。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a> 「到達」要有起點，這些起點叫 <strong>GC Root</strong>：從堆外指進 Java 物件堆的指標，例如來自類別的靜態欄位、執行中方法框裡的區域參考等。<a class="fixsrc" href="https://openjdk.org/groups/hotspot/docs/HotSpotGlossary.html" target="_blank" rel="noopener">出處</a> 「執行中方法框裡的區域參考」就是各條執行緒 JVM 堆疊上的區域變數與參數。回收器從根出發，沿著參考把走得到的都標成活的，其餘就是垃圾，這叫<strong>可達性分析</strong>。</p>
 <pre><code>class Branch {
     static final List&lt;Account&gt; ACTIVE = new ArrayList&lt;&gt;();   // 靜態欄位：一條 GC Root
 
@@ -196,9 +213,9 @@
 <p class="muted">上面 <code>Branch</code> 的片段是說明用的：<code>Account</code> 假設是一個有 <code>String</code> 參數建構子的類別。</p>
 
 <div class="drill">
-  <p class="dq">依 HotSpot 調校指南，一個物件什麼時候算垃圾？</p>
+  <p class="dq">一個物件什麼時候算垃圾？</p>
   <ul class="dopts"><li>超過一分鐘都沒有被讀取時</li><li>它的參考計數變成 0 時</li><li>建立它的那個方法執行完時</li><li data-ok>再也無法從活物件走到它時</li></ul>
-  <p class="dexp">調校指南的定義是「再也到達不了」。物件建立的方法執行完不代表它死了，它可能已經被別的活物件（例如靜態集合）抓住。</p>
+  <p class="dexp">定義是「再也到達不了」。物件建立的方法執行完不代表它死了，它可能已經被別的活物件（例如靜態集合）抓住。</p>
 </div>
 <div class="drill">
   <p class="dq">上面 <code>Branch.open()</code> 執行完之後，下面哪一個物件可以被回收？</p>
@@ -225,27 +242,27 @@
 <section>
 <p class="era">四個回收器，兩條取捨軸</p>
 <h3 class="head">Serial、Parallel、G1、ZGC 與 Stop-The-World</h3>
-<p><strong>Stop-The-World</strong>（STW）是回收器暫停所有應用程式執行緒的那段時間。回收器要搬物件、改參考，應用程式如果同時在改同一批物件，兩邊會互相踩到，所以至少有一部分工作要在暫停中做。調校指南說衡量回收的兩個主要指標是<strong>吞吐量</strong>（throughput，花在應用程式而不是回收上的時間比例）與<strong>延遲</strong>（latency，停頓多長）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a> Java 21 的四個回收器：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/available-collectors.html" target="_blank" rel="noopener">出處</a></p>
-<div class="tablewrap"><table><thead><tr><th>回收器</th><th>調校指南怎麼說</th><th>適合</th><th>開啟</th></tr></thead><tbody>
-<tr><th>Serial</th><td>「用單一執行緒做所有回收工作」，沒有執行緒之間溝通的成本</td><td>單處理器，或資料量小（約 100 MB 以內）</td><td><code>-XX:+UseSerialGC</code></td></tr>
-<tr><th>Parallel</th><td>「也叫吞吐量回收器」，跟 Serial 一樣分代，差在「用多條執行緒加速回收」</td><td>多處理器上中大型資料量，吞吐量第一、能接受一秒以上的停頓</td><td><code>-XX:+UseParallelGC</code></td></tr>
-<tr><th>G1</th><td>「大致並行」（mostly concurrent）的回收器，「能以高機率達成停頓時間目標，同時保有高吞吐量」</td><td>回應時間比吞吐量重要，停頓要短</td><td><code>-XX:+UseG1GC</code></td></tr>
-<tr><th>ZGC</th><td>「最大停頓在一毫秒以內，但犧牲一些吞吐量」，停頓時間與堆大小無關，適合「幾百 MB 到 16 TB」的堆</td><td>延遲最優先</td><td>Java 21：<code>-XX:+UseZGC -XX:+ZGenerational</code></td></tr>
+<p><strong>Stop-The-World</strong>（STW）是回收器暫停所有應用程式執行緒的那段時間。回收器要搬物件、改參考，應用程式如果同時在改同一批物件，兩邊會互相踩到，所以至少有一部分工作要在暫停中做。衡量回收的兩個主要指標是<strong>吞吐量</strong>（throughput，花在應用程式而不是回收上的時間比例）與<strong>延遲</strong>（latency，停頓多長）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-collector-implementation1.html" target="_blank" rel="noopener">出處</a> Java 21 的四個回收器：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/available-collectors.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>回收器</th><th>特性</th><th>適合</th><th>開啟</th></tr></thead><tbody>
+<tr><th>Serial</th><td>用單一執行緒做所有回收工作，沒有執行緒之間溝通的成本</td><td>單處理器，或資料量小（約 100 MB 以內）</td><td><code>-XX:+UseSerialGC</code></td></tr>
+<tr><th>Parallel</th><td>也叫吞吐量回收器，跟 Serial 一樣分代，差在用多條執行緒加速回收</td><td>多處理器上中大型資料量，吞吐量第一、能接受一秒以上的停頓</td><td><code>-XX:+UseParallelGC</code></td></tr>
+<tr><th>G1</th><td>大致並行（mostly concurrent）的回收器，能以高機率達成停頓時間目標，同時保有高吞吐量</td><td>回應時間比吞吐量重要，停頓要短</td><td><code>-XX:+UseG1GC</code></td></tr>
+<tr><th>ZGC</th><td>最大停頓在一毫秒以內，但犧牲一些吞吐量；停頓時間與堆大小無關，適合幾百 MB 到 16 TB 的堆</td><td>延遲最優先</td><td>Java 21：<code>-XX:+UseZGC -XX:+ZGenerational</code></td></tr>
 </tbody></table></div>
 <p><strong>G1 怎麼縮短停頓：</strong></p>
 <ul class="plainlist">
-<li><b>區域</b>：調校指南：G1 把堆切成「一組大小相等的區域」，每塊是「配置與回收的單位」；比較花時間的全堆標記「與應用程式並行」；並「追蹤過去應用程式行為與回收停頓的資訊，建立成本模型」，用來決定每次停頓做多少工作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></li>
-<li><b>停頓目標</b>：用 <code>-XX:MaxGCPauseMillis</code> 設，java 手冊寫「G1 預設的最大停頓目標是 200 毫秒」，而且它只是「軟性目標」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
-<li><b>不是即時回收器</b>：指南也明說「G1 不是即時回收器」，只是以高機率達成目標。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>區域</b>：G1 把堆切成一組大小相等的區域，每塊是配置與回收的單位；比較花時間的全堆標記與應用程式並行；並追蹤過去應用程式行為與回收停頓的資訊，建立成本模型，用來決定每次停頓做多少工作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>停頓目標</b>：用 <code>-XX:MaxGCPauseMillis</code> 設，G1 預設的最大停頓目標是 200 毫秒，而且它只是<strong>軟性目標</strong>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>不是即時回收器</b>：G1 只是以高機率達成目標。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p><strong>Java 21 預設哪一個：</strong>調校指南：「伺服器級機器上用 G1，否則用 Serial」，而 VM 認定伺服器級的條件是「偵測到兩顆以上處理器，且實體記憶體大於等於 1792 MB」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a> G1 自 Java 9 起成為預設，JEP 248 的理由是「一般來說，限制 GC 停頓時間比最大化吞吐量更重要」（Limiting GC pause times is, in general, more important than maximizing throughput.）。<a class="fixsrc" href="https://openjdk.org/jeps/248" target="_blank" rel="noopener">出處</a> 用 Docker 限制 CPU 與記憶體實跑 <code>java -XX:+PrintCommandLineFlags -version</code>：</p>
+<p><strong>Java 21 預設哪一個：</strong>伺服器級機器上用 G1，否則用 Serial；VM 認定伺服器級的條件是偵測到兩顆以上處理器，且實體記憶體大於等於 1792 MB。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a> G1 自 Java 9 起成為預設（JEP 248），理由是一般來說，限制 GC 停頓時間比最大化吞吐量更重要。<a class="fixsrc" href="https://openjdk.org/jeps/248" target="_blank" rel="noopener">出處</a> 用 Docker 限制 CPU 與記憶體實跑 <code>java -XX:+PrintCommandLineFlags -version</code>：</p>
 <div class="tablewrap"><table><thead><tr><th>容器限制</th><th>Java 21 選到的回收器</th></tr></thead><tbody>
 <tr><td><code>--cpus=1 --memory=2g</code></td><td><code>-XX:+UseSerialGC</code>（只有一顆 CPU）</td></tr>
 <tr><td><code>--cpus=2 --memory=1g</code></td><td><code>-XX:+UseSerialGC</code>（記憶體不到 1792 MB）</td></tr>
 <tr><td><code>--cpus=2 --memory=2g</code></td><td><code>-XX:+UseG1GC</code></td></tr>
 </tbody></table></div>
 <p>所以 K8s 上 <code>limits</code> 設成 1 顆 CPU，或記憶體 <code>limits</code> 低於 1792 MB（例如 1 GB）的 Java 服務，沒指定的話跑的是 Serial；實跑 <code>--memory=1792m</code> 是 G1、<code>--memory=1791m</code> 就變 Serial。</p>
-<p>只設 <code>requests</code> 不算：K8s 文件說 CPU 的 request「通常定義的是一個權重」（The CPU request typically defines a weighting）<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>，落到節點上是 CPU 份額（shares），而 Java 19 起 JVM 不再用份額算處理器數（JDK-8281181，Do not use CPU Shares to compute active processor count）<a class="fixsrc" href="https://bugs.openjdk.org/browse/JDK-8281181" target="_blank" rel="noopener">出處</a>；實跑 <code>--cpu-shares=512 --memory=2g</code> 照樣是 G1。</p>
+<p>只設 <code>requests</code> 不算：K8s 的 CPU request 通常定義的是一個權重<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>，落到節點上是 CPU 份額（shares），而 Java 19 起 JVM 不再用份額算處理器數（JDK-8281181）<a class="fixsrc" href="https://bugs.openjdk.org/browse/JDK-8281181" target="_blank" rel="noopener">出處</a>；實跑 <code>--cpu-shares=512 --memory=2g</code> 照樣是 G1。</p>
 <p>同一個 <code>Churn</code> 程式換回收器，日誌的開頭也不一樣：</p>
 <pre><code>// java -Xmx64m -XX:+UseSerialGC -Xlog:gc Churn
 // [0.001s][info][gc] Using Serial
@@ -256,7 +273,7 @@
 // java -Xmx64m -XX:+UseZGC -XX:+ZGenerational -Xlog:gc Churn
 // [0.010s][info][gc] Using The Z Garbage Collector
 // [0.072s][info][gc] GC(0) Major Collection (Warmup) 8M(12%)-&gt;26M(41%) 0.014s</code></pre>
-<p class="muted"><strong>ZGC 在 Java 21 與 25 的差異：</strong>ZGC 在 Java 15 從實驗功能轉為正式功能（JEP 377）<a class="fixsrc" href="https://openjdk.org/jeps/377" target="_blank" rel="noopener">出處</a>；Java 21 加入分代模式，讓 ZGC「更頻繁地回收年輕物件」，但當時要加 <code>-XX:+ZGenerational</code>（JEP 439）<a class="fixsrc" href="https://openjdk.org/jeps/439" target="_blank" rel="noopener">出處</a>；Java 23 起分代成為預設（JEP 474）<a class="fixsrc" href="https://openjdk.org/jeps/474" target="_blank" rel="noopener">出處</a>；Java 24 移除不分代模式（JEP 490）<a class="fixsrc" href="https://openjdk.org/jeps/490" target="_blank" rel="noopener">出處</a>。在 Java 25 加 <code>-XX:+ZGenerational</code> 只會得到警告 <code>Ignoring option ZGenerational; support was removed in 24.0</code>，直接 <code>-XX:+UseZGC</code> 就是分代 ZGC。</p>
+<p class="muted"><strong>ZGC 在 Java 21 與 25 的差異：</strong>ZGC 在 Java 15 從實驗功能轉為正式功能（JEP 377）<a class="fixsrc" href="https://openjdk.org/jeps/377" target="_blank" rel="noopener">出處</a>；Java 21 加入分代模式，讓 ZGC 更頻繁地回收年輕物件，但當時要加 <code>-XX:+ZGenerational</code>（JEP 439）<a class="fixsrc" href="https://openjdk.org/jeps/439" target="_blank" rel="noopener">出處</a>；Java 23 起分代成為預設（JEP 474）<a class="fixsrc" href="https://openjdk.org/jeps/474" target="_blank" rel="noopener">出處</a>；Java 24 移除不分代模式（JEP 490）<a class="fixsrc" href="https://openjdk.org/jeps/490" target="_blank" rel="noopener">出處</a>。在 Java 25 加 <code>-XX:+ZGenerational</code> 只會得到警告 <code>Ignoring option ZGenerational; support was removed in 24.0</code>，直接 <code>-XX:+UseZGC</code> 就是分代 ZGC。</p>
 
 <div class="drill">
   <p class="dq">Stop-The-World 指的是什麼？</p>
@@ -266,17 +283,17 @@
 <div class="drill">
   <p class="dq">只用一條執行緒做所有回收工作、沒有執行緒之間溝通成本的是哪一個？</p>
   <ul class="dopts"><li>Parallel</li><li data-ok>Serial</li><li>G1</li><li>ZGC</li></ul>
-  <p class="dexp">調校指南：Serial 用單一執行緒做所有回收工作，最適合單處理器或資料量小（約 100 MB 以內）的應用。</p>
+  <p class="dexp">Serial 用單一執行緒做所有回收工作，最適合單處理器或資料量小（約 100 MB 以內）的應用。</p>
 </div>
 <div class="drill">
-  <p class="dq">夜間批次對帳：吞吐量最重要，停頓一兩秒沒關係，機器有多顆 CPU。依調校指南的選擇準則，最適合哪一個？</p>
+  <p class="dq">夜間批次對帳：吞吐量最重要，停頓一兩秒沒關係，機器有多顆 CPU。依回收器的選擇準則，最適合哪一個？</p>
   <ul class="dopts"><li data-ok>Parallel</li><li>Serial</li><li>ZGC</li><li>G1，因為它是預設</li></ul>
-  <p class="dexp">調校指南：峰值效能第一、沒有停頓要求或能接受一秒以上停頓，就讓 VM 選或選 Parallel。Parallel 又叫吞吐量回收器。</p>
+  <p class="dexp">峰值效能第一、沒有停頓要求或能接受一秒以上停頓，就讓 VM 選或選 Parallel。Parallel 又叫吞吐量回收器。</p>
 </div>
 <div class="drill">
   <p class="dq">網路銀行的交易 API 要求停頓盡量在一毫秒以內，堆有幾十 GB。最適合哪一個？</p>
   <ul class="dopts"><li>Serial</li><li>Parallel</li><li>不設，交給預設</li><li data-ok>ZGC</li></ul>
-  <p class="dexp">調校指南：ZGC 的最大停頓在一毫秒以內、與堆大小無關，代價是一些吞吐量。Java 21 要寫 <code>-XX:+UseZGC -XX:+ZGenerational</code> 才是分代版。</p>
+  <p class="dexp">ZGC 的最大停頓在一毫秒以內、與堆大小無關，代價是一些吞吐量。Java 21 要寫 <code>-XX:+UseZGC -XX:+ZGenerational</code> 才是分代版。</p>
 </div>
 <div class="drill">
   <p class="dq">Java 21 在一台 4 顆 CPU、8 GB 記憶體的伺服器上，沒指定回收器，會用哪一個？</p>
@@ -291,7 +308,7 @@
 <div class="drill">
   <p class="dq">G1 的 <code>-XX:MaxGCPauseMillis</code> 預設是多少？它是保證嗎？</p>
   <ul class="dopts"><li>10 毫秒，而且保證不會超過</li><li data-ok>200 毫秒，是盡力達成的軟性目標</li><li>1 毫秒，而且保證不會超過</li><li>沒有預設值，一定要自己設定</li></ul>
-  <p class="dexp">java 手冊：G1 預設的最大停頓目標是 200 毫秒，這是軟性目標，JVM 盡力達成。調校指南也說 G1 不是即時回收器。</p>
+  <p class="dexp">G1 預設的最大停頓目標是 200 毫秒，這是軟性目標，JVM 盡力達成；G1 不是即時回收器。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Java 25 啟動參數寫 <code>-XX:+UseZGC -XX:+ZGenerational</code>，會怎樣？</p>
@@ -304,7 +321,11 @@
 <p class="era">訊息文字告訴你哪一塊爆了</p>
 <h3 class="head">OutOfMemoryError 的種類，以及 StackOverflowError</h3>
 <p><code>OutOfMemoryError</code> 不是一種錯，而是一組；後面的訊息文字決定是哪一塊記憶體不夠。下面幾種都在 Java 21 的 Linux 容器裡實際重現過。</p>
-<p><strong>Java heap space。</strong>疑難排解指南：這個訊息表示「物件無法在 Java 堆配置」，而且「不一定代表記憶體洩漏」，可能只是堆設太小；但對長時間執行的應用，它可能表示程式「無意間持有物件的參考，讓它們無法被回收——這就是 Java 語言版的記憶體洩漏」（This is the Java language equivalent of a memory leak.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>Java heap space。</strong>這個訊息表示物件無法在 Java 堆配置：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>不一定代表記憶體洩漏，可能只是堆設太小</li>
+<li>對長時間執行的應用，它可能表示程式無意間持有物件的參考，讓它們無法被回收，這就是 Java 語言版的記憶體洩漏</li>
+</ul>
 <pre><code>public class HeapOom {
     public static void main(String[] args) {
         List&lt;byte[]&gt; keep = new ArrayList&lt;&gt;();
@@ -321,8 +342,14 @@
 }
 // java -Xmx64m HeapOom（預設 G1）：            撐了 31 MB：java.lang.OutOfMemoryError: Java heap space
 // java -Xmx64m -XX:+UseSerialGC HeapOom：     撐了 60 MB：java.lang.OutOfMemoryError: Java heap space</code></pre>
-<p>同樣 64 MB 的堆，G1 只放得進 31 個 1 MB 陣列，Serial 放得進 60 個。原因在 G1 的區域：這個堆的區域大小是 1 MB（<code>-Xlog:gc+init</code> 印出 <code>Heap Region Size: 1M</code>），調校指南說「大於等於半個區域的物件」是<strong>巨型物件</strong>（humongous object），每一個「配置成老年代裡一串連續的區域」，最後一塊區域剩下的空間「在整個物件被回收前都不能再拿來配置」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a> 1 MB 的陣列加上物件標頭比 1 MB 多一點，就占掉兩塊區域。所以用 G1 時，大小剛好超過半個區域（或剛好超過區域整數倍）的大陣列最浪費空間。</p>
-<p><strong>Metaspace。</strong>指南：「Java 類別中繼資料配置在原生記憶體（這裡稱為 Metaspace）」，用完就丟訊息是 <code>Metaspace</code> 的 <code>OutOfMemoryError</code>；上限是 <code>MaxMetaspaceSize</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a> 讓每個新的類別載入器各定義一次同一份位元碼，每次都是一個新類別：</p>
+<p>同樣 64 MB 的堆，G1 只放得進 31 個 1 MB 陣列，Serial 放得進 60 個。原因在 G1 的區域：這個堆的區域大小是 1 MB（<code>-Xlog:gc+init</code> 印出 <code>Heap Region Size: 1M</code>），而：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>大於等於半個區域的物件是<strong>巨型物件</strong>（humongous object）</li>
+<li>每一個巨型物件配置成老年代裡一串連續的區域</li>
+<li>最後一塊區域剩下的空間，在整個物件被回收前都不能再拿來配置</li>
+</ul>
+<p>1 MB 的陣列加上物件標頭比 1 MB 多一點，就占掉兩塊區域。所以用 G1 時，大小剛好超過半個區域（或剛好超過區域整數倍）的大陣列最浪費空間。</p>
+<p><strong>Metaspace。</strong>Java 類別中繼資料配置在原生記憶體（這塊叫 Metaspace），用完就丟訊息是 <code>Metaspace</code> 的 <code>OutOfMemoryError</code>；上限是 <code>MaxMetaspaceSize</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a> 讓每個新的類別載入器各定義一次同一份位元碼，每次都是一個新類別：</p>
 <pre><code>public class Meta {
     // 每個載入器各自定義一次同一份位元碼，就是一個新的類別，類別中繼資料放進 Metaspace
     static class OneShotLoader extends ClassLoader {
@@ -358,7 +385,7 @@ try {
 }
 // java -XX:MaxDirectMemorySize=16m Direct
 // 配了 16 MB 直接緩衝區：java.lang.OutOfMemoryError: Cannot reserve 1048576 bytes of direct buffer memory (allocated: 16777216, limit: 16777216)</code></pre>
-<p><strong>StackOverflowError 不是 OutOfMemoryError。</strong>JVMS：執行緒的計算「需要比允許的更大的 JVM 堆疊」時丟 <code>StackOverflowError</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 每條執行緒的堆疊大小用 <code>-Xss</code> 設，java 手冊列的預設值依平台不同，例如 Linux/x64 是 1024 KB、Linux/Aarch64 是 2048 KB。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>StackOverflowError 不是 OutOfMemoryError。</strong>執行緒的計算需要比允許的更大的 JVM 堆疊時，丟 <code>StackOverflowError</code>。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 每條執行緒的堆疊大小用 <code>-Xss</code> 設，預設值依平台不同，例如 Linux/x64 是 1024 KB、Linux/Aarch64 是 2048 KB。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>public class Deep {
     static int depth = 0;
 
@@ -378,7 +405,12 @@ try {
 // Linux/Aarch64 容器，預設 -Xss（2048 KB），實跑六次：遞迴 45102〜94549 層後丟 java.lang.StackOverflowError
 // java -Xss256k Deep，實跑六次：                遞迴 1629〜2793 層後丟 java.lang.StackOverflowError</code></pre>
 <p>層數每次都不一樣，因為即時編譯（後面 JIT 一段）把 <code>down()</code> 編成機器碼的時機不同，每一框占的堆疊大小也跟著變；要看的是量級：預設是幾萬層，256 KB 只剩兩千層上下。</p>
-<p>還有兩種沒在這裡重現：<code>GC overhead limit exceeded</code>，指南說是回收器「幾乎一直在跑」，一次回收後「花超過大約 98% 的時間在回收」卻收回很少<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a>；以及開太多執行緒時的 <code>unable to create native thread</code>，對應 JVMS 那句「沒有足夠記憶體替新執行緒建立初始的 JVM 堆疊時，丟 OutOfMemoryError」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a> 每一種的完整排查方向整理在〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+<p>還有兩種沒在這裡重現：</p>
+<ul>
+<li><code>GC overhead limit exceeded</code>：回收器幾乎一直在跑，一次回收後花超過大約 98% 的時間在回收，卻收回很少<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></li>
+<li><code>unable to create native thread</code>：開太多執行緒時，沒有足夠記憶體替新執行緒建立初始的 JVM 堆疊，丟 <code>OutOfMemoryError</code><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>每一種的完整排查方向整理在〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
 <div class="tablewrap"><table><thead><tr><th>訊息</th><th>哪一塊不夠</th><th>先想到</th></tr></thead><tbody>
 <tr><td><code>Java heap space</code></td><td>Java 堆</td><td><code>-Xmx</code> 太小，或有東西一直抓著物件（洩漏）</td></tr>
 <tr><td><code>GC overhead limit exceeded</code></td><td>Java 堆（活資料快把堆塞滿）</td><td>同上</td></tr>
@@ -389,9 +421,9 @@ try {
 </tbody></table></div>
 
 <div class="drill">
-  <p class="dq">服務丟出 <code>java.<wbr>lang.<wbr>OutOfMemoryError: Java heap space</code>，依疑難排解指南，這一定是記憶體洩漏嗎？</p>
+  <p class="dq">服務丟出 <code>java.<wbr>lang.<wbr>OutOfMemoryError: Java heap space</code>，這一定是記憶體洩漏嗎？</p>
   <ul class="dopts"><li data-ok>不一定，可能只是堆太小</li><li>一定是，堆爆了就是洩漏</li><li>一定不是，洩漏會丟出別的訊息</li><li>一定是 Metaspace 設定的問題</li></ul>
-  <p class="dexp">指南原文：這個錯「不一定代表記憶體洩漏」，可能是堆大小設定的問題；但長時間執行的應用出現它，可能是無意間持有物件參考，也就是 Java 版的記憶體洩漏。</p>
+  <p class="dexp">這個錯不一定代表記憶體洩漏，可能是堆大小設定的問題；但長時間執行的應用出現它，可能是無意間持有物件參考，也就是 Java 版的記憶體洩漏。</p>
 </div>
 <div class="drill">
   <p class="dq">程式一直動態產生類別（例如每次請求都用新的類別載入器載一次），最後丟的最可能是哪一種？</p>
@@ -406,7 +438,7 @@ try {
 <div class="drill">
   <p class="dq">遞迴沒有終止條件，最後會丟什麼？</p>
   <ul class="dopts"><li data-ok>StackOverflowError</li><li>OutOfMemoryError: Java heap space</li><li>OutOfMemoryError: Metaspace</li><li>什麼都不丟，會一直跑下去</li></ul>
-  <p class="dexp">每次呼叫推一個框進 JVM 堆疊，超過允許的深度，JVMS 規定丟 <code>StackOverflowError</code>，它不是 <code>OutOfMemoryError</code>。</p>
+  <p class="dexp">每次呼叫推一個框進 JVM 堆疊，超過允許的深度就丟 <code>StackOverflowError</code>，它不是 <code>OutOfMemoryError</code>。</p>
 </div>
 <div class="drill">
   <p class="dq">把 <code>-Xss</code> 從預設改成 <code>256k</code>，上面 <code>Deep</code> 能遞迴的層數會怎樣？</p>
@@ -416,12 +448,12 @@ try {
 <div class="drill">
   <p class="dq">64 MB 的 G1 堆，為什麼只放得進 31 個 1 MB 的陣列，而 Serial 放得進 60 個？</p>
   <ul class="dopts"><li>因為 G1 回收得比 Serial 頻繁</li><li>因為 G1 會把每個陣列複製兩份</li><li>因為 G1 的堆實際上只有 32 MB</li><li data-ok>1 MB 陣列是巨型物件，各占兩塊區域</li></ul>
-  <p class="dexp">調校指南：大於等於半個區域的物件是巨型物件，配置成一串連續區域，最後一塊剩下的空間在物件被回收前不能用。1 MB 陣列加標頭略大於 1 MB，就占兩塊。</p>
+  <p class="dexp">大於等於半個區域的物件是巨型物件，配置成一串連續區域，最後一塊剩下的空間在物件被回收前不能用。1 MB 陣列加標頭略大於 1 MB，就占兩塊。</p>
 </div>
 <div class="drill">
   <p class="dq">一個沒有上限的執行緒池在尖峰時開了好幾萬條平台執行緒，最可能出現哪一個錯？</p>
   <ul class="dopts"><li>OutOfMemoryError: Metaspace</li><li data-ok>OutOfMemoryError: unable to create native thread</li><li>StackOverflowError</li><li>Cannot reserve direct buffer memory</li></ul>
-  <p class="dexp">每條平台執行緒都要一條作業系統執行緒與自己的堆疊；JVMS 說配不出新執行緒的初始堆疊時丟 OutOfMemoryError，訊息是 unable to create native thread。〈執行緒池與並行工具〉會講怎麼避免。</p>
+  <p class="dexp">每條平台執行緒都要一條作業系統執行緒與自己的堆疊；配不出新執行緒的初始堆疊時丟 OutOfMemoryError，訊息是 unable to create native thread。〈執行緒池與並行工具〉會講怎麼避免。</p>
 </div>
 </section>
 
@@ -432,7 +464,7 @@ try {
 <ul class="plainlist">
 <li><strong>只放不拿的 static 集合或快取</strong>：靜態欄位是 GC Root，Map 裡的東西一直可達。</li>
 <li><strong>沒關的資源</strong>：連線、檔案、串流沒關，背後的作業系統資源與緩衝區就一直占著，用 try-with-resources（見〈例外機制〉）。</li>
-<li><strong>ThreadLocal 用完沒 remove</strong>：<code>ThreadLocal</code> 的文件說，每條執行緒「只要還活著、而且 ThreadLocal 實體可存取」，就持有它那份副本的隱含參考；執行緒消失後副本才可以被回收。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a> 執行緒池裡的執行緒不會消失，所以要在用完時呼叫 <code>remove()</code>，〈執行緒池與並行工具〉會實跑。</li>
+<li><strong>ThreadLocal 用完沒 remove</strong>：每條執行緒只要還活著、而且 ThreadLocal 實體可存取，就持有它那份副本的隱含參考；執行緒消失後副本才可以被回收。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ThreadLocal.html" target="_blank" rel="noopener">出處</a> 執行緒池裡的執行緒不會消失，所以要在用完時呼叫 <code>remove()</code>，〈執行緒池與並行工具〉會實跑。</li>
 <li><strong>註冊了沒取消的監聽器</strong>：長壽的事件來源抓著監聽器，監聽器又抓著一大串物件。</li>
 <li><strong>類別載入器洩漏</strong>：只要載入器載出的類別還有實體活著，整個載入器和它所有類別的中繼資料都留在 Metaspace；上一段的 <code>Meta</code> 就是刻意做出來的版本。</li>
 </ul>
@@ -456,7 +488,7 @@ try {
 //    2:        167997        4031928  java.lang.String (java.base@21.0.12.1)
 //    3:         81018        2592576  java.util.HashMap$Node (java.base@21.0.12.1)
 //    4:         80001        1920024  Leak$Session</code></pre>
-<p><code>[B</code> 是 <code>byte[]</code>：<code>Class.getName</code> 的文件規定陣列類別名稱用 <code>[</code> 加元素型別的編碼，byte 編成 <code>B</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Class.html" target="_blank" rel="noopener">出處</a> 八萬多個 <code>Leak$Session</code>、同樣多的 <code>HashMap$Node</code>，而且每跑一次數字都變大，就是一直有人往 Map 裡放、沒人拿出來。要看「是誰抓著它們」，就要抓 heap dump（<code>jcmd &lt;pid&gt; GC.heap_dump</code>），用分析工具看從 GC Root 到這些物件的參考鏈。</p>
+<p><code>[B</code> 是 <code>byte[]</code>：<code>Class.getName</code> 的陣列類別名稱用 <code>[</code> 加元素型別的編碼，byte 編成 <code>B</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Class.html" target="_blank" rel="noopener">出處</a> 八萬多個 <code>Leak$Session</code>、同樣多的 <code>HashMap$Node</code>，而且每跑一次數字都變大，就是一直有人往 Map 裡放、沒人拿出來。要看「是誰抓著它們」，就要抓 heap dump（<code>jcmd &lt;pid&gt; GC.heap_dump</code>），用分析工具看從 GC Root 到這些物件的參考鏈。</p>
 
 <div class="drill">
   <p class="dq">下面哪一種寫法最可能造成記憶體洩漏？</p>
@@ -466,7 +498,7 @@ try {
 <div class="drill">
   <p class="dq">執行緒池裡的執行緒用 <code>ThreadLocal</code> 存了一個大物件，用完沒呼叫 <code>remove()</code>，會怎樣？</p>
   <ul class="dopts"><li>執行緒回到池子時 JVM 會自動清掉</li><li data-ok>副本一直被執行緒抓著，還可能被下個任務讀到</li><li>下一次 GC 一定會把它回收</li><li>呼叫者會立刻收到 IllegalStateException</li></ul>
-  <p class="dexp">ThreadLocal 文件：執行緒活著且 ThreadLocal 可存取，就持有副本的隱含參考；池裡的執行緒不會消失，所以要自己 <code>remove()</code>。</p>
+  <p class="dexp">執行緒活著且 ThreadLocal 可存取，就持有副本的隱含參考；池裡的執行緒不會消失，所以要自己 <code>remove()</code>。</p>
 </div>
 <div class="drill">
   <p class="dq">類別直方圖裡 <code>[B</code> 排第一、占八千多萬位元組，<code>[B</code> 是什麼？</p>
@@ -483,8 +515,20 @@ try {
 <section>
 <p class="era">類別什麼時候進來、由誰載入</p>
 <h3 class="head">類別載入、連結、初始化與雙親委派</h3>
-<p>JVMS 第 5 章：JVM「動態地載入、連結、初始化類別與介面」。<strong>載入</strong>是「找到某個名稱的類別的二進位表示，並據此建立類別」；<strong>連結</strong>是「把類別結合進 JVM 的執行期狀態，讓它可以執行」；<strong>初始化</strong>是「執行類別的初始化方法 <code>&lt;clinit&gt;</code>」，也就是靜態欄位的初始值與 <code>static</code> 區塊。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>初始化是懶的。</strong>JLS 12.4.1：類別「在下列任一事件第一次發生之前立刻初始化」：建立它的實體、呼叫它的靜態方法、對它的靜態欄位賦值、使用它的靜態欄位「而且那個欄位不是常數變數」。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-12.html#jls-12.4.1" target="_blank" rel="noopener">出處</a> 常數變數（<code>static final</code> 而且值是編譯期常數）在編譯時就被抄進使用它的地方，讀它不會觸發初始化：</p>
+<p>JVM 動態地載入、連結、初始化類別與介面：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-5.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><strong>載入</strong>：找到某個名稱的類別的二進位表示，並據此建立類別</li>
+<li><strong>連結</strong>：把類別結合進 JVM 的執行期狀態，讓它可以執行</li>
+<li><strong>初始化</strong>：執行類別的初始化方法 <code>&lt;clinit&gt;</code>，也就是靜態欄位的初始值與 <code>static</code> 區塊</li>
+</ul>
+<p><strong>初始化是懶的。</strong>類別在下列任一事件第一次發生之前立刻初始化：<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-12.html#jls-12.4.1" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>建立它的實體</li>
+<li>呼叫它的靜態方法</li>
+<li>對它的靜態欄位賦值</li>
+<li>使用它的靜態欄位，而且那個欄位<strong>不是常數變數</strong></li>
+</ul>
+<p>常數變數（<code>static final</code> 而且值是編譯期常數）在編譯時就被抄進使用它的地方，讀它不會觸發初始化：</p>
 <pre><code>class Rates {
     static final int SCALE = 2;                    // 編譯期常數
     static double usd = load();                    // 要執行程式才知道的值
@@ -507,7 +551,13 @@ public class Init {
 // Rates 初始化了
 // 3. usd = 32.5
 // 4. 再讀一次 usd = 32.5</code></pre>
-<p><strong>三個內建載入器與雙親委派。</strong><code>ClassLoader</code> 的文件：Java 執行期內建三個載入器：<strong>啟動類別載入器</strong>（bootstrap）「是虛擬機內建的載入器，通常以 null 表示，沒有父載入器」；<strong>平台類別載入器</strong>（platform）負責載入平台類別，也就是 Java SE 平台 API 與它們的實作；<strong>系統類別載入器</strong>（system）「也叫應用程式類別載入器」，通常用來載入應用程式類別路徑與模組路徑上的類別。而且「每個 ClassLoader 實體都有一個關聯的父載入器；被要求找類別或資源時，通常會先把搜尋委派給父載入器，再嘗試自己找」（a ClassLoader instance will usually delegate the search for the class or resource to its parent class loader before attempting to find the class or resource itself）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ClassLoader.html" target="_blank" rel="noopener">出處</a> 這就是常說的<strong>雙親委派</strong>（parent delegation，先問父親，父親找不到才自己找）。好處是 <code>java.lang.String</code> 這類核心類別一定由上層載入器定義，自己在類別路徑放一個同名類別也搶不到。</p>
+<p><strong>三個內建載入器與雙親委派。</strong>Java 執行期內建三個載入器：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ClassLoader.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><strong>啟動類別載入器</strong>（bootstrap）：虛擬機內建的載入器，通常以 null 表示，沒有父載入器</li>
+<li><strong>平台類別載入器</strong>（platform）：載入平台類別，也就是 Java SE 平台 API 與它們的實作</li>
+<li><strong>系統類別載入器</strong>（system）：也叫應用程式類別載入器，通常用來載入應用程式類別路徑與模組路徑上的類別</li>
+</ul>
+<p>每個 ClassLoader 實體都有一個關聯的父載入器；被要求找類別或資源時，通常會先把搜尋委派給父載入器，再嘗試自己找。這就是常說的<strong>雙親委派</strong>（parent delegation，先問父親，父親找不到才自己找）。好處是 <code>java.lang.String</code> 這類核心類別一定由上層載入器定義，自己在類別路徑放一個同名類別也搶不到。</p>
 <pre><code>public class Loaders {
     public static void main(String[] args) throws Exception {
         System.out.println("String         → " + String.class.getClassLoader());
@@ -523,32 +573,32 @@ public class Init {
 // Loaders        → app
 // app 的父親     → platform
 // platform 的父親→ null</code></pre>
-<p><code>String</code> 的載入器印出 <code>null</code>，就是文件說的「通常以 null 表示」的啟動載入器。Java 8 以前中間那層叫「擴充類別載入器」，現在是平台類別載入器，這段歷史在〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
+<p><code>String</code> 的載入器印出 <code>null</code>，就是「通常以 null 表示」的啟動載入器。Java 8 以前中間那層叫「擴充類別載入器」，現在是平台類別載入器，這段歷史在〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉。</p>
 
 <div class="drill">
   <p class="dq">靜態欄位的初始值與 <code>static { }</code> 區塊，是在類別載入的哪一步執行？</p>
   <ul class="dopts"><li>載入</li><li>連結</li><li data-ok>初始化</li><li>編譯</li></ul>
-  <p class="dexp">JVMS：初始化就是執行類別初始化方法 <code>&lt;clinit&gt;</code>，裡面就是靜態欄位的初始值與 static 區塊。載入是找到位元碼建立類別，連結是把它接進 JVM 的執行期狀態。</p>
+  <p class="dexp">初始化就是執行類別初始化方法 <code>&lt;clinit&gt;</code>，裡面就是靜態欄位的初始值與 static 區塊。載入是找到位元碼建立類別，連結是把它接進 JVM 的執行期狀態。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的 <code>Init</code>，「Rates 初始化了」在第幾行之後印出？</p>
   <ul class="dopts"><li>程式一開始、第 1 行之前</li><li>第 1 行之後、第 2 行之前</li><li data-ok>第 2 行之後、第 3 行之前</li><li>第 4 行之後</li></ul>
-  <p class="dexp">讀 <code>SCALE</code> 這種常數變數不會觸發初始化（JLS 12.4.1 把它排除），第一次讀非常數的 <code>usd</code> 才初始化；之後再讀不會再初始化一次。</p>
+  <p class="dexp">讀 <code>SCALE</code> 這種常數變數不會觸發初始化，第一次讀非常數的 <code>usd</code> 才初始化；之後再讀不會再初始化一次。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一個動作<strong>不會</strong>觸發 <code>Rates</code> 的初始化？</p>
   <ul class="dopts"><li>new Rates()</li><li>呼叫 Rates.load()</li><li data-ok>讀 Rates.SCALE</li><li>讀 Rates.usd</li></ul>
-  <p class="dexp">JLS 12.4.1 列的觸發條件：建立實體、呼叫靜態方法、對靜態欄位賦值、使用不是常數變數的靜態欄位。SCALE 是常數變數，不算。</p>
+  <p class="dexp">觸發初始化的條件：建立實體、呼叫靜態方法、對靜態欄位賦值、使用不是常數變數的靜態欄位。SCALE 是常數變數，不算。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>String.<wbr>class.<wbr>getClassLoader()</code> 回傳什麼？</p>
   <ul class="dopts"><li data-ok>null，代表啟動類別載入器</li><li>平台類別載入器</li><li>應用程式類別載入器</li><li>丟出 NullPointerException</li></ul>
-  <p class="dexp">ClassLoader 文件：啟動類別載入器是虛擬機內建的，通常以 null 表示。實跑印出的就是 null。</p>
+  <p class="dexp">啟動類別載入器是虛擬機內建的，通常以 null 表示。實跑印出的就是 null。</p>
 </div>
 <div class="drill">
-  <p class="dq">應用程式類別載入器被要求載入一個類別時，依文件說的委派模型，通常先做什麼？</p>
+  <p class="dq">應用程式類別載入器被要求載入一個類別時，依委派模型，通常先做什麼？</p>
   <ul class="dopts"><li>直接從類別路徑找</li><li data-ok>先委派給父載入器</li><li>先問自己所有的子載入器</li><li>先從網路下載最新版本</li></ul>
-  <p class="dexp">ClassLoader 文件：每個載入器有父載入器，被要求找類別時通常先委派給父載入器，再嘗試自己找。應用程式載入器的父親是平台載入器。</p>
+  <p class="dexp">每個載入器有父載入器，被要求找類別時通常先委派給父載入器，再嘗試自己找。應用程式載入器的父親是平台載入器。</p>
 </div>
 <div class="drill">
   <p class="dq">你在自己的專案裡寫了一個 <code>java.lang.String</code> 類別放進類別路徑，程式裡用的 String 會變成你寫的嗎？</p>
@@ -560,7 +610,13 @@ public class Init {
 <section>
 <p class="era">為什麼剛啟動比較慢</p>
 <h3 class="head">JIT 與分層編譯</h3>
-<p>Java 程式不是一開始就跑機器碼。JVM 指南：HotSpot「一開始用標準的直譯器啟動應用程式」，程式跑起來後分析出效能瓶頸，也就是<strong>熱點</strong>（hot spots），再把「效能關鍵的那部分程式碼」編譯成機器碼，很少用到的程式碼（應用程式的大部分）就不編。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/vm/java-virtual-machine-technology-overview.html" target="_blank" rel="noopener">出處</a> 這就是 <strong>JIT</strong>（Just-In-Time，執行中才編譯）。<strong>分層編譯</strong>（tiered compilation）在 Java SE 7 引入：先用用戶端編譯器（C1）產生「會自己收集側寫資訊的編譯版本」，它比直譯器快得多，所以側寫（profiling，記錄哪個分支常走、哪個型別常出現）的階段也跑得快；最後再由伺服器編譯器（C2）產生最佳化最深的版本。它預設開啟，可以用 <code>-XX:-TieredCompilation</code> 關掉。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/vm/java-hotspot-virtual-machine-performance-enhancements.html" target="_blank" rel="noopener">出處</a></p>
+<p>Java 程式不是一開始就跑機器碼：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/vm/java-virtual-machine-technology-overview.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>HotSpot 一開始用標準的直譯器啟動應用程式</li>
+<li>程式跑起來後分析出效能瓶頸，也就是<strong>熱點</strong>（hot spots），再把效能關鍵的那部分程式碼編譯成機器碼</li>
+<li>很少用到的程式碼（應用程式的大部分）就不編</li>
+</ul>
+<p>這就是 <strong>JIT</strong>（Just-In-Time，執行中才編譯）。<strong>分層編譯</strong>（tiered compilation）在 Java SE 7 引入：先用用戶端編譯器（C1）產生會自己收集側寫資訊的編譯版本，它比直譯器快得多，所以側寫（profiling，記錄哪個分支常走、哪個型別常出現）的階段也跑得快；最後再由伺服器編譯器（C2）產生最佳化最深的版本。它預設開啟，可以用 <code>-XX:-TieredCompilation</code> 關掉。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/vm/java-hotspot-virtual-machine-performance-enhancements.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>// java -XX:+PrintCompilation Churn | grep -E "Churn::main|String::hashCode"（節錄）
 // 11    4       3       java.lang.String::hashCode (60 bytes)
 // 20  124 %     3       Churn::main @ 13 (81 bytes)
@@ -573,7 +629,7 @@ public class Init {
 <div class="drill">
   <p class="dq">HotSpot 剛啟動時，Java 程式碼是怎麼執行的？</p>
   <ul class="dopts"><li>全部先編譯成機器碼才開始執行</li><li data-ok>先用直譯器執行，熱點才編譯</li><li>交給作業系統直接執行 .class 檔</li><li>用 C2 編譯器一次編好所有方法</li></ul>
-  <p class="dexp">JVM 指南：用標準直譯器啟動，分析出熱點後才編譯效能關鍵的部分，很少用到的程式碼不編。</p>
+  <p class="dexp">用標準直譯器啟動，分析出熱點後才編譯效能關鍵的部分，很少用到的程式碼不編。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼壓力測試要先跑一段時間「暖機」再開始計時？</p>
@@ -585,7 +641,12 @@ public class Init {
 <section>
 <p class="era">線上出事，先用哪個工具</p>
 <h3 class="head">jcmd、jstack、jmap、jstat 與 JFR 各看什麼</h3>
-<p>疑難排解指南建議「使用最新的工具 jcmd，取代先前的 jmap 工具，得到更強的診斷能力與更低的效能負擔」，例如抓 heap dump 時，「這跟 jmap -dump 一樣，但 jcmd 是建議使用的工具」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/diagnostic-tools.html" target="_blank" rel="noopener">出處</a> jcmd 手冊：<code>GC.class_histogram</code>「提供 Java 堆用量的統計」，<code>Thread.print</code>「印出所有執行緒與堆疊」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html" target="_blank" rel="noopener">出處</a> 下面是對上一段的 <code>Leak</code> 實跑的結果（節錄）：</p>
+<p>診斷工具用 <code>jcmd</code>，取代先前的 <code>jmap</code>：診斷能力更強、效能負擔更低。例如抓 heap dump 時，<code>jcmd</code> 跟 <code>jmap -dump</code> 效果一樣，但 <code>jcmd</code> 是建議使用的工具。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/diagnostic-tools.html" target="_blank" rel="noopener">出處</a> 兩個常用指令：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>GC.class_histogram</code>：Java 堆用量的統計</li>
+<li><code>Thread.print</code>：印出所有執行緒與堆疊</li>
+</ul>
+<p>下面是對上一段的 <code>Leak</code> 實跑的結果（節錄）：</p>
 <pre><code>// jcmd                        → 列出這台機器上的 JVM
 30 Leak
 
@@ -609,7 +670,7 @@ jdk.GarbageCollection {
   name = "G1New"
   cause = "G1 Evacuation Pause"
 }</code></pre>
-<p><strong>jstack 抓死結。</strong>指南說，排查卡住的行程先看它是閒著還是吃光 CPU；印出執行緒傾印（thread dump）之後，「HotSpot VM 會執行死結偵測演算法」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-process-hangs-loops.html" target="_blank" rel="noopener">出處</a> 兩條轉帳執行緒用相反順序拿兩把鎖：</p>
+<p><strong>jstack 抓死結。</strong>排查卡住的行程先看它是閒著還是吃光 CPU；印出執行緒傾印（thread dump）之後，HotSpot VM 會執行死結偵測演算法。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-process-hangs-loops.html" target="_blank" rel="noopener">出處</a> 兩條轉帳執行緒用相反順序拿兩把鎖：</p>
 <pre><code>public class Deadlock {
     static final Object ACCOUNT_A = new Object();
     static final Object ACCOUNT_B = new Object();
@@ -645,8 +706,8 @@ jdk.GarbageCollection {
 //   which is held by "transfer-A-to-B"
 // ...
 // Found 1 deadlock.</code></pre>
-<p>jstat 手冊對 <code>-gcutil</code> 各欄的定義：S0、S1、E、O、M 分別是兩塊 Survivor、Eden、老年代、Metaspace 占目前容量的百分比，YGC 是年輕代回收的次數<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstat.html" target="_blank" rel="noopener">出處</a>。這兩個工具的手冊都標著「實驗性、不受支援」（This command is experimental and unsupported.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstack.html" target="_blank" rel="noopener">出處</a>；jstack 印的內容用 <code>jcmd &lt;pid&gt; Thread.print</code> 也拿得到。死結怎麼避免見〈執行緒與並行〉。</p>
-<p><strong>JFR</strong>（Flight Recorder）適合開在正式環境：指南說用預設設定的固定時間錄製，「對大多數應用的效能負擔低於 2%」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-performance-issues-using-jfr.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>jstat -gcutil</code> 各欄：S0、S1、E、O、M 分別是兩塊 Survivor、Eden、老年代、Metaspace 占目前容量的百分比，YGC 是年輕代回收的次數<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstat.html" target="_blank" rel="noopener">出處</a>。這兩個工具都標著實驗性、不受支援<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstack.html" target="_blank" rel="noopener">出處</a>；jstack 印的內容用 <code>jcmd &lt;pid&gt; Thread.print</code> 也拿得到。死結怎麼避免見〈執行緒與並行〉。</p>
+<p><strong>JFR</strong>（Flight Recorder）適合開在正式環境：用預設設定的固定時間錄製，對大多數應用的效能負擔低於 2%。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-performance-issues-using-jfr.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>想知道</th><th>用</th></tr></thead><tbody>
 <tr><td>服務卡住了，執行緒在等什麼、有沒有死結</td><td><code>jcmd &lt;pid&gt; Thread.print</code>（或 <code>jstack</code>）</td></tr>
 <tr><td>堆裡哪個類別最多、最占空間</td><td><code>jcmd &lt;pid&gt; GC.<wbr>class_histogram</code>（或 <code>jmap -histo</code>）</td></tr>
@@ -658,7 +719,7 @@ jdk.GarbageCollection {
 <div class="drill">
   <p class="dq">線上服務突然沒有回應、CPU 也不高，第一步最該看什麼？</p>
   <ul class="dopts"><li>jcmd GC.class_histogram</li><li>jstat -gcutil 看回收次數</li><li>直接重新啟動，不必查</li><li data-ok>jcmd Thread.print</li></ul>
-  <p class="dexp">指南：先看是閒著還是吃光 CPU；閒著常是死結或在等外部資源，印出執行緒傾印就看得到每條執行緒在等什麼，HotSpot 還會跑死結偵測。</p>
+  <p class="dexp">先看是閒著還是吃光 CPU；閒著常是死結或在等外部資源，印出執行緒傾印就看得到每條執行緒在等什麼，HotSpot 還會跑死結偵測。</p>
 </div>
 <div class="drill">
   <p class="dq">jstack 的輸出出現 <code>Found one Java-level deadlock</code>，下面寫著 "transfer-A-to-B" 在等的鎖 "which is held by" "transfer-B-to-A"，反過來也一樣。這代表什麼？</p>
@@ -666,14 +727,14 @@ jdk.GarbageCollection {
   <p class="dexp">HotSpot 的死結偵測在執行緒傾印後執行，偵測到就列出誰在等哪個監視器、那個監視器被誰持有。兩條互等，就是循環等待。</p>
 </div>
 <div class="drill">
-  <p class="dq">依 Java 21 疑難排解指南，要抓 heap dump，建議用哪一個工具？</p>
+  <p class="dq">Java 21 要抓 heap dump，建議用哪一個工具？</p>
   <ul class="dopts"><li>jstack</li><li>jstat</li><li data-ok>jcmd</li><li>javac</li></ul>
-  <p class="dexp">指南：<code>jcmd &lt;pid&gt; GC.heap_dump</code> 跟 <code>jmap -dump</code> 一樣，但 jcmd 是建議使用的工具，診斷能力更強、負擔更低。</p>
+  <p class="dexp"><code>jcmd &lt;pid&gt; GC.heap_dump</code> 跟 <code>jmap -dump</code> 一樣，但 jcmd 是建議使用的工具，診斷能力更強、負擔更低。</p>
 </div>
 <div class="drill">
   <p class="dq">一個效能問題只在正式環境、而且偶爾才出現，最適合用什麼收集資料？</p>
   <ul class="dopts"><li>每隔一分鐘抓一次 heap dump</li><li>在正式環境開 -XX:+PrintCompilation</li><li>改用 Serial 回收器觀察</li><li data-ok>開 JFR 錄製，事後分析</li></ul>
-  <p class="dexp">JFR 收集大量側寫與事件資料，指南說預設設定下對大多數應用的負擔低於 2%，適合開在正式環境；heap dump 會讓應用程式停頓，不適合頻繁抓。</p>
+  <p class="dexp">JFR 收集大量側寫與事件資料，預設設定下對大多數應用的負擔低於 2%，適合開在正式環境；heap dump 會讓應用程式停頓，不適合頻繁抓。</p>
 </div>
 </section>
 

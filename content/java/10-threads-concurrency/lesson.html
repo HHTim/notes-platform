@@ -31,7 +31,7 @@
 <section>
 <p class="era">start() 才會真的開新執行緒</p>
 <h3 class="head">在 Java 建立與管理工作</h3>
-<p>兩種做法：繼承 <code>Thread</code>，或把工作寫成 <code>Runnable</code>。官方教學的說法是 <code>Runnable</code> 這個寫法比較通用，因為寫工作的那個類別還能去繼承別的類別；繼承 <code>Thread</code> 的寫法在簡單的程式裡比較好寫，代價是它必須是 <code>Thread</code> 的子類別——Java 類別只能單一繼承，繼承的名額就這麼一個<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/runthread.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>兩種做法：繼承 <code>Thread</code>，或把工作寫成 <code>Runnable</code>。<code>Runnable</code> 這個寫法比較通用，因為寫工作的那個類別還能去繼承別的類別；繼承 <code>Thread</code> 的寫法在簡單的程式裡比較好寫，代價是它必須是 <code>Thread</code> 的子類別——Java 類別只能單一繼承，繼承的名額就這麼一個<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/runthread.html" target="_blank" rel="noopener">出處</a>。</p>
 <pre><code>Runnable task = () -&gt; {
     System.out.println(Thread.currentThread().getName());
 };
@@ -43,7 +43,11 @@ worker.start();</code></pre>
 <pre><code>worker.start();
 worker.join();   // 等 worker 跑完再往下</code></pre>
 <p><mark class="fixnote" tabindex="0" data-note="原筆記寫「join(long milliseconds) -> 等到時間倒數完，其他執行緒就會強制加入」，查證後更正：join(毫秒) 是最多等這麼久，時間到就不等了，不是強制介入對方"><code>join(毫秒)</code> 的意思是「<strong>最多</strong>等這麼久」——對方提早結束就提早往下走，時間到了對方還沒完就不等了。它不會去強制中斷或介入對方執行緒</mark><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#join(long)" target="_blank" rel="noopener">出處</a>。</p>
-<p><code>yield()</code> 官方文件的原話是「給排程器的一個提示，表示目前這條執行緒願意讓出處理器」，而且明講<strong>排程器可以忽略這個提示</strong>，還補了一句「很少有適合使用這個方法的場合」<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a>。</p>
+<p><code>yield()</code> 只是給排程器的提示，表示目前這條執行緒願意讓出處理器：</p>
+<ul>
+<li><strong>排程器可以忽略這個提示</strong></li>
+<li>很少有適合用這個方法的場合<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#yield()" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p class="muted">優先權（1 到 10，預設 5）的通說是「優先權較高者先執行，優先權相等時 CPU 任選其一」。但實際排到誰跑，取決於作業系統的排程器，不同平台差很多——<strong>不要拿優先權來保證程式的正確性</strong>。一句話總結：<strong>多執行緒難以預測、順序無法完全保證、切換可能發生在任何時刻</strong>。</p>
 <p class="muted">大量工作不要一個配一條新執行緒。執行緒池（thread pool）會重複利用固定數量的執行緒，並集中管理工作佇列與生命週期——例如 Spring Boot 內建的 Tomcat 預設最多 200 條（設定鍵是 <code>server.tomcat.threads.max</code>），每個進來的請求分一條<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.tomcat.threads.max" target="_blank" rel="noopener">出處</a>。Servlet 容器怎麼把請求分配到執行緒、為什麼同步問題仍是應用程式自己的事，見〈Servlet 與 JavaWeb 基礎〉。</p>
 </section>
@@ -64,7 +68,7 @@ worker.join();   // 等 worker 跑完再往下</code></pre>
 預期：98　　實際：99</code></pre>
 <p>兩個人都買到了，庫存只少 1。這叫<strong>遺失更新</strong>（lost update）。</p>
 <p><strong>原子性</strong>（atomicity）指的是：這個操作對其他執行緒而言不可分割——要嘛完整做完，要嘛還沒發生，不會被看到做到一半。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把原子性定義成三點：「不可分割性」「即時可見性：操作結果立即對所有線程可見」「硬體層級」，查證後更正：原子性與可見性是兩個不同的性質，不可分割不等於別人馬上看得到">原子性跟可見性是<strong>兩件不同的事</strong>。原子性講的是「不會被拆開觀察」，可見性講的是「我寫的值別人什麼時候看得到」。官方教學講得很直接：原子動作不會被交錯執行，<strong>但這並不代表就不必同步，因為記憶體一致性的問題還在</strong>。<code>AtomicInteger</code> 這類原子類別確實兩者都給，但那是它額外提供的保證，不是原子性的定義</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/atomic.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把原子性定義成三點：「不可分割性」「即時可見性：操作結果立即對所有線程可見」「硬體層級」，查證後更正：原子性與可見性是兩個不同的性質，不可分割不等於別人馬上看得到">原子性跟可見性是<strong>兩件不同的事</strong>。原子性講的是「不會被拆開觀察」，可見性講的是「我寫的值別人什麼時候看得到」。原子動作不會被交錯執行，<strong>但這並不代表就不必同步，因為記憶體一致性的問題還在</strong>。<code>AtomicInteger</code> 這類原子類別確實兩者都給，但那是它額外提供的保證，不是原子性的定義</mark><a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/atomic.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
