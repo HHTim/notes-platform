@@ -5,7 +5,7 @@
 <p class="era">置物櫃，鍵直接換成格子編號</p>
 <h3 class="head">雜湊表的想法：用算的找位置</h3>
 <p>想像車站的投幣置物櫃。如果你手上的收據寫著「17 號」，你會直接走到 17 號櫃子打開，不會從 1 號一路開過去。陣列也是這樣：知道索引，一步就拿到那一格。〈陣列與字串〉的置物櫃要你自己記得號碼；雜湊表多了一台「用名字算號碼」的機器（雜湊函式），你只要報名字。</p>
-<p>麻煩在於，我們要找的東西通常不是用「17 號」這種小整數標示，而是帳號、身分證字號、商品編號這種字串。<strong>雜湊表</strong>（hash table）的想法是：準備一排格子（陣列），再準備一個<strong>雜湊函式</strong>（hash function，把任何一個鍵算成一個格子編號的公式）。要存就算出編號放進去，要找就用同一個公式算出編號直接去看。普林斯頓《Algorithms》把它拆成兩步：先用雜湊函式「把要找的鍵轉成陣列索引」（compute a hash function that transforms the search key into an array index），第二步是處理「兩個以上不同的鍵算到同一個索引」的情況，叫碰撞處理（collision-resolution process）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
+<p>麻煩在於，我們要找的東西通常不是用「17 號」這種小整數標示，而是帳號、身分證字號、商品編號這種字串。<strong>雜湊表</strong>（hash table）的想法是：準備一排格子（陣列），再準備一個<strong>雜湊函式</strong>（hash function，把任何一個鍵算成一個格子編號的公式）。要存就算出編號放進去，要找就用同一個公式算出編號直接去看。它分成兩步：先用雜湊函式把要找的鍵轉成陣列索引，再處理兩個以上不同的鍵算到同一個索引的情況，叫碰撞處理（collision resolution）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
 <p>在 Java 裡，第一步分成兩半：每個物件都有 <code>hashCode()</code>，回傳一個 32 位元的整數，叫<strong>雜湊碼</strong>；<code>HashMap</code> 再拿這個整數算出要放進哪一格。<code>HashMap</code> 的每一格叫<strong>桶</strong>（bucket，因為一格裡可能裝不只一筆）。算法寫在 OpenJDK 原始碼裡：</p>
 <ul class="plainlist">
 <li><code>hash()</code> 方法回傳 <code>(h = key.hashCode()) ^ (h &gt;&gt;&gt; 16)</code>，也就是把雜湊碼的高 16 位元用 XOR（逐位元比較，兩邊不同得 1、相同得 0）混進低 16 位元；鍵是 <code>null</code> 時直接當 0。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L320-L339" target="_blank" rel="noopener">出處</a></li>
@@ -106,9 +106,10 @@ System.out.println((n - 1) &amp; h);</code></pre>
 <p class="era">兩把鑰匙指到同一格</p>
 <h3 class="head">碰撞：鏈結法與開放定址</h3>
 <p>鍵的種類幾乎是無限的，桶卻只有幾個、幾千個，所以<strong>一定</strong>會有兩個不同的鍵算到同一格，這叫<strong>碰撞</strong>（collision）。這是鴿籠原理（10 隻鴿子塞進 9 個籠子，至少有一個籠子擠兩隻）：桶數比鍵的可能種類少時，沒有任何雜湊函式能讓每個鍵各得一格，一定存在兩個鍵 a、b 使得 h(a) = h(b)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a> 上一段的 <code>"Aa"</code> 與 <code>"BB"</code> 就是現成的例子，兩個字串的 <code>hashCode()</code> 都是 2112。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
-<p>碰撞了要把第二筆放哪？講義列了兩條路：「放到陣列裡別的位置」（store somewhere else in the array (open addressing)），或「放進另一個資料結構」（store in another data structure ... (chaining)）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>碰撞了要把第二筆放哪？有兩條路：</p>
+<ul><li>放到陣列裡別的位置：開放定址（open addressing）</li><li>放進另一個資料結構：鏈結法（chaining）<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></li></ul>
 <h4>鏈結法：每個桶掛一條串列</h4>
-<p><strong>鏈結法</strong>（separate chaining）就像同一個置物櫃格子裡掛一串鑰匙圈：普林斯頓的寫法是替每個索引「建一條鏈結串列，串起雜湊到這個索引的所有鍵值」（build, for each of the M array indices, a linked list of the key-value pairs whose keys hash to that index）；找的時候分兩步，「先雜湊找到可能含有這個鍵的串列，再沿著串列逐一找」（hash to find the list that could contain the key, then sequentially search through that list for the key）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 鏈結串列本身怎麼運作，見〈鏈結串列〉。</p>
+<p><strong>鏈結法</strong>（separate chaining）就像同一個置物櫃格子裡掛一串鑰匙圈：每個索引建一條鏈結串列，串起雜湊到這個索引的所有鍵值。找的時候分兩步：先雜湊找到可能含有這個鍵的串列，再沿著串列逐一找。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 鏈結串列本身怎麼運作，見〈鏈結串列〉。</p>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="鏈結法示意：8 個桶，0 號桶串著 banana、Aa、BB 三個節點，1 號桶串著 apple、cherry，2 號桶只有 kiwi，每條串列最後接 null">
   <defs><marker id="ht-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
@@ -142,7 +143,7 @@ System.out.println((n - 1) &amp; h);</code></pre>
 <figcaption>鏈結法：同一個桶的鍵串成一條串列。這張圖是用 <code>new HashMap&lt;&gt;(8)</code> 依序放這六個鍵、再讀內部陣列實測出來的排列；每個節點實際上存著雜湊值、鍵、值與指向下一個節點的 <code>next</code>。</figcaption>
 </figure>
 <h4>開放定址：被佔了就往下一格找</h4>
-<p><strong>開放定址</strong>（open addressing）不掛串列，所有鍵都放在陣列本身。最簡單的一種叫<strong>線性探測</strong>（linear probing）：碰撞時「就檢查表裡的下一格（把索引加一）」（we just check the next entry in the table (by incrementing the index)）。找的時候一路往下看，會遇到三種結果：鍵相同（找到）、空格（確定不在）、別的鍵（繼續看下一格）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 因為每格只能放一筆，鍵的數量一定要少於格子數。</p>
+<p><strong>開放定址</strong>（open addressing）不掛串列，所有鍵都放在陣列本身。最簡單的一種叫<strong>線性探測</strong>（linear probing）：碰撞時就檢查表裡的下一格（把索引加一）。找的時候一路往下看，會遇到三種結果：鍵相同（找到）、空格（確定不在）、別的鍵（繼續看下一格）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 因為每格只能放一筆，鍵的數量一定要少於格子數。</p>
 <figure>
 <svg viewBox="0 0 760 220" role="img" aria-label="線性探測示意：8 格的陣列，apple 算到 1 號格直接放入；cherry 也算到 1 號，被佔了就往下放進 2 號；kiwi 算到 2 號，被佔了就往下放進 3 號">
   <defs><marker id="ht-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--gold-deep)"/></marker></defs>
@@ -289,8 +290,8 @@ HashMap.newHashMap(100) 放第 1 筆後：256 個桶</code></pre>
 <li><strong>想「裝得下 N 筆、中途不擴容」</strong>：初始容量大於「最多筆數 ÷ 負載因子」就不會重新雜湊。Java 19 起直接用 <code>HashMap.newHashMap(N)</code>，它給的初始容量通常大到放得下預期筆數而不必擴容，建構子的說明也改成建議用它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html#newHashMap(int)" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <h4>擴容後每個鍵去哪</h4>
-<p>擴容要把每一筆重新放到新陣列裡，這一次是 O(n)。但因為每次都翻倍，貴的那一次很久才遇到一次；把它的成本平均分攤到前面每一次 <code>put</code>，每次只多付一點點，這叫<strong>攤銷</strong>（amortized：把偶爾一次很貴的成本平均分攤到每次操作）O(1)，跟 <code>ArrayList</code> 長大的道理一樣：<code>ArrayList</code> 為什麼會長大見〈陣列與字串〉，攤銷怎麼算見〈複雜度：程式跑多快、吃多少記憶體〉。MIT 講義的結論是：雜湊表在桶數跟著筆數調整時，能做到「期望的攤銷 O(1)」（expected amortized O(1) time）。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
-<p>桶數是 2 的次方還有一個好處：擴容時不必重算雜湊碼。原始碼 <code>resize()</code> 的註解說，因為用 2 的次方擴大，「每個桶的元素要嘛留在同一個索引，要嘛移動 2 的次方的距離」（the elements from each bin must either stay at same index, or move with a power of two offset in the new table）。判斷方法是看 <code>hash &amp; oldCap</code>：是 0 就留在原位，不是 0 就搬到「原位＋舊容量」。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L675-L760" target="_blank" rel="noopener">出處</a></p>
+<p>擴容要把每一筆重新放到新陣列裡，這一次是 O(n)。但因為每次都翻倍，貴的那一次很久才遇到一次；把它的成本平均分攤到前面每一次 <code>put</code>，每次只多付一點點，這叫<strong>攤銷</strong>（amortized：把偶爾一次很貴的成本平均分攤到每次操作）O(1)，跟 <code>ArrayList</code> 長大的道理一樣：<code>ArrayList</code> 為什麼會長大見〈陣列與字串〉，攤銷怎麼算見〈複雜度：程式跑多快、吃多少記憶體〉。結論：雜湊表在桶數跟著筆數調整時，能做到期望的攤銷 O(1)。<a class="fixsrc" href="https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ce9e94705b914598ce78a00a70a1f734_MIT6_006S20_lec4.pdf" target="_blank" rel="noopener">出處</a></p>
+<p>桶數是 2 的次方還有一個好處：擴容時不必重算雜湊碼。因為用 2 的次方擴大，<code>resize()</code> 時每個桶的元素要嘛留在同一個索引，要嘛移動 2 的次方的距離。判斷方法是看 <code>hash &amp; oldCap</code>：是 0 就留在原位，不是 0 就搬到「原位＋舊容量」。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25%2B36/src/java.base/share/classes/java/util/HashMap.java#L675-L760" target="_blank" rel="noopener">出處</a></p>
 <pre><code>public class Resize {
     static int spread(int h) {
         return h ^ (h &gt;&gt;&gt; 16);
@@ -510,7 +511,7 @@ public int hashCode() {
 <ul class="plainlist">
 <li>同一個物件在一次執行中多次呼叫 <code>hashCode()</code>，「只要 equals 比較用到的資訊沒被修改」，就要回傳同一個整數（provided no information used in equals comparisons on the object is modified）。</li>
 <li>依 <code>equals</code> 相等的兩個物件，<code>hashCode()</code> 一定要相同（If two objects are equal according to the equals method, then calling the hashCode method on each of the two objects must produce the same integer result）。</li>
-<li>反過來<strong>不</strong>要求：<code>equals</code> 不相等的物件，雜湊碼可以一樣；只是給不同的值「可能提升雜湊表的效能」（may improve the performance of hash tables）。</li>
+<li>反過來<strong>不</strong>要求：<code>equals</code> 不相等的物件，雜湊碼可以一樣；只是給不同的值可能提升雜湊表的效能。</li>
 </ul>
 <p><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()" target="_blank" rel="noopener">出處</a> 覆寫 <code>equals</code> 時，通常必須一起覆寫 <code>hashCode</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#equals(java.lang.Object)" target="_blank" rel="noopener">出處</a></p>
 <h4>陷阱一：只覆寫 equals</h4>
@@ -692,7 +693,7 @@ public class Orders {
 <pre><code>HashMap       [apple, pear, kiwi, mango]
 LinkedHashMap [pear, apple, mango, kiwi]
 TreeMap       [apple, kiwi, mango, pear]</code></pre>
-<p><code>HashMap</code> 那行是桶的順序，這次實跑長這樣，但文件明講「不保證順序，也不保證順序長期不變」（makes no guarantees as to the order of the map; in particular, it does not guarantee that the order will remain constant over time），程式不能依賴它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>HashMap</code> 那行是桶的順序，這次實跑長這樣，但 <code>HashMap</code> 不保證順序，也不保證順序長期不變，程式不能依賴它。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html" target="_blank" rel="noopener">出處</a></p>
 <h4>LinkedHashMap 做 LRU 快取</h4>
 <p>LRU（least recently used，「最久沒用的先丟」）是快取常見的淘汰規則。<code>LinkedHashMap</code> 有一個特別的建構子，把順序改成「最近存取順序」，這種 Map 很適合拿來做 LRU 快取；再覆寫 <code>removeEldestEntry</code>，就能在放入新項目時自動移除最舊的。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>import java.util.LinkedHashMap;

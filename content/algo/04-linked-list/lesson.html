@@ -559,7 +559,8 @@ true
 <figcaption>1 到 5 找中點：fast（古銅）每輪走兩步、slow（灰藍）走一步，兩輪後 fast 停在最後一個，slow 在 3。</figcaption>
 </figure>
 <h4>判斷有環</h4>
-<p>如果最後一個節點的 <code>next</code> 不小心接回前面，串列就有<strong>環</strong>（cycle），從頭走永遠走不到 <code>null</code>。最直接的辦法是把走過的節點放進 <code>HashSet</code>，再次看到就有環，但要 O(n) 額外空間。快慢指標一般稱為 Floyd 演算法，又叫「龜兔賽跑」演算法。名字來自 Robert W. Floyd（電腦科學家 Donald Knuth 把這個發明歸給他），但維基百科註明 Floyd 發表過的論文裡找不到這個演算法，可能是歸錯了人（named after Robert W. Floyd, who was credited with its invention by Donald Knuth. However, the algorithm does not appear in Floyd's published work, and this may be a misattribution）。它的做法是「只用兩個指標，以不同速度沿著序列移動」（uses only two pointers, which move through the sequence at different speeds），而且只需要常數個記憶體位置。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_tortoise_and_hare" target="_blank" rel="noopener">出處</a></p>
+<p>如果最後一個節點的 <code>next</code> 不小心接回前面，串列就有<strong>環</strong>（cycle），從頭走永遠走不到 <code>null</code>。最直接的辦法是把走過的節點放進 <code>HashSet</code>，再次看到就有環，但要 O(n) 額外空間。快慢指標一般稱為 Floyd 演算法，又叫「龜兔賽跑」演算法。</p>
+<ul><li>名字來自 Robert W. Floyd，是電腦科學家 Donald Knuth 把這個發明歸給他；但 Floyd 發表過的論文裡找不到這個演算法，可能是歸錯了人。</li><li>做法：只用兩個指標，以不同速度沿著序列移動，只需要常數個記憶體位置。<a class="fixsrc" href="https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_tortoise_and_hare" target="_blank" rel="noopener">出處</a></li></ul>
 <p>為什麼一定會撞上？沒有環時，fast 會先走到 <code>null</code>，回傳 false。有環時兩個遲早都進到環裡，之後每走一輪 fast 都比 slow 多走一步，兩者在環上的距離每輪縮短 1，所以一定會在某一輪剛好相遇，不會「跳過去」。比較要用 <code>slow == fast</code>（是不是同一個節點），不能比 <code>val</code>，因為不同節點可以存同樣的值。</p>
 <h4>找環的入口</h4>
 <p>相遇之後，讓一個指標回到 <code>head</code>，兩個都改成一次走一步，再次相遇的地方就是環的入口。理由（用下圖的數字）：設 head 到入口要走 a 步、入口到相遇點 b 步、環長 L。相遇時 slow 走了 a + b，fast 走了兩倍，多出來的 a + b 一定是繞了整數圈，也就是 a + b 是 L 的倍數。所以從相遇點再走 a 步，等於在環上總共走了 b + a，剛好回到入口；從 head 走 a 步也到入口，兩個就在那裡會合。</p>
