@@ -1,11 +1,11 @@
 <!-- 來源：依 AWS 白皮書 Database Caching Strategies Using Redis（types-of-database-caching、caching-patterns、cache-validity、evictions）、Oracle Coherence 14.1.1「Caching Data Sources」、Azure 架構中心 Cache-Aside 模式、Redis 官方文件（data-types、persistence、eviction、latency、cluster-spec、cli、UNLINK、SET、Bloom filter、client-side caching）、Spring Framework 參考文件 Cache Abstraction 章新寫；redis-cli 輸出以 Docker 映像 redis:8（Redis 8.10.2）實際執行，Java 範例以 Java 21 與 Spring Framework 7.0.9 實際執行 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>快取放哪一層、四種讀寫模式</li><li>為什麼先更新資料庫再刪快取</li><li>雪崩、穿透、擊穿與熱 key</li><li>選 Redis 資料結構與淘汰策略</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出快取放哪一層與四種讀寫模式</li><li>講出為什麼先更新資料庫再刪快取</li><li>防住雪崩、穿透、擊穿與熱 key</li><li>選出 Redis 資料結構與淘汰策略</li></ul></div>
 
 <section>
 <p class="era">先決定放哪一層</p>
 <h3 class="head">快取是什麼、放在哪裡</h3>
 <p><strong>快取</strong>（cache）是把常被讀的資料多放一份在更快的地方，讓大多數讀取不必回到資料庫。查得到叫<strong>命中</strong>（cache hit），查不到叫<strong>未命中</strong>（cache miss）。就像櫃檯把最常被問的匯率抄在白板上：問的人看白板就好，白板上沒有才打電話問總行。</p>
-<p>AWS 的快取白皮書把資料庫快取分成三種放法：資料庫內建的快取、應用程式裡的<strong>本地快取</strong>（local cache），和獨立一層的<strong>遠端快取</strong>（remote cache，例如 Redis）。本地快取比其他放法都快，「因為省掉了取資料的網路往返」（because it removes network traffic that is associated with retrieving data）；主要缺點是「每個節點各有一份自己的快取，彼此不相連」（each node has its own resident cache working in a disconnected manner），機器一多很難讓每台的內容一致。遠端快取是專門的伺服器，所有應用程式共用，平均延遲在一毫秒以內。兩者合用叫兩層快取，白皮書說它「因為增加的複雜度，通常只在需要時才用」（it’s typically used only when needed because of the complexity it adds）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/types-of-database-caching.html" target="_blank" rel="noopener">出處</a></p>
+<p>AWS 的快取白皮書把資料庫快取分成三種放法：資料庫內建的快取、應用程式裡的<strong>本地快取</strong>（local cache），和獨立一層的<strong>遠端快取</strong>（remote cache，例如 Redis）。本地快取比其他放法都快，「因為省掉了取資料的網路往返」（because it removes network traffic that is associated with retrieving data）；主要缺點是「每個節點各有一份自己的快取，彼此不相連」（each node has its own resident cache working in a disconnected manner），機器一多很難讓每台的內容一致。遠端快取是專門的伺服器，所有應用程式共用，平均延遲在一毫秒以內。兩者合用叫兩層快取，白皮書說它「因為增加的複雜度，通常只在需要時才用」（it’s typically used only when needed because of the complexity it adds）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/types-of-database-caching.html" target="_blank" rel="noopener">出處</a> 瀏覽器與 CDN 這兩層 HTTP 快取（依 <code>Cache-Control</code> 標頭自動處理）見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉，面試時「HTTP 快取跟應用層快取怎麼分工」怎麼答，見〈系統設計：快取一致性與熱點〉的同名那題。</p>
 <p class="muted">AWS 已把這份白皮書標為僅供歷史參考（This whitepaper is for historical reference only），這裡引的都是不隨產品版本變的觀念。</p>
 <figure>
 <svg viewBox="0 0 760 228" role="img" aria-label="快取放在哪裡：由左到右是瀏覽器、CDN、應用程式記憶體裡的本地快取、Redis、資料庫。請求從左往右找，找到就停，找不到才往下一層。越左越近越快、容量越小，越右越遠越慢、容量越大，資料庫是最終權威。本課的主角是本地快取與 Redis">
@@ -42,7 +42,7 @@ $ redis-cli DEL rate:USD
 
 $ redis-cli GET rate:USD
 (nil)</code></pre>
-<p>一次性驗證碼設 300 毫秒，等 0.5 秒之後就讀不到了，這就是 TTL 到期。HTTP 那兩層（瀏覽器與 CDN 依 <code>Cache-Control</code> 標頭自動處理）見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉，面試時「HTTP 快取跟應用層快取怎麼分工」怎麼答，見〈系統設計：快取一致性與熱點〉的「HTTP 快取跟應用層快取怎麼分工」那題。</p>
+<p>一次性驗證碼設 300 毫秒，等 0.5 秒之後就讀不到了，這就是 TTL 到期。</p>
 <p class="formula">快取是更近、更小的副本，資料庫才是正本；每一把 key 都要有 TTL，長短看「多常變」與「讀到舊的有多糟」</p>
 
 <div class="drill">
