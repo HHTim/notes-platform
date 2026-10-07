@@ -1,6 +1,5 @@
 <!-- 來源：依 MySQL 8.4 參考手冊新寫（SELECT 的 LIMIT、Stored Program Binary Logging、DELETE、Optimizing Derived Tables、Out-of-Range and Overflow Handling、Window Function Descriptions 與 Frame Specification、Flow Control Functions、Server SQL Modes、EXCEPT、Semijoin 與 Antijoin、GROUP BY Optimization） https://dev.mysql.com/doc/refman/8.4/en/ ；題目對應 LeetCode 176、177、180、184、185、196、197、1179、1321、183 只列題號、題名與連結；資料表與測資全部自編，以 Docker 映像 mysql:8.4（MySQL 8.4.11，預設 sql_mode）實際執行，輸出為實跑結果的節錄（錯誤訊息省略腳本行號） · 收錄日期：2026-10-06 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>現場寫出第 N 高、每組前 N 名（含同分）、連續出現、比前一天高、刪重複只留一筆這幾題，並說得出每題最常見的寫錯版本錯在哪</li><li>分清 ROWS 與 RANGE：算移動平均、年增率與月增率時，缺資料的日子或月份會讓「前幾列」不等於「前幾天」</li><li>把列轉成欄（CASE WHEN 加聚合）、用 EXCEPT、NOT EXISTS、LEFT JOIN 求差集，知道 MySQL 會把 NOT EXISTS 改寫成反連接</li><li>寫出「每個帳戶最新一筆交易」與「每日餘額」，並回答索引怎麼建、資料量大怎麼辦</li></ul></div>
-<p class="muted">本課是手寫題的答法與寫錯示範。JOIN、子查詢、GROUP BY 與視窗函式的基本規則，以及第二高、每組前兩名、連續登入、累計餘額、去重保留最新、NOT IN 遇 NULL 這幾題的完整講解，見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉；EXPLAIN 與複合索引見〈索引是怎麼運作的〉，索引失效寫法的速查見〈資料庫面試題：索引、交易隔離與鎖〉。這裡不重講，只補那課沒有的題目與陷阱。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>寫出第 N 高、每組前 N 名與刪重複</li><li>分清移動平均裡的 ROWS 與 RANGE</li><li>寫出列轉欄與三種差集</li><li>寫出最新一筆交易與每日餘額</li></ul></div>
 
 <section>
 <p class="era">先講好怎麼答</p>
@@ -12,7 +11,7 @@
 <li><strong>自己舉一個會出錯的例子</strong>：同分、缺號、缺日期、NULL，帶進去走一遍。</li>
 <li><strong>主動補追問</strong>：要建什麼索引、資料量大到幾千萬列時怎麼改。</li>
 </ul>
-<p>下面每題都用自編的資料在 MySQL 8.4.11 實跑，預設 <code>sql_mode</code>（含 <code>ONLY_FULL_GROUP_BY</code> 與嚴格模式）。題號是 LeetCode 上相同題型的題目，題目文字不同。</p>
+<p>以下用 MySQL 8.4，預設 <code>sql_mode</code>（含 <code>ONLY_FULL_GROUP_BY</code> 與嚴格模式）。</p>
 </section>
 
 <section>
@@ -151,7 +150,7 @@ ORDER BY d.id;
     -&gt; Aggregate: count(distinct e2.salary)
         -&gt; Filter: (e2.salary &gt; e1.salary)
             -&gt; Covering index lookup on e2 using idx_dept_sal (dept_id=e1.dept_id)</code></pre>
-<p>視窗函式版在這份資料上還是整表讀出、再依部門與薪資排序；相關子查詢版的子查詢則改成「到索引裡找同部門的薪資」，不必讀整張表。但相關子查詢是外層每一列都跑一次子查詢，部門人數一多總量還是大。結論要照實講：索引不是建了就一定有用，建完要看 EXPLAIN。</p>
+<p>視窗函式版在這份資料上還是整表讀出、再依部門與薪資排序；相關子查詢版的子查詢則改成「到索引裡找同部門的薪資」，不必讀整張表。但相關子查詢是外層每一列都跑一次子查詢，部門人數一多總量還是大。結論要照實講：索引不是建了就一定有用，建完要看 EXPLAIN。索引失效的常見寫法見〈資料庫面試題：索引、交易隔離與鎖〉。</p>
 
 <div class="drill">
   <p class="dq">授信部薪資 90000、85000、85000、70000、60000。用 <code>DENSE_RANK() … &lt;= 3</code>，授信部列出幾個人？</p>

@@ -1,10 +1,10 @@
 <!-- 來源：依 Java SE 25 API 文件（java.lang.Thread、java.util.concurrent 及其子套件）、Java 語言規格第 8 與 17 章、JEP 444 與 JEP 491、Oracle 並行教學與疑難排解指南、OpenJDK 原始碼新寫 · 收錄日期：2026-09-30 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>答出平台執行緒與虛擬執行緒的差別、<code>Thread.State</code> 六種狀態各怎麼進去</li><li>背出 <code>ThreadPoolExecutor</code> 七個參數與「核心、佇列、最大、拒絕」的順序，講清楚 <code>Executors</code> 工廠方法的預設值會出什麼事</li><li>用官方原句比較 <code>synchronized</code> 與 <code>ReentrantLock</code>，說出 <code>volatile</code> 靠 happens-before 保證什麼</li><li>說明 <code>ConcurrentHashMap</code> 為什麼讀不加鎖、三個同步輔助類別各解決什麼、<code>CompletableFuture</code> 怎麼組合、死結怎麼用 <code>jcmd</code> 抓</li></ul></div>
-<p class="muted">想從頭打底、看每個實驗實際跑出來的輸出，見 Java 模組〈執行緒池與並行工具〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清平台執行緒與虛擬執行緒</li><li>背出執行緒池七個參數與處理順序</li><li>比較 synchronized、ReentrantLock、volatile</li><li>答出並行集合與死結怎麼抓</li></ul></div>
+
 <section>
     <p class="era">執行緒本身</p>
     <h3 class="head">從作業系統執行緒到虛擬執行緒，以及六種狀態</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。課文以 Java 25（撰寫時的長期支援版）為準，Java 21 答案不同的地方會標出來。基礎都在〈執行緒與並行〉，本課只寫面試追問的那一層：參數、原理、選型、排查。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。以下以 Java 25 為準，跟 Java 21 不同處會標出。</p>
     <p class="q">面試官：行程與執行緒差在哪？Java 執行緒跟作業系統執行緒是什麼關係？虛擬執行緒改變了什麼？</p>
     <p><strong>一句話定義：</strong>基礎見〈執行緒與並行〉。官方教學：行程「每個都有自己的記憶體空間」，執行緒「存在於行程之內……共用行程的資源，包括記憶體與開啟的檔案」（Threads share the process's resources, including memory and open files）。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/essential/concurrency/procthread.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>跟作業系統執行緒的關係：</strong><code>Thread</code> 文件分兩種。平台執行緒（platform thread）「通常與作業系統排程的核心執行緒一對一對應」（typically mapped 1:1 to kernel threads），「可能是有限的資源」。虛擬執行緒（virtual thread）「由 Java 執行時、而非作業系統排程」，「一個 JVM 可以支撐數百萬條」，「適合大部分時間在等 I/O 的工作，不適合 CPU 密集運算」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Thread.html" target="_blank" rel="noopener">出處</a></p>
@@ -29,6 +29,7 @@
 <section>
     <p class="era">執行緒池</p>
     <h3 class="head">七個參數、一條處理順序、四種拒絕、多大才夠</h3>
+    <p class="muted">每個實驗的實跑輸出見〈執行緒池與並行工具〉。</p>
     <p class="q">面試官：ThreadPoolExecutor 的參數有哪些？任務進來怎麼處理？</p>
     <p><strong>一句話定義：</strong>建構子七個參數：<code>corePoolSize</code>「保留在池中的執行緒數，即使閒置」；<code>maximumPoolSize</code>「允許的最大執行緒數」；<code>keepAliveTime</code>「超過核心數的閒置執行緒最多等這麼久就結束」；<code>unit</code> 是它的單位；<code>workQueue</code>「任務執行前存放的佇列」；<code>threadFactory</code> 建執行緒；<code>handler</code> 是「執行緒與佇列都到頂時」的拒絕處理器。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>處理順序（文件原句三條）：</strong>「少於 <code>corePoolSize</code> 時，永遠偏好新開執行緒而非排隊」，「即使其他執行緒閒置」也照開；「已達 <code>corePoolSize</code> 時，永遠偏好排隊而非新開執行緒」；「排不進佇列才新開執行緒，除非會超過 <code>maximumPoolSize</code>，這時任務被拒絕」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 答成「先加到最大再排隊」是反的。</p>

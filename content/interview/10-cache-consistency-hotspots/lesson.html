@@ -1,9 +1,9 @@
 <!-- 來源：依 AWS 快取策略白皮書（caching-patterns、cache-validity）、Azure 架構中心（Cache-Aside 模式、caching 最佳實務）、Oracle Coherence 資料來源快取文件、Redis 官方文件（data-types、bloom-filter、hyperloglogs、bitmaps、latency、cluster-spec、cli、UNLINK、FAQ、persistence、eviction、client-side-caching、redis.conf、6.0 版本說明）、Caffeine wiki（Eviction、Refresh、Efficiency）、Spring Framework 快取抽象參考文件、RFC 9111 新寫 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清 Cache-Aside、Write-Through、Write-Behind，答出「先更新資料庫再刪快取」的理由與延遲雙刪的限度</li><li>講出雪崩、穿透、擊穿怎麼防，熱 key 與大 key 怎麼發現、怎麼拆</li><li>答出 Redis 的資料結構怎麼選、為什麼快、RDB 對 AOF、淘汰策略怎麼設，版本界線一起答</li><li>把 Caffeine 加 Redis 的兩層失效、HTTP 快取與應用層快取的分工串成完整答案</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清三種快取讀寫模式</li><li>說出先更新資料庫再刪快取的理由</li><li>防雪崩、穿透、擊穿與熱 key</li><li>答出 Redis 為什麼快與持久化取捨</li></ul></div>
 <section>
     <p class="era">開場</p>
     <h3 class="head">三種讀寫模式：誰負責把資料放進快取</h3>
-    <p class="muted">〈系統設計：短網址的高併發〉與〈系統設計：秒殺與限流〉把快取當擋流量的一層，這課專講快取本身的難處：資料庫改了、快取還是舊的怎麼辦。版本主軸：Redis 8.x（實測 8.10.2）、Spring Framework 7.0（Spring 6 同樣適用）、Caffeine 3.x。</p>
+    <p class="muted">以下以 Redis 8.x、Spring Framework 7.0（Spring 6 同樣適用）、Caffeine 3.x 為準。</p>
     <p class="q">面試官：Cache-Aside、Read-Through、Write-Through、Write-Behind 差在哪？</p>
     <p><strong>一句話定義：</strong>差在「誰負責把資料放進快取、寫入時快取跟資料庫誰先誰後」。AWS 白皮書把最常見的兩種放在一起講：「Cache-Aside 是在資料被請求之後才更新快取；Write-Through 是主資料庫更新時立刻更新快取」（A cache-aside cache is updated after the data is requested. A write-through cache is updated immediately when the primary database is updated）。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>

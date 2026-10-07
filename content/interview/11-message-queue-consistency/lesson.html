@@ -1,10 +1,10 @@
 <!-- 來源：依官方文件新寫。Apache Kafka 4.3 設計文件 https://kafka.apache.org/43/design/design/ · RabbitMQ 4.3 可靠性指南 https://www.rabbitmq.com/docs/reliability · microservices.io 交易式 Outbox https://microservices.io/patterns/data/transactional-outbox.html 與 Saga https://microservices.io/patterns/data/saga.html · AWS 規範性指引 https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html 與 saga-orchestration.html · Spring for Apache Kafka 4.1 https://docs.spring.io/spring-kafka/reference/ · Spring AMQP 4.1 https://docs.spring.io/spring-amqp/reference/ · Amazon SQS 開發者指南 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出什麼時候該引進訊息佇列、代價是什麼，並比較 Kafka 與 RabbitMQ 的資料模型</li><li>解釋三種送達語意哪個做得到，消費端怎麼用去重表做到冪等</li><li>回答順序、丟訊息、堆積、死信四個營運題，畫出交易式 Outbox 的表結構與 Saga 的狀態機（把流程畫成「狀態＋轉換」的圖）</li><li>用銀行轉帳講清楚「最終一致」的前提是錢不能少、帳要對得上，寫出 @KafkaListener 與 @RabbitListener 最小範例</li></ul></div>
-<p class="muted">想看 ack 前當機重送、去重表、死信與 Outbox 實際跑出來的結果，見 Spring 模組〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出何時引進佇列、代價是什麼</li><li>分清三種送達保證與冪等消費</li><li>回答順序、丟失、堆積、死信</li><li>講出 Outbox 與 Saga 怎麼保住一致</li></ul></div>
+
 <section>
     <p class="era">為什麼要佇列</p>
     <h3 class="head">解耦、緩衝尖峰、非同步，以及要付的代價</h3>
-    <p class="muted">答題公式：一句話定義，再講取捨，最後補版本。版本：Apache Kafka 4.3、RabbitMQ 4.3、Spring for Apache Kafka 4.1、Spring AMQP 4.1。名詞：訊息佇列（message queue）是幫程式「留言」的中間站；送的叫生產者（producer）、收的叫消費者（consumer）、中間那台伺服器叫 broker（訊息代理）。</p>
+    <p class="muted">答題公式：一句話定義，再講取捨，最後補版本。以下以 Apache Kafka 4.3、RabbitMQ 4.3、Spring for Apache Kafka 4.1、Spring AMQP 4.1 為準。名詞：訊息佇列（message queue）是幫程式「留言」的中間站；送的叫生產者（producer）、收的叫消費者（consumer）、中間那台伺服器叫 broker（訊息代理）。</p>
     <p class="q">面試官：什麼時候該引進訊息佇列？代價是什麼？</p>
     <p><strong>一句話定義：</strong>呼叫方不需要馬上拿到結果、兩邊又不該互相拖累時，才值得放 broker；理由是解耦、非同步，以及用佇列緩衝尖峰流量（面試集〈系統設計：秒殺與限流〉叫「以佇列平衡負載」）。</p>
     <p><strong>理由與代價：</strong>Azure 架構中心寫 broker 提供「時間上的解耦：生產者與消費者不必同時執行」（temporal decoupling）。代價同一頁也寫了：「生產者可能不小心把同一則訊息送兩次……消費者的處理邏輯應該是冪等的」，否則「重複下單或重複收費」（duplicate orders or double billing）。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/guide/technology-choices/messaging" target="_blank" rel="noopener">出處</a> 引進佇列等於簽三份帳單：一致性從「馬上」變「稍後」、每個消費者都要冪等、多一套要監控。需要同步結果、或本來就在同一筆資料庫交易裡，直接呼叫就好。</p>
@@ -123,6 +123,7 @@ COMMIT;</code></pre>
 <section>
     <p class="era">Spring 怎麼接</p>
     <h3 class="head">@KafkaListener 與 @RabbitListener 各一眼</h3>
+    <p class="muted">重送、去重表、死信與 Outbox 的實跑見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</p>
     <p class="q">面試官：訊息佇列在 Spring 怎麼接？</p>
     <p><strong>Spring for Apache Kafka（4.1）：</strong>@KafkaListener「把一個 Bean 的方法指定為監聽器容器的監聽器」，需要 @EnableKafka 與名為 <code>kafkaListenerContainerFactory</code> 的工廠 Bean（Spring Boot 自動組態會給）。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/kafka/receiving-messages/listener-annotation.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>public class Listener {

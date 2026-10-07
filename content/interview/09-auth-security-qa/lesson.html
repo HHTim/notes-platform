@@ -1,10 +1,11 @@
 <!-- 來源：依 RFC 7519、8725、6749、7636、9700、6750、7617、OpenID Connect Core 1.0、OASIS SAML 技術總覽、OWASP 速查表與 Top 10:2025、NIST SP 800-63B-4、Spring Security 官方文件、MDN 與 W3C 的 CSP 文件新寫 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>一句話分清認證與授權、Session 與 Token、Basic 與 Bearer，並說出 JWT 三段怎麼組、簽章怎麼驗、為什麼「alg 改成 none」與演算法混淆會讓驗證形同虛設</li><li>講出 OAuth 2.0 的四個角色與授權碼流程、Implicit 為什麼不建議、PKCE 補哪個洞，以及 OAuth 2.0、OIDC、SAML 的分工</li><li>答出密碼為什麼不能只做「雜湊加鹽」、四種慢雜湊怎麼選，還有 Spring Security 的 DelegatingPasswordEncoder 與 JWT 資源伺服器各做了什麼</li><li>用 OWASP Top 10:2025 說出注入、XSS、CSRF、SSRF 各怎麼防、CSP 在擋什麼、機密該放哪</li></ul></div>
-<p class="muted">想看 JWT 驗簽、授權碼加 PKCE、更新權杖輪替在 Spring Security 裡實際跑出來的結果，見 Spring 模組〈JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清認證與授權、Session 與 Token</li><li>講出 JWT 怎麼驗、常見的驗證漏洞</li><li>講出 OAuth 2.0 授權碼流程</li><li>答出密碼怎麼存、常見攻擊怎麼防</li></ul></div>
+
 <section>
     <p class="era">認證基礎</p>
     <h3 class="head">誰、能做什麼、憑證怎麼帶</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補協定編號或版本。版本主軸：Spring Security 依撰寫時的現行版 7.1 官方文件，OWASP Top 10 用 2025 版。Filter 鏈與登入流程見〈Spring Security 認證與授權〉，CORS、CSRF、雜湊與鹽見〈網站安全三題：CORS、CSRF、密碼學〉，Gateway 驗 Token 見〈後端與雲端面試題庫〉；本課補協定本身與演算法的名字。</p>
+    <p class="muted">Filter 鏈與登入流程見〈Spring Security 認證與授權〉。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補協定編號或版本。以下以 Spring Security 7.1、OWASP Top 10 2025 版為準。</p>
     <p class="q">面試官：認證與授權差在哪？Session 對 Token 各自的優缺點？</p>
     <p><strong>一句話定義：</strong>認證（authentication）回答「你是誰」，授權（authorization）回答「你能做什麼」。網銀輸入帳號密碼加簡訊驗證碼是認證；登入後能不能查別人的帳戶是授權。</p>
     <p><strong>差別與取捨：</strong>Session 是「伺服器記得你」：狀態存伺服器，瀏覽器只拿識別碼放 Cookie；Token 是「你自己帶著證明」：伺服器簽發一段字串，每次請求帶上，驗簽章就知道你是誰。Session 登出、強制下線立刻生效，成本是多台伺服器要共用狀態；Token 無狀態、跨服務好傳遞，代價是簽出去就難以即時作廢——OWASP 的 JWT 速查表點破：一做拒絕清單（伺服器記下已作廢的權杖，收到就擋）「工作階段就不再完全無狀態」（user sessions won't be completely stateless anymore）。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a> 網銀網頁走 Session 就夠，行動銀行 App 與多個後端服務之間走 Token。</p>
@@ -78,6 +79,7 @@ encoder.matches("password", stored);   // 照前綴 {bcrypt} 交給 BCryptPasswo
 <section>
     <p class="era">Spring Security 資源伺服器</p>
     <h3 class="head">API 怎麼驗別人簽的 JWT</h3>
+    <p class="muted">JWT 驗簽與授權碼流程的實跑見〈JWT 與 OAuth 2.0 在 Spring Security 裡怎麼接〉。</p>
     <p class="q">面試官：Spring Security 當 OAuth 2.0 資源伺服器怎麼驗 JWT？</p>
     <p><strong>一句話定義：</strong>資源伺服器就是「收 Bearer token 的 API」。Spring Boot 之下兩步：加 <code>spring-security-oauth2-resource-server</code> 與 <code>spring-security-oauth2-jose</code> 兩個相依，再告訴它授權伺服器在哪：</p>
     <pre><code>spring:

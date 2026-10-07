@@ -1,10 +1,10 @@
 <!-- 來源：依 MySQL 8.4 參考手冊（InnoDB 索引、鎖、交易隔離、EXPLAIN、Online DDL）、PostgreSQL 現行文件（交易隔離、MVCC、VACUUM、索引類型）新寫；SQL 範例於 MySQL 8.4.11 實跑 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 InnoDB 的索引長什麼樣：為什麼用 B+ 樹、叢集索引與二級索引差在哪、回表與覆蓋索引是什麼</li><li>判斷一條查詢用不用得到索引：最左前綴、五種讓索引失效的寫法，以及 EXPLAIN 要看哪幾欄</li><li>答出四個隔離層級各擋住哪種讀異常、MySQL 與 PostgreSQL 預設哪個、MVCC 怎麼做到讀不加鎖</li><li>分清記錄鎖、間隙鎖、Next-Key 鎖，說明悲觀鎖與樂觀鎖的取捨，並用 SHOW ENGINE INNODB STATUS 排查死結</li></ul></div>
-<p class="muted">想看 EXPLAIN、讀異常、鎖與死結在 MySQL 8.4 實際跑出來的結果，見資料庫模組〈索引是怎麼運作的〉〈交易隔離層級與鎖〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清 B+ 樹、叢集索引與回表</li><li>判斷一條查詢用不用得到索引</li><li>答出四個隔離層級各擋哪種讀異常</li><li>分清各種鎖，會排查死結</li></ul></div>
+
 <section>
     <p class="era">索引結構</p>
     <h3 class="head">B+ 樹、叢集索引與二級索引</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補一句版本或實務註記。ACID 與交易基礎見〈SQL 三種子語言：DDL、DML、DQL〉，本課不重講。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補一句版本或實務註記。</p>
     <p class="q">面試官：索引是什麼？為什麼用 B+ 樹，不用雜湊或二元樹？</p>
     <p><strong>一句話定義：</strong>索引是資料表旁邊另外維護的一份排序好的目錄，讓資料庫不用逐列掃描就能找到目標資料列。MySQL 的主鍵、唯一鍵、一般索引都存成 B-tree（多路平衡樹，手冊統稱 B-tree；面試常說的 B+ 樹是它把資料放在葉節點的變形）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>為什麼不是二元樹：</strong>B-tree 的一個節點可以有很多個子節點，不像二元樹每個節點只能有兩個<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_b_tree" target="_blank" rel="noopener">出處</a>。InnoDB 一個索引頁預設 16KB<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>，一頁能放很多個鍵，每往下一層容量就乘上一頁的鍵數，所以樹很矮——從根到葉只要讀少少幾頁。頁（page）正是 InnoDB 在硬碟與記憶體之間一次搬動的資料單位<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_page" target="_blank" rel="noopener">出處</a>，讀幾頁就是幾次 I/O，這是「適合磁碟」的意思。</p>
@@ -47,6 +47,7 @@
 <section>
     <p class="era">看懂執行計畫</p>
     <h3 class="head">EXPLAIN 與慢查詢日誌</h3>
+    <p class="muted">EXPLAIN 在 MySQL 8.4 的實跑見〈索引是怎麼運作的〉。</p>
     <p class="q">面試官：EXPLAIN 要看哪幾欄？</p>
     <p><strong>一句話定義：</strong>EXPLAIN 印出最佳化器打算怎麼執行這條查詢；四欄最重要——<code>type</code>（存取方式）、<code>key</code>（實際選用的索引）、<code>rows</code>（估計要檢查的列數）、<code>Extra</code>（額外資訊）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a>。</p>
     <div class="tablewrap"><table>
@@ -74,6 +75,7 @@ EXPLAIN FORMAT=TREE SELECT id, status FROM orders WHERE customer_id = 42 AND sta
 <section>
     <p class="era">交易隔離</p>
     <h3 class="head">四個等級、三種讀異常與 MVCC</h3>
+    <p class="muted">讀異常與鎖的實跑見〈交易隔離層級與鎖〉；ACID 見〈SQL 三種子語言：DDL、DML、DQL〉。</p>
     <p class="q">面試官：四個隔離層級各允許哪些讀異常？MySQL 預設哪個？PostgreSQL 預設哪個？</p>
     <p><strong>一句話定義：</strong>隔離層級（isolation level）是「多筆交易同時跑時，彼此看得到對方多少中間狀態」的設定，換的是效能與一致性之間的平衡。SQL 標準的三種讀異常，PostgreSQL 文件的定義最清楚<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>：</p>
     <div class="terms">

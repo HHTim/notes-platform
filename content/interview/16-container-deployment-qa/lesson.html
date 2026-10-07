@@ -1,10 +1,10 @@
 <!-- 來源：依 docs.docker.com（what-is-a-container、understanding-image-layers、build/cache、build/cache/invalidation、build/building/multi-stage、build/building/best-practices、reference/dockerfile）、docs.spring.io Spring Boot 4.1（container-images 的 efficient-images／dockerfiles／cloud-native-buildpacks、maven-plugin 的 packaging／build-image、actuator/endpoints、web/graceful-shutdown、屬性附錄）、docs.oracle.com Java SE 25 java 指令手冊（與 21 版對照）與 GC 調校指南 ergonomics 頁、kubernetes.io（releases、architecture/cgroups、Deployment、ReplicaSet、workloads/management、pods/probes、configure-liveness-readiness-startup-probes、manage-resources-containers、pod-qos、assign-memory-resource、pod-lifecycle、ConfigMap、Secret、horizontal-pod-autoscale）、gateway-api.sigs.k8s.io（traffic-splitting）、martinfowler.com/bliki（BlueGreenDeployment、CanaryRelease）、docs.github.com Actions 工作流程語法、github.com/docker/build-push-action、argo-cd.readthedocs.io、12factor.net（build-release-run、port-binding、disposability、dev-prod-parity）新寫 · 收錄日期：2026-10-01 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明映像檔分層與建置快取的失效規則，以及 Spring Boot 分層 JAR 怎麼利用它</li><li>分清 <code>CMD</code> 與 <code>ENTRYPOINT</code>、exec 形式與 shell 形式，並說出程式不是 PID 1（容器裡編號 1 的行程，平台的停止訊號送給它）時收不到訊號的後果</li><li>答出容器裡 JVM 的堆大小怎麼算、滾動更新兩個參數的預設與進位規則、三種探針各決定什麼</li><li>講清楚 QoS（服務品質等級，節點資源不夠時決定先趕誰）三級的判定、HPA 的公式、Secret 為什麼不等於加密，以及一條 CI/CD 管線的骨架</li></ul></div>
-<p class="muted">想看滾動更新、探針失敗、OOMKilled 與 PDB 在 kind 叢集實際跑出來的結果，見 K8s 模組〈部署策略與探針〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說明映像檔分層與建置快取</li><li>分清 CMD、ENTRYPOINT 與收不到訊號的坑</li><li>答出容器裡的堆大小與三種探針</li><li>講清資源等級、自動擴縮與 Secret</li></ul></div>
+
 <section>
     <p class="era">做出映像檔</p>
     <h3 class="head">容器、分層、多階段與啟動指令</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。容器與 Kubernetes 模組教過的觀念，每題指路過去，這課寫面試官接著會追問的細節。版本以撰寫時為準：Kubernetes 1.37<a class="fixsrc" href="https://kubernetes.io/releases/" target="_blank" rel="noopener">出處</a>、Docker 現行文件、Java 25（與 21 不同處會標）、Spring Boot 4.1。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。以下版本為準：Kubernetes 1.37<a class="fixsrc" href="https://kubernetes.io/releases/" target="_blank" rel="noopener">出處</a>、Docker 現行文件、Java 25（與 21 不同處會標）、Spring Boot 4.1。</p>
     <p class="q">面試官：容器跟虛擬機差在哪？</p>
     <p><strong>一句話定義：</strong>Docker 文件：虛擬機是「一整套作業系統，有自己的核心」；容器「只是一個被隔離的行程，帶著它執行需要的所有檔案」，多個容器「共用同一個核心」。<a class="fixsrc" href="https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/" target="_blank" rel="noopener">出處</a> 隔離靠 namespace（管看得到什麼），限量靠 cgroup（管能用多少），見〈容器〉與〈容器不等於 Docker〉。</p>
     <p class="q">面試官：映像檔分層怎麼運作？為什麼改一行 Dockerfile，後面全部重建？</p>
@@ -50,6 +50,7 @@ ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "application.jar"]</code>
 <section>
     <p class="era">上 K8s、換版本</p>
     <h3 class="head">物件分工、滾動更新與三種部署策略</h3>
+    <p class="muted">滾動更新、探針與 OOMKilled 的實跑見〈部署策略與探針〉。</p>
     <p class="q">面試官：Pod、Deployment、ReplicaSet、Service、Ingress 各是什麼？</p>
     <p>五個物件見〈Pod 與 Node〉、〈Deployment：下單〉、〈Service：找路〉、〈對外入口〉。接著會被追問的是 Deployment 與 ReplicaSet 的關係：ReplicaSet「維持一組穩定數量的副本 Pod」，通常由 Deployment 自動管理。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/" target="_blank" rel="noopener">出處</a> 每次換版本，Deployment 開一個新的 ReplicaSet、把舊的縮到 0 但留著，回退就是把舊的放大回來。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a></p>
     <p class="q">面試官：滾動更新的 <code>maxSurge</code>、<code>maxUnavailable</code> 是什麼？怎麼回退？</p>

@@ -1,10 +1,11 @@
 <!-- 來源：依 Java 虛擬機規格（JVMS）、HotSpot 垃圾回收調校指南、相關 JEP 與 Oracle 官方教學新寫 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用 JVMS 的正式名稱答出 JVM 的五塊執行期資料區、哪幾塊執行緒共用，以及堆為什麼要分成年輕代與老年代</li><li>講清楚 HotSpot 怎麼判斷一個物件死了、四種參考強度差在哪，以及 Serial、Parallel、G1、ZGC、Shenandoah 各適合什麼、現在預設是哪個</li><li>看到 <code>OutOfMemoryError</code> 的訊息就知道是哪一塊記憶體爆了、常見的洩漏來源，以及怎麼抓 heap dump、用什麼工具看</li><li>答出類別載入的三步與父委派、JIT 分層編譯為什麼「暖機」後才快，還有 <code>HashMap</code> 與 字串池這兩題老面孔</li></ul></div>
-<p class="muted">想從頭打底、看每個實驗實際跑出來的輸出，見 Java 模組〈JVM 記憶體與垃圾回收〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>答出 JVM 記憶體分哪幾塊、誰共用</li><li>分清各種垃圾回收器與預設是哪個</li><li>看懂 OutOfMemoryError 是哪塊爆了</li><li>答出類別載入與父委派</li></ul></div>
+
 <section>
     <p class="era">執行期資料區</p>
     <h3 class="head">JVM 把記憶體分成哪幾塊</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。課文以 Java 25（撰寫時的長期支援版）的 HotSpot 為準；Java 21 同樣適用的地方直接寫，兩版有差的地方會標出來。JVM、JRE、JDK 三個縮寫與位元碼怎麼來的，見〈Java 是什麼、環境怎麼裝〉。</p>
+    <p class="muted">每個實驗的實跑輸出見〈JVM 記憶體與垃圾回收〉。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。以下以 Java 25 的 HotSpot 為準，跟 Java 21 不同處會標出。JVM、JRE、JDK 與位元碼見〈Java 是什麼、環境怎麼裝〉。</p>
     <p class="q">面試官：JVM 執行期資料區有哪些？哪些是執行緒共用、哪些私有？</p>
     <p><strong>一句話定義：</strong>Java 虛擬機規格（JVMS，定義 JVM 該怎麼運作的正式文件）第 2.5 節把執行期間用到的記憶體分成幾塊「執行期資料區」（run-time data areas）：有的在 JVM 啟動時建立、關機才銷毀；有的隨執行緒建立與銷毀。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-2.html#jvms-2.5" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>

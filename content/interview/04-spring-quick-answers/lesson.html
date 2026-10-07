@@ -1,10 +1,10 @@
 <!-- 來源：依 Spring Framework、Spring Boot、Spring Security 官方文件新寫 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用一句話答出 IoC 與 DI 的差別、BeanFactory 與 ApplicationContext 的差別，再依官方文件說出 Bean 從建立到銷毀的完整順序</li><li>講清楚三種注入方式怎麼選、循環相依為什麼在建構子注入下直接失敗，以及 @Autowired、@Resource、@Qualifier、@Primary 各管什麼</li><li>解釋 Spring AOP 的兩種代理、Spring Boot 預設哪一種，以及同一個類別內部呼叫為什麼讓 @Transactional 與 @Cacheable 失效</li><li>答出交易傳播行為的差別、@Transactional 的五種失效情境，還有 Spring Boot 自動組態與 Spring MVC 一次請求的路徑</li></ul></div>
-<p class="muted">交易傳播與失效、自動組態與 Actuator 想看每個情境實際跑出來的結果，見 Spring 模組〈@Transactional 的傳播、隔離與失效情境〉〈Spring Boot 自動組態與 Actuator〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清控制反轉與依賴注入、Bean 生命週期</li><li>選對注入方式，說出循環相依為何失敗</li><li>解釋代理與內部呼叫讓註解失效</li><li>答出交易傳播與 @Transactional 失效情境</li></ul></div>
+
 <section>
     <p class="era">IoC 容器</p>
     <h3 class="head">容器、Bean 與生命週期</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。課文依撰寫時的現行穩定版官方文件寫（Spring Framework 7.0、Spring Boot 4.1）；Spring 6 與 Spring Boot 3 同樣適用的地方直接寫，兩代有差的地方會標出來。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。以下以 Spring Framework 7.0、Spring Boot 4.1 為準，跟 Spring 6、Boot 3 不同處會標出。</p>
     <p class="q">面試官：IoC 與 DI 差在哪？Spring 容器做了什麼？</p>
     <p><strong>一句話定義：</strong>控制反轉（Inversion of Control，IoC）是一種原則——物件不再自己建立或尋找它需要的相依物件，改由容器負責；依賴注入（Dependency Injection，DI）是實現這個原則的一種做法——容器在建立物件時把相依物件送進去。</p>
     <p><strong>差別與取捨：</strong>官方文件把兩者放在同一段講：IoC「也稱為依賴注入」，物件「只透過建構子參數、工廠方法參數，或建立之後設定的屬性」宣告自己需要什麼，「容器在建立 Bean 時注入這些相依」，這個過程「正好是 Bean 自己控制相依物件的建立或查找的反面（所以叫控制反轉）」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/beans/introduction.html" target="_blank" rel="noopener">出處</a> 追問時要能區分：IoC 是「誰負責」的原則，DI 是「怎麼送進去」的手段。</p>
@@ -76,6 +76,7 @@
 <section>
     <p class="era">交易</p>
     <h3 class="head">傳播行為與失效情境</h3>
+    <p class="muted">各情境的實跑結果見〈@Transactional 的傳播、隔離與失效情境〉。</p>
     <p class="q">面試官：@Transactional 的傳播行為有哪些？REQUIRED 與 REQUIRES_NEW 差在哪？</p>
     <p><strong>一句話定義：</strong>傳播行為（propagation）決定「一個有交易的方法呼叫另一個有交易的方法時，裡面那層要加入外面的交易、另開一筆，還是不要交易」。Spring 定了七種，預設是 REQUIRED。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>
@@ -107,6 +108,7 @@
 <section>
     <p class="era">Spring Boot 與 Spring MVC</p>
     <h3 class="head">自動組態、啟動註解與一次請求的路徑</h3>
+    <p class="muted">實跑的條件報告與 Actuator 見〈Spring Boot 自動組態與 Actuator〉。</p>
     <p class="q">面試官：Spring Boot 自動組態怎麼運作？</p>
     <p><strong>一句話定義：</strong>自動組態（auto-configuration）是「根據你加了哪些 jar 相依，自動設定 Spring 應用程式」：官方的例子是「classpath 上有 HSQLDB、而你沒有手動設定任何資料庫連線 Bean，Spring Boot 就自動組態一個記憶體內資料庫」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/using/auto-configuration.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>機制分三層講：</strong></p>

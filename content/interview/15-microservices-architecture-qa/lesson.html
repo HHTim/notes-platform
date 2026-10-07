@@ -1,10 +1,10 @@
 <!-- 來源：依 martinfowler.com/articles/microservices.html、microservices.io（模式索引、apigateway、client-side-discovery、server-side-discovery）、kubernetes.io（Service、ConfigMap）、docs.spring.io（Spring Framework 7 resilience、Spring Cloud Netflix 5.0、Spring Cloud Config 5.0、Spring Cloud Commons LoadBalancer、Spring Boot 4.1 Actuator 的 endpoints／metrics／tracing 與屬性附錄）、spring.io/projects（spring-cloud、spring-cloud-circuitbreaker）、github.com（Spring Cloud 2020.0 發行說明、Spring Boot 4.0 遷移指南、Resilience4j v2.4.0 發行說明與原始碼）、repo1.maven.org（resilience4j-spring-boot4）、docs.oracle.com Java SE 25 API（CompletableFuture）、resilience4j.readme.io（circuitbreaker、retry、bulkhead、timeout、getting-started-3）、learn.microsoft.com Azure 架構中心（circuit-breaker、retry、bulkhead）、sre.google 監控章、opentelemetry.io（what-is-opentelemetry、signals、context-propagation）、w3.org/TR/trace-context、prometheus.io 總覽、docs.micrometer.io、istio.io（what-is-istio、dataplane-modes、config-profiles）、docs.aws.amazon.com Lambda（執行環境生命週期、SnapStart）、12factor.net（config、logs、processes）新寫 · 收錄日期：2026-09-30 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>講清楚 ESB 與 API Gateway 的差別、服務發現兩種模式，以及 K8s 的 Service 屬於哪一種</li><li>說出 Resilience4j 斷路器、重試、隔艙、逾時的參數名與它們對到斷路器三態的哪一步</li><li>說明指標、日誌、追蹤怎麼分工，Prometheus 為什麼是拉取、<code>traceparent</code> 標頭四段各是什麼</li><li>答出服務網格與 Serverless 的用途與代價，以及十二要素的設定、日誌、行程三條</li></ul></div>
-<p class="muted">斷路器、重試、限流與可觀測性想看實際跑出來的結果，見 Spring 模組〈韌性模式：Resilience4j 的斷路器、重試與限流〉〈可觀測性：Micrometer、Prometheus 與 OpenTelemetry〉；本課只留面試答法。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清舊式服務匯流排與 API Gateway</li><li>說出斷路器、重試、隔艙的參數</li><li>講清指標、日誌、追蹤怎麼分工</li><li>答出服務網格、Serverless 與十二要素</li></ul></div>
+
 <section>
     <p class="era">從單體到微服務</p>
     <h3 class="head">SOA 的 ESB 跟 API Gateway 差在哪</h3>
-    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。〈後端與雲端面試題庫〉答過服務發現、熔斷、Saga、監控、API Gateway 各一題：那五題是骨架，這課補肉，寫面試官接著會追問的參數名、原理與代價。版本以撰寫時的現行版為準：Spring Boot 4.1、Spring Cloud 2025.1、Resilience4j 2.4（官方文件站標示 v2.2.0）、Istio 1.31。</p>
+    <p class="muted">答題公式：先一句話定義，再講差別與取捨，最後補版本或實務註記。以下版本為準：Spring Boot 4.1、Spring Cloud 2025.1、Resilience4j 2.4（官方文件站標示 v2.2.0）、Istio 1.31。</p>
     <p class="q">面試官：單體、SOA、微服務怎麼演進？ESB 跟現在的 API Gateway 差在哪？</p>
     <p><strong>一句話定義：</strong>三者差在「拆多細」與「聰明放哪裡」。單體（monolith）是一個部署單位；SOA（服務導向架構）拆成服務，但整合邏輯集中在 ESB（Enterprise Service Bus，企業服務匯流排）；微服務拆得更小，整合邏輯留在服務身上。</p>
     <p><strong>ESB 是什麼：</strong>Fowler 的微服務文章把 ESB 當「把大量聰明放進通訊機制本身」的代表：「ESB 產品常內建精密的訊息路由、編排、轉換與套用業務規則的功能」（sophisticated facilities for message routing, choreography, transformation, and applying business rules）。<a class="fixsrc" href="https://martinfowler.com/articles/microservices.html" target="_blank" rel="noopener">出處</a></p>
@@ -36,6 +36,7 @@
 <section>
     <p class="era">韌性四件套</p>
     <h3 class="head">斷路器的參數名、重試的四個配件、隔艙、逾時</h3>
+    <p class="muted">實跑結果見〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
     <p class="muted">斷路器（circuit breaker，面試常叫熔斷）的三態、隨機指數退避、重試預算見〈系統設計：秒殺與限流〉，這節補 Resilience4j 的參數，以及隔艙與逾時。</p>
     <p class="q">面試官：斷路器三個狀態怎麼切換？滑動視窗、失敗率門檻、半開試探在 Resilience4j 裡各是哪個參數？</p>
     <p><strong>一句話定義：</strong>Resilience4j 文件：斷路器是「有限狀態機，三個正常狀態 CLOSED、OPEN、HALF_OPEN」，另有三個特殊狀態；「用滑動視窗儲存並彙總呼叫結果，可選計數型或時間型」。<a class="fixsrc" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener">出處</a></p>
@@ -120,6 +121,7 @@ private CompletableFuture&lt;Balance&gt; balanceFallback(String account, CallNot
 <section>
     <p class="era">可觀測性</p>
     <h3 class="head">三種訊號、拉取模型、一條 trace 怎麼穿過所有服務</h3>
+    <p class="muted">實跑結果見〈可觀測性：Micrometer、Prometheus 與 OpenTelemetry〉。</p>
     <p class="q">面試官：指標、日誌、追蹤怎麼分工？四個黃金訊號是什麼？</p>
     <p><strong>一句話定義：</strong>可觀測性（observability）的定義見〈後端與雲端面試題庫〉。OpenTelemetry：「追蹤（Traces）：請求穿過應用的路徑；指標（Metrics）：執行期擷取的量測；日誌（Logs）：一件事的紀錄」。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/signals/" target="_blank" rel="noopener">出處</a></p>
     <p><strong>分工怎麼答：</strong>指標說「有沒有事」，追蹤說「事在哪一段」，日誌說「那一段發生了什麼」。四個黃金訊號「延遲、流量、錯誤、飽和」見〈系統設計：秒殺與限流〉；面試官再追問時，補上原文：「若只能量四個指標，就專注這四個」（原文限定面向使用者的系統），飽和要「強調最受限的資源」<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a>，例如網銀 API 的飽和可能是核心帳務連線池使用率，不是 CPU。</p>

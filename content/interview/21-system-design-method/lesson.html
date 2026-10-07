@@ -1,6 +1,5 @@
 <!-- 來源：依公開資料新寫。Jeff Dean〈Designs, Lessons and Advice from Building Large Distributed Systems〉LADIS 2009 投影片第 24、27 頁 https://www.cs.cornell.edu/projects/ladis2009/talks/dean-keynote-ladis2009.pdf · Peter Norvig「Teach Yourself Programming in Ten Years」 https://norvig.com/21-days.html · Google《Site Reliability Engineering》「Embracing Risk」 https://sre.google/sre-book/embracing-risk/ · 《The Site Reliability Workbook》〈Non-Abstract Large System Design〉 https://sre.google/workbook/non-abstract-design/ · Alex Xu《System Design Interview》〈A Framework For System Design Interviews〉 https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews 與〈Back-of-the-envelope Estimation〉 https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation · Firebase Cloud Messaging〈Throttling and quotas〉〈Scale FCM〉 https://firebase.google.com/docs/cloud-messaging/ 與 Firebase 價格表 https://firebase.google.com/pricing · AWS SNS 簡訊價格 https://aws.amazon.com/sns/sms-pricing/ · Apache Hadoop hdfs-default.xml https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml · Azure 架構中心 Publisher-Subscriber、Queue-Based Load Leveling 模式 https://learn.microsoft.com/en-us/azure/architecture/patterns/ ；書第 10 章也有通知系統題；本課題目設定與數字自編，示範題「銀行交易通知服務」與其中所有數字為自編假設，計算皆自行驗算 · 收錄日期：2026-10-06 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把一場 45 分鐘的系統設計面試切成四段，知道每段大約花多久、要交出什麼</li><li>開場先問對問題：功能需求與非功能需求各問哪些，問不到答案時怎麼寫下假設</li><li>從每日活躍使用者一路算到平均與尖峰每秒請求數、儲存量與頻寬，並背得出幾個出處可查的基準數字</li><li>先畫最簡單能動的架構，說清楚「哪個數字逼我加快取、佇列、分片、複寫」並用一句話講取捨，再用「銀行交易通知服務」把整套流程走一遍、避開常見的扣分行為</li></ul></div>
-<p class="muted">本課講「怎麼答」的流程，不重講各元件的細節：發號與多層快取見〈系統設計：短網址的高併發〉，限流、Little 定律與四個黃金訊號見〈系統設計：秒殺與限流〉，快取讀寫模式見〈系統設計：快取一致性與熱點〉，送達保證、Outbox 與死信見〈系統設計：訊息佇列與最終一致性〉，冪等鍵與答題順序的完整示範見〈系統設計：銀行轉帳系統〉，CAP 見〈資料庫面試題：複寫、分片與 CAP〉。</p>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把 45 分鐘面試切成四段</li><li>問對功能與非功能需求</li><li>粗估每秒請求數、儲存與頻寬</li><li>從最簡架構逐步加元件並講取捨</li></ul></div>
 
 <section>
 <p class="era">先知道面試官在看什麼</p>
@@ -118,7 +117,7 @@
 <tr><th>儲存量</th><td>每日新增筆數 × 每筆大小 × 保存天數 × 副本數</td><td>副本數依系統而定，例如 Hadoop 分散式檔案系統的 <code>dfs.replication</code> 預設是 3（Default block replication）<a class="fixsrc" href="https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><th>頻寬</th><td>每秒請求數 × 每次傳輸大小</td><td>位元組要乘 8 才是網路常用的位元（bit）</td></tr>
 </tbody></table></div>
-<p>每秒請求數也叫 QPS（queries per second），〈系統設計：秒殺與限流〉用的就是這個詞。那課也提醒了追問時要補的一句：Google SRE 書說把容量建模成每秒請求數常常不是好指標，最後要靠壓測換算成每台機器的真數字；同時在線的連線數用 Little 定律算，這裡不重講。</p>
+<p>每秒請求數也叫 QPS（queries per second），〈系統設計：秒殺與限流〉用的就是這個詞。那課也提醒了追問時要補的一句：Google SRE 書說把容量建模成每秒請求數常常不是好指標，最後要靠壓測換算成每台機器的真數字；同時在線的連線數用 Little 定律算，也見那課。</p>
 <h4>可以背的數字</h4>
 <div class="tablewrap"><table><thead><tr><th>數字</th><th>值</th><th>怎麼來的</th></tr></thead><tbody>
 <tr><th>一天的秒數</th><td>86,400，約 10⁵</td><td>24 × 60 × 60</td></tr>

@@ -1,9 +1,9 @@
 <!-- 來源：依 Redis（eval-intro、INCR、DECR、SET、cluster-spec、rate-limiting）、Spring Cloud Gateway RequestRateLimiter、Nginx limit_req、Azure 架構中心（throttling、queue-based-load-leveling、circuit-breaker）、Google SRE 書（handling-overload、addressing-cascading-failures、monitoring-distributed-systems）、Stripe 冪等請求與 IETF Idempotency-Key 草案、MySQL 8.4 InnoDB 鎖、RFC 6585、RabbitMQ TTL 與 DLX、OWASP 自動化威脅、k6 測試類型 官方文件新寫 · 收錄日期：2026-09-29 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用「商品數、峰值、能不能超賣、能不能少賣、公平性」五個問題替秒殺題開場，再把流量估成每秒請求數與連線數</li><li>講出流量從瀏覽器到資料庫一層層怎麼擋、四種限流演算法各適合什麼、分散式限流為什麼要 Redis 加 Lua</li><li>解釋 Redis 預扣庫存為什麼不超賣、資料庫直接扣為什麼慢、熱點怎麼拆</li><li>把非同步下單、冪等鍵、逾時退庫存、斷路器與降級、防機器人、壓測與觀測串成完整答案</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>用五個問題替秒殺題開場並估流量</li><li>講出一層層擋流量與四種限流演算法</li><li>解釋 Redis 預扣庫存為什麼不超賣</li><li>串起非同步下單、冪等、降級與壓測</li></ul></div>
 <section>
     <p class="era">開場</p>
     <h3 class="head">先問五個問題，再估流量</h3>
-    <p class="muted">答題公式跟〈系統設計：短網址的高併發〉一樣：先釐清需求、再估容量、再畫架構。短網址是「讀多寫少」，這課是「寫多且要搶」：幾十萬人同一秒搶幾千份限量優惠，難的是同一筆庫存被同時扣。版本主軸：Redis 8.x、MySQL 8.4 的 InnoDB、Spring Cloud Gateway 現行版。</p>
+    <p class="muted">答題順序：先釐清需求、再估容量、再畫架構。秒殺是「寫多且要搶」：幾十萬人同一秒搶幾千份限量優惠，難的是同一筆庫存被同時扣。以下以 Redis 8.x、MySQL 8.4 的 InnoDB、Spring Cloud Gateway 現行版為準。</p>
     <p class="q">面試官：銀行 App 要辦「整點發紅包，限量一萬份」，你怎麼開始？</p>
     <p><strong>一句話定義：</strong>秒殺（限量商品在同一時刻被大量使用者搶購）的核心矛盾是「請求數遠大於庫存數」，目標不是讓每個請求成功，而是讓多餘的請求便宜地失敗、有限的庫存正確地發出去。</p>
     <div class="tablewrap"><table>
@@ -36,7 +36,7 @@ Gateway 限流    按使用者、活動、IP 限速，超額回 429
 Redis 預扣庫存  一支 Lua 腳本扣庫存，扣不到就結束
    ↓ 擋掉「沒庫存」的請求
 訊息佇列 → 資料庫   只剩搶到的一萬筆慢慢寫</code></pre>
-    <p class="muted">多層快取與 Bloom Filter 見〈系統設計：短網址的高併發〉，這課不重講；令牌桶、漏桶、滑動視窗三種演算法的白話定義那課也有，下面的對照補的是固定視窗與各家官方實作。</p>
+    <p class="muted">多層快取與 Bloom Filter 見〈系統設計：短網址的高併發〉，令牌桶、漏桶、滑動視窗的白話定義也在那課。</p>
     <p class="q">面試官：固定視窗、滑動視窗、漏桶、令牌桶各適合什麼？</p>
     <p><strong>一句話定義：</strong>四種都是「一段時間內最多放行幾個」，差在怎麼算時間、爆量放不放。對照依 Azure 的限流（該頁叫 throttling，節流）模式與各官方實作整理。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/throttling" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>
