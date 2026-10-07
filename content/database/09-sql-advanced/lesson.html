@@ -727,11 +727,11 @@ ORDER BY amount DESC, tx_id;</code></pre>
 |    11 |        105 |    500 |  6 |   6 |     4 |
 +-------+------------+--------+----+-----+-------+
 6 rows in set (0.00 sec)</code></pre>
-<p>三筆 3000 同分。</p>
+<p>三筆 3000 同分：</p>
 <ul class="plainlist">
-<li><code>ROW_NUMBER</code> 硬是給 3、4、5，同分誰前誰後由 ORDER BY 決定，這裡加了 <code>tx_id</code> 當第二排序鍵；手冊提醒「沒有 ORDER BY，列的編號是不確定的」（Without ORDER BY, row numbering is nondeterministic）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a>；有 ORDER BY 但同分時，PostgreSQL 文件寫明同分的列「以不指定的順序編號」（with tied rows numbered in an unspecified order）<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a>，所以要自己補一個能分出先後的欄位。</li>
-<li><code>RANK</code> 給同分的列相同名次（Peers are considered ties and receive the same rank.），名次＝比它大的筆數＋1，所以 500 是第 6 名。</li>
-<li><code>DENSE_RANK</code>「同分給相同名次，但下一個名次只加一」（the next higher value has a rank one greater），500 是第 4 名。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></li>
+<li><b><code>ROW_NUMBER</code></b> 硬是給 3、4、5，同分誰前誰後由 ORDER BY 決定，這裡加了 <code>tx_id</code> 當第二排序鍵；手冊提醒「沒有 ORDER BY，列的編號是不確定的」（Without ORDER BY, row numbering is nondeterministic）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a>；有 ORDER BY 但同分時，PostgreSQL 文件寫明同分的列「以不指定的順序編號」（with tied rows numbered in an unspecified order）<a class="fixsrc" href="https://www.postgresql.org/docs/18/tutorial-window.html" target="_blank" rel="noopener">出處</a>，所以要自己補一個能分出先後的欄位。</li>
+<li><b><code>RANK</code></b> 給同分的列相同名次（Peers are considered ties and receive the same rank.），名次＝比它大的筆數＋1，所以 500 是第 6 名。</li>
+<li><b><code>DENSE_RANK</code></b>「同分給相同名次，但下一個名次只加一」（the next higher value has a rank one greater），500 是第 4 名。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>PostgreSQL 文件的說法一樣：rank 有間隔，dense_rank「等於是在數有幾組同分」（this function effectively counts peer groups）。<a class="fixsrc" href="https://www.postgresql.org/docs/18/functions-window.html" target="_blank" rel="noopener">出處</a></p>
 <h4>聚合函式加上 OVER：每列都看得到整組的總和</h4>
