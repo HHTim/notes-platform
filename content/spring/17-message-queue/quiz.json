@@ -38,7 +38,7 @@
     "消費者設 isolation.level=read_committed 就夠了",
     "把 Kafka 的交易跟資料庫交易用 @Transactional 包在一起，Kafka 就會自動做到剛好一次"
    ],
-   "exp": "Kafka 的剛好一次只管 Kafka 讀寫 Kafka。寫外部系統要像 Kafka 文件說的，讓消費者把位移存在跟輸出同一個地方，或訊息有主鍵讓更新冪等。冪等生產者只擋日誌裡的重複，read_committed 只是只讀已提交的交易。"
+   "exp": "Kafka 的剛好一次只管 Kafka 讀寫 Kafka。寫外部系統要讓消費者把位移存在跟輸出同一個地方，或訊息有主鍵讓更新冪等。冪等生產者只擋日誌裡的重複，read_committed 只是只讀已提交的交易。"
   },
   {
    "q": "關於 Spring for Apache Kafka 的位移提交，下面哪一句對？",
@@ -48,7 +48,7 @@
     "預設是 MANUAL，監聽器一定要自己呼叫 acknowledge()",
     "預設 AckMode 是 RECORD"
    ],
-   "exp": "文件：The default AckMode is BATCH，一次 poll() 的紀錄全部處理完才提交；從 2.3 版起，除非明確設定，框架把 enable.auto.commit 設成 false。MANUAL 要自己設。"
+   "exp": "預設 AckMode 是 BATCH，一次 poll() 的紀錄全部處理完才提交；從 2.3 版起，除非明確設定，框架把 enable.auto.commit 設成 false。MANUAL 要自己設。"
   },
   {
    "q": "去重表的 INSERT 和扣款的 UPDATE 放在同一筆資料庫交易，主要是為了什麼？",
@@ -78,7 +78,7 @@
     "第一次失敗就進佇列設定的死信交換器",
     "容器照樣確認，訊息被刪掉，例外只寫進日誌"
    ],
-   "exp": "AUTO 模式下丟例外，訊息被拒絕並由 broker 重新排入，Spring Boot 文件說沒開重試時會無限次重送。要停下來：defaultRequeueRejected=false、丟 AmqpRejectAndDontRequeueException，或開重試；佇列設了死信交換器，被拒絕的才會留在那裡。"
+   "exp": "AUTO 模式下丟例外，訊息被拒絕並由 broker 重新排入，沒開重試時會無限次重送。要停下來：defaultRequeueRejected=false、丟 AmqpRejectAndDontRequeueException，或開重試；佇列設了死信交換器，被拒絕的才會留在那裡。"
   },
   {
    "q": "關於交易式 Outbox，下面哪一句對？",

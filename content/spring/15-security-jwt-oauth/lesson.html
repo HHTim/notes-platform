@@ -11,7 +11,7 @@
 </svg>
 <figcaption>同一套 Spring Security，三個角色三種設定；三個示範專案各演一個角色。</figcaption>
 </figure>
-<p>Spring Boot 4 的 starter 名字多了 <code>security-</code>，舊名字的描述寫著已棄用（deprecated in favor of spring-boot-starter-security-oauth2-resource-server）。<a class="fixsrc" href="https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter-oauth2-resource-server/4.1.1/spring-boot-starter-oauth2-resource-server-4.1.1.pom" target="_blank" rel="noopener">出處</a></p>
+<p>Spring Boot 4 的 starter 名字多了 <code>security-</code>，舊名字已棄用，改用 <code>spring-boot-starter-security-oauth2-resource-server</code>。<a class="fixsrc" href="https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter-oauth2-resource-server/4.1.1/spring-boot-starter-oauth2-resource-server-4.1.1.pom" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">行動銀行 App 讓使用者登入，再拿權杖呼叫帳戶 API。「放登入頁、發權杖」的那台服務是哪個角色？</p>
@@ -39,7 +39,7 @@
 標頭：{"alg":"RS256"}
 聲明：{"iss":"https://login.bank.example","sub":"alice","aud":"core-banking","exp":1790939460,"iat":1790939160,"scope":"accounts:read"}
 簽章長度：256 位元組</code></pre>
-<p>RFC 7519：JWT 是「以句點分隔的一串網址安全片段，每段都是 base64url 編碼」（a sequence of URL-safe parts separated by period ('.') characters. Each part contains a base64url-encoded value.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7519#section-3" target="_blank" rel="noopener">出處</a> 標頭的 RS256 是「RSA 簽章搭配 SHA-256」；第三段 256 位元組，正好是 2048 位元 RSA 金鑰的長度。前兩段只是編碼，誰都解得開，<strong>機密不放進 JWT</strong>。</p>
+<p>JWT 是用句點 <code>.</code> 隔開的幾段文字，每段都是 base64url 編碼，可以直接放進網址。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7519#section-3" target="_blank" rel="noopener">出處</a> 標頭的 RS256 是「RSA 簽章搭配 SHA-256」；第三段 256 位元組，正好是 2048 位元 RSA 金鑰的長度。前兩段只是編碼，誰都解得開，<strong>機密不放進 JWT</strong>。</p>
 
 <h4>資源伺服器怎麼驗</h4>
 <pre><code>JwtDecoder jwtDecoder() {
@@ -51,8 +51,8 @@
     return decoder;
 }</code></pre>
 <ul class="plainlist">
-<li><code>Nimbus<wbr>Jwt<wbr>Decoder.<wbr>with<wbr>Public<wbr>Key</code> 是文件的「信任單一公鑰」寫法（Trusting a Single Asymmetric Key）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a> 驗證端手上只有一把 RSA 公鑰，權杖標頭宣告什麼演算法都沒用。</li>
-<li><code>create<wbr>Default<wbr>With<wbr>Issuer</code> 檢查 exp、nbf 與 iss。文件列的預設行為是驗簽章、「驗證 exp 與 nbf 時間戳記以及 iss 聲明」、「把每個 scope 對應成前綴 SCOPE_ 的權限」（Validate the JWT's exp and nbf timestamps and the JWT's iss claim, and Map each scope to an authority with the prefix SCOPE_）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></li>
+<li><code>Nimbus<wbr>Jwt<wbr>Decoder.<wbr>with<wbr>Public<wbr>Key</code> 是「信任單一公鑰」的寫法。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a> 驗證端手上只有一把 RSA 公鑰，權杖標頭宣告什麼演算法都沒用。</li>
+<li><code>create<wbr>Default<wbr>With<wbr>Issuer</code> 檢查 exp、nbf 與 iss。預設會驗簽章、驗 exp 與 nbf 時間戳記和 iss 聲明，並把每個 scope 轉成前綴 <code>SCOPE_</code> 的權限。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>aud 預設不驗</strong>，所以另外加 <code>JwtClaimValidator</code>：aud 裡沒有 <code>core-banking</code> 就拒絕。發給貸款服務的權杖，不該拿來呼叫帳戶 API。</li>
 </ul>
 <figure>
@@ -73,10 +73,10 @@ alg 改成 none     → 401  WWW-Authenticate: Bearer error="invalid_token", err
 <p>另一個測試把標頭改成 HS256，拿<strong>公開的</strong> RSA 公鑰當 HMAC 金鑰簽名（演算法混淆）：</p>
 <pre><code>alg 換成 HS256 → 401  Bearer error="invalid_token", error_description="…Signed JWT rejected: Another algorithm expected, or no matching key(s) found"</code></pre>
 <ul class="plainlist">
-<li><strong>過期 30 秒還能過</strong>：文件寫「資源伺服器預設容許 60 秒的時鐘誤差」（By default, Resource Server configures a clock skew of 60 seconds.）<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><strong>過期 30 秒還能過</strong>：資源伺服器預設容許 60 秒的時鐘誤差。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a>。</li>
 <li><strong>竄改聲明</strong>：把 alice 的 scope 偷加 <code>transfers:write</code>，簽章不動，驗簽失敗。簽章涵蓋標頭加聲明，改一個字就對不上。</li>
 <li><strong>alg 改成 none 或 HS256</strong>：都被擋，這就是面試集那課 RFC 8725 講的「演算法由驗證端寫死」。</li>
-<li>這些全是 <strong>401</strong> 加 <code>error="invalid_token"</code>。RFC 7519：驗證步驟「任何一步失敗，JWT 就必須被拒絕」（If any of the listed steps fail, then the JWT MUST be rejected）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7519#section-7.2" target="_blank" rel="noopener">出處</a></li>
+<li>這些全是 <strong>401</strong> 加 <code>error="invalid_token"</code>。驗證步驟只要有一步失敗，JWT 就必須拒絕。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7519#section-7.2" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p class="formula">演算法由驗證端決定；exp、nbf、iss 預設檢查（容許 60 秒誤差）；aud 要自己加；任一關失敗都是 401 invalid_token</p>
 
@@ -93,7 +93,7 @@ alg 改成 none     → 401  WWW-Authenticate: Bearer error="invalid_token", err
 <div class="drill">
   <p class="dq">權杖在 30 秒前過期，這課的 API 還是回 200。原因是？</p>
   <ul class="dopts"><li>資源伺服器預設根本不檢查 exp</li><li>MockMvc 測試的時鐘跟真實時間不同</li><li>過期的權杖會被資源伺服器自動續期</li><li data-ok>預設容許 60 秒的時鐘誤差，還在寬限內</li></ul>
-  <p class="dexp">文件寫預設時鐘誤差 60 秒；實跑時過期 2 分鐘的就被擋。</p>
+  <p class="dexp">預設時鐘誤差 60 秒；實跑時過期 2 分鐘的就被擋。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個授權伺服器簽的、簽章正確、但 <code>aud</code> 是 <code>loan-service</code> 的權杖，拿來呼叫這課的帳戶 API。結果是？</p>
@@ -103,7 +103,7 @@ alg 改成 none     → 401  WWW-Authenticate: Bearer error="invalid_token", err
 <div class="drill">
   <p class="dq">如果 <code>JwtDecoder</code> <strong>沒有</strong>另外加 aud 檢查，上一題那張權杖會怎樣？</p>
   <ul class="dopts"><li>還是 401，因為預設會驗 iss 和 aud</li><li>啟動時就會報錯，要求一定要設 aud</li><li data-ok>驗證通過，接著照 scope 判斷權限</li><li>還是 401，因為 loan-service 不在白名單</li></ul>
-  <p class="dexp">文件列的預設檢查是 exp、nbf 與 iss，aud 要自己加（或用 Boot 的 audiences 屬性）。</p>
+  <p class="dexp">預設檢查是 exp、nbf 與 iss，aud 要自己加（或用 Boot 的 audiences 屬性）。</p>
 </div>
 <div class="drill">
   <p class="dq">攻擊者把 alice 權杖的 scope 改成多了 <code>transfers:write</code>，簽章原封不動。結果是？</p>
@@ -176,12 +176,12 @@ carol     POST /transfers     → 200  轉帳受理，操作人 carol</code></pr
         jwt:
           issuer-uri: https://login.bank.example
           audiences: core-banking</code></pre>
-<p><code>issuer-uri</code> 驗 iss，<code>audiences</code> 驗 aud（Boot also has the audiences property for validating the aud claim）；授權伺服器換新金鑰時，「Spring Security 會自動輪替」驗證用的金鑰（Spring Security will automatically rotate the keys used to validate JWTs.）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>issuer-uri</code> 驗 iss，<code>audiences</code> 驗 aud；授權伺服器換新金鑰時，Spring Security 會自動輪替驗證用的金鑰。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
 
 <h4>權杖裡的權限怎麼變成 Spring 的權限</h4>
-<p>預設把 scope 每一項加上 <code>SCOPE_</code>。角色放在別的聲明（例如 <code>roles</code>）時，換一個 <code>Jwt<wbr>Granted<wbr>Authorities<wbr>Converter</code>，文件的範例就是 <code>set<wbr>Authorities<wbr>Claim<wbr>Name</code>。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
+<p>預設把 scope 每一項加上 <code>SCOPE_</code>。角色放在別的聲明（例如 <code>roles</code>）時，換一個 <code>Jwt<wbr>Granted<wbr>Authorities<wbr>Converter</code>，例如用 <code>set<wbr>Authorities<wbr>Claim<wbr>Name</code>。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
 <p>這課對一張帶 <code>"roles":["TELLER","AUDITOR"]</code> 的 JWT 實跑：預設轉換得到 <code>SCOPE_accounts:read</code>；改用 <code>set<wbr>Authorities<wbr>Claim<wbr>Name(<wbr>"roles")</code> 加 <code>set<wbr>Authority<wbr>Prefix(<wbr>"ROLE_")</code> 後得到 <code>ROLE_TELLER</code>、<code>ROLE_AUDITOR</code>，兩次都另外多一個 <code>FACTOR_BEARER</code>。</p>
-<p><code>FACTOR_BEARER</code> 是 Spring Security 7 為多因素認證加的：用密碼登入時，會自動加上密碼那一種 FactorGrantedAuthority（when a user authenticates using a password a FactorGrantedAuthority … is automatically added）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authentication/mfa.html" target="_blank" rel="noopener">出處</a> 實跑時權杖認證是 <code>FACTOR_BEARER</code>（原始碼裡的常數 <code>BEARER_AUTHORITY = "FACTOR_BEARER"</code><a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/core/src/main/java/org/springframework/security/core/authority/FactorGrantedAuthority.java" target="_blank" rel="noopener">出處</a>）、密碼登入是 <code>FACTOR_PASSWORD</code>；這課的 <code>/token</code> 寫 scope 時特意濾掉 <code>FACTOR_</code> 開頭的。</p>
+<p><code>FACTOR_BEARER</code> 是 Spring Security 7 為多因素認證加的：用密碼登入時，會自動加上密碼那一種 <code>FactorGrantedAuthority</code>。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authentication/mfa.html" target="_blank" rel="noopener">出處</a> 實跑時權杖認證是 <code>FACTOR_BEARER</code>（原始碼裡的常數 <code>BEARER_AUTHORITY = "FACTOR_BEARER"</code><a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/core/src/main/java/org/springframework/security/core/authority/FactorGrantedAuthority.java" target="_blank" rel="noopener">出處</a>）、密碼登入是 <code>FACTOR_PASSWORD</code>；這課的 <code>/token</code> 寫 scope 時特意濾掉 <code>FACTOR_</code> 開頭的。</p>
 <p class="formula">兩條鏈：/token 用 Basic、API 用 Bearer；帶 Bearer 的請求不做 CSRF 檢查；權限預設是 SCOPE_ 加 scope</p>
 
 <div class="drill">
@@ -232,11 +232,11 @@ public class AccountService {
         return owner.length() * 1000L;                 // 示範用的假餘額
     }
 }</code></pre>
-<p>設定類別要加 <code>@EnableMethodSecurity</code>，之後「就能在任何 Spring 管理的類別或方法上加 @PreAuthorize」（you are immediately able to annotate any Spring-managed class or method with @PreAuthorize）。<code>#owner</code> 是參數名稱，文件說用 <code>-parameters</code> 編譯就讀得到（If you compile your code with the -parameters argument, the standard JDK reflection API is used to discover the parameter names.），Spring Boot 的 Maven 設定預設就有。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authorization/method-security.html" target="_blank" rel="noopener">出處</a> <code>authentication.name</code> 在資源伺服器裡就是 JWT 的 sub（Authentication#getName maps to the JWT's sub property）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
+<p>設定類別加上 <code>@EnableMethodSecurity</code>，就能在任何 Spring 管理的類別或方法上加 <code>@PreAuthorize</code>。<code>#owner</code> 是參數名稱，用 <code>-parameters</code> 編譯就讀得到（JDK 的反射 API 會拿到參數名稱），Spring Boot 的 Maven 設定預設就有。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/authorization/method-security.html" target="_blank" rel="noopener">出處</a> <code>authentication.name</code> 在資源伺服器裡就是 JWT 的 sub（<code>Authentication#getName</code> 對應到 sub）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/resource-server/jwt.html" target="_blank" rel="noopener">出處</a></p>
 <p>前面 alice 查 bob 得到 403，標頭卻寫 <code>insufficient_scope</code>：原始碼的 <code>Bearer<wbr>Token<wbr>Access<wbr>Denied<wbr>Handler</code> 只要看到請求是用權杖認證的（<code>request.<wbr>get<wbr>User<wbr>Principal() instanceof Abstract<wbr>OAuth2Token<wbr>Authentication<wbr>Token</code>），被拒時一律寫 <code>INSUFFICIENT_SCOPE</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-resource-server/src/main/java/org/springframework/security/oauth2/server/resource/web/access/BearerTokenAccessDeniedHandler.java" target="_blank" rel="noopener">出處</a> 所以帶有效 Bearer 權杖的請求被方法規則擋下，也是這個字，不代表真的是 scope 不夠。</p>
 
 <h4>測試不必真的簽 JWT：<code>jwt()</code></h4>
-<p><code>spring-security-test</code> 的 <code>jwt()</code> 直接放一個已驗證的 JWT 身分進請求，文件寫預設的 JWT 是 <code>"sub": "user", "scope": "read"</code>。這課用 <code>jwt().<wbr>jwt(<wbr>j -&gt; j.<wbr>subject(<wbr>"alice")).<wbr>authorities(<wbr>…SCOPE_accounts:read)</code> 分別查自己與 bob，再試一次不給 authorities：<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/test/mockmvc/oauth2.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>spring-security-test</code> 的 <code>jwt()</code> 直接放一個已驗證的 JWT 身分進請求，預設的 JWT 是 <code>"sub": "user", "scope": "read"</code>。這課用 <code>jwt().<wbr>jwt(<wbr>j -&gt; j.<wbr>subject(<wbr>"alice")).<wbr>authorities(<wbr>…SCOPE_accounts:read)</code> 分別查自己與 bob，再試一次不給 authorities：<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/test/mockmvc/oauth2.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>jwt() 查自己 → 200
 jwt() 查別人 → 403
 jwt() 沒給 authorities → 403</code></pre>
@@ -255,12 +255,12 @@ jwt() 沒給 authorities → 403</code></pre>
 <div class="drill">
   <p class="dq">在資源伺服器裡，<code>authentication.name</code> 取的是 JWT 的哪個聲明？</p>
   <ul class="dopts"><li>iss</li><li>aud</li><li data-ok>sub</li><li>jti</li></ul>
-  <p class="dexp">文件：Authentication#getName 對應 JWT 的 sub，所以 sub 的值要對得上帳戶擁有者。</p>
+  <p class="dexp">Authentication#getName 對應 JWT 的 sub，所以 sub 的值要對得上帳戶擁有者。</p>
 </div>
 <div class="drill">
   <p class="dq">測試寫 <code>.with(jwt())</code>、沒指定權限，去打需要 <code>SCOPE_accounts:read</code> 的路徑。結果是？</p>
   <ul class="dopts"><li>200，jwt() 產生的身分擁有所有權限</li><li>401，因為 jwt() 的權杖沒有真的簽章</li><li>500，缺少 JwtDecoder</li><li data-ok>403，預設只有 SCOPE_read</li></ul>
-  <p class="dexp">文件：預設 JWT 的 scope 是 read，轉成 SCOPE_read，不符合路徑規則。實跑也是 403。</p>
+  <p class="dexp">預設 JWT 的 scope 是 read，轉成 SCOPE_read，不符合路徑規則。實跑也是 403。</p>
 </div>
 <div class="drill">
   <p class="dq">alice 查 bob 被 <code>@PreAuthorize</code> 擋下，回應標頭寫 <code>error="insufficient_scope"</code>。該怎麼解讀？</p>
@@ -272,7 +272,7 @@ jwt() 沒給 authorities → 403</code></pre>
 <section>
 <p class="era">登入、帶碼回來、拿碼換權杖</p>
 <h3 class="head">授權碼流程與 PKCE，一步一步跑</h3>
-<p>第二個示範專案是一台授權伺服器（Spring Security 7 內建，照文件的 getting started 寫法<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/authorization-server/getting-started.html" target="_blank" rel="noopener">出處</a>），登記兩個用戶端：</p>
+<p>第二個示範專案是一台授權伺服器（Spring Security 7 內建，照官方入門範例寫<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/authorization-server/getting-started.html" target="_blank" rel="noopener">出處</a>），登記兩個用戶端：</p>
 <pre><code>RegisteredClient mobile = RegisteredClient.withId("1")
     .clientId("mobile-app")                                       // 公開用戶端：沒有密碼
     .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
@@ -307,10 +307,10 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 === 第 3 步：同一個授權碼再換一次</code></pre>
 <p>（最後一行之後是 <code>400 {"error":"invalid_grant"}</code>。）逐步看：</p>
 <ul class="plainlist">
-<li><strong>沒帶 code_challenge</strong>：導回並帶 <code>error=invalid_request</code>。7.0 的新功能列表寫「授權伺服器預設啟用 PKCE」（Enabled PKCE by default in OAuth 2.0 Authorization Server）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.0/whats-new.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>redirect_uri 沒登記過</strong>：直接 400、<strong>不</strong>導過去，因為網址不可信。RFC 9700 要求比對時「必須用完全相同的字串比對」（authorization servers MUST utilize exact string matching），只有原生 App 的 localhost 連接埠例外。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-2.1" target="_blank" rel="noopener">出處</a></li>
-<li><strong>state 原封不動回來</strong>：用戶端拿它比對，確認這次導回是自己發起的；RFC 6749 說它「應該用來防範跨站請求偽造」（The parameter SHOULD be used for preventing cross-site request forgery）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-4.1.1" target="_blank" rel="noopener">出處</a></li>
-<li><strong>授權碼只能用一次</strong>：RFC 6749 寫授權碼「建議最長 10 分鐘」，「被使用超過一次時，授權伺服器必須拒絕，並應該盡可能撤銷之前用它簽發的所有權杖」（If an authorization code is used more than once, the authorization server MUST deny the request and SHOULD revoke (when possible) all tokens previously issued based on that authorization code.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2" target="_blank" rel="noopener">出處</a></li>
+<li><strong>沒帶 code_challenge</strong>：導回並帶 <code>error=invalid_request</code>。Spring Security 7.0 起，授權伺服器預設啟用 PKCE。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.0/whats-new.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>redirect_uri 沒登記過</strong>：直接 400、<strong>不</strong>導過去，因為網址不可信。授權伺服器比對導回網址時，必須用完全相同的字串比對，只有原生 App 的 localhost 連接埠例外。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-2.1" target="_blank" rel="noopener">出處</a></li>
+<li><strong>state 原封不動回來</strong>：用戶端拿它比對，確認這次導回是自己發起的。這個參數應該用來防範跨站請求偽造（CSRF）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-4.1.1" target="_blank" rel="noopener">出處</a></li>
+<li><strong>授權碼只能用一次</strong>：有效期建議最長 10 分鐘；被用第二次時，授權伺服器必須拒絕，而且應該盡可能撤銷之前用它簽發的所有權杖。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>Spring 有沒有撤銷？用機密用戶端換完權杖後重送同一個授權碼，再用 introspect 端點（讓用戶端問授權伺服器「這張權杖現在還有效嗎」的端點）查：</p>
 <pre><code>=== 授權碼被重複使用
@@ -321,7 +321,11 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 <p>授權伺服器把兩張權杖都標成失效。但<strong>資源伺服器離線驗 JWT</strong>（只看簽章與期限），那張存取權杖到期前照樣能用，所以存取權杖要短效（這台的 <code>expires_in</code> 是 299 秒）。</p>
 
 <h4>PKCE 的兩個值</h4>
-<p>RFC 7636：<code>code_verifier</code> 長度「至少 43、最多 128 個字元」（with a minimum length of 43 characters and a maximum length of 128 characters）；S256 是 <code>BASE64URL-ENCODE(<wbr>SHA256(<wbr>ASCII(<wbr>code_verifier)))</code>，而且「做得到 S256 就必須用 S256」（If the client is capable of using "S256", it MUST use "S256"）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7636#section-4" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>code_verifier</code> 長度至少 43、最多 128 個字元。</li>
+<li>S256 的算法是 <code>BASE64URL-ENCODE(<wbr>SHA256(<wbr>ASCII(<wbr>code_verifier)))</code>。</li>
+<li>用戶端做得到 S256 就必須用 S256。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7636#section-4" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>測試裡的 <code>challenge()</code> 就是照這個公式寫的（<code>MessageDigest</code> 算 SHA-256，再用不補等號的 base64url 編碼）。拿 RFC 7636 附錄 B 的 verifier <code>d<wbr>Bjft<wbr>Je<wbr>Z4CVP-<wbr>m<wbr>B92K27uhb<wbr>UJU1p1r_w<wbr>W1g<wbr>FWFOEj<wbr>Xk</code> 驗算，得到的 <code>E9Melhoa2Owv<wbr>Fr<wbr>EMTJgu<wbr>CHaoe<wbr>K1t8URWbu<wbr>GJSstw-<wbr>c<wbr>M</code> 跟 RFC 列的一字不差。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc7636#appendix-B" target="_blank" rel="noopener">出處</a> 這台授權伺服器的探索文件（授權伺服器公開自己端點與能力的那份清單，網址是 <code>/.<wbr>well-<wbr>known/<wbr>openid-<wbr>configuration</code>）也只列一種：<code>code_challenge_methods_supported=["S256"]</code>。</p>
 <p class="formula">導回網址完全比對；state 防 CSRF；授權碼短效、只能用一次；換權杖時要拿出原本的 verifier</p>
 
@@ -348,7 +352,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 <div class="drill">
   <p class="dq">32 個隨機位元組做 base64url（不補等號）得到 43 個字元，拿來當 <code>code_verifier</code>，符合 RFC 7636 嗎？</p>
   <ul class="dopts"><li data-ok>符合，長度在範圍內</li><li>不符合，最少 64 字</li><li>不符合，要十六進位</li><li>不符合，要剛好 128 字</li></ul>
-  <p class="dexp">RFC 7636：最少 43、最多 128 個字元，字元限英數與 - . _ ~，base64url 的輸出剛好落在範圍內。</p>
+  <p class="dexp">最少 43、最多 128 個字元，字元限英數與 - . _ ~，base64url 的輸出剛好落在範圍內。</p>
 </div>
 <div class="drill">
   <p class="dq">授權請求只送 <code>code_challenge</code>，換權杖時才送 <code>code_verifier</code>。為什麼不在授權請求就送 verifier？</p>
@@ -358,7 +362,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 <div class="drill">
   <p class="dq">同一個授權碼成功換過權杖後，又被拿來換第二次。照 RFC 6749 與這課實跑，會怎樣？</p>
   <ul class="dopts"><li>第二次也成功，拿到另一組新權杖</li><li>第二次失敗，第一次的權杖不受影響</li><li>授權伺服器鎖住這個用戶端一小時</li><li data-ok>第二次失敗，第一次的權杖也被撤銷</li></ul>
-  <p class="dexp">RFC 6749：必須拒絕，並應撤銷之前用它簽發的權杖。實跑：introspect 從 active=true 變 active=false。</p>
+  <p class="dexp">必須拒絕，並應撤銷之前用它簽發的權杖。實跑：introspect 從 active=true 變 active=false。</p>
 </div>
 <div class="drill">
   <p class="dq">接上題，授權伺服器已把那張 JWT 存取權杖標成失效。到期前拿它打這課只離線驗 JWT 的帳戶 API，結果是？</p>
@@ -373,15 +377,15 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 <div class="drill">
   <p class="dq">照 RFC 6749 的建議，授權碼最長應該多久內過期？</p>
   <ul class="dopts"><li>1 小時</li><li data-ok>10 分鐘</li><li>8 小時</li><li>沒有建議</li></ul>
-  <p class="dexp">RFC 6749 第 4.1.2 節：A maximum authorization code lifetime of 10 minutes is RECOMMENDED。授權碼要走瀏覽器、可能外洩，所以短效又只能用一次。</p>
+  <p class="dexp">授權碼的有效期建議最長 10 分鐘（RFC 6749 第 4.1.2 節）。授權碼要走瀏覽器、可能外洩，所以短效又只能用一次。</p>
 </div>
 </section>
 
 <section>
 <p class="era">短效的存取權杖、輪替的更新權杖</p>
 <h3 class="head">Refresh Token：誰拿得到、被偷了會怎樣</h3>
-<p>更新權杖「由授權伺服器發給用戶端，用來在存取權杖失效或過期時取得新的」（Refresh tokens are issued to the client by the authorization server and are used to obtain a new access token when the current access token becomes invalid or expires），只送授權伺服器、不送資源伺服器。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-1.5" target="_blank" rel="noopener">出處</a> 看三件實作上的事。</p>
-<p><strong>公開用戶端拿不到。</strong>前面 <code>mobile-app</code> 換到的欄位沒有 <code>refresh_token</code>，而它登記時明明有 <code>REFRESH_TOKEN</code>。原始碼的 <code>OAuth2Refresh<wbr>Token<wbr>Generator</code> 遇到「授權碼流程、用戶端認證方式是 NONE」直接回傳 null，註解寫「不要發更新權杖給公開用戶端」（Do not issue refresh token to public client）。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-authorization-server/src/main/java/org/springframework/security/oauth2/server/authorization/token/OAuth2RefreshTokenGenerator.java" target="_blank" rel="noopener">出處</a> RFC 9700 對公開用戶端的要求是：更新權杖「必須綁定發送者，或使用更新權杖輪替」（Refresh tokens for public clients MUST be sender-constrained or use refresh token rotation）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-2.2.2" target="_blank" rel="noopener">出處</a></p>
+<p>更新權杖由授權伺服器發給用戶端，存取權杖失效或過期時拿它換新的；它只送授權伺服器、不送資源伺服器。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6749#section-1.5" target="_blank" rel="noopener">出處</a> 看三件實作上的事。</p>
+<p><strong>公開用戶端拿不到。</strong>前面 <code>mobile-app</code> 換到的欄位沒有 <code>refresh_token</code>，而它登記時明明有 <code>REFRESH_TOKEN</code>。原始碼的 <code>OAuth2Refresh<wbr>Token<wbr>Generator</code> 遇到「授權碼流程、用戶端認證方式是 NONE」直接回傳 null，也就是不發更新權杖給公開用戶端。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-authorization-server/src/main/java/org/springframework/security/oauth2/server/authorization/token/OAuth2RefreshTokenGenerator.java" target="_blank" rel="noopener">出處</a> 公開用戶端的更新權杖，必須綁定發送者，或使用更新權杖輪替（RFC 9700）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-2.2.2" target="_blank" rel="noopener">出處</a></p>
 <p><strong>輪替：舊的一用就失效。</strong><code>web-portal</code> 設了 <code>reuse<wbr>Refresh<wbr>Tokens(<wbr>false)</code>：</p>
 <pre><code>=== 更新權杖輪替
 第一次換到：access_token, refresh_token, scope, id_token, token_type, expires_in，expires_in=299
@@ -390,12 +394,12 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
 <p>最後再用 rt2 換：200，照樣拿到新權杖（權杖內容很長，省略）。</p>
 <figure>
 <svg viewBox="0 0 760 326" role="img" aria-label="更新權杖輪替的實跑結果：登入拿到 rt1；用 rt1 換到新的存取權杖與 rt2，rt1 作廢；再用 rt1 換得到 400 invalid_grant；用 rt2 換仍然成功，因為這個設定沒有在偵測到重複使用時連帶撤銷 rt2">
-<defs><marker id="sj-m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="20" y="30" font-size="12.5" fill="var(--gold-deep)">機密用戶端 web-portal，reuseRefreshTokens(false)</text><rect x="20" y="48" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="73" font-size="12.5" text-anchor="middle">登入換權杖</text><line x1="172" y1="68" x2="214" y2="68" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="48" width="400" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="73" font-size="12.5" text-anchor="middle">access_token 與 refresh_token rt1</text><rect x="20" y="104" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="129" font-size="12.5" text-anchor="middle">用 rt1 換</text><line x1="172" y1="124" x2="214" y2="124" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="104" width="400" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="129" font-size="12.5" text-anchor="middle">200：新的 access_token 與 rt2（rt1 作廢）</text><rect x="20" y="160" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="185" font-size="12.5" text-anchor="middle">再用 rt1 換</text><line x1="172" y1="180" x2="214" y2="180" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="160" width="400" height="40" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="418" y="185" font-size="12.5" text-anchor="middle">400 invalid_grant</text><rect x="20" y="216" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="241" font-size="12.5" text-anchor="middle">用 rt2 換</text><line x1="172" y1="236" x2="214" y2="236" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="216" width="400" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="418" y="241" font-size="12.5" text-anchor="middle">200：rt2 仍可用（這個設定沒有連帶作廢）</text><text x="20" y="290" font-size="12" opacity=".7">RFC 9700：發現有人拿作廢的那把來換，伺服器分不出誰是攻擊者，「會撤銷現行的那把」；Spring 的這個示範要另外實作</text><text x="20" y="312" font-size="12" opacity=".6">古銅＝偵測到重複使用的那一刻</text>
+<defs><marker id="sj-m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="20" y="30" font-size="12.5" fill="var(--gold-deep)">機密用戶端 web-portal，reuseRefreshTokens(false)</text><rect x="20" y="48" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="73" font-size="12.5" text-anchor="middle">登入換權杖</text><line x1="172" y1="68" x2="214" y2="68" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="48" width="400" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="73" font-size="12.5" text-anchor="middle">access_token 與 refresh_token rt1</text><rect x="20" y="104" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="129" font-size="12.5" text-anchor="middle">用 rt1 換</text><line x1="172" y1="124" x2="214" y2="124" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="104" width="400" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="418" y="129" font-size="12.5" text-anchor="middle">200：新的 access_token 與 rt2（rt1 作廢）</text><rect x="20" y="160" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="185" font-size="12.5" text-anchor="middle">再用 rt1 換</text><line x1="172" y1="180" x2="214" y2="180" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="160" width="400" height="40" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="418" y="185" font-size="12.5" text-anchor="middle">400 invalid_grant</text><rect x="20" y="216" width="150" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="95" y="241" font-size="12.5" text-anchor="middle">用 rt2 換</text><line x1="172" y1="236" x2="214" y2="236" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#sj-m4)"/><rect x="218" y="216" width="400" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="418" y="241" font-size="12.5" text-anchor="middle">200：rt2 仍可用（這個設定沒有連帶作廢）</text><text x="20" y="290" font-size="12" opacity=".7">RFC 9700 的做法：有人拿作廢的那把來換，伺服器分不出誰是攻擊者，就撤銷現行的那把；這個示範沒做，要另外實作</text><text x="20" y="312" font-size="12" opacity=".6">古銅＝偵測到重複使用的那一刻</text>
 </svg>
 <figcaption>輪替讓舊的更新權杖一用就失效；偷到舊的那把，一用就被發現。</figcaption>
 </figure>
-<p>RFC 9700 的描述：攻擊者和合法用戶端都用了同一把時，其中一方一定會拿出已作廢的那把，「授權伺服器分不出是誰送的，但會撤銷現行的那把」（The authorization server cannot determine which party submitted the invalid refresh token, but it will revoke the active refresh token.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-4.14.2" target="_blank" rel="noopener">出處</a> 實跑的 rt2 仍然 200：這課的設定只做到「舊的那把失效」，沒有連帶撤銷 rt2；要照 RFC 9700 的完整做法，得自己在授權伺服器補上。</p>
-<p><strong>用戶端會自動換新。</strong><code>oauth2-client</code> 用更新權杖換新的預設實作是 <code>Rest<wbr>Client<wbr>Refresh<wbr>Token<wbr>Token<wbr>Response<wbr>Client</code>（obtain an access token at the Authorization Server's Token Endpoint）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/client/authorization-grants.html" target="_blank" rel="noopener">出處</a></p>
+<p>更新權杖輪替怎麼抓到盜用：攻擊者和合法用戶端都用了同一把時，其中一方一定會拿出已作廢的那把；授權伺服器分不出是誰送的，但會撤銷現行的那把。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9700#section-4.14.2" target="_blank" rel="noopener">出處</a> 實跑的 rt2 仍然 200：這課的設定只做到「舊的那把失效」，沒有連帶撤銷 rt2；要照 RFC 9700 的完整做法，得自己在授權伺服器補上。</p>
+<p><strong>用戶端會自動換新。</strong><code>oauth2-client</code> 用更新權杖換新的預設實作是 <code>Rest<wbr>Client<wbr>Refresh<wbr>Token<wbr>Token<wbr>Response<wbr>Client</code>，它到授權伺服器的權杖端點換新的存取權杖。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/client/authorization-grants.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">公開用戶端不發更新權杖；輪替讓舊的一用就失效；偵測到重複使用時要不要撤銷整串，看授權伺服器的實作</p>
 
 <div class="drill">
@@ -435,7 +439,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             scope: openid,accounts:read</code></pre>
-<p>provider 那段另外寫授權伺服器的三個端點網址；Filter 鏈裡只要 <code>.<wbr>oauth2Login(<wbr>Customizer.<wbr>with<wbr>Defaults())</code>。<code>{base<wbr>Url}/<wbr>login/<wbr>oauth2/<wbr>code/<wbr>{registration<wbr>Id}</code> 是文件寫的預設樣板（The default redirect URI template is {baseUrl}/<wbr>login/<wbr>oauth2/<wbr>code/<wbr>{registrationId}.）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/login/core.html" target="_blank" rel="noopener">出處</a> 實跑看 Spring 組了什麼：</p>
+<p>provider 那段另外寫授權伺服器的三個端點網址；Filter 鏈裡只要 <code>.<wbr>oauth2Login(<wbr>Customizer.<wbr>with<wbr>Defaults())</code>。<code>{base<wbr>Url}/<wbr>login/<wbr>oauth2/<wbr>code/<wbr>{registration<wbr>Id}</code> 是預設的導回網址樣板。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/login/core.html" target="_blank" rel="noopener">出處</a> 實跑看 Spring 組了什麼：</p>
 <pre><code>沒登入 GET /dashboard → 302 /oauth2/authorization/bank
 GET /oauth2/authorization/bank → 302
   response_type = code
@@ -448,16 +452,16 @@ GET /oauth2/authorization/bank → 302
   code_challenge_method = S256
   導向：https://login.bank.example/oauth2/authorize</code></pre>
 <ul class="plainlist">
-<li><strong>nonce</strong>（每次登入隨機產生、只用一次的值）由授權伺服器原封不動放進 ID Token。OIDC Core：請求送了 nonce，ID Token 就「必須有 nonce 聲明，而且要檢查它跟請求送出的值相同」（a nonce Claim MUST be present and its value checked to verify that it is the same value as the one that was sent in the Authentication Request.）。<a class="fixsrc" href="https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation" target="_blank" rel="noopener">出處</a> 前面授權伺服器發的 ID Token 裡就有 <code>"nonce":"n-456"</code>。</li>
-<li><strong>機密用戶端也帶了 PKCE</strong>。文件寫「如果授權伺服器不支援機密用戶端的 PKCE，要把 requireProofKey 設成 false 來關掉」（If the OAuth 2.0 Provider doesn't support PKCE for Confidential Clients, you need to disable it by setting ClientRegistration.<wbr>clientSettings.<wbr>requireProofKey to false.），也就是預設開著。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/client/authorization-grants.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>nonce</strong>（每次登入隨機產生、只用一次的值）由授權伺服器原封不動放進 ID Token。請求送了 nonce，ID Token 就必須有 nonce 聲明，而且用戶端要檢查它跟請求送出的值相同。<a class="fixsrc" href="https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation" target="_blank" rel="noopener">出處</a> 前面授權伺服器發的 ID Token 裡就有 <code>"nonce":"n-456"</code>。</li>
+<li><strong>機密用戶端也帶了 PKCE</strong>：預設開著。授權伺服器不支援機密用戶端的 PKCE 時，要把 <code>ClientRegistration.<wbr>clientSettings.<wbr>requireProofKey</code> 設成 false 關掉。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/client/authorization-grants.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <h4>ID Token 給用戶端，Access Token 給 API</h4>
 <div class="tablewrap"><table><thead><tr><th></th><th>access_token</th><th>id_token</th></tr></thead><tbody>
 <tr><td>aud（實跑）</td><td><code>mobile-app</code>（授權伺服器的 <code>JwtGenerator</code> 預設放 client_id<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-authorization-server/src/main/java/org/springframework/security/oauth2/server/authorization/token/JwtGenerator.java" target="_blank" rel="noopener">出處</a>）</td><td><code>mobile-app</code></td></tr>
 <tr><td>特有的聲明</td><td><code>scope</code></td><td><code>nonce</code>、<code>auth_time</code>、<code>azp</code>、<code>sid</code></td></tr>
-<tr><td>誰來驗</td><td>資源伺服器</td><td>用戶端：iss 必須完全符合、aud 必須包含自己的 client_id（The Client MUST validate that the aud (audience) Claim contains its client_id value）<a class="fixsrc" href="https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td>誰來驗</td><td>資源伺服器</td><td>用戶端：iss 必須完全符合、aud 必須包含自己的 client_id<a class="fixsrc" href="https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation" target="_blank" rel="noopener">出處</a></td></tr>
 </tbody></table></div>
-<p>access_token 的 aud 是 <code>mobile-app</code>，拿去打這課有 aud 檢查的 API 會被擋；要讓 API 收，授權伺服器得用 <code>OAuth2TokenCustomizer</code> 在權杖產生前改 aud（provides the ability to customize the attributes of an OAuth2Token）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/authorization-server/core-model-components.html#oauth2AuthorizationServer-oauth2-token-customizer" target="_blank" rel="noopener">出處</a>登入後 Controller 拿到 <code>OidcUser</code>，測試可以用 <code>oidcLogin()</code> 模擬：</p>
+<p>access_token 的 aud 是 <code>mobile-app</code>，拿去打這課有 aud 檢查的 API 會被擋；要讓 API 收，授權伺服器得用 <code>OAuth2TokenCustomizer</code> 在權杖產生前改 aud（它可以自訂權杖的各項屬性）。<a class="fixsrc" href="https://docs.spring.io/spring-security/reference/7.1/servlet/oauth2/authorization-server/core-model-components.html#oauth2AuthorizationServer-oauth2-token-customizer" target="_blank" rel="noopener">出處</a>登入後 Controller 拿到 <code>OidcUser</code>，測試可以用 <code>oidcLogin()</code> 模擬：</p>
 <pre><code>用 oidcLogin() 模擬已登入 → 200 歡迎 alice，登入時間 2026-10-02T09:00:00Z</code></pre>
 <p class="formula">oauth2Login 自動帶 state、nonce、PKCE；ID Token 由用戶端驗，Access Token 由 API 驗</p>
 
@@ -474,7 +478,7 @@ GET /oauth2/authorization/bank → 302
 <div class="drill">
   <p class="dq">前台（client_id 是 <code>web-portal</code>）收到一張 ID Token，<code>aud</code> 只有 <code>mobile-app</code>。照 OIDC Core 該怎麼處理？</p>
   <ul class="dopts"><li>接受，同一台發的</li><li>接受，只取 sub</li><li>改用 mobile-app 登入</li><li data-ok>拒絕這張 ID Token</li></ul>
-  <p class="dexp">OIDC Core：用戶端必須確認 aud 包含自己的 client_id，沒有就拒絕。發給別的用戶端的 ID Token 不能拿來登入自己。</p>
+  <p class="dexp">用戶端必須確認 aud 包含自己的 client_id，沒有就拒絕。發給別的用戶端的 ID Token 不能拿來登入自己。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>web-portal</code> 有 client secret，Spring Security 7.1 的 <code>oauth2Login</code> 預設會不會送 <code>code_challenge</code>？</p>
@@ -508,7 +512,11 @@ matches {noop} 舊格式：true
 登入前：{noop}bob-pw
 登入後：{bcrypt}$2a$10$…</code></pre>
 <p>做這件事的是 <code>Dao<wbr>Authentication<wbr>Provider</code>：登入成功後，如果 <code>upgradeEncoding(舊值)</code> 為 true、又有 <code>User<wbr>Details<wbr>Password<wbr>Service</code>，就用剛輸入的密碼重新編碼，呼叫 <code>updatePassword</code> 存回去。<a class="fixsrc" href="https://github.com/spring-projects/spring-security/blob/7.1.1/core/src/main/java/org/springframework/security/authentication/dao/DaoAuthenticationProvider.java" target="_blank" rel="noopener">出處</a> <code>In<wbr>Memory<wbr>User<wbr>Details<wbr>Manager</code> 本身就實作了這個介面；正式系統要自己實作，把新值寫回資料庫。只有使用者<strong>輸入正確密碼的那一刻</strong>才拿得到明文，所以要換成直接對密碼算的 bcrypt，只能等他登入時做。</p>
-<p>這是「等使用者登入」的升級法。不想讓舊雜湊在資料庫留那麼久，OWASP 列了另一種：直接拿舊的雜湊值當輸入，整批包成更安全的演算法，例如把 md5($password) 升級成 bcrypt(md5($password))（Use the existing password hashes as inputs for a more secure algorithm.），這樣不必知道原密碼；但這種疊起來的雜湊「應該在使用者下次登入時換成直接對密碼算的雜湊」（These hashes should be replaced with direct hashes of the users' passwords next time the user logs in.）。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#upgrading-legacy-hashes" target="_blank" rel="noopener">出處</a></p>
+<p>這是「等使用者登入」的升級法。不想讓舊雜湊在資料庫留那麼久，還有另一種：</p>
+<ul>
+<li>直接拿舊的雜湊值當輸入，整批包成更安全的演算法，例如 <code>md5($password)</code> 升級成 <code>bcrypt(md5($password))</code>，不必知道原密碼。</li>
+<li>這種疊起來的雜湊，應該在使用者下次登入時換成直接對密碼算的雜湊。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#upgrading-legacy-hashes" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p class="formula">編碼用現行演算法、比對看前綴；沒前綴丟例外；登入成功時用 UserDetailsPasswordService 換成新格式；要整批升級可以先包一層</p>
 
 <div class="drill">
@@ -529,7 +537,7 @@ matches {noop} 舊格式：true
 <div class="drill">
   <p class="dq">銀行有 50 萬筆舊的 <code>sha1(密碼)</code>。為什麼不能今晚把每一筆直接換成 <code>bcrypt(密碼)</code>？</p>
   <ul class="dopts"><li>bcrypt 太慢，一晚算不完</li><li>Spring 7 讀不了 SHA-1</li><li data-ok>手上只有雜湊值，推不回原密碼</li><li>要先關掉密碼編碼器</li></ul>
-  <p class="dexp">bcrypt(密碼) 要對原密碼算，SHA-1 推不回原密碼。整批能做的是包一層 bcrypt(sha1(密碼))（OWASP 的第二種升級法），等使用者登入時再換成直接對密碼算的。</p>
+  <p class="dexp">bcrypt(密碼) 要對原密碼算，SHA-1 推不回原密碼。整批能做的是包一層 bcrypt(sha1(密碼))（前面講的第二種升級法），等使用者登入時再換成直接對密碼算的。</p>
 </div>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>三個角色在 Spring Security 7 各一個設定：<code>oauth2Login()</code>、<code>oauth2Authorization<wbr>Server()</code>、<code>oauth2ResourceServer()</code>；Spring Boot 4 的 starter 名字多了 <code>security-</code>。</li><li>資源伺服器驗 JWT：演算法由驗證端決定，預設檢查 exp、nbf（容許 60 秒誤差）與 iss，aud 要自己加；權杖不可信是 401，權限不夠才是 403。</li><li>帶 Bearer 權杖的請求不做 CSRF 檢查；scope 預設變成 <code>SCOPE_</code> 權限，角色在別的聲明就換 <code>Jwt<wbr>Granted<wbr>Authorities<wbr>Converter</code>。</li><li>路徑規則管「有沒有這類權限」，<code>@Pre<wbr>Authorize(<wbr>"#owner == authentication.<wbr>name")</code> 管「是不是你的資料」；要先 <code>@EnableMethodSecurity</code>，測試用 <code>jwt()</code>。</li><li>授權碼流程：導回網址完全比對、state 防 CSRF、授權碼只能用一次，重複使用時已發的權杖被撤銷；PKCE 用 S256，攔到授權碼沒有 verifier 也換不到。</li><li>公開用戶端拿不到更新權杖；輪替讓舊的一用就失效，但「偵測到重複使用就撤銷整串」要看實作；離線驗的 JWT 撤銷不了，存取權杖要短效。</li><li><code>oauth2Login</code> 自動帶 state、nonce、PKCE；ID Token 給用戶端驗、Access Token 給 API 驗。DelegatingPasswordEncoder 沒前綴丟例外，舊格式在登入成功時自動升級。</li></ul></div>

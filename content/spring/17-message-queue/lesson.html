@@ -88,7 +88,7 @@ docker run -d --name mq17-rabbit --hostname mq17-rabbit \
 <ul class="plainlist">
 <li><strong>主題</strong>（topic）：一類事件放一個主題，例如 <code>transfers</code>。「跟傳統的訊息系統不同，事件被消費之後不會刪除」（unlike traditional messaging systems, events are not deleted after consumption），保留多久由主題的設定決定。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>分區</strong>（partition）：一個主題切成好幾本帳，放在不同的 broker 上，才能很多人同時讀寫。同一個 key 的事件寫進同一個分區，讀一個分區的順序跟寫入時相同（Events with the same event key… are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition’s events in exactly the same order as they were written.）。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
-<li><strong>位移</strong>（offset）：每本帳的行號，從 0 開始。消費者讀到哪裡，就只是記一個數字：文件說消費者在每個分區的位置「只是一個整數，也就是下一則要讀的訊息的位移」（just a single integer, the offset of the next message to consume）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>位移</strong>（offset）：每本帳的行號，從 0 開始。消費者讀到哪裡，就只是記一個數字：它在每個分區的位置只是一個整數，也就是下一則要讀的訊息的位移。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>消費者群組</strong>（consumer group）：用同一個群組名稱、一起分工的消費者。規則只有一條：每個分區在任一時刻，只歸群組裡的一個消費者（each of which is consumed by exactly one consumer within each subscribing consumer group at any given time）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>從這條規則可以推出兩件事。第一，同一個群組裡的消費者比分區多，多出來的分不到分區，只能閒著；想加人加速，分區數要先估夠。第二，<strong>不同群組各讀各的</strong>，每個群組都有自己的位移，帳務群組讀完了，稽核群組照樣從頭讀到尾。訊息不會讀完就刪，所以消費者也能倒回舊的位移重讀（A consumer can deliberately rewind back to an old offset and re-consume data.），例如修好 bug 後重跑。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
@@ -290,7 +290,7 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 <figcaption>一則 transfer.tw.large 同時符合三個樣式，三條佇列各收到一份副本。transfer.jp.small 只符合 #。</figcaption>
 </figure>
 <p><strong>讀完就刪。</strong>這是跟 Kafka 最大的不同：RabbitMQ 收到消費者的確認（ack）之後，「才會把訊息從佇列裡完全移除」（a broker will only completely remove a message from a queue when it receives a notification for that message）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
-<p>所以同一條佇列有好幾個消費者時，一則只給一個人，文件說通常是「輪流」分（Normally, active consumers connected to a queue receive messages from it in a round-robin fashion.）；<a class="fixsrc" href="https://www.rabbitmq.com/docs/consumers" target="_blank" rel="noopener">出處</a> 要讓好幾個服務都收到，就像上面那樣給每個服務一條自己的佇列。</p>
+<p>所以同一條佇列有好幾個消費者時，一則只給一個人，通常是輪流分；<a class="fixsrc" href="https://www.rabbitmq.com/docs/consumers" target="_blank" rel="noopener">出處</a> 要讓好幾個服務都收到，就像上面那樣給每個服務一條自己的佇列。</p>
 <p>還有一種情況要小心：沒有任何綁定符合的訊息，在生產者的 mandatory 屬性是預設的 false 時會被丟掉（或轉給另外設定的備用交換器）（the publisher set the mandatory message property to false (this is the default), the message is discarded or republished to an alternate exchange, if any）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/publishers" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
@@ -326,17 +326,23 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 <div class="drill">
   <p class="dq">送到交換器的訊息，如果<strong>沒有任何一條綁定符合</strong>，預設會怎樣？</p>
   <ul class="dopts"><li>broker 先存著，等之後有符合的佇列再補送過去</li><li>broker 自動建一條新的佇列來收</li><li data-ok>被丟掉，除非生產者設了要退回的屬性</li><li>送到死信佇列</li></ul>
-  <p class="dexp">文件：無法路由的訊息會被丟掉或退回給生產者，看送出時設的屬性。所以綁定寫錯，訊息會默默消失，這是 RabbitMQ 常見的除錯題。</p>
+  <p class="dexp">無法路由的訊息會被丟掉或退回給生產者，看送出時設的屬性。所以綁定寫錯，訊息會默默消失，這是 RabbitMQ 常見的除錯題。</p>
 </div>
 </section>
 
 <section>
 <p class="era">先記進度還是先做事，決定了會丟還是會重複</p>
 <h3 class="head">送達保證：至多一次、至少一次、剛好一次</h3>
-<p>Kafka 文件列出三種保證：至多一次可能丟、不重送；至少一次不丟、可能重送；剛好一次只處理一次（At most once—Messages may be lost but are never redelivered. At least once—Messages are never lost but may be redelivered. Exactly once—Each message is processed once and only once.）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a> 消費者這端決定是哪一種的，就是「記進度」和「做事」誰先：</p>
+<p>Kafka 的傳遞保證有三種：<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><strong>先記位移、再處理</strong>：存好位置之後、處理完之前當機，接手的程序從新位置開始，那幾則就沒處理到，「對應到至多一次」（This corresponds to “at-most-once” semantics）。</li>
-<li><strong>先處理、再記位移</strong>：處理完之後、存好位置之前當機，接手的程序會再收到已經處理過的那幾則，「對應到至少一次」。</li>
+<li><strong>至多一次</strong>：可能丟，不重送。</li>
+<li><strong>至少一次</strong>：不丟，可能重送。</li>
+<li><strong>剛好一次</strong>：只處理一次。</li>
+</ul>
+<p>消費者這端決定是哪一種的，就是「記進度」和「做事」誰先：</p>
+<ul class="plainlist">
+<li><strong>先記位移、再處理</strong>：存好位置之後、處理完之前當機，接手的程序從新位置開始，那幾則就沒處理到，對應到至多一次。</li>
+<li><strong>先處理、再記位移</strong>：處理完之後、存好位置之前當機，接手的程序會再收到已經處理過的那幾則，對應到至少一次。</li>
 </ul>
 <p>兩種情況出自 Kafka 設計文件的同一段。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
 <figure>
@@ -370,7 +376,13 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 <figcaption>當機一定會發生在某兩步之間。先記位移，壞掉的是「丟」；先處理，壞掉的是「重複」。</figcaption>
 </figure>
 <p>銀行的帳寧可重複、不能丟（重複可以靠程式擋掉，丟了就是錢對不上），所以通常選<strong>至少一次</strong>，再讓消費者擋掉重複。生產者沒收到 broker 回應時也只能重送；<code>enable.idempotence</code> 開著時，「生產者會確保每則訊息在串流裡只寫入一份」（the producer will ensure that exactly one copy of each message is written in the stream），而且預設開啟（Idempotence is enabled by default if no conflicting configurations are set.）。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/producer-configs/" target="_blank" rel="noopener">出處</a> 它擋不住「消費者處理兩次」。</p>
-<p><strong>剛好一次要什麼前提？</strong>文件提醒「務必細讀但書」（it is important to read the fine print）。Kafka 的剛好一次只在「從 Kafka 讀、寫回 Kafka」時成立：交易式生產者把輸出的訊息和消費者的位移寫進同一筆 Kafka 交易（we can write the offset to Kafka in the same transaction as the output topics receiving the processed data），下游消費者設 <code>isolation.level=read_committed</code>（只讀已提交的交易）。寫到資料庫這種外部系統，Kafka 自己做不到，要「讓消費者把位移存在跟輸出同一個地方」（letting the consumer store its offset in the same place as its output），或讓處理冪等。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a> 實務上寫資料庫的「剛好一次」，就是「至少一次＋消費者冪等」，也就是本課後半的去重表。RabbitMQ 用確認機制做到的是至少一次，要剛好一次，一樣得靠消費者冪等。</p>
+<p><strong>剛好一次要什麼前提？</strong>這個保證有但書，只在「從 Kafka 讀、寫回 Kafka」時成立：<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>交易式生產者把輸出的訊息和消費者的位移寫進同一筆 Kafka 交易。</li>
+<li>下游消費者設 <code>isolation.level=read_committed</code>（只讀已提交的交易）。</li>
+<li>寫到資料庫這種外部系統，Kafka 自己做不到，要讓消費者把位移存在跟輸出同一個地方，或讓處理冪等。</li>
+</ul>
+<p>實務上寫資料庫的「剛好一次」，就是「至少一次＋消費者冪等」，也就是本課後半的去重表。RabbitMQ 用確認機制做到的是至少一次，要剛好一次，一樣得靠消費者冪等。</p>
 <p class="formula">先記位移再處理＝至多一次（會丟）；先處理再記位移＝至少一次（會重複）；剛好一次只在 Kafka 讀寫 Kafka 的交易內成立，寫資料庫靠至少一次加冪等</p>
 
 <div class="drill">
@@ -403,13 +415,13 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 <section>
 <p class="era">處理完才說「收到了」</p>
 <h3 class="head">Spring 接 Kafka：@KafkaListener 與手動 ack</h3>
-<p><code>@KafkaListener</code>「把一個 Bean 的方法指定為監聽器容器的監聽器」（is used to designate a bean method as a listener for a listener container）。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/receiving-messages/listener-annotation.html" target="_blank" rel="noopener">出處</a> 監聽器容器是 Spring 替你開的背景執行緒，負責拉訊息、交給你的方法、提交位移。什麼時候提交，由 <strong>AckMode</strong>（ack 模式；ack 是 acknowledge，確認處理完了）決定：</p>
+<p><code>@KafkaListener</code> 把一個 Bean 的方法指定為監聽器容器的監聽器。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/receiving-messages/listener-annotation.html" target="_blank" rel="noopener">出處</a> 監聽器容器是 Spring 替你開的背景執行緒，負責拉訊息、交給你的方法、提交位移。什麼時候提交，由 <strong>AckMode</strong>（ack 模式；ack 是 acknowledge，確認處理完了）決定：</p>
 <ul class="plainlist">
-<li>Kafka 用戶端預設會「在背景定期提交」（<code>enable.auto.commit</code>，periodically committed in the background），跟你處理到哪裡無關。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener">出處</a> 所以 Spring 把它關掉：「從 2.3 版起，除非設定裡明確指定，框架會把 enable.auto.commit 設成 false」（Starting with version 2.3, the framework sets enable.auto.commit to false unless explicitly set in the configuration.），改由容器提交。</li>
-<li>預設的 AckMode 是 <code>BATCH</code>（The default AckMode is BATCH.）：「一次 <code>poll()</code>（消費者向 Kafka 拉一批訊息的方法）拿回來的紀錄全部處理完才提交」（Commit the offset when all the records returned by the poll() have been processed.）。也就是說預設就已經是「先處理、再提交」。</li>
-<li><code>MANUAL</code>／<code>MANUAL_IMMEDIATE</code>：你的方法多收一個 <code>Acknowledgment</code> 參數，自己呼叫 <code>acknowledge()</code> 才算數；<code>MANUAL_IMMEDIATE</code> 是「呼叫 acknowledge() 時立刻提交」（Commit the offset immediately when the Acknowledgment.acknowledge() method is called by the listener.）。</li>
+<li>Kafka 用戶端預設會在背景定期提交（<code>enable.auto.commit</code>），跟你處理到哪裡無關。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener">出處</a> 所以 Spring 把它關掉：從 2.3 版起，除非設定裡明確指定，框架會把 <code>enable.auto.commit</code> 設成 false，改由容器提交。</li>
+<li>預設的 AckMode 是 <code>BATCH</code>：一次 <code>poll()</code>（消費者向 Kafka 拉一批訊息的方法）拿回來的紀錄全部處理完才提交。也就是說預設就已經是「先處理、再提交」。</li>
+<li><code>MANUAL</code>／<code>MANUAL_IMMEDIATE</code>：你的方法多收一個 <code>Acknowledgment</code> 參數，自己呼叫 <code>acknowledge()</code> 才算數；<code>MANUAL_IMMEDIATE</code> 是呼叫 <code>acknowledge()</code> 時立刻提交。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/receiving-messages/message-listener-container.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>以上 AckMode 的引文出自同一頁。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/receiving-messages/message-listener-container.html" target="_blank" rel="noopener">出處</a> 要自己決定哪個時間點算成功，就用手動，Spring Boot 一行設定：</p>
+<p>要自己決定哪個時間點算成功，就用手動，Spring Boot 一行設定：</p>
 <pre><code>spring.kafka.listener.ack-mode=manual_immediate</code></pre>
 <p>下面把「處理完、ack 前當機」真的做一次：扣完款之後用 <code>Runtime.getRuntime().halt(1)</code> 讓程序直接死掉，位移就沒提交。資料庫用 H2（用 Java 寫的小型資料庫）的檔案模式，重啟後資料還在。這一版<strong>先不做去重</strong>：</p>
 <pre><code>@KafkaListener(topics = "debits", groupId = "ledger-service")
@@ -442,7 +454,7 @@ void onDebit(ConsumerRecord&lt;String, String&gt; rec, Acknowledgment ack) {
 <div class="drill">
   <p class="dq">Spring for Apache Kafka 預設的 AckMode 是什麼？</p>
   <ul class="dopts"><li>MANUAL</li><li data-ok>BATCH</li><li>RECORD</li><li>沒有預設，一定要設</li></ul>
-  <p class="dexp">文件：The default AckMode is BATCH，一次 poll() 拿回來的紀錄全部處理完才提交。</p>
+  <p class="dexp">預設 AckMode 是 BATCH，一次 poll() 拿回來的紀錄全部處理完才提交。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Spring 裡用 Kafka，為什麼框架預設把 <code>enable.auto.commit</code> 關掉？</p>
@@ -552,7 +564,7 @@ ack.acknowledge();                                         // 做過了也要 ac
 <h3 class="head">重試與死信</h3>
 <p>消費者處理失敗有兩種：<strong>暫時性的</strong>（下游逾時、資料庫剛好忙），等一下再試可能就好；<strong>永久性的</strong>（金額格式錯、欄位缺了），試一萬次也一樣錯。後者叫<strong>毒訊息</strong>（poison message）：卡在那裡、永遠處理不了的訊息。重試的設計就是：暫時性的試幾次，用完還不行，或一看就是永久性的，就把它移到旁邊的<strong>死信</strong>（dead letter）區，讓後面的訊息繼續走，之後再有人工查原因、修好重放。</p>
 
-<p><strong>Kafka：DefaultErrorHandler 加死信主題。</strong>監聽器丟例外時，預設的 <code>DefaultErrorHandler</code>「失敗十次之後，把那筆紀錄寫進日誌（ERROR 層級）」（By default, after ten failures, the failed record is logged (at the ERROR level).），預設是 <code>FixedBackOff(0L, 9)</code>（不等待、重試 9 次），之後就跳過，那筆只剩一行錯誤訊息。要留下來，就給它一個 <code>DeadLetterPublishingRecoverer</code>：「預設送到名為 &lt;原主題&gt;-dlt 的主題，而且跟原紀錄同一個分區」（By default, the dead-letter record is sent to a topic named &lt;originalTopic&gt;-dlt… and to the same partition as the original record.）。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/annotation-error-handling.html" target="_blank" rel="noopener">出處</a> Spring Boot 會把 <code>CommonErrorHandler</code> 型別的 Bean 自動接到預設的監聽器容器工廠上（if a … CommonErrorHandler … bean is defined, it is automatically associated to the default factory）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/kafka.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>Kafka：DefaultErrorHandler 加死信主題。</strong>監聽器丟例外時，預設的 <code>DefaultErrorHandler</code> 在失敗十次之後，把那筆紀錄寫進日誌（ERROR 層級），預設是 <code>FixedBackOff(0L, 9)</code>（不等待、重試 9 次），之後就跳過，那筆只剩一行錯誤訊息。要留下來，就給它一個 <code>DeadLetterPublishingRecoverer</code>：預設送到名為 <code>&lt;原主題&gt;-dlt</code> 的主題，而且跟原紀錄同一個分區。<a class="fixsrc" href="https://docs.spring.io/spring-kafka/reference/4.1/kafka/annotation-error-handling.html" target="_blank" rel="noopener">出處</a> Spring Boot 會把 <code>CommonErrorHandler</code> 型別的 Bean 自動接到預設的監聽器容器工廠上。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/kafka.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>@Bean
 NewTopic paymentsDlt() {   // 預設的死信主題名稱：原主題加 -dlt，分區數至少要跟原主題一樣
     return TopicBuilder.name("payments-dlt").partitions(1).replicas(1).build();
@@ -589,16 +601,22 @@ void onDeadLetter(ConsumerRecord&lt;String, String&gt; rec) { … }   // 從標�
   2.2 秒　p-3 成功</code></pre>
 <p>p-1 試了 3 次、每次隔約 0.5 秒，然後進死信主題；p-2 設成不重試，第一次失敗就送走。最重要的是 <strong>p-3 排在後面等</strong>：同一個分區要照順序，p-1 重試的那約 1.5 秒 p-3 只能等，所以重試次數和間隔不能設太大。「原因」是從死信紀錄的標頭讀出來的。</p>
 
-<p><strong>RabbitMQ：預設會一直重新排入。</strong>Spring AMQP 的確認模式預設是 <code>AUTO</code>：「容器自動確認，除非監聽器丟出例外」（The container acknowledges the message automatically, unless the MessageListener throws an exception.）。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/containerAttributes.html" target="_blank" rel="noopener">出處</a></p>
-<p>丟了例外呢？「通常訊息會被拒絕，並由 broker 重新排入佇列」（Normally the message is rejected and requeued by the broker.）。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/exception-handling.html" target="_blank" rel="noopener">出處</a> Spring Boot 文件說，沒開重試時「這則訊息會無限次重送」（By default, if retries are disabled and the listener throws an exception, the delivery is retried indefinitely.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a> 毒訊息就會在佇列頭上轉個不停。</p>
+<p><strong>RabbitMQ：預設會一直重新排入。</strong>Spring AMQP 的確認模式預設是 <code>AUTO</code>：容器自動確認，除非監聽器丟出例外。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/containerAttributes.html" target="_blank" rel="noopener">出處</a></p>
+<p>丟了例外呢？通常訊息會被拒絕，並由 broker 重新排入佇列。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/exception-handling.html" target="_blank" rel="noopener">出處</a> 沒開重試的話，這則訊息會無限次重送。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a> 毒訊息就會在佇列頭上轉個不停。</p>
 <p>要讓它停，有三條路：</p>
 <ul class="plainlist">
-<li><b>丟棄或送死信</b>：容器的 <code>defaultRequeueRejected</code> 設成 false，「讓訊息被丟棄（或送到死信交換器）」。<span class="orig">Spring AMQP 文件：causes messages to be discarded (or routed to a dead letter exchange)</span></li>
+<li><b>丟棄或送死信</b>：容器的 <code>defaultRequeueRejected</code> 設成 false，訊息就被丟棄（或送到死信交換器）。</li>
 <li><b>丟特定例外</b>：針對這一則丟 <code>AmqpRejectAndDontRequeueException</code>。<a class="fixsrc" href="https://docs.spring.io/spring-amqp/reference/4.1/amqp/exception-handling.html" target="_blank" rel="noopener">出處</a></li>
-<li><b>開監聽器重試</b>：開 Spring Boot 的監聽器重試（<code>spring.<wbr>rabbitmq.<wbr>listener.<wbr>simple.<wbr>retry.<wbr>enabled=true</code>，預設關閉），重試用完一樣是拒絕。<span class="orig">Spring Boot 文件：When retries are exhausted, the message is rejected and either dropped or routed to a dead-letter exchange if the broker is configured to do so.<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>開監聽器重試</b>：開 Spring Boot 的監聽器重試（<code>spring.<wbr>rabbitmq.<wbr>listener.<wbr>simple.<wbr>retry.<wbr>enabled=true</code>，預設關閉），重試用完一樣是拒絕：丟掉，或在 broker 有設定時送到死信交換器。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>被拒絕、不重新排入的訊息會不會留下來，看佇列有沒有設<strong>死信交換器</strong>（dead letter exchange，DLX）。RabbitMQ 文件列了四種會變成死信的情況：消費者負面確認且不重新排入（basic.reject 或 basic.nack 帶 requeue=false）、訊息的 TTL（存活時間）過期、佇列超過長度上限、仲裁佇列的訊息被退回超過 delivery-limit（退回次數上限）次。<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a></p>
-<p>仲裁佇列（quorum queue）是需要把佇列複製到多台時的預設選擇（should be considered the default choice when needing a replicated, highly available queue），因為「經典佇列的鏡像從 RabbitMQ 4.0 起移除」（Classic queue mirroring was removed starting with RabbitMQ 4.0.）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/quorum-queues" target="_blank" rel="noopener">出處</a></p>
+<p>被拒絕、不重新排入的訊息會不會留下來，看佇列有沒有設<strong>死信交換器</strong>（dead letter exchange，DLX）。會變成死信的情況有四種：<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>消費者負面確認且不重新排入（<code>basic.reject</code> 或 <code>basic.nack</code> 帶 <code>requeue=false</code>）</li>
+<li>訊息的 TTL（存活時間）過期</li>
+<li>佇列超過長度上限</li>
+<li>仲裁佇列的訊息被退回超過 delivery-limit（退回次數上限）次</li>
+</ul>
+<p>仲裁佇列（quorum queue）是需要把佇列複製到多台、維持高可用時的預設選擇，因為經典佇列的鏡像從 RabbitMQ 4.0 起移除。<a class="fixsrc" href="https://www.rabbitmq.com/docs/quorum-queues" target="_blank" rel="noopener">出處</a></p>
 <pre><code>@Bean
 Declarables topology() {
     DirectExchange main = new DirectExchange("payments.ex");
@@ -643,12 +661,12 @@ void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt
 <div class="drill">
   <p class="dq">Spring for Apache Kafka 什麼都不設定，監聽器對某一筆一直丟例外，結果是？</p>
   <ul class="dopts"><li>無限次重試，分區永遠卡住</li><li>第一次失敗就自動送到「原主題-dlt」</li><li>消費者停止運作</li><li data-ok>共試 10 次，之後寫日誌跳過</li></ul>
-  <p class="dexp">文件：預設失敗十次之後，那筆紀錄被寫進日誌（ERROR 層級）。不設 DeadLetterPublishingRecoverer 的話，不會有死信主題，那筆就只剩日誌。</p>
+  <p class="dexp">預設失敗十次之後，那筆紀錄被寫進日誌（ERROR 層級）。不設 DeadLetterPublishingRecoverer 的話，不會有死信主題，那筆就只剩日誌。</p>
 </div>
 <div class="drill">
   <p class="dq">Spring AMQP 什麼都不設定（AUTO 確認、沒開重試），監聽器對某一則一直丟一般的例外，結果是？</p>
   <ul class="dopts"><li data-ok>這則一直被重新排入、一直送來</li><li>試 10 次後寫日誌、丟掉</li><li>第一次失敗就自動進死信佇列，不用任何設定</li><li>這則訊息被確認、刪掉</li></ul>
-  <p class="dexp">預設是拒絕並重新排入，Spring Boot 文件也說沒開重試時會無限次重送。要停下來，得設 defaultRequeueRejected=false、丟 AmqpRejectAndDontRequeueException，或開重試。</p>
+  <p class="dexp">預設是拒絕並重新排入，沒開重試時會無限次重送。要停下來，得設 defaultRequeueRejected=false、丟 AmqpRejectAndDontRequeueException，或開重試。</p>
 </div>
 <div class="drill">
   <p class="dq">上面 Kafka 的實跑，p-3 是正常的訊息，為什麼要等到 2.2 秒才處理？</p>
@@ -668,7 +686,7 @@ void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt
 <div class="drill">
   <p class="dq">RabbitMQ 的佇列設了死信交換器，下面哪一種情況<strong>不會</strong>讓訊息變成死信？</p>
   <ul class="dopts"><li>消費者 basic.nack，requeue=false</li><li>訊息的 TTL 過期</li><li data-ok>消費者正常處理完並確認</li><li>佇列超過長度上限，訊息被丟掉</li></ul>
-  <p class="dexp">文件列的四種是：負面確認且不重新排入、TTL 過期、超過長度上限被丟、仲裁佇列退回超過 delivery-limit。正常確認的訊息就是處理完了，直接從佇列移除。</p>
+  <p class="dexp">會變成死信的四種是：負面確認且不重新排入、TTL 過期、超過長度上限被丟、仲裁佇列退回超過 delivery-limit。正常確認的訊息就是處理完了，直接從佇列移除。</p>
 </div>
 <div class="drill">
   <p class="dq">上面 RabbitMQ 的實跑，<code>redelivered=true</code> 代表什麼？</p>

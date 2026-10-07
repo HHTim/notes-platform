@@ -123,7 +123,7 @@ public class GlobalExceptionHandler {
         errorJson(ex.getCode(), ex.getMessage())
     );
 }</code></pre>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記把「使用 ServletRequestListener：這可以在請求開始和結束時執行代碼,你可以在這裡捕獲異常」列為四種處理方式之一，查證後更正：ServletRequestListener 的 requestDestroyed 只收到一個 ServletRequestEvent，裡面沒有例外物件，而且此時回應多半已經送出、改不動了，所以拿它捕捉並改寫錯誤回應行不通">有一種說法是用 <code>ServletRequestListener</code> 在請求開始與結束時捕捉例外，這條路行不通。它只宣告兩個方法，兩個都只吃一個 <code>ServletRequestEvent</code> 參數，沒有任何例外物件；<code>requestDestroyed</code> 的說明是「收到通知：某個 ServletRequest 即將離開這個 Web 應用程式的範圍」——那時候回應多半也已經送出、改不動了</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequestlistener" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記把「使用 ServletRequestListener：這可以在請求開始和結束時執行代碼,你可以在這裡捕獲異常」列為四種處理方式之一，查證後更正：ServletRequestListener 的 requestDestroyed 只收到一個 ServletRequestEvent，裡面沒有例外物件，而且此時回應多半已經送出、改不動了，所以拿它捕捉並改寫錯誤回應行不通">有一種說法是用 <code>ServletRequestListener</code> 在請求開始與結束時捕捉例外，這條路行不通。它只宣告兩個方法，兩個都只吃一個 <code>ServletRequestEvent</code> 參數，沒有任何例外物件；<code>requestDestroyed</code> 是在 ServletRequest 即將離開這個 Web 應用程式的範圍時通知，那時候回應多半也已經送出、改不動了</mark><a class="fixsrc" href="https://jakarta.ee/specifications/servlet/6.0/apidocs/jakarta.servlet/jakarta/servlet/servletrequestlistener" target="_blank" rel="noopener">出處</a>。</p>
 <p>如果是 Spring Security 的認證或授權錯誤，應該用安全框架自己提供的認證進入點與拒絕存取處理器，而不是把所有錯誤都包成一般的 Controller 例外。</p>
 </section>
 

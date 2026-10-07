@@ -13,7 +13,7 @@
   {
    "q": "同一次啟動同時有待跑的 V3 與內容改過的 R 腳本，順序是？",
    "opts": ["先 V3，可重複腳本永遠最後", "先 R，因為字母 R 在 V 前面", "兩支同時執行", "看檔案修改時間"],
-   "exp": "Flyway 文件：repeatable migrations are always applied last, after all pending versioned migrations have been executed。"
+   "exp": "同一次執行裡，可重複腳本永遠排在所有待跑的版本化腳本之後。"
   },
   {
    "q": "已套用到正式環境的 V1 被改了內容，重啟時會怎樣？",
@@ -21,9 +21,9 @@
    "exp": "實跑：Migration checksum mismatch for migration version 1，Spring Boot 啟動失敗。validate-on-migrate 預設 true。"
   },
   {
-   "q": "V1 的欄位長度需要加長，照 Flyway 文件建議該怎麼做？",
+   "q": "V1 的欄位長度需要加長，照 Flyway 的做法該怎麼做？",
    "opts": ["加一支新腳本 ALTER，往前修", "改 V1 的內容再 repair", "在正式資料庫直接下 ALTER", "clean 後從 V1 重跑"],
-   "exp": "文件：It's best to create a new versioned migration script and roll forward any necessary changes。repair 只改歷史表，不改結構。"
+   "exp": "已套用的腳本不改，建立一支新的版本化腳本往前修。repair 只改歷史表，不改結構。"
   },
   {
    "q": "資料庫已在 V3，出現一支沒跑過的 V2_1，out-of-order 是預設值。結果是？",
@@ -33,7 +33,7 @@
   {
    "q": "MySQL 上一支腳本兩句 DDL，第一句成功、第二句失敗，之後的狀況是？",
    "opts": ["第一句已提交，要手動清理再 repair", "Flyway 自動把整支腳本退回原狀", "兩句都沒有生效，直接重跑就好", "下次啟動 Flyway 只會補跑第二句"],
-   "exp": "MySQL 的 DDL 會隱含提交，手冊也說原子 DDL 不是交易式 DDL；Flyway 只能在歷史表記一筆 success = 0。實跑查得到第一句加的欄位。"
+   "exp": "MySQL 的 DDL 會隱含提交，原子 DDL 也不是交易式 DDL；Flyway 只能在歷史表記一筆 success = 0。實跑查得到第一句加的欄位。"
   },
   {
    "q": "Spring Boot 內建的 Flyway 社群版，上線後發現 V7 改錯了，正確的回退方式是？",
@@ -43,12 +43,12 @@
   {
    "q": "Liquibase 用什麼辨識一個 changeset 是否已執行？",
    "opts": ["author、id 與檔案路徑", "只看 id，id 必須是遞增整數", "檔名裡的版本號", "changeset 的執行時間"],
-   "exp": "文件：A changeset is uniquely tagged by both the author and id attributes (author:id), as well as the changelog file path。紀錄存在 DATABASECHANGELOG。"
+   "exp": "changeset 由 author、id 加上 changelog 的檔案路徑唯一標記，紀錄存在 DATABASECHANGELOG。"
   },
   {
    "q": "要把 owner 改名為 owner_name 又不停機，擴張收縮的做法是？",
    "opts": ["先加新欄位並補資料，最後才刪舊的", "一支腳本直接 RENAME COLUMN", "先刪 owner，再加 owner_name", "安排停機時間，一次全部改完"],
-   "exp": "Fowler：expand, migrate, contract。滾動更新期間新舊程式同時在跑，每個時間點都要找得到各自需要的欄位；依賴 owner 的 view 也要在收縮時一起改。"
+   "exp": "三個階段：擴張、遷移、收縮（expand、migrate、contract）。滾動更新期間新舊程式同時在跑，每個時間點都要找得到各自需要的欄位；依賴 owner 的 view 也要在收縮時一起改。"
   }
  ]
 }

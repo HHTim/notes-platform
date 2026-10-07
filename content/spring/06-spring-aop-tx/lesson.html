@@ -49,7 +49,12 @@ public class TimingAspect {
 <section>
 <p class="era">代理機制帶來的邊界</p>
 <h3 class="head">寫了註解不一定會被攔截</h3>
-<p class="muted">Spring AOP 建代理有兩條路。官方文件說「Spring AOP 用 JDK 動態代理或 CGLIB 其中之一來替目標物件建立代理」：目標物件有實作介面時用 JDK 動態代理（Java SE 的 Reflection/Proxy API），沒有實作任何介面時「就會建立一個 CGLIB 代理，也就是目標型別在執行期產生的子類別」。CGLIB 是一個在執行期直接產生子類別位元組碼的函式庫，Spring 已把它打包進 spring-core。不過「有介面就用 JDK 動態代理」這條規則只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立；Spring Boot 自 2.0 起把它預設成 <code>true</code>，遷移指南寫「Spring Boot 現在預設用 CGLIB 代理，AOP 支援也包含在內」，所以 Spring Boot 專案不論有沒有介面都走 CGLIB<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a><a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide" target="_blank" rel="noopener">2.0 起</a>。</p>
+<p class="muted">Spring AOP 建代理有兩條路，JDK 動態代理或 CGLIB：</p>
+<ul class="muted">
+<li>目標物件有實作介面：用 JDK 動態代理（Java SE 的 Reflection/Proxy API）</li>
+<li>沒有實作任何介面：建立 CGLIB 代理，也就是在執行期產生目標型別的子類別。CGLIB 是一個在執行期直接產生子類別位元組碼的函式庫，Spring 已把它打包進 spring-core</li>
+</ul>
+<p class="muted">不過「有介面就用 JDK 動態代理」這條規則只在 <code>spring.aop.proxy-target-class</code> 是 <code>false</code> 時成立。Spring Boot 2.0 起把它預設成 <code>true</code>，AOP 也預設用 CGLIB 代理，所以 Spring Boot 專案不論有沒有介面都走 CGLIB<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/core/aop/proxying.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">預設值</a><a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide" target="_blank" rel="noopener">2.0 起</a>。</p>
 <p>不論哪一種代理，攔截的都是「從外部進入 Bean」的呼叫。如果同一個物件裡的 A 方法直接呼叫自己的 B 方法，這次呼叫沒有經過代理，B 上的 AOP 行為就不會生效。這個狀況叫自我呼叫（self-invocation）。</p>
 <p>常見的改善方式是重新切分 Bean，讓呼叫真的跨過代理邊界。不要為了繞過設計問題，到處自己去拿代理物件。</p>
 </section>

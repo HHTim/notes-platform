@@ -5,7 +5,7 @@
 <p class="era">先把舞台搭好，代理、執行緒、連線</p>
 <h3 class="head">宣告式交易到底怎麼運作</h3>
 <p>〈Spring AOP 與交易控制〉講過：在服務方法上加 <code>@Transactional</code>，Spring 就替你開交易、提交、還原。巢狀呼叫、例外與失效情境怎麼運作，要從它背後的機制看起。</p>
-<p>Spring 文件的說法是：交易的設定加上 AOP，會產生一個「使用 <code>TransactionInterceptor</code> 搭配適當的 <code>TransactionManager</code> 實作、在方法呼叫前後驅動交易的 AOP 代理」（an AOP proxy that uses a TransactionInterceptor in conjunction with an appropriate TransactionManager implementation to drive transactions around method invocations）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-decl-explained.html" target="_blank" rel="noopener">出處</a> 代理（proxy）就是包在你的物件外面的一層替身：別的 Bean 拿到的其實是代理，呼叫先進代理，代理裡的交易攔截器（interceptor）開好交易，再轉給你寫的方法；方法結束後，攔截器決定提交還是還原。</p>
+<p>交易的設定加上 AOP，會產生一個 AOP 代理：它用 <code>TransactionInterceptor</code> 搭配適當的 <code>TransactionManager</code> 實作，在方法呼叫前後驅動交易。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-decl-explained.html" target="_blank" rel="noopener">出處</a> 代理（proxy）就是包在你的物件外面的一層替身：別的 Bean 拿到的其實是代理，呼叫先進代理，代理裡的交易攔截器（interceptor）開好交易，再轉給你寫的方法；方法結束後，攔截器決定提交還是還原。</p>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="宣告式交易的呼叫路徑：外部呼叫先經過 Spring 產生的代理，代理裡的交易攔截器開交易，再呼叫目標物件的方法，方法正常結束就提交、丟出例外就判斷要不要還原；目標物件裡用 this 呼叫自己另一個方法，不經過代理，那個方法上的 @Transactional 不會生效">
   <defs><marker id="st-01-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -36,8 +36,8 @@
 </svg>
 <figcaption>呼叫要「從外面經過代理」才會被交易攔截器處理。紅色虛線是同一個物件裡用 this 呼叫自己，沒經過代理，這就是後面要講的自我呼叫失效。</figcaption>
 </figure>
-<p>交易開好之後放在哪？<strong>綁在目前這條執行緒上。</strong>JDBC 的交易管理器 <code>DataSourceTransactionManager</code> 的文件寫它「把指定 DataSource 的一條 JDBC 連線綁到目前的執行緒」（Binds a JDBC Connection from the specified DataSource to the current thread）<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/datasource/DataSourceTransactionManager.html" target="_blank" rel="noopener">出處</a>；負責記帳的 <code>TransactionSynchronizationManager</code> 是「以每條執行緒為單位管理資源與交易同步的中央委派」（Central delegate that manages resources and transaction synchronizations per thread）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronizationManager.html" target="_blank" rel="noopener">出處</a> 同一條執行緒裡後面再用 <code>JdbcTemplate</code> 或 Repository，拿到的都是同一條連線，所以它們自然在同一筆交易裡。</p>
-<p>還要分清兩個詞，Spring 文件特別提醒要注意「實體交易與邏輯交易的差別」（the difference between physical and logical transactions）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> <strong>實體交易</strong>是資料庫真的開的那一筆（一條連線上的 begin 到 commit）；<strong>邏輯交易範圍</strong>是每個標了 <code>@Transactional</code> 的方法各自圈出的一段。好幾個邏輯範圍可以共用同一筆實體交易，這正是傳播行為在決定的事。</p>
+<p>交易開好之後放在哪？<strong>綁在目前這條執行緒上。</strong>JDBC 的交易管理器 <code>DataSourceTransactionManager</code> 把指定 DataSource 的一條 JDBC 連線綁到目前的執行緒<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/datasource/DataSourceTransactionManager.html" target="_blank" rel="noopener">出處</a>；負責記帳的 <code>TransactionSynchronizationManager</code> 以每條執行緒為單位，集中管理資源與交易同步。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronizationManager.html" target="_blank" rel="noopener">出處</a> 同一條執行緒裡後面再用 <code>JdbcTemplate</code> 或 Repository，拿到的都是同一條連線，所以它們自然在同一筆交易裡。</p>
+<p>還要分清兩個詞：實體交易與邏輯交易。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> <strong>實體交易</strong>是資料庫真的開的那一筆（一條連線上的 begin 到 commit）；<strong>邏輯交易範圍</strong>是每個標了 <code>@Transactional</code> 的方法各自圈出的一段。好幾個邏輯範圍可以共用同一筆實體交易，這正是傳播行為在決定的事。</p>
 <p class="muted">以下範例用 Spring Boot 4.1.1（內含 Spring Framework 7.0.9）、Java 21、MySQL 8.4，交易管理器是 <code>JdbcTemplate</code> 搭配的 <code>DataSourceTransactionManager</code>；JPA 那一段另外用 Hibernate 7.4.5 與 H2。傳播與還原規則在 Spring Framework 6.2（Spring Boot 3.4）以後都一樣；Boot 4 的變動之一是 starter（一包預先配好的相依組合）改名，例如 Web 改叫 <code>spring-boot-starter-webmvc</code>。兩張表 <code>transfer_record</code>（轉帳紀錄）與 <code>audit_log</code>（稽核紀錄），每個情境先清空、執行，再數各剩幾筆。</p>
 <pre><code>docker run -d --name tx-mysql -e MYSQL_ROOT_PASSWORD=demo -e MYSQL_DATABASE=bank \
   -p 127.0.0.1:33961:3306 mysql:8.4</code></pre>
@@ -68,17 +68,17 @@
 <section>
 <p class="era">裡面那層，要加入、另開，還是不要交易</p>
 <h3 class="head">七種傳播行為</h3>
-<p>傳播行為（propagation）決定：一個 <code>@Transactional</code> 方法被呼叫時，如果外面已經有交易，它要怎麼辦；外面沒有交易時，又要怎麼辦。<code>Propagation</code> 列舉定義了七種，預設是 <code>REQUIRED</code>：</p>
-<div class="tablewrap"><table><thead><tr><th>傳播行為</th><th>官方說明（原文）</th><th>外層有交易時</th><th>外層沒有交易時</th></tr></thead><tbody>
-<tr><th><code>REQUIRED</code>（預設）</th><td>Support a current transaction, create a new one if none exists.</td><td>加入外層</td><td>自己開一筆</td></tr>
-<tr><th><code>REQUIRES_NEW</code></th><td>Create a new transaction, and suspend the current transaction if one exists.</td><td>暫停外層，另開一筆</td><td>自己開一筆</td></tr>
-<tr><th><code>NESTED</code></th><td>Execute within a nested transaction if a current transaction exists, behave like REQUIRED otherwise.</td><td>在外層裡設儲存點</td><td>跟 REQUIRED 一樣</td></tr>
-<tr><th><code>SUPPORTS</code></th><td>Support a current transaction, execute non-transactionally if none exists.</td><td>加入外層</td><td>不用交易</td></tr>
-<tr><th><code>MANDATORY</code></th><td>Support a current transaction, throw an exception if none exists.</td><td>加入外層</td><td>丟例外</td></tr>
-<tr><th><code>NOT_SUPPORTED</code></th><td>Execute non-transactionally, suspend the current transaction if one exists.</td><td>暫停外層，不用交易</td><td>不用交易</td></tr>
-<tr><th><code>NEVER</code></th><td>Execute non-transactionally, throw an exception if a transaction exists.</td><td>丟例外</td><td>不用交易</td></tr>
+<p>傳播行為（propagation）決定：一個 <code>@Transactional</code> 方法被呼叫時，如果外面已經有交易，它要怎麼辦；外面沒有交易時，又要怎麼辦。<code>Propagation</code> 列舉定義了七種，預設是 <code>REQUIRED</code>：<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>傳播行為</th><th>外層有交易時</th><th>外層沒有交易時</th></tr></thead><tbody>
+<tr><th><code>REQUIRED</code>（預設）</th><td>加入外層</td><td>自己開一筆</td></tr>
+<tr><th><code>REQUIRES_NEW</code></th><td>暫停外層，另開一筆</td><td>自己開一筆</td></tr>
+<tr><th><code>NESTED</code></th><td>在外層裡設儲存點</td><td>跟 REQUIRED 一樣</td></tr>
+<tr><th><code>SUPPORTS</code></th><td>加入外層</td><td>不用交易</td></tr>
+<tr><th><code>MANDATORY</code></th><td>加入外層</td><td>丟例外</td></tr>
+<tr><th><code>NOT_SUPPORTED</code></th><td>暫停外層，不用交易</td><td>不用交易</td></tr>
+<tr><th><code>NEVER</code></th><td>丟例外</td><td>不用交易</td></tr>
 </tbody></table></div>
-<p>原文出自 <code>Propagation</code> 的 API 文件。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html" target="_blank" rel="noopener">出處</a> 表格右兩欄不用背，自己跑一次就看得到：每個方法回報「現在有沒有實體交易、這筆交易是誰開的」，再分別從沒有交易的地方、從一個有交易的外層方法裡呼叫它。</p>
+<p>表格不用背，自己跑一次就看得到：每個方法回報「現在有沒有實體交易、這筆交易是誰開的」，再分別從沒有交易的地方、從一個有交易的外層方法裡呼叫它。</p>
 <pre><code>@Service
 public class ProbeService {
     // 回報「現在有沒有實體交易、交易叫什麼名字」
@@ -165,7 +165,7 @@ NEVER          外層沒有：沒有交易｜外層有：丟出 IllegalTransacti
 <figcaption>REQUIRED 只有一筆實體交易；REQUIRES_NEW 多開第二條連線、外層先暫停；NESTED 還是一筆交易，只是多一個可以退回去的儲存點。</figcaption>
 </figure>
 <ul class="plainlist">
-<li><strong>REQUIRED</strong>：文件說，每個方法各有一個邏輯範圍，但「這些範圍全部對應到同一筆實體交易」（all these scopes are mapped to the same physical transaction），所以內層設的還原標記「會影響外層真正提交的機會」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>REQUIRED</strong>：每個方法各有一個邏輯範圍，但這些範圍全部對應到同一筆實體交易，所以內層設的還原標記會影響外層能不能真正提交。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>REQUIRES_NEW</strong>：「對每個受影響的交易範圍都用獨立的實體交易，絕不參與外層既有的交易」，所以「可以各自獨立提交或還原」，內層的鎖「在它完成後馬上釋放」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>NESTED</strong>：「用單一實體交易，帶著好幾個可以退回去的儲存點」（uses a single physical transaction with multiple savepoints that it can roll back to），內層可以只還原自己那一段，外層繼續；它「通常對應到 JDBC 儲存點，所以只對 JDBC 資源交易有效」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 儲存點（savepoint）是交易中途做的記號，可以只退回到記號那裡，不用整筆還原。</li>
 </ul>
@@ -227,7 +227,7 @@ E NESTED 內層丟例外、外層 catch 住
 F NESTED 內層成功，之後外層失敗
     例外：IllegalStateException；transfer_record 0 筆 []、audit_log 0 筆</code></pre>
 <p>逐一看：A 是同一筆交易，例外丟出去整筆還原；B 是外層吞掉例外，卻拿到 <code>UnexpectedRollbackException</code>（下一段解釋）；C 的稽核用 REQUIRES_NEW 先提交，外層失敗只還原轉帳；D 是 REQUIRES_NEW 內層自己還原、外層照常提交；E 的 NESTED 失敗只退回儲存點，結果跟 D 一樣，但只用一條連線；F 的 NESTED 是外層交易的一部分，外層失敗連它一起還原，這是它跟 REQUIRES_NEW（情境 C）最大的不同。</p>
-<p><strong>UnexpectedRollbackException 從哪來？</strong>情境 B 裡，內層是 REQUIRED，跟外層共用同一筆實體交易。內層丟例外時，它的攔截器把<strong>整筆</strong>交易標成「只能還原」（rollback-only）。外層 catch 住例外繼續跑，結束時要求提交，交易管理器看到標記，只能還原。文件說這時丟出 <code>UnexpectedRollbackException</code> 是刻意的：「讓呼叫端永遠不會被誤導，以為已經提交了，其實沒有」（so that the caller of a transaction can never be misled to assume that a commit was performed when it really was not）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>UnexpectedRollbackException 從哪來？</strong>情境 B 裡，內層是 REQUIRED，跟外層共用同一筆實體交易。內層丟例外時，它的攔截器把<strong>整筆</strong>交易標成「只能還原」（rollback-only）。外層 catch 住例外繼續跑，結束時要求提交，交易管理器看到標記，只能還原。這時丟出 <code>UnexpectedRollbackException</code> 是刻意的：讓呼叫端不會誤以為已經提交了，其實沒有。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="UnexpectedRollbackException 怎麼來的：外層與內層都是 REQUIRED，共用一筆交易；內層丟出例外，攔截器把整筆交易標成只能還原；外層 catch 住例外繼續執行，結束時要求提交，交易管理器發現已被標記，改成還原並丟出 UnexpectedRollbackException">
   <defs><marker id="st-03-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -254,7 +254,9 @@ F NESTED 內層成功，之後外層失敗
 <figcaption>內層與外層共用一筆交易，還原標記記在那一筆上。外層吞掉例外改變不了標記，提交時只能改成還原並丟例外通知。</figcaption>
 </figure>
 <p>要讓內層失敗不拖累外層，做法有三：內層改 REQUIRES_NEW（多一條連線）、內層改 NESTED（JDBC 才行），或內層根本不要丟例外到攔截器，改回傳結果讓外層判斷。</p>
-<p><strong>REQUIRES_NEW 的代價：多吃一條連線。</strong>文件警告，外層的連線還綁著，內層「取得自己的資源，例如一條新的資料庫連線」，這「可能耗盡連線池，甚至造成死結」；「除非連線池大小至少比同時執行的執行緒數多 1，否則不要用 PROPAGATION_REQUIRES_NEW」（Do not use PROPAGATION_REQUIRES_NEW unless your connection pool is appropriately sized, exceeding the number of concurrent threads by at least 1.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 連線池（connection pool）是事先開好、大家輪流借用的一批資料庫連線；全部借光時，後來的執行緒就得排隊等。</p>
+<p><strong>REQUIRES_NEW 的代價：多吃一條連線。</strong>外層的連線還綁著，內層又取得自己的資源（例如一條新的資料庫連線），可能耗盡連線池，甚至造成死結。規則：</p>
+<ul><li>連線池大小至少要比同時執行的執行緒數多 1，否則不要用 <code>PROPAGATION_REQUIRES_NEW</code>。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li></ul>
+<p>連線池（connection pool）是事先開好、大家輪流借用的一批資料庫連線；全部借光時，後來的執行緒就得排隊等。</p>
 <p><strong>銀行情境：轉帳與稽核紀錄要不要同一筆交易？</strong>要看稽核紀錄想證明什麼：</p>
 <div class="tablewrap"><table><thead><tr><th>稽核要記的是</th><th>選擇</th><th>結果</th></tr></thead><tbody>
 <tr><th>「發生了一筆成功的轉帳」</th><td>REQUIRED，跟轉帳同一筆交易</td><td>轉帳還原，稽核也跟著消失，不會留下沒發生的事</td></tr>
@@ -389,7 +391,9 @@ public void d12() {
 <section>
 <p class="era">哪些例外會還原，哪些不會</p>
 <h3 class="head">還原規則：rollbackFor 與受檢例外</h3>
-<p>預設規則，參考文件寫得很直接：「任何 <code>RuntimeException</code> 或 <code>Error</code> 會觸發還原，任何受檢的 <code>Exception</code> 則不會」（Any RuntimeException or Error triggers rollback, and any checked Exception does not.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a> 受檢例外（checked exception）就是方法要寫 <code>throws</code> 才能丟出去的那種，例如 <code>IOException</code>。而且判斷的時機是：交易基礎建設「在例外往上冒出呼叫堆疊時，接住任何沒被處理的例外」（catches any unhandled Exception as it bubbles up the call stack），再決定要不要標成還原。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></p>
+<p>預設規則：</p>
+<ul><li><code>RuntimeException</code> 或 <code>Error</code>：觸發還原</li><li>受檢的 <code>Exception</code>：不還原<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li></ul>
+<p>受檢例外（checked exception）就是方法要寫 <code>throws</code> 才能丟出去的那種，例如 <code>IOException</code>。判斷的時機：例外往上冒出呼叫堆疊時，交易基礎建設接住任何沒被處理的例外，再決定要不要標成還原。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>    // 受檢例外：預設不還原
     @Transactional
     public void checkedDefault() throws IOException {
@@ -410,9 +414,9 @@ public void d12() {
 <p>同樣丟 <code>IOException</code>，預設版本把轉帳<strong>提交</strong>了；加了 <code>rollbackFor = Exception.class</code> 才還原。可以設的規則：</p>
 <ul class="plainlist">
 <li><code>rollbackFor</code>／<code>noRollbackFor</code>：用例外型別指定，丟出的例外「等於這個型別或是它的子類別」就算符合。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
-<li><code>rollbackForClassName</code>：用類別名稱的字串比對，文件提醒它用「名稱包含」比對，<code>"Exception"</code>「幾乎什麼都符合」，可能誤中名字相似的例外，所以優先用型別。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
+<li><code>rollbackForClassName</code>：用類別名稱的字串比對，而且是「名稱包含」的比對，寫 <code>"Exception"</code> 幾乎什麼都符合，可能誤中名字相似的例外，所以優先用型別。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
 <li>整個應用程式改預設：「從 6.2 起，可以全域改變預設的還原行為，例如 <code>@EnableTransactionManagement(rollbackOn = ALL_EXCEPTIONS)</code>，讓交易內丟出的所有例外都還原，包含受檢例外」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li>
-<li>不丟例外也要還原：用 <code>TransactionAspectSupport</code> 拿到目前交易的狀態（<code>currentTransactionStatus()</code>），再呼叫 <code>setRollbackOnly()</code>。文件說這做法「侵入性很高」，能用宣告式就用宣告式。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
+<li>不丟例外也要還原：用 <code>TransactionAspectSupport</code> 拿到目前交易的狀態（<code>currentTransactionStatus()</code>），再呼叫 <code>setRollbackOnly()</code>。這做法侵入性很高，能用宣告式就用宣告式。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 
 <div class="drill">
@@ -506,7 +510,7 @@ readOnly = true：隔離層級 REPEATABLE_READ，唯讀 true
 <ul class="plainlist">
 <li><strong>預設的 <code>Isolation.DEFAULT</code> 是「用底層資料庫的預設」</strong>（Use the default isolation level of the underlying data store）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Isolation.html" target="_blank" rel="noopener">出處</a> 所以同一支程式，MySQL 跑出來是 REPEATABLE_READ，換 H2 實跑是 READ_COMMITTED。換資料庫時這個差別要留意。</li>
 <li><strong>隔離層級只在開新交易時生效。</strong>參考文件的設定表寫 isolation「只適用於 REQUIRED 或 REQUIRES_NEW 傳播」；而且加入既有交易時，「預設會沿用外層範圍的特性，默默忽略自己的隔離層級、逾時與唯讀設定」（silently ignoring the local isolation level, timeout value, or read-only flag (if any)）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 想讓這種不一致直接報錯，可以把交易管理器的 <code>validateExistingTransaction</code> 設成 true。</li>
-<li><strong>唯讀只是提示。</strong><code>readOnly</code> 的 API 文件：「這只是給實際交易子系統的提示，不一定會讓寫入失敗」（it will not necessarily cause failure of write access attempts），看不懂提示的交易管理器「會默默忽略」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html" target="_blank" rel="noopener">出處</a> 實跑結果正好示範：連線確實被設成唯讀（唯讀 true），MySQL 的驅動拒絕寫入；同一段程式換成 H2，寫入照樣成功、留下 1 筆。唯讀交易的價值是讓資料庫與 ORM 做最佳化，不是拿來當權限控管。</li>
+<li><strong>唯讀只是提示。</strong><code>readOnly</code> 只是給實際交易子系統的提示，不一定會讓寫入失敗；看不懂這個提示的交易管理器會直接忽略它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html" target="_blank" rel="noopener">出處</a> 實跑結果正好示範：連線確實被設成唯讀（唯讀 true），MySQL 的驅動拒絕寫入；同一段程式換成 H2，寫入照樣成功、留下 1 筆。唯讀交易的價值是讓資料庫與 ORM 做最佳化，不是拿來當權限控管。</li>
 </ul>
 
 <div class="drill">
@@ -532,7 +536,7 @@ readOnly = true：隔離層級 REPEATABLE_READ，唯讀 true
 <div class="drill">
   <p class="dq">關於 <code>readOnly = true</code>，下面哪一句正確？</p>
   <ul class="dopts"><li>它保證任何寫入都會失敗，可以拿來做權限控管</li><li>它會讓交易的隔離層級變成 SERIALIZABLE</li><li data-ok>它只是提示，擋不擋看資料庫與驅動</li><li>它只對 JPA 有效，用 JdbcTemplate 時這個設定會被完全忽略，連線也不會被設成唯讀</li></ul>
-  <p class="dexp">API 文件：This just serves as a hint……it will not necessarily cause failure of write access attempts。</p>
+  <p class="dexp">readOnly 只是給交易子系統的提示，不一定會讓寫入失敗。</p>
 </div>
 </section>
 
@@ -541,7 +545,7 @@ readOnly = true：隔離層級 REPEATABLE_READ，唯讀 true
 <h3 class="head">常見的失效情境</h3>
 <p>失效分兩類：<strong>代理攔不到</strong>（根本沒開交易），或<strong>攔到了但還原條件不成立</strong>（開了卻不還原）。</p>
 <ul class="plainlist">
-<li><strong>自我呼叫</strong>：參考文件：「在代理模式（預設）下，只有從外面經過代理進來的方法呼叫會被攔截。這表示自我呼叫……即使被呼叫的方法標了 <code>@Transactional</code>，執行期也不會產生實際的交易」（does not lead to an actual transaction at runtime even if the invoked method is marked with @Transactional）。同一頁也提醒：代理要完全初始化才會有預期的行為，不要在 <code>@PostConstruct</code> 這類初始化程式裡依賴它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>自我呼叫</strong>：在代理模式（預設）下，只有從外面經過代理進來的方法呼叫會被攔截。所以自我呼叫時，即使被呼叫的方法標了 <code>@Transactional</code>，執行期也不會產生實際的交易。另外，代理要完全初始化才會有預期的行為，不要在 <code>@PostConstruct</code> 這類初始化程式裡依賴它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>方法可見度</strong>：「從 6.0 起，類別式代理預設也可以讓 protected 或套件可見的方法有交易」；介面式代理的交易方法「永遠必須是 public，而且定義在被代理的介面裡」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a> private 方法別的 Bean 呼叫不到，只能從自己內部呼叫，那就是自我呼叫。6.0 之前只有 public 方法有效（上面那句 As of 6.0 指的就是這個改變）。</li>
 <li><strong>例外被吞掉</strong>：還原的判斷是在例外「往上冒出呼叫堆疊時」做的；方法自己 catch 住、只寫日誌，攔截器看不到例外，就提交。</li>
 <li><strong>另開執行緒</strong>：交易綁在執行緒上，新執行緒拿不到這筆交易的連線，它的寫入自己自動提交。</li>
@@ -633,7 +637,7 @@ public void d20inner() {
 <div class="drill">
   <p class="dq">Spring Framework 6 起，下面哪個方法的 <code>@Transactional</code> 在 Spring Boot（預設 CGLIB 類別式代理）下會生效？（都是從別的 Bean 呼叫）</p>
   <ul class="dopts"><li data-ok>public、protected、套件可見</li><li>只有 public 的</li><li>public 與 private 的</li><li>所有方法，包括 private</li></ul>
-  <p class="dexp">參考文件：As of 6.0, protected or package-visible methods can also be made transactional for class-based proxies by default。實跑時套件可見的方法也回報「在交易中」。private 方法別的 Bean 根本呼叫不到。</p>
+  <p class="dexp">從 Spring Framework 6.0 起，用類別為基礎的代理時，protected 或套件可見的方法預設也能有交易。實跑時套件可見的方法也回報「在交易中」。private 方法別的 Bean 根本呼叫不到。</p>
 </div>
 <div class="drill">
   <p class="dq">轉帳表剩幾筆？呼叫端收到什麼？</p>
@@ -666,7 +670,7 @@ public void swallow() {
 <section>
 <p class="era">提交之後才做的事</p>
 <h3 class="head">@TransactionalEventListener：等交易有結果再通知</h3>
-<p>轉帳成功之後要發簡訊。如果在交易方法裡直接發，萬一後面的步驟失敗還原了，客戶已經收到「轉帳成功」的簡訊。比較好的做法是發布一個事件，讓監聽器等交易有結果再處理。參考文件：用 <code>@TransactionalEventListener</code> 時，「監聽器預設綁在交易的提交階段」；可選的階段有 <code>BEFORE_COMMIT</code>、<code>AFTER_COMMIT</code>（預設）、<code>AFTER_ROLLBACK</code>、<code>AFTER_COMPLETION</code>（提交或還原都算）；而且「如果沒有交易在跑，監聽器根本不會被呼叫」，除非把 <code>fallbackExecution</code> 設成 true。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html" target="_blank" rel="noopener">出處</a></p>
+<p>轉帳成功之後要發簡訊。如果在交易方法裡直接發，萬一後面的步驟失敗還原了，客戶已經收到「轉帳成功」的簡訊。比較好的做法是發布一個事件，讓監聽器等交易有結果再處理。用 <code>@TransactionalEventListener</code> 時，監聽器預設綁在交易的提交階段；可選的階段有 <code>BEFORE_COMMIT</code>、<code>AFTER_COMMIT</code>（預設）、<code>AFTER_ROLLBACK</code>、<code>AFTER_COMPLETION</code>（提交或還原都算）；而且如果沒有交易在跑，監聽器根本不會被呼叫，除非把 <code>fallbackExecution</code> 設成 true。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>    @Transactional
     public void transfer(boolean fail) {
         db.transfer("轉帳 1000");
@@ -726,7 +730,7 @@ public class Notifier {
 </svg>
 <figcaption>一般的 @EventListener 在 publishEvent 當下就跑，比方法結束還早；AFTER_COMMIT 等提交成功才跑，還原時改由 AFTER_ROLLBACK 處理。</figcaption>
 </figure>
-<p>還原那次，<code>@EventListener</code> 還是收到了事件（它在發布當下就執行），AFTER_COMMIT 則沒有執行。所以「提交後才能做」的事（發通知、送訊息到外部系統）要用 AFTER_COMMIT。在 AFTER_COMMIT 裡要再寫資料庫時要小心：<code>TransactionSynchronization.afterCommit</code> 的 API 文件說，這時交易已經提交，但交易資源可能還開著，「這個時間點觸發的任何資料存取程式碼仍然會『參與』原本的交易……（之後不會再有提交！）」（any data access code triggered at this point will still "participate" in the original transaction……(with no commit following anymore!)），所以「從這裡呼叫的任何交易操作都要用 PROPAGATION_REQUIRES_NEW」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronization.html" target="_blank" rel="noopener">出處</a> 沒另開交易的寫入，等於加入一筆已經提交、不會再提交的交易。另外，AFTER_COMMIT 擋住的是「交易還原了，通知卻送出去」；擋不住「交易已經提交、通知還沒送出就當機」，這時通知就漏掉了。要做到提交與送出不會一邊成功一邊失敗，用交易式 Outbox，見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</p>
+<p>還原那次，<code>@EventListener</code> 還是收到了事件（它在發布當下就執行），AFTER_COMMIT 則沒有執行。所以「提交後才能做」的事（發通知、送訊息到外部系統）要用 AFTER_COMMIT。在 AFTER_COMMIT 裡要再寫資料庫時要小心：跑到 <code>TransactionSynchronization.afterCommit</code> 時，交易已經提交，但交易資源可能還開著，這時觸發的資料存取程式碼仍然會參與原本的交易，而且之後不會再有提交。所以從這裡呼叫的任何交易操作都要用 <code>PROPAGATION_REQUIRES_NEW</code>。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/support/TransactionSynchronization.html" target="_blank" rel="noopener">出處</a> 沒另開交易的寫入，等於加入一筆已經提交、不會再提交的交易。另外，AFTER_COMMIT 擋住的是「交易還原了，通知卻送出去」；擋不住「交易已經提交、通知還沒送出就當機」，這時通知就漏掉了。要做到提交與送出不會一邊成功一邊失敗，用交易式 Outbox，見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</p>
 
 <div class="drill">
   <p class="dq">交易方法裡發布事件，之後方法丟例外還原。哪個監聽器<strong>不會</strong>執行？</p>
@@ -741,7 +745,7 @@ public class Notifier {
 <div class="drill">
   <p class="dq">在<strong>沒有交易</strong>的方法裡發布事件，<code>@TransactionalEventListener</code>（沒設 fallbackExecution）會怎樣？</p>
   <ul class="dopts"><li>立刻執行</li><li>等下一筆交易提交時執行</li><li data-ok>不會被呼叫</li><li>丟出 IllegalTransactionStateException</li></ul>
-  <p class="dexp">參考文件：If no transaction is running, the listener is not invoked at all。實跑時只有 @EventListener 收到。要它照樣執行得設 fallbackExecution = true。</p>
+  <p class="dexp">沒有交易在跑時，這種監聽器根本不會被呼叫。實跑時只有 @EventListener 收到。要它照樣執行得設 fallbackExecution = true。</p>
 </div>
 </section>
 
@@ -774,8 +778,8 @@ public class Notifier {
 == JPA 交易管理器下的 NESTED
   結果：NestedTransactionNotSupportedException：Transaction manager does not allow nested transactions by default - specify 'nestedTransactionAllowed' property with value 'true'</code></pre>
 <ul class="plainlist">
-<li><strong>違反唯一限制的錯誤，用 save 時到提交才出現</strong>：方法裡的「save 正常回來了」有印出來，例外是在方法結束、攔截器提交時才丟，方法裡的 try／catch 接不到。想在方法裡就知道，用 <code>saveAndFlush</code>，它「儲存實體，並且立刻 flush 變更」（Saves an entity and flushes changes instantly.）。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/docs/current/api/org/springframework/data/jpa/repository/JpaRepository.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>JPA 交易管理器預設不支援 NESTED</strong>：<code>JpaTransactionManager</code> 的文件說它雖然能用 JDBC 儲存點做巢狀交易，但「<code>nestedTransactionAllowed</code> 預設是 false，因為巢狀交易只作用在 JDBC 連線，不作用在 JPA 的 EntityManager 與它快取的實體物件」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/jpa/JpaTransactionManager.html" target="_blank" rel="noopener">出處</a> 實跑丟出的就是 <code>NestedTransactionNotSupportedException</code>。JPA 專案要「失敗也留下紀錄」，用 REQUIRES_NEW。</li>
+<li><strong>違反唯一限制的錯誤，用 save 時到提交才出現</strong>：方法裡的「save 正常回來了」有印出來，例外是在方法結束、攔截器提交時才丟，方法裡的 try／catch 接不到。想在方法裡就知道，用 <code>saveAndFlush</code>，它儲存實體並且立刻 flush 變更。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/docs/current/api/org/springframework/data/jpa/repository/JpaRepository.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>JPA 交易管理器預設不支援 NESTED</strong>：<code>JpaTransactionManager</code> 雖然能用 JDBC 儲存點做巢狀交易，但 <code>nestedTransactionAllowed</code> 預設是 false，因為巢狀交易只作用在 JDBC 連線，不作用在 JPA 的 EntityManager 與它快取的實體物件。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/orm/jpa/JpaTransactionManager.html" target="_blank" rel="noopener">出處</a> 實跑丟出的就是 <code>NestedTransactionNotSupportedException</code>。JPA 專案要「失敗也留下紀錄」，用 REQUIRES_NEW。</li>
 </ul>
 
 <div class="drill">

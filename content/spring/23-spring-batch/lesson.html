@@ -4,15 +4,25 @@
 <section>
 <p class="era">日終、月底、整批</p>
 <h3 class="head">批次是什麼：Job、Step、chunk</h3>
-<p>銀行有很多事不是一筆一筆即時做，而是累積起來整批做：日終把當天的交易檔入帳、月底計算利息、半夜跟清算單位交換對帳檔。這種「一次處理大量資料、不需要人在旁邊點」的程式叫<strong>批次</strong>（batch）。Spring Batch 是 Spring 寫批次的框架。它的文件說 <strong>Job</strong> 是「封裝整個批次流程的實體」（A Job is an entity that encapsulates an entire batch process.），<strong>Step</strong> 是批次工作裡「一個獨立、依序的階段」，所以「每個 Job 完全由一個或多個 Step 組成」（every Job is composed entirely of one or more steps）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/domain.html" target="_blank" rel="noopener">出處</a></p>
-<p>Step 最常見的寫法是 <strong>chunk 導向</strong>。文件：「chunk 導向的處理是一次讀一筆資料，組成一個個『chunk』，在一個交易邊界內寫出。讀到的筆數等於提交間隔時，整個 chunk 由 ItemWriter 寫出，然後提交交易」（Chunk oriented processing refers to reading the data one at a time and creating 'chunks' that are written out within a transaction boundary. Once the number of items read equals the commit interval, the entire chunk is written out by the ItemWriter, and then the transaction is committed.）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing.html" target="_blank" rel="noopener">出處</a> 就像郵局寄掛號：一封一封蓋章、檢查，湊滿一袋才一起送出去、拿一張收據；這一袋就是 chunk。</p>
+<p>銀行有很多事不是一筆一筆即時做，而是累積起來整批做：日終把當天的交易檔入帳、月底計算利息、半夜跟清算單位交換對帳檔。這種「一次處理大量資料、不需要人在旁邊點」的程式叫<strong>批次</strong>（batch）。Spring Batch 是 Spring 寫批次的框架，兩個最基本的單位：<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/domain.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li><strong>Job</strong>：封裝整個批次流程</li>
+<li><strong>Step</strong>：批次工作裡一個獨立、依序的階段；每個 Job 完全由一個或多個 Step 組成</li>
+</ul>
+<p>Step 最常見的寫法是 <strong>chunk 導向</strong>：<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>一次讀一筆資料，湊成一個個 chunk</li>
+<li>讀到的筆數等於提交間隔（commit interval）時，整個 chunk 由 ItemWriter 寫出</li>
+<li>寫完提交交易；一個 chunk 就是一個交易邊界</li>
+</ul>
+<p>就像郵局寄掛號：一封一封蓋章、檢查，湊滿一袋才一起送出去、拿一張收據；這一袋就是 chunk。</p>
 <figure>
 <svg viewBox="0 0 760 268" role="img" aria-label="Spring Batch 的結構：一個 Job（日終交易入帳）裡有一個 Step。Step 裡 ItemReader 一次讀一筆、ItemProcessor 一次處理一筆，湊滿 1000 筆後 ItemWriter 一次寫出整個 chunk，接著提交交易，再回頭讀下一個 chunk">
 <defs><marker id="sb2-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="20" width="720" height="210" rx="8" fill="none" stroke="currentColor" stroke-opacity=".35"/><text x="36" y="42" font-size="13" text-anchor="start" fill="var(--gold-deep)">Job：importTxJob（日終交易入帳）</text><rect x="40" y="56" width="680" height="160" rx="6" fill="none" stroke="var(--slate)" stroke-dasharray="5 4"/><text x="56" y="76" font-size="12.5" text-anchor="start" fill="var(--slate-deep)">Step：importStep（一個 Job 可以有好幾個 Step，依序執行）</text><rect x="70" y="100" width="150" height="56" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="145.0" y="125.0" font-size="13.5" text-anchor="middle">ItemReader</text><text x="145.0" y="143.0" font-size="11.5" text-anchor="middle" opacity=".7">一次讀一筆</text><rect x="300" y="100" width="150" height="56" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="375.0" y="125.0" font-size="13.5" text-anchor="middle">ItemProcessor</text><text x="375.0" y="143.0" font-size="11.5" text-anchor="middle" opacity=".7">一次處理一筆</text><rect x="530" y="100" width="160" height="56" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="610.0" y="125.0" font-size="13.5" text-anchor="middle">ItemWriter</text><text x="610.0" y="143.0" font-size="11.5" text-anchor="middle" opacity=".7">一次寫一整個 chunk</text><line x1="222" y1="128" x2="298" y2="128" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m1)"/><line x1="452" y1="128" x2="528" y2="128" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m1)"/><text x="260" y="120" font-size="11.5" text-anchor="middle" class="mono">×1000</text><text x="490" y="120" font-size="11.5" text-anchor="middle">湊滿 1000</text><path d="M610 158 Q610 200 380 200 Q150 200 145 160" fill="none" stroke="var(--slate)" stroke-width="1.5" marker-end="url(#sb2-m1)"/><text x="380" y="194" font-size="12" text-anchor="middle" fill="var(--slate-deep)">提交交易，再讀下一個 chunk</text><text x="30" y="254" font-size="12" text-anchor="start" opacity=".6">chunk 大小 1000：讀 1000 筆、逐筆處理、一次寫出、提交一次交易；1 萬筆就是 10 次提交</text>
 </svg>
 <figcaption>chunk 導向：一筆一筆讀與處理，湊滿一包才一起寫、一起提交。</figcaption>
 </figure>
-<p>例子：日終把 1 萬筆交易從 CSV 檔寫進 MySQL 的 <code>tx</code> 表，chunk 大小 1,000。環境是 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 跑的 MySQL 8.4。Spring Boot 4.1 文件列出批次紀錄可以自動設定的三種存放方式：「記憶體、JDBC、MongoDB」（the following stores can be auto-configured: In-memory, JDBC, MongoDB）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/io/spring-batch.html" target="_blank" rel="noopener">出處</a> 只加 <code>spring-boot-starter-batch</code> 是記在記憶體，程式一結束就沒了；要存進資料庫，相依套件用 <code>spring-boot-starter-batch-jdbc</code>：</p>
+<p>例子：日終把 1 萬筆交易從 CSV 檔寫進 MySQL 的 <code>tx</code> 表，chunk 大小 1,000。環境是 Spring Boot 4.1.1（Spring Batch 6.0.5）、Java 21、Docker 跑的 MySQL 8.4。Spring Boot 4.1 可以自動設定的批次紀錄存放方式有三種：記憶體、JDBC、MongoDB。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/io/spring-batch.html" target="_blank" rel="noopener">出處</a> 只加 <code>spring-boot-starter-batch</code> 是記在記憶體，程式一結束就沒了；要存進資料庫，相依套件用 <code>spring-boot-starter-batch-jdbc</code>：</p>
 <pre><code>&lt;dependencies&gt;
   &lt;dependency&gt;
     &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
@@ -39,7 +49,7 @@
 <div class="drill">
   <p class="dq">chunk 導向的 Step 裡，ItemReader、ItemProcessor、ItemWriter 一次各處理多少？</p>
   <ul class="dopts"><li>三個都一次處理整個檔案</li><li data-ok>讀與處理一筆，寫一整包</li><li>三個都一次處理一個 chunk</li><li>讀一個 chunk，處理與寫一次一筆</li></ul>
-  <p class="dexp">文件說一次讀一筆資料組成 chunk，讀到的筆數等於提交間隔時，整個 chunk 由 ItemWriter 寫出，然後提交。</p>
+  <p class="dexp">一次讀一筆資料組成 chunk，讀到的筆數等於提交間隔時，整個 chunk 由 ItemWriter 寫出，然後提交。</p>
 </div>
 <div class="drill">
   <p class="dq">chunk 大小設 1,000，處理 1 萬筆、中間都沒有錯，會提交幾次交易？</p>
@@ -49,7 +59,7 @@
 <div class="drill">
   <p class="dq">Spring Boot 4.1 要讓 Spring Batch 把執行紀錄存進資料庫，相依套件用哪一個？</p>
   <ul class="dopts"><li>spring-boot-starter-web</li><li>spring-boot-starter-actuator</li><li>spring-boot-starter-opentelemetry</li><li data-ok>spring-boot-starter-batch-jdbc</li></ul>
-  <p class="dexp">Spring Boot 4.1 文件列出記憶體、JDBC、MongoDB 三種存放方式；只加 spring-boot-starter-batch 是記在記憶體，加 batch-jdbc 才存進資料庫的 BATCH_ 表。</p>
+  <p class="dexp">Spring Boot 4.1 可以自動設定記憶體、JDBC、MongoDB 三種存放方式；只加 spring-boot-starter-batch 是記在記憶體，加 batch-jdbc 才存進資料庫的 BATCH_ 表。</p>
 </div>
 </section>
 
@@ -58,10 +68,15 @@
 <h3 class="head">JobRepository、JobInstance 與 JobExecution</h3>
 <p>Spring Batch 把每次執行的狀況記在 <strong>JobRepository</strong>，用 JDBC 時就是資料庫裡一組 <code>BATCH_</code> 開頭的表。裡面有兩個容易混的概念：</p>
 <ul class="plainlist">
-<li><strong>JobInstance</strong>：文件說它「指的是一次邏輯上的 Job 執行」，例子正是每天跑一次的日終 Job：「日終 Job 只有一個，但每一次執行都要分開追蹤」。它由 Job 加上參數決定：「JobInstance ＝ Job ＋ 識別用的 JobParameters」（JobInstance = Job + identifying JobParameters）。</li>
-<li><strong>JobExecution</strong>：「一次嘗試執行 Job 的技術概念。一次執行可能失敗或成功，但對應的 JobInstance 要等到某次執行成功完成，才算完成」（An execution may end in failure or success, but the JobInstance corresponding to a given execution is not considered to be complete unless the execution completes successfully.）。</li>
+<li><strong>JobInstance</strong>：一次邏輯上的 Job 執行。例如日終 Job 只有一個，但每一天的執行都要分開追蹤。它由 Job 加上參數決定：JobInstance ＝ Job ＋ 識別用的 JobParameters。</li>
+<li><strong>JobExecution</strong>：一次嘗試執行 Job 的技術概念。一次執行可能失敗或成功，但對應的 JobInstance 要等到某次執行成功完成，才算完成。</li>
 </ul>
-<p>所以「一個 JobInstance 可以有多次 JobExecution」；文件也說，用新的 JobInstance 代表「從頭開始」，用既有的則「通常從上次停下來的地方接著做」。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/domain.html" target="_blank" rel="noopener">出處</a> 換成銀行的話：<code>runDate=2025-10-01</code> 就是「10 月 1 日的日終」這一件事，跑幾次都是同一件事；它成功過，就不該再入帳一次。</p>
+<p>所以一個 JobInstance 可以有多次 JobExecution：<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/domain.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>用新的 JobInstance：從頭開始</li>
+<li>用既有的 JobInstance：通常從上次停下來的地方接著做</li>
+</ul>
+<p>換成銀行的話：<code>runDate=2025-10-01</code> 就是「10 月 1 日的日終」這一件事，跑幾次都是同一件事；它成功過，就不該再入帳一次。</p>
 <figure>
 <svg viewBox="0 0 760 270" role="img" aria-label="JobInstance 與 JobExecution，取自實跑。JobInstance 1 是 runDate 2025-10-01，它的 JobExecution 1 成功；再用同樣的參數跑會被拒絕。JobInstance 2 是 runDate 2025-10-02，JobExecution 2 失敗，修好之後用同樣的參數再跑，產生 JobExecution 3 並成功，兩次執行屬於同一個 JobInstance">
 <defs><marker id="sb2-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="30" y="40" width="230" height="54" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="145.0" y="64.0" font-size="13.5" text-anchor="middle">JobInstance 1</text><text x="145.0" y="82.0" font-size="11.5" text-anchor="middle" opacity=".7">runDate=2025-10-01</text><rect x="30" y="150" width="230" height="54" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="145.0" y="174.0" font-size="13.5" text-anchor="middle">JobInstance 2</text><text x="145.0" y="192.0" font-size="11.5" text-anchor="middle" opacity=".7">runDate=2025-10-02</text><rect x="340" y="40" width="170" height="54" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="425.0" y="64.0" font-size="13.5" text-anchor="middle">JobExecution 1</text><text x="425.0" y="82.0" font-size="11.5" text-anchor="middle" opacity=".7">COMPLETED</text><rect x="340" y="130" width="170" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="425.0" y="149.0" font-size="13.5" text-anchor="middle">JobExecution 2</text><text x="425.0" y="167.0" font-size="11.5" text-anchor="middle" opacity=".7">FAILED</text><rect x="340" y="186" width="170" height="44" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="425.0" y="205.0" font-size="13.5" text-anchor="middle">JobExecution 3</text><text x="425.0" y="223.0" font-size="11.5" text-anchor="middle" opacity=".7">COMPLETED</text><line x1="262" y1="67" x2="338" y2="67" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m2)"/><line x1="262" y1="170" x2="338" y2="152" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m2)"/><line x1="262" y1="184" x2="338" y2="206" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m2)"/><rect x="580" y="40" width="160" height="54" rx="6" fill="var(--surface)" stroke="currentColor" stroke-dasharray="4 3" opacity=".7"/><text x="660" y="62" font-size="12.5" text-anchor="middle">再用 2025-10-01 跑</text><text x="660" y="80" font-size="12" text-anchor="middle" fill="var(--gold-deep)">被拒絕</text><line x1="578" y1="67" x2="514" y2="67" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#sb2-m2)"/><text x="530" y="162" font-size="11.5" text-anchor="start" opacity=".75">修好之後同參數再跑：</text><text x="530" y="180" font-size="11.5" text-anchor="start" opacity=".75">同一個 JobInstance</text><text x="530" y="198" font-size="11.5" text-anchor="start" opacity=".75">多一次 JobExecution</text><text x="30" y="256" font-size="12" text-anchor="start" opacity=".6">灰藍＝JobInstance（Job 加上識別用參數，一個營業日一個）；古銅＝成功的 JobExecution（每跑一次一個）</text>
@@ -98,12 +113,12 @@ Caused by: org.springframework.batch.core.launch.JobInstanceAlreadyCompleteExcep
 <div class="drill">
   <p class="dq">JobInstance 什麼時候才算「完成」？</p>
   <ul class="dopts"><li>第一次執行開始的時候</li><li data-ok>某一次執行成功完成時</li><li>任何一次執行結束，不論成敗</li><li>永遠不算完成</li></ul>
-  <p class="dexp">文件：一次執行可能失敗或成功，但 JobInstance 要等某次執行成功完成才算完成。所以失敗的那天還能再跑。</p>
+  <p class="dexp">一次執行可能失敗或成功，但 JobInstance 要等某次執行成功完成才算完成。所以失敗的那天還能再跑。</p>
 </div>
 <div class="drill">
   <p class="dq">用既有的 JobInstance 再跑一次，和用新的 JobInstance 跑，差在哪？</p>
   <ul class="dopts"><li>沒有差別，都從頭開始</li><li>新的 JobInstance 會沿用上次進度</li><li data-ok>既有的接著做，新的從頭</li><li>既有的 JobInstance 一定會失敗</li></ul>
-  <p class="dexp">文件：新的 JobInstance 代表「從頭開始」，既有的通常「從上次停下來的地方接著做」。重啟靠的就是這一點。</p>
+  <p class="dexp">新的 JobInstance 代表從頭開始，既有的通常從上次停下來的地方接著做。重啟靠的就是這一點。</p>
 </div>
 </section>
 
@@ -114,7 +129,11 @@ Caused by: org.springframework.batch.core.launch.JobInstanceAlreadyCompleteExcep
 <pre><code>txId,account,amount,txDate
 T000001,A00384,2049.99,2025-10-02
 T000002,A00029,1249.42,2025-10-02</code></pre>
-<p>讀檔用 <strong>FlatFileItemReader</strong>：讀「平面檔」（一行一筆、欄位用分隔符號或固定寬度切開的文字檔）。文件說它讀檔遇到任何錯誤時丟 <code>FlatFileParseException</code>（FlatFileParseException is thrown by the FlatFileItemReader when any errors are encountered while trying to read a file.）<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/readers-and-writers/flat-files/file-item-reader.html" target="_blank" rel="noopener">出處</a>，下面跳過的設定就靠這個例外。寫庫用 <strong>JdbcBatchItemWriter</strong>：「用 Named<wbr>Parameter<wbr>Jdbc<wbr>Template 的批次功能，替收到的所有項目執行一批 SQL」（uses the batching features from Named<wbr>Parameter<wbr>Jdbc<wbr>Template to execute a batch of statements for all items provided）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/readers-and-writers/item-reader-writer-implementations.html" target="_blank" rel="noopener">出處</a> 也就是一個 chunk 的 1,000 筆 INSERT 一次送給資料庫，不是送 1,000 趟。</p>
+<p>讀檔與寫庫各用一個現成元件：</p>
+<ul class="plainlist">
+<li><strong>FlatFileItemReader</strong>：讀「平面檔」（一行一筆、欄位用分隔符號或固定寬度切開的文字檔），讀檔遇到任何錯誤時丟 <code>FlatFileParseException</code><a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/readers-and-writers/flat-files/file-item-reader.html" target="_blank" rel="noopener">出處</a>。下面跳過的設定就靠這個例外。</li>
+<li><strong>JdbcBatchItemWriter</strong>：用 <code>Named<wbr>Parameter<wbr>Jdbc<wbr>Template</code> 的批次功能，替收到的所有項目執行一批 SQL<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/readers-and-writers/item-reader-writer-implementations.html" target="_blank" rel="noopener">出處</a>。也就是一個 chunk 的 1,000 筆 INSERT 一次送給資料庫，不是送 1,000 趟。</li>
+</ul>
 <p>整支程式（含後面要講的跳過、重試，以及一段模擬資料庫斷線的程式）：</p>
 <pre><code>package demo.batch;
 
@@ -278,7 +297,7 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <div class="drill">
   <p class="dq">JdbcBatchItemWriter 寫一個 1,000 筆的 chunk 時，怎麼送 SQL 給資料庫？</p>
   <ul class="dopts"><li>每筆開一個新連線送一次</li><li data-ok>一次送出整包 INSERT</li><li>先寫成檔案，再用匯入工具</li><li>只送第一筆，其他的丟掉</li></ul>
-  <p class="dexp">文件說它用 Named<wbr>Parameter<wbr>Jdbc<wbr>Template 的批次功能，替收到的所有項目執行一批 SQL。實跑失敗時的例外也是 BatchUpdateException。</p>
+  <p class="dexp">它用 Named<wbr>Parameter<wbr>Jdbc<wbr>Template 的批次功能，替收到的所有項目執行一批 SQL。實跑失敗時的例外也是 BatchUpdateException。</p>
 </div>
 <div class="drill">
   <p class="dq">ItemProcessor 對某筆交易回傳 <code>null</code>，會怎樣？</p>
@@ -298,7 +317,7 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <div class="drill">
   <p class="dq">交易檔第 6,001 筆的金額寫成 <code>12O0.00</code>（字母 O）。FlatFileItemReader 讀到這筆會？</p>
   <ul class="dopts"><li>把它當成 1200.00 繼續寫入</li><li>把那個欄位當成 0 繼續寫入</li><li data-ok>丟出 FlatFileParseException</li><li>自動跳過這一筆，不需要任何設定</li></ul>
-  <p class="dexp">文件：讀檔遇到任何錯誤時丟 FlatFileParseException。要不要跳過，看 Step 有沒有把它設成可跳過的例外。</p>
+  <p class="dexp">FlatFileItemReader 讀檔遇到任何錯誤時丟 FlatFileParseException。要不要跳過，看 Step 有沒有把它設成可跳過的例外。</p>
 </div>
 <div class="drill">
   <p class="dq">正常跑完的那次，<code>BATCH_STEP_EXECUTION</code> 顯示 READ_COUNT 10000、WRITE_COUNT 10000、COMMIT_COUNT 10。哪一句解讀對？</p>
@@ -311,7 +330,11 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <p class="era">一包有多大</p>
 <h3 class="head">chunk 大小就是交易邊界</h3>
 <p>每個 chunk 是一筆資料庫交易：寫完 1,000 筆才提交，這 1,000 筆要嘛一起進資料庫，要嘛一起還原。Spring 的交易本身怎麼運作，見〈Spring AOP 與交易控制〉與〈@Transactional 的傳播、隔離與失效情境〉；這裡的交易是 Step 用你給它的 <code>Platform<wbr>Transaction<wbr>Manager</code> 開和提交的，不需要再在 writer 上加 <code>@Transactional</code>。</p>
-<p>chunk 該多大？文件：「提交間隔是 1 時，每寫一筆就提交一次。這在很多情況都不理想，因為開始與提交交易很昂貴。理想上，每個交易處理越多筆越好，而這完全看處理的資料類型與 Step 互動的資源而定」（Ideally, it is preferable to process as many items as possible in each transaction, which is completely dependent upon the type of data being processed and the resources with which the step is interacting.）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/commit-interval.html" target="_blank" rel="noopener">出處</a></p>
+<p>chunk 該多大？<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/commit-interval.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>提交間隔是 1 時，每寫一筆就提交一次。這在很多情況都不理想，因為開始與提交交易很昂貴</li>
+<li>理想上每個交易處理越多筆越好，但多大完全看處理的資料類型與 Step 互動的資源而定</li>
+</ul>
 <div class="tablewrap"><table><thead><tr><th>chunk 太小（例如 1）</th><th>chunk 太大（例如 10 萬）</th></tr></thead><tbody>
 <tr><td>每筆一次交易，開關交易的成本吃掉時間</td><td>一筆出錯就整包還原，重做的量大</td></tr>
 <tr><td>斷點很細，重啟時幾乎不重做</td><td>交易很長，鎖住的列多、久，記憶體也吃得多</td></tr>
@@ -327,7 +350,7 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <div class="drill">
   <p class="dq">把 chunk 大小設成 1，每筆提交一次，最主要的缺點是？</p>
   <ul class="dopts"><li data-ok>開關交易太貴</li><li>出錯時要重做的量太大</li><li>記憶體會不夠用</li><li>失敗後就不能重啟</li></ul>
-  <p class="dexp">文件：提交間隔 1 在很多情況都不理想，因為開始與提交交易很昂貴。</p>
+  <p class="dexp">提交間隔 1 在很多情況都不理想，因為開始與提交交易很昂貴。</p>
 </div>
 <div class="drill">
   <p class="dq">把 chunk 大小設成 10 萬（一次全部），可能出什麼問題？</p>
@@ -337,10 +360,10 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <div class="drill">
   <p class="dq">chunk 的交易是誰開、誰提交的？</p>
   <ul class="dopts"><li>要在 writer 方法上自己加 @Transactional</li><li>MySQL 預設的自動提交（autocommit）</li><li>沒有交易，寫進去就算數</li><li data-ok>Step 用設定給它的 Platform<wbr>Transaction<wbr>Manager</li></ul>
-  <p class="dexp">建 Step 時給的 .transactionManager(...) 就是做這件事；文件說它是開始與提交交易的那個 Platform<wbr>Transaction<wbr>Manager。</p>
+  <p class="dexp">建 Step 時給的 .transactionManager(...) 就是做這件事：它就是開始與提交交易的那個 Platform<wbr>Transaction<wbr>Manager。</p>
 </div>
 <div class="drill">
-  <p class="dq">文件對「chunk 該多大」的建議是？</p>
+  <p class="dq">「chunk 該多大」比較合理的原則是？</p>
   <ul class="dopts"><li>一律設成 1</li><li data-ok>越多越好，但看資料與資源</li><li>一律設成 10,000</li><li>跟執行緒數設一樣</li></ul>
   <p class="dexp">沒有固定答案；要依資料類型與 Step 互動的資源（資料庫、檔案）實測決定。</p>
 </div>
@@ -349,8 +372,9 @@ mysql&gt; SELECT STEP_NAME, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_
 <section>
 <p class="era">壞一筆，不一定要整批停</p>
 <h3 class="head">跳過與重試</h3>
-<p><strong>跳過</strong>（skip）：遇到某些錯誤時，略過那一筆繼續做。文件特別提到金融資料：「這通常要由真正懂資料、知道資料意義的人決定。例如金融資料可能不能跳過，因為它會導致錢被轉移，必須完全正確」（Financial data, for example, may not be skippable because it results in money being transferred, which needs to be completely accurate.）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/configuring-skip.html" target="_blank" rel="noopener">出處</a> 所以這課只跳過「格式錯、根本讀不懂的那一筆」，而且最多 10 筆，被跳過的要另外記下來讓人處理；寫入資料庫失敗不跳過。實務上會在 Step 掛一個 <code>SkipListener</code>：文件說讀、處理、寫的監聽器都只會通知「出錯了」，但「沒有一個會告訴你某筆紀錄真的被跳過了」，所以另外有這個專門追蹤跳過項目的介面（onSkipInRead、onSkipInProcess、onSkipInWrite），可以在裡面把被跳過的那筆寫進日誌或錯誤表。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/intercepting-execution.html" target="_blank" rel="noopener">出處</a> 這課的示範程式沒有掛，跳過的那筆只反映在 READ_SKIP_COUNT。</p>
-<p><strong>重試</strong>（retry）：文件說「不是所有例外都是確定的」：讀到格式錯的那一行，重讀幾次都一樣；但像資料庫死結這種錯，「等一下再試可能就成功了」。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/retry-logic.html" target="_blank" rel="noopener">出處</a> 這課對 <code>Transient<wbr>Data<wbr>Access<wbr>Exception</code>（Spring 對「暫時性資料庫錯誤」的分類）重試最多 3 次。Spring Batch 6 的重試設定用的是 Spring Framework 7 的 <code>RetryPolicy</code>，寫法照文件的範例。</p>
+<p><strong>跳過</strong>（skip）：遇到某些錯誤時，略過那一筆繼續做。能不能跳過，通常要由真正懂資料、知道資料意義的人決定；例如金融資料可能不能跳過，因為它會導致錢被轉移，必須完全正確。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/configuring-skip.html" target="_blank" rel="noopener">出處</a> 所以這課只跳過「格式錯、根本讀不懂的那一筆」，而且最多 10 筆，被跳過的要另外記下來讓人處理；寫入資料庫失敗不跳過。</p>
+<p>實務上會在 Step 掛一個 <code>SkipListener</code>：讀、處理、寫的監聽器都只會通知出錯了，沒有一個會告訴你某筆紀錄真的被跳過，所以另外有這個專門追蹤跳過項目的介面（onSkipInRead、onSkipInProcess、onSkipInWrite），可以在裡面把被跳過的那筆寫進日誌或錯誤表。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/intercepting-execution.html" target="_blank" rel="noopener">出處</a> 這課的示範程式沒有掛，跳過的那筆只反映在 READ_SKIP_COUNT。</p>
+<p><strong>重試</strong>（retry）：不是所有例外都是確定的。讀到格式錯的那一行，重讀幾次都一樣；但像資料庫死結這種錯，等一下再試可能就成功了。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/step/chunk-oriented-processing/retry-logic.html" target="_blank" rel="noopener">出處</a> 這課對 <code>Transient<wbr>Data<wbr>Access<wbr>Exception</code>（Spring 對「暫時性資料庫錯誤」的分類）重試最多 3 次。Spring Batch 6 的重試設定用的是 Spring Framework 7 的 <code>RetryPolicy</code>，寫法照官方範例。</p>
 <p>10 月 2 日的檔案動了手腳：第 3,000 筆金額是 0（處理器濾掉）、第 6,001 筆金額格式錯、第 8,000 筆帳號超過欄位長度（<code>VARCHAR(10)</code>）；程式另外在寫到含 T005000 的 chunk 時，假裝資料庫斷線一次。實跑：</p>
 <pre><code>$ java -jar app/target/batch-1.0.jar --spring.batch.job.name=importTxJob inputFile=tx-20251002.csv runDate=2025-10-02 &gt; logs-03.txt 2&gt;&amp;1; echo "exit=$?"; batchlog &lt; logs-03.txt | head -40
 exit=5
@@ -375,9 +399,9 @@ INFO 7426 --- [           main] o.s.b.c.l.s.TaskExecutorJobLauncher      : Job: 
 <p class="formula">格式錯、讀不懂的才跳過，而且設上限；暫時性錯誤（斷線、死結）才重試；資料本身有問題的，讓 Step 失敗、修好再重啟</p>
 
 <div class="drill">
-  <p class="dq">Spring Batch 文件對「金融資料能不能跳過」的看法是？</p>
+  <p class="dq">照 Spring Batch 的建議，金融資料能不能設成可跳過？</p>
   <ul class="dopts"><li>金融資料一律可以跳過</li><li data-ok>可能不能跳過</li><li>文件裡沒有提到</li><li>只能跳過一筆</li></ul>
-  <p class="dexp">原文：Financial data, for example, may not be skippable because it results in money being transferred。要不要跳過，該由懂資料意義的人決定。</p>
+  <p class="dexp">金融資料可能不能跳過，因為它會導致錢被轉移，必須完全正確。要不要跳過，該由懂資料意義的人決定。</p>
 </div>
 <div class="drill">
   <p class="dq">讀到一行金額是 <code>12O0.00</code> 的資料，下面哪個處理比較合理？</p>
@@ -387,7 +411,7 @@ INFO 7426 --- [           main] o.s.b.c.l.s.TaskExecutorJobLauncher      : Job: 
 <div class="drill">
   <p class="dq">寫入資料庫時遇到死結（Deadlock<wbr>Loser<wbr>Data<wbr>Access<wbr>Exception），比較合理的設定是？</p>
   <ul class="dopts"><li data-ok>設成可重試，等一下再試</li><li>設成可跳過，這筆不要了</li><li>直接讓 Job 失敗，不必理會</li><li>把 chunk 改成 1</li></ul>
-  <p class="dexp">文件的例子就是死結：它不是確定性的錯，等一下再試可能就成功。跳過會讓一筆交易不見。</p>
+  <p class="dexp">死結正是典型的例子：它不是確定性的錯，等一下再試可能就成功。跳過會讓一筆交易不見。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑時，含 T005000 的 chunk 第一次寫入丟出 Transient<wbr>Data<wbr>Access<wbr>Resource<wbr>Exception。結果是？</p>
@@ -462,7 +486,7 @@ public class ShowContext {
 batch.stepType = org.springframework.batch.core.step.item.ChunkOrientedStep
 batch.version = 6.0.5
 txReader.read.count = 7000</code></pre>
-<p><code>txReader.read.count = 7000</code>：reader 記得最後一次提交時讀到第 7,000 筆。修正的方法是運維的事（這裡把欄位放寬到 <code>VARCHAR(20)</code>），然後<strong>用同樣的參數</strong>再跑。Spring Boot 文件：「要重啟失敗的 Job，所有參數（識別用與非識別用）都要在命令列重新指定」（To restart a failed Job, all parameters (identifying and non-identifying) must be re-specified on the command line.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/batch.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>txReader.read.count = 7000</code>：reader 記得最後一次提交時讀到第 7,000 筆。修正的方法是運維的事（這裡把欄位放寬到 <code>VARCHAR(20)</code>），然後<strong>用同樣的參數</strong>再跑：重啟失敗的 Job，所有參數（識別用與非識別用）都要在命令列重新指定。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/batch.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>mysql&gt; ALTER TABLE tx MODIFY account VARCHAR(20) NOT NULL
 
 $ java -jar app/target/batch-1.0.jar --spring.batch.job.name=importTxJob inputFile=tx-20251002.csv runDate=2025-10-02 &gt; logs-04.txt 2&gt;&amp;1; echo "exit=$?"; batchlog &lt; logs-04.txt | head -30
@@ -536,7 +560,7 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <div class="drill">
   <p class="dq">修好欄位之後，要讓 10 月 2 日的日終從斷點接著做，該怎麼跑？</p>
   <ul class="dopts"><li data-ok>用一模一樣的參數（inputFile、runDate）再跑一次</li><li>把 runDate 改成 2025-10-03 再跑</li><li>先把 BATCH_ 表全部清空再跑</li><li>把交易檔前 7,000 筆刪掉再跑</li></ul>
-  <p class="dexp">同樣的參數才是同一個 JobInstance，才會沿用上次的執行情境；Spring Boot 文件說重啟要把所有參數重新指定。改參數或清表就變成從頭做，可能重複入帳。</p>
+  <p class="dexp">同樣的參數才是同一個 JobInstance，才會沿用上次的執行情境；重啟要把所有參數重新指定。改參數或清表就變成從頭做，可能重複入帳。</p>
 </div>
 <div class="drill">
   <p class="dq">重啟那次的 READ_COUNT 是 3000。代表？</p>
@@ -551,16 +575,21 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <div class="drill">
   <p class="dq">如果交易檔裡的錯誤一直沒修，Job 失敗後一直被排程器重跑，怎麼防止無限重跑？</p>
   <ul class="dopts"><li>沒辦法，只能人工盯著</li><li>把 chunk 改大一點</li><li data-ok>設 Step 的 start-limit</li><li>把 JobRepository 關掉</li></ul>
-  <p class="dexp">文件：start-limit 預設是 Integer.MAX_VALUE；設成例如 3，第 4 次啟動就丟 Start<wbr>Limit<wbr>Exceeded<wbr>Exception，讓人介入。</p>
+  <p class="dexp">start-limit 預設是 Integer.MAX_VALUE；設成例如 3，第 4 次啟動就丟 Start<wbr>Limit<wbr>Exceeded<wbr>Exception，讓人介入。</p>
 </div>
 </section>
 
 <section>
 <p class="era">一台跑不完怎麼辦</p>
 <h3 class="head">分割平行：一眼</h3>
-<p>資料多到一條執行緒跑不完時，可以把資料切成不重疊的幾段同時跑。Spring Batch 的<strong>分割</strong>（partitioning）是：Job 裡有一個 Step 當 manager，把工作切開交給好幾個 worker；文件說 worker「全都是同一個 Step 的相同實例」，而分割可以在單一行程裡跑，也可以分散到多個行程（Partitioning a Step (single or multi-process)）。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a></p>
+<p>資料多到一條執行緒跑不完時，可以把資料切成不重疊的幾段同時跑。Spring Batch 的<strong>分割</strong>（partitioning）：<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>Job 裡有一個 Step 當 manager，把工作切開交給好幾個 worker</li>
+<li>worker 全都是同一個 Step 的相同實例</li>
+<li>可以在單一行程裡跑，也可以分散到多個行程</li>
+</ul>
 <p>例如月底算利息時，依帳號範圍切成四段，每段各自讀、各自寫、各自記斷點。</p>
-<p>同一頁也寫：「失敗的 Job 永遠可以重啟，而且重啟時只會重新執行失敗的 Step」（A failed Job can always be restarted, and, in that case, only the failed Steps are re-executed.）<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a>；所以哪一段失敗，重啟時只重跑那一段。</p>
+<p>失敗的 Job 永遠可以重啟，而且重啟時只會重新執行失敗的 Step<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/scalability.html" target="_blank" rel="noopener">出處</a>；所以哪一段失敗，重啟時只重跑那一段。</p>
 <figure>
 <svg viewBox="0 0 760 286" role="img" aria-label="分割平行的示意圖：manager Step 把 500 個帳號切成四段，交給四個 worker Step 同時處理，每段 125 個帳號；四個都完成後 manager 才結束。每個 worker 是同一個 Step 的一份，各自讀寫與記斷點">
 <defs><marker id="sb2-m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="30" y="90" width="170" height="60" rx="6" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="115.0" y="117.0" font-size="13.5" text-anchor="middle">manager Step</text><text x="115.0" y="135.0" font-size="11.5" text-anchor="middle" opacity=".7">切成幾個分割</text><rect x="300" y="20" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="39.0" font-size="13.5" text-anchor="middle">worker Step 1</text><text x="400.0" y="57.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00001–A00125</text><line x1="202" y1="120" x2="298" y2="42" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="42" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="300" y="80" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="99.0" font-size="13.5" text-anchor="middle">worker Step 2</text><text x="400.0" y="117.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00126–A00250</text><line x1="202" y1="120" x2="298" y2="102" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="102" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="300" y="140" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="159.0" font-size="13.5" text-anchor="middle">worker Step 3</text><text x="400.0" y="177.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00251–A00375</text><line x1="202" y1="120" x2="298" y2="162" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="162" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="300" y="200" width="200" height="44" rx="6" fill="var(--surface)" stroke="currentColor"/><text x="400.0" y="219.0" font-size="13.5" text-anchor="middle">worker Step 4</text><text x="400.0" y="237.0" font-size="11.5" text-anchor="middle" opacity=".7">帳號 A00376–A00500</text><line x1="202" y1="120" x2="298" y2="222" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5" marker-end="url(#sb2-m4)"/><line x1="502" y1="222" x2="598" y2="120" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5" marker-end="url(#sb2-m4)"/><rect x="600" y="90" width="140" height="60" rx="6" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="670.0" y="117.0" font-size="13.5" text-anchor="middle">全部完成</text><text x="670.0" y="135.0" font-size="11.5" text-anchor="middle" opacity=".7">manager 才結束</text><text x="30" y="272" font-size="12" text-anchor="start" opacity=".6">每個 worker 是同一個 Step 的一份，各自讀寫自己那段資料、各自記斷點；可以在同一台用多條執行緒，也可以在不同機器上跑</text>
@@ -577,12 +606,12 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <div class="drill">
   <p class="dq">分割的 worker 是什麼？</p>
   <ul class="dopts"><li data-ok>同一個 Step 的一份</li><li>另一個不同的 Job</li><li>資料庫的觸發器</li><li>Prometheus 的拉取目標</li></ul>
-  <p class="dexp">文件說 worker 全都是同一個 Step 的相同實例；不同的只是交給它們的資料範圍。</p>
+  <p class="dexp">worker 全都是同一個 Step 的相同實例；不同的只是交給它們的資料範圍。</p>
 </div>
 <div class="drill">
   <p class="dq">四個 worker 裡有一個失敗了，重啟時會怎樣？</p>
   <ul class="dopts"><li data-ok>只接著跑失敗的那段</li><li>四段全部從頭重做一次</li><li>失敗之後就不能重啟了</li><li>改成單執行緒整批重跑</li></ul>
-  <p class="dexp">文件：失敗的 Job 重啟時只會重新執行失敗的 Step。每個 worker 各自有 StepExecution 與斷點，成功的那幾段已完成，不重做。</p>
+  <p class="dexp">失敗的 Job 重啟時只會重新執行失敗的 Step。每個 worker 各自有 StepExecution 與斷點，成功的那幾段已完成，不重做。</p>
 </div>
 </section>
 
@@ -592,20 +621,20 @@ mysql&gt; SELECT tx_id, account FROM tx WHERE tx_id IN ('T005000', 'T006000', 'T
 <p>Spring Batch 不負責「幾點跑」。它的介紹頁說：「Spring Batch 不是排程框架。商業與開源領域都有很多好的企業排程器（例如 Quartz、Tivoli、Control-M）」，Spring Batch 是用來搭配排程器，不是取代它。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/spring-batch-intro.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>Spring 的 <code>@Scheduled</code></strong>：在應用程式裡定時呼叫 JobOperator。簡單，但只活在這個應用程式裡：程式沒開就不會跑，部署多台還要自己避免每台都跑一次。</li>
-<li><strong>外部排程器</strong>（銀行常見的是 Control-M 這類企業排程器）：用命令列啟動批次行程，管理前後相依（例如「收到清算檔才跑對帳」）、重送與告警。文件說這時「命令列是主要的介面」，而且排程器多半只看行程，「回報成功或失敗的唯一方式就是結束代碼……最簡單的情況 0 是成功、1 是失敗」。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/job/running.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>外部排程器</strong>（銀行常見的是 Control-M 這類企業排程器）：用命令列啟動批次行程，管理前後相依（例如「收到清算檔才跑對帳」）、重送與告警。這時命令列是主要的介面，而排程器多半只看行程，回報成功或失敗的唯一方式就是結束代碼；最簡單的情況 0 是成功、1 是失敗。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/job/running.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>這課的四次執行就是用命令列跑的，結束代碼也看得到：成功是 0，失敗是 5，同參數被拒是 1。5 不是隨便的數字：Spring Boot 的 <code>JobExecutionExitCodeGenerator</code> 直接拿 JobExecution 狀態的序號當結束代碼（<code>execution.getStatus().ordinal()</code>）<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-batch/src/main/java/org/springframework/boot/batch/autoconfigure/JobExecutionExitCodeGenerator.java" target="_blank" rel="noopener">出處</a>，而 <code>BatchStatus</code> 依序是 COMPLETED、STARTING、STARTED、STOPPING、STOPPED、FAILED……，從 0 數起 FAILED 正好是 5<a class="fixsrc" href="https://github.com/spring-projects/spring-batch/blob/v6.0.5/spring-batch-core/src/main/java/org/springframework/batch/core/BatchStatus.java" target="_blank" rel="noopener">出處</a>。同參數被拒時 Job 根本沒有開始執行，是啟動過程丟出例外，實跑的結束代碼是 1。外部排程器靠這個數字決定要不要觸發下一個工作、要不要通知值班人員。</p>
 <p class="formula">Spring Batch 管怎麼跑，排程器管幾點跑；銀行的日終多半交給外部排程器用命令列觸發，靠結束代碼判斷成敗</p>
 
 <div class="drill">
-  <p class="dq">Spring Batch 文件對「排程」的說法是？</p>
+  <p class="dq">Spring Batch 跟「排程」的關係是？</p>
   <ul class="dopts"><li>Spring Batch 內建完整的排程</li><li data-ok>不是排程框架，要搭配外部排程器</li><li>Spring Batch 只能在午夜執行</li><li>排程一定要用 @Scheduled</li></ul>
-  <p class="dexp">原文：Spring Batch is not a scheduling framework。它負責批次怎麼跑，幾點跑交給排程器。</p>
+  <p class="dexp">Spring Batch 不是排程框架。它負責批次怎麼跑，幾點跑交給排程器。</p>
 </div>
 <div class="drill">
   <p class="dq">外部排程器用命令列啟動批次，它怎麼知道這次批次成功還是失敗？</p>
   <ul class="dopts"><li>讀 BATCH_ 表</li><li>看日誌有沒有 ERROR</li><li>問 Prometheus</li><li data-ok>看行程的結束代碼</li></ul>
-  <p class="dexp">文件：多數排程器只看行程，回報成敗的唯一方式就是結束代碼。實跑成功是 0、失敗是 5（BatchStatus.FAILED 的序號）、同參數被拒是 1。</p>
+  <p class="dexp">多數排程器只看行程，回報成敗的唯一方式就是結束代碼。實跑成功是 0、失敗是 5（BatchStatus.FAILED 的序號）、同參數被拒是 1。</p>
 </div>
 <div class="drill">
   <p class="dq">日終對帳要「收到清算單位的檔案之後才跑」，部署在三台機器上。用哪一種觸發方式比較合適？</p>

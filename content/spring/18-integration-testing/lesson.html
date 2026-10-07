@@ -6,7 +6,11 @@
 <h3 class="head">測試金字塔：每一層各寫多少</h3>
 <p>〈Spring Boot 單元測試〉把一個服務方法單獨拿出來，用替身物件（Mock）換掉資料庫與其他元件來測。那課最後提醒：測試一旦啟動了完整的 Spring 容器、連了真的資料庫，或跨越多個元件，就比較接近<strong>整合測試</strong>（integration test：把好幾個真的元件接起來一起測，例如控制器、服務加資料庫）。</p>
 <p>先回答「要寫多少」。Martin Fowler 說測試金字塔是「思考不同種類的自動化測試該怎麼搭配、組成一個平衡組合的方式」（a way of thinking about how different kinds of automated tests should be used to create a balanced portfolio），重點是「低層的單元測試要比透過畫面跑的高層測試多很多」（you should have many more low-level UnitTests than high level BroadStackTests running through a GUI）。理由是透過畫面跑完整流程的測試「容易壞、寫起來貴、跑起來花時間」（brittle, expensive to write, and time consuming to run）。<a class="fixsrc" href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">出處</a></p>
-<p>金字塔中間還有一層：不經過畫面、直接從服務層或 API 層打進去的測試。Fowler 說這種測試「能拿到端對端測試的很多好處，又避開處理畫面框架的許多麻煩」（These can provide many of the advantages of end-to-end tests but avoid many of the complexities of dealing with UI frameworks），在網頁應用程式裡就是「透過 API 層測試」。他也提醒：高層測試抓到 bug 時，「修之前應該先用單元測試重現這個 bug」（before fixing a bug exposed by a high level test, you should replicate the bug with a unit test），讓它不會再回來。<a class="fixsrc" href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">出處</a></p>
+<p>金字塔中間還有一層：不經過畫面、直接從服務層或 API 層打進去的測試。</p>
+<ul class="plainlist">
+<li>它拿得到端對端測試的很多好處，又避開處理畫面框架的許多麻煩；在網頁應用程式裡就是透過 API 層測試。</li>
+<li>高層測試抓到 bug 時，修之前先用單元測試重現這個 bug，讓它不會再回來。<a class="fixsrc" href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>Ham Vocke 在「The Practical Test Pyramid」提醒「單元測試」這個詞很模糊，「整合測試更是如此」（“unit tests” is a vague term, this is even more true for “integration tests”）。<a class="fixsrc" href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">出處</a> 所以團隊裡說「我們有整合測試」時，最好講清楚接了哪些真的元件。Spring Boot 的分法：</p>
 <div class="tablewrap"><table><thead><tr><th>層</th><th>這課用的工具</th><th>Spring 容器裡有什麼</th></tr></thead><tbody>
 <tr><td>單元測試</td><td>JUnit 加 Mockito（〈Spring Boot 單元測試〉）</td><td>不啟動 Spring 容器</td></tr>
@@ -42,14 +46,14 @@
 <section>
 <p class="era">載入得越少，啟動得越快</p>
 <h3 class="head">切片測試對 @SpringBootTest：Spring 容器裡放了什麼</h3>
-<p>Spring Boot 文件說，測試時「常常只需要載入測試應用程式某一『片』所需的那部分設定」（It often helps to load only the parts of the configuration that are required to test a “slice” of your application），每個切片「把元件掃描限制在相關的元件，而且只載入很少的自動設定類別」（Each slice restricts component scan to appropriate components and loads a very restricted set of auto-configuration classes）。這種只載入一層的測試叫<strong>切片測試</strong>（slice test）。最常用的兩個加上載入整個應用程式的 <code>@SpringBootTest</code>：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
+<p>測試時常常只需要載入應用程式某一「片」所需的那部分設定。每個切片把元件掃描限制在相關的元件，而且只載入很少的自動設定類別。這種只載入一層的測試叫<strong>切片測試</strong>（slice test）。最常用的兩個加上載入整個應用程式的 <code>@SpringBootTest</code>：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li><code>@WebMvcTest</code>：「自動設定 Spring MVC 的基礎設施，並把掃描的 Bean 限制在 <code>@Controller</code>、<code>@ControllerAdvice</code>……」，「一般的 <code>@Component</code> 與 <code>@ConfigurationProperties</code> Bean 不會被掃描」；文件說它「通常只針對一個控制器，搭配 <code>@MockitoBean</code> 提供需要的協作者的替身」（Often, @WebMvcTest is limited to a single controller and is used in combination with @MockitoBean to provide mock implementations for required collaborators）。</li>
-<li><code>@DataJpaTest</code>：掃描 <code>@Entity</code>、設定 Spring Data JPA 的 repository，一般的 <code>@Component</code> 一樣不掃描；而且「預設 data JPA 測試是交易性的，每個測試結束時還原」（By default, data JPA tests are transactional and roll back at the end of each test）。</li>
-<li><code>@SpringBootTest</code>：「透過 <code>SpringApplication</code> 建立測試用的 ApplicationContext」，等於把整個應用程式照正式啟動的方式載入。預設的 <code>webEnvironment</code> 是 <code>MOCK</code>：「載入 web 用的 ApplicationContext，提供模擬的 web 環境」，「不會啟動內嵌伺服器」（Embedded servers are not started when using this annotation）。</li>
+<li><code>@WebMvcTest</code>：自動設定 Spring MVC 的基礎設施，並把掃描的 Bean 限制在 <code>@Controller</code>、<code>@ControllerAdvice</code> 這類；一般的 <code>@Component</code> 與 <code>@ConfigurationProperties</code> Bean 不會被掃描。通常只針對一個控制器，搭配 <code>@MockitoBean</code> 提供需要的協作者的替身。</li>
+<li><code>@DataJpaTest</code>：掃描 <code>@Entity</code>、設定 Spring Data JPA 的 repository，一般的 <code>@Component</code> 一樣不掃描；而且預設是交易性的，每個測試結束時還原。</li>
+<li><code>@SpringBootTest</code>：透過 <code>SpringApplication</code> 建立測試用的 ApplicationContext，等於把整個應用程式照正式啟動的方式載入。預設的 <code>webEnvironment</code> 是 <code>MOCK</code>：載入 web 用的 ApplicationContext、提供模擬的 web 環境，不會啟動內嵌伺服器。</li>
 </ul>
 <p>還有一條限制：「在一個測試裡用好幾個 <code>@…Test</code> 註解來組合多個切片，不支援」，需要時挑一個，另一個切片的 <code>@AutoConfigure…</code> 註解自己加上。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>版本註記（Spring Boot 4）：</strong>Spring Boot 4.0 把原本幾個大 jar 拆成按技術分的小模組，測試也跟著拆。移轉指南說「每個 starter 都有一個配套的測試 starter」（Each starter has a test starter companion），而且「所有 Spring Boot 的測試模組都命名為 <code>spring-boot-&lt;技術&gt;-test</code>」（All Spring Boot test modules are named spring-boot-&lt;technology&gt;-test）。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 所以本課的測試依賴不是一個 <code>spring-boot-starter-test</code>，而是要哪一層就加哪一層的測試 starter；註解的套件名稱也跟著換，例如 <code>@WebMvcTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>webmvc.<wbr>test.<wbr>autoconfigure</code>、<code>@DataJpaTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>data.<wbr>jpa.<wbr>test.<wbr>autoconfigure</code>（舊教學的 <code>org.<wbr>springframework.<wbr>boot.<wbr>test.<wbr>autoconfigure…</code> 在 4.1 已經找不到）。用到的測試依賴：</p>
+<p><strong>版本註記（Spring Boot 4）：</strong>Spring Boot 4.0 把原本幾個大 jar 拆成按技術分的小模組，測試也跟著拆：每個 starter 都有一個配套的測試 starter，所有 Spring Boot 的測試模組都命名為 <code>spring-boot-&lt;技術&gt;-test</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 所以本課的測試依賴不是一個 <code>spring-boot-starter-test</code>，而是要哪一層就加哪一層的測試 starter；註解的套件名稱也跟著換，例如 <code>@WebMvcTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>webmvc.<wbr>test.<wbr>autoconfigure</code>、<code>@DataJpaTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>data.<wbr>jpa.<wbr>test.<wbr>autoconfigure</code>（舊教學的 <code>org.<wbr>springframework.<wbr>boot.<wbr>test.<wbr>autoconfigure…</code> 在 4.1 已經找不到）。用到的測試依賴：</p>
 <pre><code>&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-webmvc-test&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
 &lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-data-jpa-test&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
 &lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-resttestclient&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
@@ -156,7 +160,7 @@ public class AccountController {
 <div class="drill">
   <p class="dq"><code>@DataJpaTest</code> 的測試方法裡存了一筆帳戶，下一個測試方法開始時查得到它嗎？</p>
   <ul class="dopts"><li>查得到，資料一直留在資料庫裡</li><li data-ok>查不到，每個測試結束時交易就還原了</li><li>查得到，除非手動呼叫 deleteAll()</li><li>要看兩個測試的執行順序</li></ul>
-  <p class="dexp">Spring Boot 文件：data JPA 測試預設是交易性的，每個測試結束時還原。不用自己加 @Transactional。</p>
+  <p class="dexp">data JPA 測試預設是交易性的，每個測試結束時還原。不用自己加 @Transactional。</p>
 </div>
 
 </section>
@@ -164,7 +168,7 @@ public class AccountController {
 <section>
 <p class="era">不開伺服器，也能打一次完整的請求</p>
 <h3 class="head">MockMvc 與 @MockitoBean</h3>
-<p><strong>MockMvc</strong> 是 Spring 提供的請求模擬工具。Spring Framework 文件：它「執行完整的 Spring MVC 請求處理，但用的是模擬的請求與回應物件，而不是一個執行中的伺服器」（It performs full Spring MVC request handling but via mock request and response objects instead of a running server）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/mockmvc.html" target="_blank" rel="noopener">出處</a> 所以 JSON 轉換、<code>@Valid</code> 驗證、<code>@ExceptionHandler</code> 都會真的跑。Spring Boot 文件也提醒：「模擬發生在 Spring MVC 這一層，依賴更底層 servlet 容器行為的程式碼，沒辦法直接用 MockMvc 測」（since mocking occurs at the Spring MVC layer, code that relies on lower-level servlet container behavior cannot be directly tested with MockMvc）。<code>@WebMvcTest</code> 會自動設定 MockMvc；<code>@SpringBootTest</code> 要另外加 <code>@AutoConfigureMockMvc</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>MockMvc</strong> 是 Spring 提供的請求模擬工具。它執行完整的 Spring MVC 請求處理，但用的是模擬的請求與回應物件，而不是一個執行中的伺服器。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/mockmvc.html" target="_blank" rel="noopener">出處</a> 所以 JSON 轉換、<code>@Valid</code> 驗證、<code>@ExceptionHandler</code> 都會真的跑。限制是：模擬發生在 Spring MVC 這一層，依賴更底層 servlet 容器行為的程式碼，沒辦法直接用 MockMvc 測。<code>@WebMvcTest</code> 會自動設定 MockMvc；<code>@SpringBootTest</code> 要另外加 <code>@AutoConfigureMockMvc</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
 <p>控制器測試照〈Spring Boot 單元測試〉的「準備、執行、驗證」三段式寫：<code>when</code> 安排替身回答，<code>perform</code> 送出請求，<code>andExpect</code> 檢查狀態碼與 JSON 內容（<code>jsonPath("$.owner")</code> 指回應 JSON 最外層的 <code>owner</code> 欄位）：</p>
 <pre><code>@WebMvcTest(AccountController.class)
 class AccountControllerTest {
@@ -205,16 +209,16 @@ class AccountControllerTest {
 <p>第三個測試送出 <code>amount: -5</code>，<code>@Positive</code> 驗證失敗回 400；接著 <code>verify(…, never())</code> 確認被擋下來之後，服務從來沒被呼叫。這跟〈Spring Boot 單元測試〉「錯誤路徑也要驗證沒有發生什麼」是同一個想法。</p>
 <p>少了 <code>@AutoConfigureMockMvc</code> 會怎樣？實測把它從 <code>@SpringBootTest</code> 的測試拿掉，注入失敗：<code>No qualifying bean of type 'org.<wbr>springframework.<wbr>test.<wbr>web.<wbr>servlet.<wbr>MockMvc' available</code>。另外，Spring Framework 6.2 起也可以改用 <code>MockMvcTester</code>，用 AssertJ 的寫法串斷言（MockMvc can be used on its own to perform requests and verify responses using Hamcrest or through MockMvcTester which provides a fluent API using AssertJ）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/mockmvc.html" target="_blank" rel="noopener">出處</a></p>
 <h4>@MockitoBean：把 Spring 容器裡的一個 Bean 換成替身</h4>
-<p>〈Spring Boot 單元測試〉的 <code>@Mock</code> 只是建一個替身物件，跟 Spring 無關。在 Spring 測試裡要換的是<strong>容器裡的 Bean</strong>：Spring Framework 文件說 <code>@MockitoBean</code>「可以用在測試類別上，用 Mockito 的替身覆蓋測試 ApplicationContext 裡的一個 Bean」（can be used in test classes to override a bean in the test’s ApplicationContext with a Mockito mock）；預設依型別找，容器裡有就替換、沒有就新建一個。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/annotations/integration-spring/annotation-mockitobean.html" target="_blank" rel="noopener">出處</a></p>
-<p>它的 API 文件寫明：預設「每個測試方法執行之後，替身會自動重設」（mocks are automatically reset after each test method is invoked），這個註解是 Spring Framework 6.2 新增的。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/test/context/bean/override/mockito/MockitoBean.html" target="_blank" rel="noopener">出處</a></p>
-<p>重設之後沒安排過的方法，照 Mockito 的規則回傳預設值：「會回傳 null、基本型別的預設值或空集合」（a mock will return either null, a primitive/primitive wrapper value, or an empty collection, as appropriate）。<a class="fixsrc" href="https://javadoc.io/static/org.mockito/mockito-core/5.23.0/org.mockito/org/mockito/Mockito.html" target="_blank" rel="noopener">出處</a> 實測第一個測試安排 <code>feeFor(500)</code> 回 15，第二個測試沒有安排，拿到的是 0。</p>
+<p>〈Spring Boot 單元測試〉的 <code>@Mock</code> 只是建一個替身物件，跟 Spring 無關。在 Spring 測試裡要換的是<strong>容器裡的 Bean</strong>：<code>@MockitoBean</code> 用在測試類別上，用 Mockito 的替身覆蓋測試 ApplicationContext 裡的一個 Bean；預設依型別找，容器裡有就替換、沒有就新建一個。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/annotations/integration-spring/annotation-mockitobean.html" target="_blank" rel="noopener">出處</a></p>
+<p>預設每個測試方法執行之後，替身會自動重設。這個註解是 Spring Framework 6.2 新增的。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/test/context/bean/override/mockito/MockitoBean.html" target="_blank" rel="noopener">出處</a></p>
+<p>重設之後沒安排過的方法，照 Mockito 的規則回傳預設值：null、基本型別（或包裝類別）的預設值，或空集合，看回傳型別而定。<a class="fixsrc" href="https://javadoc.io/static/org.mockito/mockito-core/5.23.0/org.mockito/org/mockito/Mockito.html" target="_blank" rel="noopener">出處</a> 實測第一個測試安排 <code>feeFor(500)</code> 回 15，第二個測試沒有安排，拿到的是 0。</p>
 <p><strong>版本註記：</strong>以前的寫法是 Spring Boot 的 <code>@MockBean</code>，本課用的 Spring Boot 4.1 已經沒有它了。</p>
 <ul class="plainlist">
-<li>Spring Boot 3.4 起它被標為棄用，「改用 Spring Framework 的 <code>@MockitoBean</code> 與 <code>MockitoSpyBean</code>」。<span class="orig">Spring Boot 3.4 版本說明：in favor of Spring Framework’s @MockitoBean and MockitoSpyBean respectively<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a></span></li>
+<li>Spring Boot 3.4 起標為棄用，改用 Spring Framework 的 <code>@MockitoBean</code> 與 <code>MockitoSpyBean</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a></li>
 <li>API 文件標的是 <code>@Deprecated(<wbr>since="3.<wbr>4.<wbr>0", forRemoval=true)</code><a class="fixsrc" href="https://docs.spring.io/spring-boot/3.5/api/java/org/springframework/boot/test/mock/mockito/MockBean.html" target="_blank" rel="noopener">出處</a>。</li>
 <li>Spring Boot 4.0 正式移除。</li>
 </ul>
-<p>移轉指南也點出一個差別：新的註解「可以當測試類別的欄位，但不能用在 <code>@Configuration</code> 類別裡」（The new annotations are allowed to be used as fields in test classes, but not in @Configuration classes）。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 想讓好幾個測試類別共用同一組替身，這課的做法是寫在共同的父類別上（下一段的 <code>IntegrationTestBase</code>）。</p>
+<p>還有一個差別：新的註解可以當測試類別的欄位，但不能用在 <code>@Configuration</code> 類別裡。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 想讓好幾個測試類別共用同一組替身，這課的做法是寫在共同的父類別上（下一段的 <code>IntegrationTestBase</code>）。</p>
 <p class="formula">MockMvc 不開伺服器也跑完整的 MVC 流程；@WebMvcTest 自帶 MockMvc，@SpringBootTest 要加 @AutoConfigureMockMvc；換容器裡的 Bean 用 @MockitoBean，它每個測試後自動重設</p>
 <div class="drill">
   <p class="dq">用 MockMvc 執行 <code>mvc.<wbr>perform(<wbr>get(<wbr>"/accounts/7"))</code> 時，會不會真的開一個連接埠、走一次網路？</p>
@@ -249,12 +253,12 @@ class AccountControllerTest {
 <div class="drill">
   <p class="dq">想把好幾個 <code>@MockitoBean</code> 欄位寫在一個 <code>@TestConfiguration</code> 類別裡，讓多個測試 <code>@Import</code> 共用。可以嗎？</p>
   <ul class="dopts"><li>可以，跟以前的 @MockBean 一樣</li><li>可以，但要加 @Primary</li><li data-ok>不行，新註解只能當測試類別的欄位，不能寫在設定類別裡</li><li>不行，@MockitoBean 只能用在 @WebMvcTest</li></ul>
-  <p class="dexp">Spring Boot 4.0 移轉指南寫明：新的註解可以當測試類別的欄位，但不能用在 @Configuration 類別裡。要共用就寫在共同的父類別，本課的 IntegrationTestBase 就是這樣做。</p>
+  <p class="dexp">Spring Boot 4.0 起，新的註解可以當測試類別的欄位，但不能用在 @Configuration 類別裡。要共用就寫在共同的父類別，本課的 IntegrationTestBase 就是這樣做。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一種行為，MockMvc 沒辦法直接測？</p>
   <ul class="dopts"><li>控制器回傳的 JSON 欄位值</li><li>@ExceptionHandler 把例外轉成 404</li><li data-ok>依賴 servlet 容器底層行為的程式碼</li><li>@Valid 驗證失敗時的 400</li></ul>
-  <p class="dexp">Spring Boot 文件：模擬發生在 Spring MVC 這一層，依賴更底層 servlet 容器行為的程式碼沒辦法直接用 MockMvc 測，那種要啟動真的伺服器。其他三項都在 MVC 這一層。</p>
+  <p class="dexp">模擬發生在 Spring MVC 這一層，依賴更底層 servlet 容器行為的程式碼沒辦法直接用 MockMvc 測，那種要啟動真的伺服器。其他三項都在 MVC 這一層。</p>
 </div>
 
 </section>
@@ -263,7 +267,7 @@ class AccountControllerTest {
 <p class="era">測試連的資料庫，最好跟正式環境同一套</p>
 <h3 class="head">Testcontainers：每次測試起一個真的 MySQL</h3>
 <p>整合測試要連資料庫，最直接的做法是連一個跟正式環境同一套的資料庫。<strong>Testcontainers</strong> 是一個 Java 函式庫，它「支援 JUnit 測試，提供常見資料庫……或任何能在 Docker 容器裡跑的東西的輕量、用完即丟的實例」（providing lightweight, throwaway instances of common databases, Selenium web browsers, or anything else that can run in a Docker container）。用在資料存取層的整合測試，就是「用容器化的 MySQL、PostgreSQL 或 Oracle 測試資料存取程式碼，確認完全相容，又不需要在開發者電腦上做複雜設定，而且每次測試都從已知的資料庫狀態開始」。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/index.md" target="_blank" rel="noopener">出處</a> 前提是跑測試的電腦要有容器執行環境：「要跑以 Testcontainers 為基礎的測試，需要一個相容 Docker API 的容器執行環境」（you need a Docker-API compatible container runtime），本機裝 Docker 是最常見的做法，CI 機器也一樣。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/supported_docker_environment/index.md" target="_blank" rel="noopener">出處</a>（Docker 容器跟 Spring 容器是兩回事：前者是一個隔離執行的程式環境，這裡用來跑 MySQL；後者是 Spring 管理 Bean 的 ApplicationContext。）</p>
-<p>連線設定交給 Spring Boot 的<strong>服務連線</strong>（service connection）。Spring Boot 文件：「服務連線是對任何遠端服務的連線。Spring Boot 的自動設定可以讀取服務連線的細節來建立連線；這時，連線細節比任何連線相關的設定屬性優先」（the connection details take precedence over any connection-related configuration properties）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/testcontainers.html" target="_blank" rel="noopener">出處</a> 在容器上標 <code>@ServiceConnection</code>，資料來源的網址、帳號、密碼就自動接到這個容器，不用自己寫 <code>spring.datasource.url</code>。本課把容器宣告成 Bean，放在一個測試設定類別裡：</p>
+<p>連線設定交給 Spring Boot 的<strong>服務連線</strong>（service connection）。服務連線是對任何遠端服務的連線，Spring Boot 的自動設定讀取它的細節來建立連線；這時，連線細節比任何連線相關的設定屬性優先。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/testcontainers.html" target="_blank" rel="noopener">出處</a> 在容器上標 <code>@ServiceConnection</code>，資料來源的網址、帳號、密碼就自動接到這個容器，不用自己寫 <code>spring.datasource.url</code>。本課把容器宣告成 Bean，放在一個測試設定類別裡：</p>
 <pre><code>import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -277,7 +281,12 @@ public class TestcontainersConfig {
         return new MySQLContainer("mysql:8.4");
     }
 }</code></pre>
-<p>容器當成 Bean 時，「生命週期由 Spring 管理：容器 Bean 比其他 Bean 先建立、先啟動」，「在其他 Bean 都銷毀之後才停止」；而且「每個由 Spring TestContext 框架管理的 ApplicationContext，容器 Bean 各建立、啟動一次」（Container beans are created and started once per application context managed by Spring’s TestContext Framework）。文件也建議：Spring 容器被快取期間還要能用時，優先把容器當 Bean 管理。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/testcontainers.html" target="_blank" rel="noopener">出處</a></p>
+<p>容器當成 Bean 時，生命週期由 Spring 管理：</p>
+<ul class="plainlist">
+<li>容器 Bean 比其他 Bean 先建立、先啟動，在其他 Bean 都銷毀之後才停止。</li>
+<li>每個由 Spring TestContext 框架管理的 ApplicationContext，容器 Bean 各建立、啟動一次。</li>
+<li>Spring 容器被快取期間還要能用時，優先把容器當 Bean 管理。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/testcontainers.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>（Testcontainers 2 起 MySQL 模組的 Maven 名稱是 <code>testcontainers-mysql</code>、類別在 <code>org.<wbr>testcontainers.<wbr>mysql</code>，而且不再帶泛型，網路上舊範例的 <code>MySQLContainer&lt;?&gt;</code> 是 1.x 的寫法。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/modules/databases/mysql.md" target="_blank" rel="noopener">出處</a>）</p>
 <p>容器也可以改寫成測試類別的 <code>static</code> 欄位交給 Testcontainers 管，或換成 PostgreSQL（容器換成 <code>PostgreSQLContainer</code>、依賴換成 PostgreSQL 的驅動與 Testcontainers 模組，本課兩種都實跑過），寫法見 Testcontainers 文件。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/modules/databases/postgres.md" target="_blank" rel="noopener">出處</a></p>
 <p>repository 的切片測試加上這個設定，就是在真的 MySQL 上跑。第二個測試是 MySQL 的原生查詢：</p>
@@ -309,8 +318,8 @@ class AccountRepositoryTest {
 <pre><code>Container mysql:8.4 started in PT7.272961S
 Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.047 s -- in demo.bank.AccountRepositoryTest</code></pre>
-<p>注意這個測試沒寫 <code>@AutoConfigureTestDatabase(<wbr>replace = Replace.<wbr>NONE)</code>，連的還是 MySQL 容器。原因是 Spring Boot 3.4 起這個註解預設 <code>replace = NON_TEST</code>：「除非 DataSource 是自動設定、而且連到測試資料庫，否則就替換」，而 <code>@ServiceConnection</code> 標的 Testcontainers 資料庫就算測試資料庫。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/api/java/org/springframework/boot/jdbc/test/autoconfigure/AutoConfigureTestDatabase.Replace.html" target="_blank" rel="noopener">出處</a></p>
-<p>3.4 的版本說明寫的是：這個註解「現在會試著偵測資料庫是不是來自容器」（now attempts to detect if a database has been sourced from a container），所以「應該不再需要加 replace=Replace.NONE」；要回到舊行為就設 <code>replace=Replace.<wbr>AUTO_CONFIGURED</code>（If you need to revert to the old behavior, set replace=Replace.AUTO_CONFIGURED on the annotation）。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a></p>
+<p>注意這個測試沒寫 <code>@AutoConfigureTestDatabase(<wbr>replace = Replace.<wbr>NONE)</code>，連的還是 MySQL 容器。原因是 Spring Boot 3.4 起這個註解預設 <code>replace = NON_TEST</code>：除非 DataSource 是自動設定、而且連到測試資料庫，否則就替換；而 <code>@ServiceConnection</code> 標的 Testcontainers 資料庫就算測試資料庫。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/api/java/org/springframework/boot/jdbc/test/autoconfigure/AutoConfigureTestDatabase.Replace.html" target="_blank" rel="noopener">出處</a></p>
+<p>3.4 起這個註解會試著偵測資料庫是不是來自容器，所以應該不再需要加 <code>replace=Replace.NONE</code>；要回到舊行為就設 <code>replace=Replace.<wbr>AUTO_CONFIGURED</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a></p>
 <p>也就是說，3.4 以前只要 DataSource 是自動設定的，就換成內嵌資料庫；<code>@ServiceConnection</code> 接上的容器也是自動設定，會被換掉，所以舊教學常見要加 <code>replace = NONE</code>（自己手動定義的 DataSource 本來就不換）。</p>
 <p class="formula">Testcontainers 在 Docker 裡起一個用完即丟的真資料庫；@ServiceConnection 自動接上連線，而且比設定檔優先；容器當 Bean 時，每個 Spring 容器各起一個</p>
 <div class="drill">
@@ -321,7 +330,7 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 <div class="drill">
   <p class="dq">容器標了 <code>@ServiceConnection</code>，<code>application.properties</code> 卻還留著一行指向公司測試機的 <code>spring.datasource.url</code>。測試連到哪？</p>
   <ul class="dopts"><li>公司測試機，因為設定檔永遠最優先</li><li>兩邊都連，同一筆資料寫兩份</li><li>啟動失敗，Spring 不知道兩個連線設定該聽哪個</li><li data-ok>MySQL 容器，服務連線優先於設定屬性</li></ul>
-  <p class="dexp">Spring Boot 文件：使用服務連線時，連線細節比任何連線相關的設定屬性優先。</p>
+  <p class="dexp">使用服務連線時，連線細節比任何連線相關的設定屬性優先。</p>
 </div>
 <div class="drill">
   <p class="dq">本課實跑共建了 5 個 Spring 容器，其中 4 個要連資料庫，容器都用 <code>TestcontainersConfig</code> 的 Bean。整批測試起了幾個 MySQL 容器？</p>
@@ -336,7 +345,7 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 <div class="drill">
   <p class="dq">為什麼 repository 裡的原生 SQL 查詢，特別值得在跟正式環境同一套的資料庫上測？</p>
   <ul class="dopts"><li>記憶體資料庫完全不支援原生 SQL，連資料表都建不起來</li><li>原生 SQL 一定比 JPQL 慢，要在真的資料庫上量時間</li><li>Spring Data 規定原生查詢只能連真的資料庫，否則會丟例外</li><li data-ok>原生 SQL 綁著資料庫的語法，換一套就不是在測正式那條 SQL</li></ul>
-  <p class="dexp">Testcontainers 文件說用容器化的資料庫測試資料存取層，是為了確認完全相容。原生 SQL 直接送給資料庫，語法與行為跟著資料庫走。</p>
+  <p class="dexp">用容器化的資料庫測試資料存取層，是為了確認跟正式資料庫完全相容。原生 SQL 直接送給資料庫，語法與行為跟著資料庫走。</p>
 </div>
 <div class="drill">
   <p class="dq">想把本課的 MySQL 換成 PostgreSQL，測試這邊最少要改什麼？</p>
@@ -346,7 +355,7 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 <div class="drill">
   <p class="dq">容器宣告成 Spring Bean 的好處，下面哪一句符合 Spring Boot 文件？</p>
   <ul class="dopts"><li data-ok>容器比其他 Bean 先啟動、最後才停止</li><li>容器 Bean 會在每個測試方法之後重啟，保證資料乾淨</li><li>容器 Bean 啟動時間會降到 1 秒以內</li><li>容器 Bean 可以讓多個 JVM 共用同一個容器</li></ul>
-  <p class="dexp">文件說容器當 Bean 時生命週期由 Spring 管理：先於其他 Bean 建立與啟動、在其他 Bean 銷毀之後才停止，依賴容器的 Bean 才用得到它。資料乾淨靠的是交易還原，不是重啟容器。</p>
+  <p class="dexp">容器當 Bean 時生命週期由 Spring 管理：先於其他 Bean 建立與啟動、在其他 Bean 銷毀之後才停止，依賴容器的 Bean 才用得到它。資料乾淨靠的是交易還原，不是重啟容器。</p>
 </div>
 
 </section>
@@ -354,7 +363,12 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 <section>
 <p class="era">測完就還原，但不是每次都還原得了</p>
 <h3 class="head">測試資料與交易還原</h3>
-<p>整合測試每次都會寫資料進資料庫，下一個測試怎麼不被上一個的資料干擾？Spring Framework 文件：「在測試方法上加 <code>@Transactional</code>，測試就會在一個交易裡跑，預設測試結束後自動還原」（causes the test to be run within a transaction that is, by default, automatically rolled back after completion of the test），要改成提交可以用 <code>@Commit</code> 或 <code>@Rollback(false)</code>；<code>@BeforeEach</code>、<code>@AfterEach</code> 也「在測試管理的交易裡執行」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/tx.html" target="_blank" rel="noopener">出處</a> 交易本身怎麼開、怎麼還原，見〈Spring AOP 與交易控制〉。</p>
+<p>整合測試每次都會寫資料進資料庫，下一個測試怎麼不被上一個的資料干擾？在測試方法上加 <code>@Transactional</code>，測試就會在一個交易裡跑，預設測試結束後自動還原：</p>
+<ul class="plainlist">
+<li>要改成提交，用 <code>@Commit</code> 或 <code>@Rollback(false)</code>。</li>
+<li><code>@BeforeEach</code>、<code>@AfterEach</code> 也在測試管理的交易裡執行。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/tx.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>交易本身怎麼開、怎麼還原，見〈Spring AOP 與交易控制〉。</p>
 <p>整合測試的共用設定放在一個父類別：</p>
 <pre><code>@SpringBootTest
 @AutoConfigureMockMvc
@@ -403,9 +417,9 @@ class TransferIntegrationTest extends IntegrationTestBase {
 <pre><code>本次測試的帳戶 id：2、3，資料表筆數：2
 本次測試的帳戶 id：4、5，資料表筆數：2
 [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.062 s -- in demo.bank.TransferIntegrationTest</code></pre>
-<p>兩件事從輸出看得出來。第一，兩個測試開始時資料表都只有 2 筆：上一個測試存的資料已經還原。第二，id 卻一直往上：1 號被同一個資料庫裡先跑的 <code>AccountQueryIntegrationTest</code> 用掉，接著 2、3，再來 4、5。MySQL 文件說，產生自動遞增值的交易還原時，「那些自動遞增值就『遺失』了」，而且「遺失的值不會重用」（Such lost values are not reused）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-auto-increment-handling.html" target="_blank" rel="noopener">出處</a> 所以測試不要寫死 id，一律用 <code>save</code> 回傳的 id。</p>
+<p>兩件事從輸出看得出來。第一，兩個測試開始時資料表都只有 2 筆：上一個測試存的資料已經還原。第二，id 卻一直往上：1 號被同一個資料庫裡先跑的 <code>AccountQueryIntegrationTest</code> 用掉，接著 2、3，再來 4、5。MySQL 裡，產生自動遞增值的交易還原時，那些自動遞增值就「遺失」了，而且遺失的值不會重用。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-auto-increment-handling.html" target="_blank" rel="noopener">出處</a> 所以測試不要寫死 id，一律用 <code>save</code> 回傳的 id。</p>
 <h4>陷阱一：沒有 flush，測試綠燈、正式環境才爆</h4>
-<p>JPA 改了實體欄位，不會馬上送 UPDATE 給資料庫，而是等 flush（把記在記憶體裡的修改送出去）或交易提交時才送。測試最後是還原、不是提交，UPDATE 可能從頭到尾都沒送出。Spring Framework 文件特別警告：「沒有 flush 底層的工作單元（這裡就是 JPA 記著、還沒送出的那些修改），可能造成假綠燈（測試說沒問題，其實有問題）：測試通過，但同樣的程式碼在正式環境丟出例外」（Failing to flush the underlying unit of work can produce false positives: Your test passes, but the same code throws an exception in a live, production environment）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/tx.html" target="_blank" rel="noopener">出處</a> 實測 <code>owner</code> 欄位長度是 20：</p>
+<p>JPA 改了實體欄位，不會馬上送 UPDATE 給資料庫，而是等 flush（把記在記憶體裡的修改送出去）或交易提交時才送。測試最後是還原、不是提交，UPDATE 可能從頭到尾都沒送出。沒有 flush 底層的工作單元（這裡就是 JPA 記著、還沒送出的那些修改），可能造成假綠燈（測試說沒問題，其實有問題）：測試通過，但同樣的程式碼在正式環境丟出例外。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/tx.html" target="_blank" rel="noopener">出處</a> 實測 <code>owner</code> 欄位長度是 20：</p>
 <pre><code>    @Test
     void 沒有flush_欄位太長也照樣綠燈() {
         Account a = accounts.save(new Account("王小明", 1000));
@@ -424,8 +438,8 @@ class TransferIntegrationTest extends IntegrationTestBase {
 <pre><code>[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.047 s -- in demo.bank.AccountRepositoryTest</code></pre>
 <p>兩個測試都通過，但意思完全不同：第一個是假綠燈，太長的戶名從沒碰到資料庫；第二個在斷言前呼叫 <code>flush()</code>，MySQL 立刻回 <code>Data too long for column 'owner'</code>。測試會修改資料的 JPA 程式碼時，斷言前先 flush。</p>
 <h4>陷阱二：真的伺服器在另一個執行緒，測試交易管不到它</h4>
-<p>前面的測試都用預設的 <code>MOCK</code> 環境，MockMvc 在測試的同一個執行緒裡跑，控制器寫的資料也在同一個測試交易裡，會一起還原。改成 <code>RANDOM_PORT</code> 就不一樣了。Spring Boot 文件：「用 <code>RANDOM_PORT</code> 或 <code>DEFINED_PORT</code> 時會提供真的 servlet 環境，HTTP 用戶端與伺服器在不同的執行緒、因此在不同的交易裡跑。在伺服器上開始的交易，這時不會還原」（Any transaction initiated on the server does not roll back in this case）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a> Spring Framework 文件也說明原因：測試交易的狀態是綁在目前執行緒上（透過 <code>ThreadLocal</code>）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/tx.html" target="_blank" rel="noopener">出處</a> 交易為什麼跟著執行緒走，見〈@Transactional 的傳播、隔離與失效情境〉。</p>
-<p>這個測試要對真的伺服器發 HTTP 請求。Spring Boot 4 的移轉指南提醒：「<code>@SpringBootTest</code> 不會再提供任何 WebClient 或 TestRestTemplate Bean」（Using the @SpringBootTest annotation will no longer provide any WebClient or TestRestTemplate beans），也建議「考慮把 TestRestTemplate 換成新的 <code>RestTestClient</code>」。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 參考文件的寫法是：需要對啟動的伺服器發 REST 呼叫的測試，在類別上加 <code>@AutoConfigureRestTestClient</code> 就能注入 <code>RestTestClient</code>（Tests that need to make REST calls to the started server can autowire a RestTestClient by annotating the test class with @AutoConfigureRestTestClient）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a> 它在 <code>spring-boot-resttestclient</code> 這個測試模組裡。</p>
+<p>前面的測試都用預設的 <code>MOCK</code> 環境，MockMvc 在測試的同一個執行緒裡跑，控制器寫的資料也在同一個測試交易裡，會一起還原。改成 <code>RANDOM_PORT</code> 就不一樣了：用 <code>RANDOM_PORT</code> 或 <code>DEFINED_PORT</code> 時會提供真的 servlet 環境，HTTP 用戶端與伺服器在不同的執行緒、因此在不同的交易裡跑，在伺服器上開始的交易這時不會還原。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a> 原因是測試交易的狀態綁在目前執行緒上（透過 <code>ThreadLocal</code>）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/tx.html" target="_blank" rel="noopener">出處</a> 交易為什麼跟著執行緒走，見〈@Transactional 的傳播、隔離與失效情境〉。</p>
+<p>這個測試要對真的伺服器發 HTTP 請求。Spring Boot 4 起，<code>@SpringBootTest</code> 不再提供任何 WebClient 或 TestRestTemplate Bean，建議考慮把 TestRestTemplate 換成新的 <code>RestTestClient</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 需要對啟動的伺服器發 REST 呼叫的測試，在類別上加 <code>@AutoConfigureRestTestClient</code> 就能注入 <code>RestTestClient</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a> 它在 <code>spring-boot-resttestclient</code> 這個測試模組裡。</p>
 <pre><code>@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
 @Import(TestcontainersConfig.class)
@@ -458,12 +472,12 @@ class RandomPortTest {
 <div class="drill">
   <p class="dq"><code>@Transactional</code> 的測試類別裡，<code>@BeforeEach</code> 存了兩個帳戶。下一個測試方法開始時，上一輪那兩筆還在嗎？</p>
   <ul class="dopts"><li>還在，因為 @BeforeEach 不在測試交易裡</li><li>還在，要等整個測試類別跑完才一起還原</li><li data-ok>不在了，@BeforeEach 也在測試交易裡</li><li>要看資料庫是不是 MySQL，各家資料庫不一樣</li></ul>
-  <p class="dexp">Spring Framework 文件：@BeforeEach、@AfterEach 在交易性測試方法的測試交易裡執行。實跑兩個測試開始時資料表都只有 2 筆。</p>
+  <p class="dexp">@BeforeEach、@AfterEach 在交易性測試方法的測試交易裡執行。實跑兩個測試開始時資料表都只有 2 筆。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個 MySQL 裡，第一個測試存的兩筆拿到 id 2、3，測試結束後還原。第二個測試再存兩筆，id 是？</p>
   <ul class="dopts"><li>2、3，還原後從頭再用</li><li data-ok>4、5</li><li>1、2，還原後自動遞增值歸零</li><li>不一定，MySQL 隨機挑</li></ul>
-  <p class="dexp">MySQL 文件：交易還原時，它產生的自動遞增值就遺失了，而且不會重用。實跑第二個測試拿到 4、5。</p>
+  <p class="dexp">MySQL 的交易還原時，它產生的自動遞增值就遺失了，而且不會重用。實跑第二個測試拿到 4、5。</p>
 </div>
 <div class="drill">
   <p class="dq">承上，下面哪種斷言寫法最穩？</p>
@@ -473,7 +487,7 @@ class RandomPortTest {
 <div class="drill">
   <p class="dq"><code>@DataJpaTest</code> 測試把戶名改成 30 個字（欄位長度 20），沒有 flush，測試就結束了。結果？</p>
   <ul class="dopts"><li>測試失敗：Data too long for column</li><li data-ok>測試通過：UPDATE 從頭到尾沒送到資料庫</li><li>測試失敗：交易還原時才報錯</li><li>Hibernate 先截成 20 個字再存</li></ul>
-  <p class="dexp">修改實體不會馬上送 UPDATE，要等 flush 或提交；測試最後是還原，UPDATE 沒送出，資料庫沒機會報錯。這就是 Spring 文件說的假綠燈（false positive）。實跑這個測試是綠燈。</p>
+  <p class="dexp">修改實體不會馬上送 UPDATE，要等 flush 或提交；測試最後是還原，UPDATE 沒送出，資料庫沒機會報錯。這就是假綠燈（false positive）。實跑這個測試是綠燈。</p>
 </div>
 <div class="drill">
   <p class="dq">承上，要讓這個錯誤在測試裡現形，該怎麼做？</p>
@@ -488,12 +502,12 @@ class RandomPortTest {
 <div class="drill">
   <p class="dq">承上，這種測試透過 API 新增的資料，測試結束時會被還原嗎？</p>
   <ul class="dopts"><li>會，@Transactional 會還原所有資料</li><li>會，Spring Boot 會在每個測試後清空資料表</li><li>只會還原一半</li><li data-ok>不會，伺服器上開始的交易不會還原，要自己清</li></ul>
-  <p class="dexp">Spring Boot 文件：在伺服器上開始的交易，這種情況下不會還原。要在 @AfterEach 自己刪，或讓資料準備也走 API。</p>
+  <p class="dexp">在伺服器上開始的交易，這種情況下不會還原。要在 @AfterEach 自己刪，或讓資料準備也走 API。</p>
 </div>
 <div class="drill">
   <p class="dq">某個測試想讓寫入的資料真的留在資料庫（例如測完要手動檢查），最直接的做法？</p>
   <ul class="dopts"><li data-ok>在那個測試方法加 <code>@Commit</code></li><li>把 @Transactional 改成 @Transactional(readOnly = true)</li><li>在測試最後丟一個例外</li><li>把測試搬到 @BeforeAll</li></ul>
-  <p class="dexp">Spring Framework 文件：測試交易預設還原，可以用 @Commit 或 @Rollback 改。readOnly 屬性不適用於測試管理的交易。</p>
+  <p class="dexp">測試交易預設還原，可以用 @Commit 或 @Rollback 改。readOnly 屬性不適用於測試管理的交易。</p>
 </div>
 
 </section>
@@ -533,7 +547,7 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <figcaption>設定完全相同的兩個類別共用一個 Spring 容器（連同裡面的 MySQL）；多一個替身、換一個 webEnvironment，都會另建一個。</figcaption>
 </figure>
 <p>怎麼讀：<code>missCount = 5</code> 表示整批只建了 5 個 Spring 容器；<code>TransferIntegrationTest</code> 沒有 <code>Started</code> 那一行、也沒有新的 MySQL 啟動，整個類別 0.062 秒，因為它跟 <code>AccountQueryIntegrationTest</code> 的設定一模一樣，直接拿快取裡的容器 2。<code>ExtraMockIntegrationTest</code> 只多一個 <code>@MockitoBean</code>，就另建容器 4、另起一個 MySQL，多花約 8 秒。<code>hitCount = 148</code> 是每次從快取取用都算一次（一個測試會取好幾次），不是類別數，看 <code>missCount</code> 就好；統計裡其他欄位這課用不到。</p>
-<p>實務上的做法：把整合測試共用的設定（<code>@SpringBootTest</code>、<code>@Import</code>、共用的 <code>@MockitoBean</code>）集中在一個父類別，各類別不要再各自加不同的替身。<code>@DirtiesContext</code> 會讓容器關掉、下一個測試重建，文件說它是給「少見的情況：測試弄壞了 ApplicationContext、需要重新載入」（In the unlikely case that a test corrupts the application context and requires reloading）用的，不要拿來當清資料的工具。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a></p>
+<p>實務上的做法：把整合測試共用的設定（<code>@SpringBootTest</code>、<code>@Import</code>、共用的 <code>@MockitoBean</code>）集中在一個父類別，各類別不要再各自加不同的替身。<code>@DirtiesContext</code> 會讓容器關掉、下一個測試重建，它是給少見的情況用的：測試弄壞了 ApplicationContext、需要重新載入，不要拿來當清資料的工具。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">設定一模一樣的測試共用一個 Spring 容器；多一個 @MockitoBean 就多一個容器、多起一個 MySQL；共用設定放父類別，@DirtiesContext 只在真的弄壞容器時用</p>
 <div class="drill">
   <p class="dq">兩個測試類別的 <code>@SpringBootTest</code>、<code>@Import</code>、<code>@MockitoBean</code> 完全相同，在同一次 <code>mvn test</code> 裡跑。共建幾個 Spring 容器？</p>
@@ -558,17 +572,17 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <div class="drill">
   <p class="dq">專案的整合測試有 40 種不同的設定組合，一次全部跑。快取會怎樣？</p>
   <ul class="dopts"><li>40 個容器全部留著，直到 JVM 結束</li><li>超過 32 個就直接報錯、測試全部停下</li><li>Spring 會自動把相似的設定合併成同一個容器來省時間</li><li data-ok>預設最多 32 個，滿了就把最久沒用的關掉</li></ul>
-  <p class="dexp">文件：快取預設上限 32，滿了用 LRU 淘汰並關掉最久沒用的容器；可以用 spring.test.context.cache.maxSize 調整。被淘汰的設定之後再用到，就得重建。</p>
+  <p class="dexp">快取預設上限 32，滿了用 LRU 淘汰並關掉最久沒用的容器；可以用 spring.test.context.cache.maxSize 調整。被淘汰的設定之後再用到，就得重建。</p>
 </div>
 <div class="drill">
   <p class="dq">Surefire 被設成每個測試類別都另開一個 JVM 行程來跑。Spring 容器快取還有效嗎？</p>
   <ul class="dopts"><li>有效，快取會寫到磁碟上給下個行程用</li><li>有效，只是第一個類別會比較慢</li><li data-ok>等於失效，快取在 static 變數裡</li><li>只有 @WebMvcTest 的快取會失效</li></ul>
-  <p class="dexp">文件：快取存在 static 變數，測試在不同行程裡跑時，每次之間快取都被清掉，等於關掉快取機制；要讓建置工具不要在測試之間另開行程。</p>
+  <p class="dexp">快取存在 static 變數，測試在不同行程裡跑時，每次之間快取都被清掉，等於關掉快取機制；要讓建置工具不要在測試之間另開行程。</p>
 </div>
 <div class="drill">
   <p class="dq">某個測試在執行中改壞了一個單例 Bean 的內部狀態，之後共用同一個容器的測試會被影響。最合適的處理？</p>
   <ul class="dopts"><li>在每個測試類別都加 @DirtiesContext 比較保險</li><li>把快取上限 maxSize 設成 1</li><li>改用 RANDOM_PORT 讓每個測試各自獨立</li><li data-ok>在那個測試加 @DirtiesContext</li></ul>
-  <p class="dexp">文件說 @DirtiesContext 是給測試真的弄壞容器、需要重新載入的少見情況。到處加會讓每個類別都重建容器，整批測試變慢很多。</p>
+  <p class="dexp">@DirtiesContext 是給測試真的弄壞容器、需要重新載入的少見情況。到處加會讓每個類別都重建容器，整批測試變慢很多。</p>
 </div>
 <div class="drill">
   <p class="dq">想讓整合測試整體跑快一點，下面哪個做法最有效？</p>
@@ -582,7 +596,11 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <p class="era">兩個服務各自都綠燈，接起來還是可能壞</p>
 <h3 class="head">契約測試一眼</h3>
 <p>上面的整合測試都只在一個服務裡面。拆成微服務之後，帳戶服務把回應的 <code>balance</code> 改名成 <code>amount</code>，自己的測試照改、全部綠燈，呼叫它的轉帳服務用替身測也全部綠燈，上線才接不起來。</p>
-<p><strong>契約測試</strong>（contract test）補的就是這個洞：Pact 文件說它「確認應用程式之間的訊息，符合一份寫在契約裡的共同認知」（Contract tests assert that inter-application messages conform to a shared understanding that is documented in a contract），「沒有契約測試，確認應用程式能一起運作的唯一方法，就是昂貴又容易壞的整合測試」（Without contract testing, the only way to ensure that applications will work correctly together is by using expensive and brittle integration tests）。<a class="fixsrc" href="https://docs.pact.io/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>契約測試</strong>（contract test）補的就是這個洞：</p>
+<ul class="plainlist">
+<li>它確認應用程式之間的訊息，符合一份寫在契約裡的共同認知。</li>
+<li>沒有契約測試，確認應用程式能一起運作的唯一方法，就是昂貴又容易壞的整合測試。<a class="fixsrc" href="https://docs.pact.io/" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>常見做法是<strong>消費者驅動契約</strong>（consumer-driven contract：呼叫 API 的一方寫下期望，提供 API 的一方在自己的建置裡持續跑）<a class="fixsrc" href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">出處</a>，Spring 生態的工具是 Spring Cloud Contract（It lets you perform consumer-driven and producer-driven contract testing）。<a class="fixsrc" href="https://docs.spring.io/spring-cloud-contract/reference/4.3/index.html" target="_blank" rel="noopener">出處</a> 這課不實作，微服務的整體取捨見〈Maven、微服務與全域例外〉與〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。</p>
 <p class="formula">整合測試守住一個服務內部；契約測試守住服務之間的訊息格式：消費端寫下期望，提供端持續跑</p>
 <div class="drill">
@@ -598,7 +616,7 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <div class="drill">
   <p class="dq">帳戶服務想在每次改 API 時，提早知道會不會弄壞呼叫它的三個服務，又不想每次把四個服務一起部署起來測。最適合的做法是？</p>
   <ul class="dopts"><li>每次改版前把四個服務一起部署，跑一輪端對端測試</li><li data-ok>讓三個消費端寫下契約，帳戶服務每次建置都跑</li><li>帳戶服務自己多寫幾個 @SpringBootTest 整合測試</li><li>上線後請三個團隊回報錯誤再修</li></ul>
-  <p class="dexp">Pact 文件說，沒有契約測試時，確認應用程式能一起運作的唯一方法是昂貴又容易壞的整合測試（把服務接起來一起跑）。消費者驅動契約讓提供端在自己的建置裡就驗證消費端的期望，不必把四個服務一起部署。帳戶服務自己的整合測試只驗自己的假設，抓不到消費端怎麼用它。</p>
+  <p class="dexp">沒有契約測試時，確認應用程式能一起運作的唯一方法是昂貴又容易壞的整合測試（把服務接起來一起跑）。消費者驅動契約讓提供端在自己的建置裡就驗證消費端的期望，不必把四個服務一起部署。帳戶服務自己的整合測試只驗自己的假設，抓不到消費端怎麼用它。</p>
 </div>
 
 </section>

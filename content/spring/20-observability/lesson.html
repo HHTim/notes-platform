@@ -4,7 +4,12 @@
 <section>
 <p class="era">從外面看懂裡面</p>
 <h3 class="head">可觀測性與三種訊號</h3>
-<p>Spring Boot 文件的定義：「可觀測性是從外部觀察一個執行中系統內部狀態的能力，由三個支柱組成：日誌、指標、追蹤」（Observability is the ability to observe the internal state of a running system from the outside. It consists of the three pillars: logging, metrics and traces.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/observability.html" target="_blank" rel="noopener">出處</a> OpenTelemetry 對三種訊號各一句：追蹤是「請求穿過應用程式的路徑」（The path of a request through your application.）、指標是「執行期擷取的量測」（A measurement captured at runtime.）、日誌是「一件事情的紀錄」（A recording of an event.）。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/signals/" target="_blank" rel="noopener">出處</a></p>
+<p>可觀測性是從外部看出一個執行中系統內部狀態的能力，由三個支柱組成：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/observability.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><strong>日誌</strong>：一件事情的紀錄</li>
+<li><strong>指標</strong>：執行期擷取的量測</li>
+<li><strong>追蹤</strong>：請求穿過應用程式的路徑 <a class="fixsrc" href="https://opentelemetry.io/docs/concepts/signals/" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>用醫院比喻：<strong>指標</strong>像體溫、血壓這些一直量的數字，告訴你「有沒有事」；<strong>追蹤</strong>像病人從掛號、檢查到批價的動線紀錄，告訴你「卡在哪一站」；<strong>日誌</strong>像每一站的病歷，寫下「那一站發生了什麼」。下面這張圖的數字來自實跑的兩個服務：</p>
 <figure>
 <svg viewBox="0 0 760 266" role="img" aria-label="三種訊號：指標回答「有沒有事」，例如每秒請求數 10.9、錯誤率 1.2%、p95 延遲 0.134 秒；追蹤回答「事在哪一段」，transfer 花 335 毫秒，其中呼叫 account 331 毫秒、account 自己處理 314 毫秒；日誌回答「那一段發生了什麼」，例如查餘額失敗 status=503、核心帳務逾時。三者靠同一個 traceId 串起來">
@@ -45,7 +50,7 @@
 <section>
 <p class="era">先決定量什麼，再決定什麼時候叫人</p>
 <h3 class="head">四個黃金訊號，與「看症狀不看原因」的告警</h3>
-<p>Google 的 SRE 書第 6 章：「監控的四個黃金訊號是延遲、流量、錯誤與飽和。如果面向使用者的系統只能量四個指標，就專注在這四個」（The four golden signals of monitoring are latency, traffic, errors, and saturation. If you can only measure four metrics of your user-facing system, focus on these four.）。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
+<p>監控的四個黃金訊號是延遲、流量、錯誤與飽和。面向使用者的系統如果只能量四個指標，就量這四個。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>訊號</th><th>SRE 書的定義（節譯）</th><th>本課實跑怎麼量</th></tr></thead><tbody>
 <tr><th>延遲 latency</th><td>服務一個請求要多久；要分開看成功與失敗的延遲，「慢的錯誤比快的錯誤更糟」</td><td><code>histogram_quantile(0.95, …)</code> 算出 p95 約 0.134 秒</td></tr>
 <tr><th>流量 traffic</th><td>系統承受多少需求，網路服務通常是每秒 HTTP 請求數</td><td><code>rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m])</code> 約每秒 10.9 個</td></tr>
@@ -55,9 +60,15 @@
 <p>實跑也印證了「慢的錯誤」：失敗的 X999 請求每個要等 300 毫秒逾時，比成功的請求還慢。如果把錯誤從延遲裡濾掉，平均延遲反而變好看，這就是書裡要你分開看的原因。</p>
 <h4>告警看症狀，不看原因</h4>
 <p>同一章說，監控系統要回答兩個問題：「什麼壞了、為什麼壞」，「什麼壞了」是<strong>症狀</strong>（symptom），「為什麼」是<strong>原因</strong>（cause）；例如「回應變慢」是症狀，「CPU 被一支爛排序程式吃滿」是原因。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
-<p>Prometheus 官方的告警建議總結成：「告警保持簡單、對症狀告警、有好的主控台讓人找出原因、避免發出沒事可做的呼叫」（keep alerting simple, alert on symptoms, have good consoles to allow pinpointing causes, and avoid having pages where there is nothing to do），並建議「告警盡量少，對跟使用者痛苦相關的症狀告警，而不是想抓住每一種可能造成痛苦的方式」。<a class="fixsrc" href="https://prometheus.io/docs/practices/alerting/" target="_blank" rel="noopener">出處</a></p>
-<p>SRE 書的另一句話是判斷標準：「每一次呼叫都應該要能採取行動」（Every page should be actionable.）。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
-<p>照這個原則寫兩條規則：錯誤率與 p95 延遲，都是使用者感受得到的症狀。<code>for</code> 子句讓 Prometheus「在第一次符合條件之後，等一段時間才把告警算成觸發」（The optional for clause causes Prometheus to wait for a certain duration between first encountering a new expression output vector element and counting an alert as firing），用來忽略一閃而過的波動。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/configuration/alerting_rules/" target="_blank" rel="noopener">出處</a></p>
+<p>Prometheus 的告警建議：</p>
+<ul>
+<li>告警保持簡單、盡量少</li>
+<li>對症狀告警：只告跟使用者痛苦相關的症狀，不要想抓住每一種可能造成痛苦的原因</li>
+<li>準備好用的主控台，讓人找得出原因</li>
+<li>避免發出收到也沒事可做的呼叫 <a class="fixsrc" href="https://prometheus.io/docs/practices/alerting/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>判斷標準：每一次呼叫都要能採取行動。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
+<p>照這個原則寫兩條規則：錯誤率與 p95 延遲，都是使用者感受得到的症狀。<code>for</code> 子句讓 Prometheus 在第一次符合條件之後，等一段時間才把告警算成觸發，用來忽略一閃而過的波動。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/configuration/alerting_rules/" target="_blank" rel="noopener">出處</a></p>
 <pre><code>groups:
   - name: transfer-symptoms
     rules:
@@ -115,7 +126,7 @@ Checking rules.yml
 <div class="drill">
   <p class="dq">告警規則裡的 <code>for: 5m</code> 作用是？</p>
   <ul class="dopts"><li>每 5 分鐘發一次告警</li><li>告警發出後只保留 5 分鐘</li><li data-ok>條件持續 5 分鐘才算觸發</li><li>只看最近 5 分鐘的日誌</li></ul>
-  <p class="dexp">Prometheus 文件：for 子句讓它在第一次符合條件後等一段時間，才把告警算成觸發。</p>
+  <p class="dexp">for 子句讓 Prometheus 在第一次符合條件後等一段時間，才把告警算成觸發。</p>
 </div>
 <div class="drill">
   <p class="dq">「每一次呼叫都應該要能採取行動」這句話，用來篩掉哪一種告警？</p>
@@ -132,7 +143,7 @@ Checking rules.yml
 <section>
 <p class="era">指標從哪裡來</p>
 <h3 class="head">Micrometer 與 Actuator：<code>/actuator/prometheus</code></h3>
-<p><strong>Micrometer</strong> 是 Spring Boot 收集指標用的程式庫。官方文件說它在各種監控系統的用戶端之上「提供一層簡單的門面」，讓你寫程式時不被特定廠商綁住，「就像 SLF4J，只是用在可觀測性」（Think SLF4J, but for observability.）。<a class="fixsrc" href="https://docs.micrometer.io/micrometer/reference/1.17/" target="_blank" rel="noopener">出處</a> 意思是：程式裡只用 Micrometer 的計數器、計時器，要送去 Prometheus 還是別的系統，換一個相依套件就好。</p>
+<p><strong>Micrometer</strong> 是 Spring Boot 收集指標用的程式庫，在各種監控系統的用戶端之上提供一層簡單的門面，讓你寫程式時不被特定廠商綁住，可以想成「可觀測性版的 SLF4J」。<a class="fixsrc" href="https://docs.micrometer.io/micrometer/reference/1.17/" target="_blank" rel="noopener">出處</a> 意思是：程式裡只用 Micrometer 的計數器、計時器，要送去 Prometheus 還是別的系統，換一個相依套件就好。</p>
 <p>Spring Boot 4.1 的相依套件（兩個服務都有；transfer 另外加 <code>spring-boot-starter-restclient</code> 來呼叫 account）：</p>
 <pre><code>&lt;dependencies&gt;
   &lt;dependency&gt;
@@ -156,7 +167,12 @@ Checking rules.yml
     &lt;artifactId&gt;micrometer-registry-prometheus&lt;/artifactId&gt;
   &lt;/dependency&gt;
 &lt;/dependencies&gt;</code></pre>
-<p>Spring Boot 文件：「Prometheus 預期去抓取或輪詢各個應用程式實例的指標，Spring Boot 在 <code>/actuator/prometheus</code> 提供一個端點」，但「預設這個端點不可用，必須暴露」（By default, the endpoint is not available and must be exposed.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a> 端點那頁也說「預設只有 health 端點透過 HTTP 與 JMX 暴露」，而且端點可能含敏感資訊，要想清楚再開。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 設定檔（account 的，transfer 只差名字與埠號）：</p>
+<p>Prometheus 會定時來抓（輪詢）各個應用程式實例的指標，Spring Boot 在 <code>/actuator/prometheus</code> 提供這個端點，但預設不開，必須暴露。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>預設只有 health 端點透過 HTTP 與 JMX 暴露</li>
+<li>端點可能含敏感資訊，要想清楚再開 <a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>設定檔（account 的，transfer 只差名字與埠號）：</p>
 <pre><code>spring.application.name=account
 server.port=8081
 # 預設只有 health；打開 prometheus 端點
@@ -180,7 +196,7 @@ http_server_requests_seconds_count{error="ServiceUnavailable",exception="Service
 http_server_requests_seconds_sum{error="ServiceUnavailable",exception="ServiceUnavailable",method="GET",outcome="SERVER_ERROR",status="500",uri="/transfers/check"} 3.129694042
 http_server_requests_seconds_count{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check"} 793
 http_server_requests_seconds_sum{error="none",exception="none",method="GET",outcome="SUCCESS",status="200",uri="/transfers/check"} 89.261272875</code></pre>
-<p><code>http_<wbr>server_<wbr>requests_<wbr>seconds</code> 是 Spring 自動量的每個 HTTP 請求耗時。標籤把它切成好幾條：成功（<code>status="200"</code>）793 次、失敗（<code>status="500"</code>）10 次；<code>_count</code> 是次數，<code>_sum</code> 是總秒數。這些數字只會一直往上加，叫<strong>計數器</strong>（counter）：Prometheus 的定義是「只會增加、或在重新啟動時歸零的累計值」（A counter is a cumulative metric that represents a single monotonically increasing counter whose value can only increase or be reset to zero on restart.）。<a class="fixsrc" href="https://prometheus.io/docs/concepts/metric_types/" target="_blank" rel="noopener">出處</a></p>
+<p><code>http_<wbr>server_<wbr>requests_<wbr>seconds</code> 是 Spring 自動量的每個 HTTP 請求耗時。標籤把它切成好幾條：成功（<code>status="200"</code>）793 次、失敗（<code>status="500"</code>）10 次；<code>_count</code> 是次數，<code>_sum</code> 是總秒數。這些數字只會一直往上加，叫<strong>計數器</strong>（counter）：只會增加、或在重新啟動時歸零的累計值。<a class="fixsrc" href="https://prometheus.io/docs/concepts/metric_types/" target="_blank" rel="noopener">出處</a></p>
 <p>業務指標自己加。transfer 用 Micrometer 的 <code>Counter</code> 記檢查結果（完整程式在後面的追蹤段）：</p>
 <pre><code>Counter.builder("transfer.checks").tag("result", "ok").register(registry).increment();</code></pre>
 <pre><code>$ curl -s localhost:8080/actuator/prometheus | grep -E "^(# TYPE )?transfer_checks"
@@ -191,14 +207,14 @@ transfer_checks_total{result="ok"} 793.0</code></pre>
 <p class="formula">Micrometer 是指標的門面；Actuator 預設只開 health，/actuator/prometheus 要自己打開；計數器只增不減，重啟歸零</p>
 
 <div class="drill">
-  <p class="dq">Micrometer 官方說它「就像 SLF4J，只是用在可觀測性」。這個比喻的意思是？</p>
+  <p class="dq">Micrometer 常被比作「可觀測性版的 SLF4J」。這個比喻的意思是？</p>
   <ul class="dopts"><li>Micrometer 會取代 SLF4J 印日誌</li><li data-ok>程式不綁廠商，換監控系統只要換相依套件</li><li>Micrometer 只能搭配 Logback</li><li>Micrometer 會把指標寫進日誌檔</li></ul>
   <p class="dexp">SLF4J 讓你不綁定 Logback 或 Log4j；Micrometer 讓你不綁定 Prometheus 或其他監控系統，兩者都是門面。</p>
 </div>
 <div class="drill">
   <p class="dq">加了 Actuator 和 <code>micrometer-registry-prometheus</code>，但沒設定任何暴露屬性。<code>GET /actuator/prometheus</code> 會？</p>
   <ul class="dopts"><li data-ok>拿不到，預設只暴露 health</li><li>回傳所有指標</li><li>回傳 health 的結果</li><li>自動跳轉到 Prometheus</li></ul>
-  <p class="dexp">Spring Boot 文件：預設只有 health 端點透過 HTTP 暴露，prometheus 端點要用 management.<wbr>endpoints.<wbr>web.<wbr>exposure.<wbr>include 打開。</p>
+  <p class="dexp">預設只有 health 端點透過 HTTP 暴露，prometheus 端點要用 management.<wbr>endpoints.<wbr>web.<wbr>exposure.<wbr>include 打開。</p>
 </div>
 <div class="drill">
   <p class="dq">設定 <code>management.<wbr>endpoints.<wbr>web.<wbr>exposure.<wbr>include=<wbr>health,<wbr>prometheus</code> 之後，<code>GET /actuator/metrics</code> 會？</p>
@@ -228,14 +244,14 @@ transfer_checks_total{result="ok"} 793.0</code></pre>
 <div class="drill">
   <p class="dq">Actuator 的端點為什麼不建議全部打開（<code>include=*</code>）？</p>
   <ul class="dopts"><li>會讓服務的啟動變慢</li><li>Prometheus 會因此拉不到資料</li><li>Spring Boot 根本不允許這樣設</li><li data-ok>可能含敏感資訊</li></ul>
-  <p class="dexp">Spring Boot 文件說端點可能含敏感資訊，暴露前要仔細考慮。只開需要的，例如 health 與 prometheus。</p>
+  <p class="dexp">端點可能含敏感資訊，暴露前要仔細考慮。只開需要的，例如 health 與 prometheus。</p>
 </div>
 </section>
 
 <section>
 <p class="era">Prometheus 自己來拿</p>
 <h3 class="head">拉取模型與 PromQL：<code>rate</code>、<code>histogram_quantile</code>、錯誤率</h3>
-<p>Prometheus 官方總覽列的特性：「時間序列的收集透過 HTTP 拉取模型進行」（time series collection happens via a pull model over HTTP），推送則「透過中介的 gateway 支援」。<a class="fixsrc" href="https://prometheus.io/docs/introduction/overview/" target="_blank" rel="noopener">出處</a> 意思是服務不用知道 Prometheus 在哪，只要提供 <code>/actuator/prometheus</code>，Prometheus 照設定定時來拉。實跑的設定：</p>
+<p>Prometheus 用 HTTP 拉取的方式收集時間序列；要用推送的，透過中間的 gateway。<a class="fixsrc" href="https://prometheus.io/docs/introduction/overview/" target="_blank" rel="noopener">出處</a> 意思是服務不用知道 Prometheus 在哪，只要提供 <code>/actuator/prometheus</code>，Prometheus 照設定定時來拉。實跑的設定：</p>
 <pre><code>global:
   scrape_interval: 5s          # 每 5 秒去拉一次（示範用；預設是 1 分鐘）
 scrape_configs:
@@ -258,7 +274,7 @@ scrape_configs:
 {"job":"account","value":"1"}
 {"job":"transfer","value":"1"}</code></pre>
 <h4>流量：<code>rate</code></h4>
-<p>計數器一直往上加，原始值看不出快慢。<code>rate</code>「計算區間向量裡時間序列每秒的平均增加量」，而且計數器重啟歸零造成的斷點「會自動調整」（Breaks in monotonicity (such as counter resets due to target restarts) are automatically adjusted for.）。要加總時有一條規則：「一定先 rate，再加總，否則 rate 偵測不到目標重啟造成的計數器歸零」（always take a rate() first, then aggregate.）。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a> <code>[1m]</code> 是取最近一分鐘；<code>uri!~"/actuator.*"</code> 排除 Prometheus 自己來拉的請求。</p>
+<p>計數器一直往上加，原始值看不出快慢。<code>rate</code> 算出區間向量裡每條時間序列每秒的平均增加量，計數器因重啟歸零造成的斷點會自動補正。要加總時有一條規則：一定先 <code>rate</code>，再加總，否則 <code>rate</code> 偵測不到目標重啟造成的計數器歸零。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a> <code>[1m]</code> 是取最近一分鐘；<code>uri!~"/actuator.*"</code> 排除 Prometheus 自己來拉的請求。</p>
 <pre><code>$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (job) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[1m]))' | jq -c '.data.result[] | {job: .metric.job, value: .value[1]}'
 {"job":"account","value":"10.745454545454544"}
 {"job":"transfer","value":"10.927272727272726"}</code></pre>
@@ -276,7 +292,12 @@ http_server_requests_seconds_bucket{error="none",exception="none",method="GET",o
 </svg>
 <figcaption>直方圖不存每一筆耗時，只存「多少筆不超過這條線」；百分位數是從桶裡估出來的，桶越細越準。</figcaption>
 </figure>
-<p><code>histogram_quantile</code> 從這些桶估出百分位數。文件寫：百分位數沒剛好落在桶邊界時，它「在百分位數所在的桶裡內插」，傳統直方圖「假設觀測值在桶內均勻分布，也叫線性內插」（it assumes a uniform distribution of observations within the bucket (also called linear interpolation)）；要彙總時用 <code>sum</code> 包住 <code>rate</code>，而且 <code>le</code> 一定要留在 <code>by</code> 裡。<a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a></p>
+<p><code>histogram_quantile</code> 從這些桶估出百分位數：</p>
+<ul>
+<li>百分位數沒剛好落在桶邊界時，在它所在的桶裡內插</li>
+<li>傳統直方圖假設觀測值在桶內均勻分布，也叫線性內插</li>
+<li>要彙總時用 <code>sum</code> 包住 <code>rate</code>，而且 <code>le</code> 一定要留在 <code>by</code> 裡 <a class="fixsrc" href="https://prometheus.io/docs/prometheus/3.15/querying/functions/" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <pre><code>$ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[1m])))' | jq -c '.data.result[] | {job: .metric.job, value: .value[1]}'
 {"job":"account","value":"0.12986914981422415"}
 {"job":"transfer","value":"0.1337764512732422"}</code></pre>
@@ -310,7 +331,7 @@ $ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (resu
 <div class="drill">
   <p class="dq">要算所有實例加總的每秒請求數，下面哪一個寫法對？</p>
   <ul class="dopts"><li>rate(<wbr>sum(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count)[1m])</li><li data-ok>sum(<wbr>rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m]))</li><li>sum(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count) / 60</li><li>max(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count)</li></ul>
-  <p class="dexp">文件：一定先 rate 再加總，否則 rate 偵測不到某個實例重啟造成的計數器歸零。</p>
+  <p class="dexp">一定先 rate 再加總，否則 rate 偵測不到某個實例重啟造成的計數器歸零。</p>
 </div>
 <div class="drill">
   <p class="dq">某台實例重啟，它的計數器從 800 掉回 0。<code>rate</code> 會算出一個很大的負數嗎？</p>
@@ -330,7 +351,7 @@ $ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (resu
 <div class="drill">
   <p class="dq"><code>histogram_quantile</code> 算出的 p95 是精確值嗎？</p>
   <ul class="dopts"><li>是，它記得每一筆耗時</li><li data-ok>不是，在桶裡內插估出來的</li><li>是，只要桶夠多就跟平均一樣</li><li>不是，它只是把最大值乘以 0.95</li></ul>
-  <p class="dexp">直方圖只存累計數，文件說它假設觀測值在桶內均勻分布、線性內插。實跑 p95 落在 0.1118 到 0.1342 秒的桶裡。</p>
+  <p class="dexp">直方圖只存累計數，histogram_quantile 假設觀測值在桶內均勻分布、線性內插。實跑 p95 落在 0.1118 到 0.1342 秒的桶裡。</p>
 </div>
 <div class="drill">
   <p class="dq">錯誤率的 PromQL 最合理的寫法是？</p>
@@ -342,7 +363,7 @@ $ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (resu
 <section>
 <p class="era">把查詢變成圖</p>
 <h3 class="head">Grafana 一眼</h3>
-<p>Prometheus 擅長存與查，看圖通常交給 <strong>Grafana</strong>。Grafana 文件：Prometheus 資料來源「已經預先安裝在 Grafana 裡」，在查詢編輯器「用 PromQL 寫查詢」（Write queries using PromQL in the query editor）。<a class="fixsrc" href="https://grafana.com/docs/grafana/latest/datasources/prometheus/" target="_blank" rel="noopener">出處</a> 所以上一段的每一條 PromQL，貼進 Grafana 就是一張隨時間變化的圖（Grafana 這段沒有實跑）。常見的第一個儀表板就是四個黃金訊號各一張圖，加上 <code>up</code>；SRE 書也說儀表板「通常包含某種形式的四個黃金訊號」。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
+<p>Prometheus 擅長存與查，看圖通常交給 <strong>Grafana</strong>：Grafana 已經內建 Prometheus 資料來源，在查詢編輯器裡直接寫 PromQL。<a class="fixsrc" href="https://grafana.com/docs/grafana/latest/datasources/prometheus/" target="_blank" rel="noopener">出處</a> 所以上一段的每一條 PromQL，貼進 Grafana 就是一張隨時間變化的圖（Grafana 這段沒有實跑）。常見的第一個儀表板就是四個黃金訊號各一張圖，加上 <code>up</code>；儀表板通常都包含某種形式的四個黃金訊號。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">在 Grafana 裡畫「transfer 每秒請求數」的圖，查詢要寫什麼語言？</p>
@@ -359,9 +380,19 @@ $ curl -s --get localhost:9090/api/v1/query --data-urlencode 'query=sum by (resu
 <section>
 <p class="era">一個請求，跨兩個服務</p>
 <h3 class="head">分散式追蹤：Micrometer Tracing、OpenTelemetry 與 <code>traceparent</code></h3>
-<p>一個請求從 transfer 走到 account，要把兩邊的紀錄接起來，就要給它一個貫穿全程的編號。一次<strong>追蹤</strong>（trace）由好幾段 <strong>span</strong> 組成，span 是其中一段工作，各有自己的 span ID，並記得自己的父節點。OpenTelemetry 文件說：「A 服務呼叫 B 服務時，A 把 trace ID 與 span ID 放進情境裡。B 用這些值建立一個屬於同一條 trace 的新 span，並把 A 的那段設成父節點」（When Service A calls Service B, Service A includes a trace ID and a span ID as part of the context. Service B uses these values to create a new span that belongs to the same trace, setting the span from Service A as its parent.）；傳播「通常由 instrumentation 函式庫處理」，預設用「W3C TraceContext 規格定義的標頭」。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank" rel="noopener">出處</a></p>
-<p>Spring 這邊是 <strong>Micrometer Tracing</strong>：它「替最常見的追蹤程式庫提供一層簡單的門面」（provides a simple facade for the most popular tracer libraries），原本是 Spring Cloud Sleuth 的那一套。<a class="fixsrc" href="https://docs.micrometer.io/tracing/reference/1.7/" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 內建兩種組合：OpenTelemetry 用 OTLP（OpenTelemetry 自己的傳輸協定）送出，或 Brave 用 Zipkin 送出；前者要加 <code>spring-boot-starter-opentelemetry</code>，用 <code>management.<wbr>opentelemetry.<wbr>tracing.<wbr>export.<wbr>otlp.<wbr>*</code> 設定送到哪。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a> 這課用前者，送到 Jaeger（它直接收 OTLP）。</p>
-<p>transfer 的程式：用 Spring Boot 自動設定的 <code>RestClient.Builder</code> 建立用戶端。文件特別警告：「如果不是用自動設定的 builder 建立 RestTemplate、RestClient 或 WebClient，自動的追蹤傳播就不會生效！」（If you create the RestTemplate, the RestClient or the WebClient without using the auto-configured builders, automatic trace propagation won’t work!）<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+<p>一個請求從 transfer 走到 account，要把兩邊的紀錄接起來，就要給它一個貫穿全程的編號。一次<strong>追蹤</strong>（trace）由好幾段 <strong>span</strong> 組成，span 是其中一段工作，各有自己的 span ID，並記得自己的父節點。服務 A 呼叫服務 B 時：</p>
+<ul>
+<li>A 把 trace ID 與 span ID 放進情境（context）裡帶過去</li>
+<li>B 用這些值建立一個屬於同一條 trace 的新 span，並把 A 的那段設成父節點</li>
+<li>這個傳播通常由 instrumentation 函式庫處理，預設用 W3C TraceContext 規格定義的標頭 <a class="fixsrc" href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>Spring 這邊是 <strong>Micrometer Tracing</strong>：替最常見的追蹤程式庫提供一層簡單的門面，原本是 Spring Cloud Sleuth 的那一套。<a class="fixsrc" href="https://docs.micrometer.io/tracing/reference/1.7/" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 內建兩種組合：</p>
+<ul>
+<li>OpenTelemetry 用 OTLP（OpenTelemetry 自己的傳輸協定）送出：要加 <code>spring-boot-starter-opentelemetry</code>，用 <code>management.<wbr>opentelemetry.<wbr>tracing.<wbr>export.<wbr>otlp.<wbr>*</code> 設定送到哪</li>
+<li>Brave 用 Zipkin 送出 <a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>這課用前者，送到 Jaeger（它直接收 OTLP）。</p>
+<p>transfer 的程式：用 Spring Boot 自動設定的 <code>RestClient.Builder</code> 建立用戶端。不是用自動設定的 builder 建立 <code>RestTemplate</code>、<code>RestClient</code> 或 <code>WebClient</code>，自動的追蹤傳播就不會生效。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>package demo.transfer;
 
 import io.micrometer.core.instrument.Counter;
@@ -448,13 +479,13 @@ public String balance(@PathVariable String id,
 <figcaption>一條 trace 由好幾段 span 組成，每段記得自己的父節點；跨服務時，父節點的 ID 就放在 traceparent 標頭裡傳過去。</figcaption>
 </figure>
 <p>對照起來：transfer 收到請求那段（<code>078dd44c…</code>）沒有父節點，是這條追蹤的根；transfer 發出呼叫那段（<code>ceae3b43…</code>）的父節點是根；account 那段（<code>8b5c899f…</code>）的父節點是 <code>ceae3b43…</code>，正是 <code>traceparent</code> 的第三欄。335 毫秒裡有 314 毫秒花在 account，問題在哪一段一眼就看出來。</p>
-<p>取樣要注意：Spring Boot 預設「只取樣 10% 的請求，避免把追蹤後端壓垮」（By default, Spring Boot samples only 10% of requests to prevent overwhelming the trace backend.），這課為了示範設成 1.0。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+<p>取樣要注意：Spring Boot 預設只取樣 10% 的請求，避免把追蹤後端壓垮；這課為了示範設成 1.0。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">trace ID 貫穿全程、span ID 標每一段；跨服務靠 traceparent 傳父節點；用自動設定的 builder 建用戶端，傳播才會生效；預設取樣 10%</p>
 
 <div class="drill">
   <p class="dq">transfer 呼叫 account 時，account 要怎麼知道「這個請求屬於哪一條追蹤」？</p>
   <ul class="dopts"><li>account 自己產生一個新的 trace ID</li><li>兩邊去同一個資料庫查</li><li>靠兩邊的時間戳記對齊</li><li data-ok>用 traceparent 標頭傳過去</li></ul>
-  <p class="dexp">OpenTelemetry 文件：A 呼叫 B 時把 trace ID 與 span ID 放進情境，B 用它們建立同一條 trace 的新 span、把 A 的那段設成父節點。HTTP 上就是 traceparent 標頭。</p>
+  <p class="dexp">A 呼叫 B 時把 trace ID 與 span ID 放進情境，B 用它們建立同一條 trace 的新 span、把 A 的那段設成父節點。HTTP 上就是 traceparent 標頭。</p>
 </div>
 <div class="drill">
   <p class="dq">在 <code>traceparent: 00-67e70a40…e2-ceae3b4330fd56b3-03</code> 裡，<code>ceae3b4330fd56b3</code> 是？</p>
@@ -474,7 +505,7 @@ public String balance(@PathVariable String id,
 <div class="drill">
   <p class="dq">同事自己 <code>RestClient.create()</code> 出一個用戶端去呼叫 account，結果 account 的 trace ID 跟 transfer 對不上。最可能的原因是？</p>
   <ul class="dopts"><li data-ok>沒用自動設定的 RestClient.Builder</li><li>Jaeger 那邊壞掉了</li><li>account 沒有開 Prometheus 端點</li><li>取樣率設得太高</li></ul>
-  <p class="dexp">Spring Boot 文件明白警告：不用自動設定的 builder 建立 RestTemplate、RestClient 或 WebClient，自動的追蹤傳播就不會生效。</p>
+  <p class="dexp">不用自動設定的 builder 建立 RestTemplate、RestClient 或 WebClient，自動的追蹤傳播就不會生效。</p>
 </div>
 <div class="drill">
   <p class="dq">Jaeger 查出三段 span，其中 account 那段的 parent 是 <code>ceae3b43…</code>。<code>ceae3b43…</code> 是哪一段？</p>
@@ -489,7 +520,7 @@ public String balance(@PathVariable String id,
 <div class="drill">
   <p class="dq">Spring Boot 4.1 要用 OpenTelemetry 送追蹤，加哪個 starter？</p>
   <ul class="dopts"><li>spring-cloud-starter-sleuth</li><li data-ok>spring-boot-starter-opentelemetry</li><li>spring-boot-starter-zipkin</li><li>spring-boot-starter-jaeger-tracing</li></ul>
-  <p class="dexp">Spring Boot 4.1 文件：OpenTelemetry 加 OTLP 需要 spring-boot-starter-opentelemetry；spring-boot-starter-zipkin 是 Brave 加 Zipkin 那一組。Sleuth 是 Spring Boot 2 時代的東西。</p>
+  <p class="dexp">Spring Boot 4.1 裡，OpenTelemetry 加 OTLP 需要 spring-boot-starter-opentelemetry；spring-boot-starter-zipkin 是 Brave 加 Zipkin 那一組。Sleuth 是 Spring Boot 2 時代的東西。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑時加了 OpenTelemetry starter，又設了 <code>management.<wbr>otlp.<wbr>metrics.<wbr>export.<wbr>enabled=<wbr>false</code>。為什麼？</p>
@@ -501,7 +532,13 @@ public String balance(@PathVariable String id,
 <section>
 <p class="era">讓機器讀得懂的日誌</p>
 <h3 class="head">結構化日誌與 MDC</h3>
-<p>Spring Boot 文件：「結構化日誌是把日誌輸出寫成定義清楚、通常機器可讀的格式」（Structured logging is a technique where the log output is written in a well-defined, often machine-readable format.），內建支援 Elastic Common Schema（ECS）、Graylog（GELF）、Logstash 三種 JSON 格式，設定 <code>logging.<wbr>structured.<wbr>format.<wbr>console</code> 就能開。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/logging.html" target="_blank" rel="noopener">出處</a> 這個功能是 Spring Boot 3.4 加進來的（Support for structured logging has been introduced），4.1 照樣用。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a> 設成 <code>ecs</code> 之後，transfer 的一行日誌長這樣：</p>
+<p><strong>結構化日誌</strong>是把日誌輸出寫成定義清楚、通常機器可讀的格式。Spring Boot 內建三種 JSON 格式，設定 <code>logging.<wbr>structured.<wbr>format.<wbr>console</code> 就能開：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/logging.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>Elastic Common Schema（ECS）</li>
+<li>Graylog（GELF）</li>
+<li>Logstash</li>
+</ul>
+<p>這個功能是 Spring Boot 3.4 加進來的，4.1 照樣用。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a> 設成 <code>ecs</code> 之後，transfer 的一行日誌長這樣：</p>
 <pre><code>$ grep 67e70a401431e867dab5b5ae6729fde2 transfer.log | head -1 | jq .
 {
   "@timestamp": "2026-10-02T15:56:10.412703Z",
@@ -528,8 +565,14 @@ public String balance(@PathVariable String id,
     "version": "8.11"
   }
 }</code></pre>
-<p>每個欄位都有名字，日誌平台可以直接用 <code>service.name</code>、<code>log.level</code>、<code>traceId</code> 篩選，不用寫正規表示式去切字串。<code>traceId</code> 與 <code>spanId</code> 是 Micrometer Tracing 自動放的：文件說「用了 Micrometer Tracing，Spring Boot 預設就會在日誌裡加上關聯 ID」，由 MDC 裡的 traceId 與 spanId 組成。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
-<p><code>account</code> 那個欄位是程式自己放的，用的是 <strong>MDC</strong>（Mapped Diagnostic Context，對應式診斷情境）。Logback 手冊：MDC「讓開發者把資訊放進診斷情境，之後由 logback 的元件取出」，而且「以執行緒為單位管理」（The MDC manages contextual information on a per thread basis.）；典型用法是開始處理一個請求時，把客戶 ID 這類資訊放進去。<a class="fixsrc" href="https://logback.qos.ch/manual/mdc.html" target="_blank" rel="noopener">出處</a> 因為是綁在執行緒上，而 Tomcat 會重複使用執行緒，所以 transfer 的程式在 <code>finally</code> 裡 <code>MDC.remove</code>，不然下一個請求會帶著上一個人的帳號。</p>
+<p>每個欄位都有名字，日誌平台可以直接用 <code>service.name</code>、<code>log.level</code>、<code>traceId</code> 篩選，不用寫正規表示式去切字串。<code>traceId</code> 與 <code>spanId</code> 是 Micrometer Tracing 自動放的：用了 Micrometer Tracing，Spring Boot 預設就會在日誌裡加上關聯 ID，由 MDC 裡的 traceId 與 spanId 組成。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>account</code> 那個欄位是程式自己放的，用的是 <strong>MDC</strong>（Mapped Diagnostic Context，對應式診斷情境）：</p>
+<ul>
+<li>開發者把資訊放進診斷情境，之後由 logback 的元件取出</li>
+<li>以執行緒為單位管理</li>
+<li>典型用法是開始處理一個請求時，把客戶 ID 這類資訊放進去 <a class="fixsrc" href="https://logback.qos.ch/manual/mdc.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>因為是綁在執行緒上，而 Tomcat 會重複使用執行緒，所以 transfer 的程式在 <code>finally</code> 裡 <code>MDC.remove</code>，不然下一個請求會帶著上一個人的帳號。</p>
 <h4>同一個 traceId，跨兩個服務</h4>
 <p>把兩個服務的日誌合在一起，用 trace ID 篩出同一個請求（<code>jq</code> 只挑出幾個欄位，並略過錯誤堆疊那一行）：</p>
 <pre><code>$ cat transfer.log account.log | grep 67e70a401431e867dab5b5ae6729fde2 | jq -c 'select(.error == null) | {service: .service.name, level: .log.level, message, traceId, spanId}'
@@ -553,12 +596,12 @@ public String balance(@PathVariable String id,
 <div class="drill">
   <p class="dq">日誌裡的 <code>traceId</code> 與 <code>spanId</code> 是誰放進去的？</p>
   <ul class="dopts"><li>程式設計師在每一行 log 手動加上</li><li data-ok>Micrometer Tracing 自動放進 MDC</li><li>Prometheus 來拉指標時順便加上去</li><li>Jaeger 收到 span 之後回寫到日誌</li></ul>
-  <p class="dexp">Spring Boot 文件：用了 Micrometer Tracing，預設就會在日誌加上關聯 ID，由 MDC 的 traceId 與 spanId 組成。</p>
+  <p class="dexp">用了 Micrometer Tracing，預設就會在日誌加上關聯 ID，由 MDC 的 traceId 與 spanId 組成。</p>
 </div>
 <div class="drill">
   <p class="dq">MDC 的資料是以什麼為單位管理的？</p>
   <ul class="dopts"><li>以整個應用程式為單位</li><li>以 HTTP 連線為單位</li><li>以 logger 名稱為單位</li><li data-ok>以執行緒為單位，各自一份</li></ul>
-  <p class="dexp">Logback 手冊：MDC 以執行緒為單位管理情境資訊。所以同一條執行緒處理下一個請求時，沒清掉的值還在。</p>
+  <p class="dexp">MDC 以執行緒為單位管理情境資訊。所以同一條執行緒處理下一個請求時，沒清掉的值還在。</p>
 </div>
 <div class="drill">
   <p class="dq">transfer 在請求開始時 <code>MDC.put("account", …)</code>，卻忘了在 <code>finally</code> 裡 <code>MDC.remove</code>。可能出什麼事？</p>

@@ -12,7 +12,14 @@
 <p class="era">改版</p>
 <h3 class="head">什麼時候要開新版</h3>
 <p>API 一旦有人在用，回應的形狀就是一份「約定」。範例帳戶 API 第 1 版回 <code>"balance":10000</code>；後來要支援外幣，想改成 <code>"balance":{"amount":10000,"currency":"TWD"}</code>。舊的 App 還在讀數字，收到物件就壞了，這叫<strong>破壞相容的變更</strong>（breaking change）。相對地，多加一個欄位通常不會讓舊用戶端壞掉（前提是用戶端會忽略看不懂的欄位）。實務上的判斷是：能用「加欄位、加端點」解決的就不開新版；非改不可的才開新版，讓舊版跟新版並存一段時間。</p>
-<p>版本號要放在請求的哪裡，沒有標準答案。Spring Framework 7 參考文件開門見山：「沒有標準的方式來指定 API 版本，所以啟用 API 版本功能時，你要指定怎麼解析版本」（There is no standard way to specify an API version, so when you enable API versioning in the MVC Config you need to specify how to resolve the version.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-controller/ann-requestmapping.html" target="_blank" rel="noopener">出處</a> 它內建的解析方式有四種：「標頭、查詢參數、媒體類型參數，或網址路徑」（The MVC config provides built-in options to resolve from a header, query parameter, media type parameter, or from the URL path.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a> 查詢參數（<code>?version=2</code>）用法跟標頭很像，這課看另外三種。</p>
+<p>版本號要放在請求的哪裡，沒有標準答案，所以啟用 API 版本功能時，要自己指定怎麼解析版本。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-controller/ann-requestmapping.html" target="_blank" rel="noopener">出處</a> Spring 內建四種解析方式：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li>標頭</li>
+<li>查詢參數</li>
+<li>媒體類型參數</li>
+<li>網址路徑</li>
+</ul>
+<p>查詢參數（<code>?version=2</code>）用法跟標頭很像，這課看另外三種。</p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="同一個請求可以把版本放在三個地方：路徑 GET /v2/accounts/A-001、自訂標頭 API-Version: 2、Accept 的媒體類型參數 application/json;v=2；Spring 的 ApiVersionStrategy 把它解析成 2.0.0，再對到 @GetMapping(version = &quot;2&quot;) 那個方法">
   <defs><marker id="ad-ver-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -111,7 +118,7 @@ public class WebConfig implements WebMvcConfigurer {
         if (mode.equals("path")) path.addPathPrefix("/{version}", HandlerTypePredicate.forBasePackage("demo.bank"));
     }
 }</code></pre>
-<p>放路徑時，參考文件要求「路徑片段必須宣告成 URI 變數」（The path segment must be declared as a URI variable, e.g. "/{version}", "/api/{version}", etc. where the actual name is not important.），並建議用路徑比對的設定統一加前綴，範例的 <code>addPathPrefix</code> 就是這個。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-config/api-version.html" target="_blank" rel="noopener">出處</a> Spring Boot 也可以只用設定檔，例如 <code>spring.mvc.apiversion.use.header=X-Version</code> 加 <code>spring.mvc.apiversion.default=1.0.0</code>（Boot 文件的例子）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/web/servlet.html" target="_blank" rel="noopener">出處</a></p>
+<p>放路徑時，路徑片段必須宣告成 URI 變數（例如 <code>/{version}</code>、<code>/api/{version}</code>，變數名稱不重要），並建議用路徑比對的設定統一加前綴，範例的 <code>addPathPrefix</code> 就是這個。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-config/api-version.html" target="_blank" rel="noopener">出處</a> Spring Boot 也可以只用設定檔，例如 <code>spring.mvc.apiversion.use.header=X-Version</code> 加 <code>spring.mvc.apiversion.default=1.0.0</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/web/servlet.html" target="_blank" rel="noopener">出處</a></p>
 <p>版本放路徑時實跑（<code>--bank.versioning=path</code>，只留關鍵行：省略 Date 等標頭與空行）：</p>
 <pre><code>$ curl -i http://127.0.0.1:9579/v1/accounts/A-001
 HTTP/1.1 200
@@ -129,7 +136,7 @@ HTTP/1.1 200
 $ curl -i http://127.0.0.1:9579/v3/accounts/A-001
 HTTP/1.1 400
 {"detail":"Invalid API version: '3.0.0'.","instance":"/v3/accounts/A-001","status":400,"title":"Bad Request"}</code></pre>
-<p>三件事值得看。第一，<code>v3</code> 被解析成 <code>3.0.0</code>：內建解析器跳過開頭的非數字字元，再拆成主、次、修訂三段（Minor and patch values are set to 0 if not present.）。第二，不受支援的版本回 400（If a request version is not supported, InvalidApiVersionException is raised resulting in a 400 response.）<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a>；受支援的版本預設從控制器宣告的 <code>version</code> 收集，這裡只有 1 和 2。第三，第 1 版的回應多了三個標頭，下一段講。</p>
+<p>三件事值得看。第一，<code>v3</code> 被解析成 <code>3.0.0</code>：內建解析器跳過開頭的非數字字元，再拆成主、次、修訂三段，沒寫的次版與修訂補 0。第二，不受支援的版本丟 <code>InvalidApiVersionException</code>，回 400。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a>；受支援的版本預設從控制器宣告的 <code>version</code> 收集，這裡只有 1 和 2。第三，第 1 版的回應多了三個標頭，下一段講。</p>
 <p>換成標頭與媒體類型實跑，回應的內容跟上面第 1、2 版一樣，只差版本從哪裡讀：</p>
 <pre><code>$ curl -i http://127.0.0.1:9579/accounts/A-001                      # bank.versioning=header，沒帶版本
 HTTP/1.1 200
@@ -141,7 +148,7 @@ $ curl -i -H 'Accept: application/json;v=2' http://127.0.0.1:9579/accounts/A-001
 HTTP/1.1 200
 Content-Type: application/json;v=2
 {"id":"A-001","owner":"王小明","balance":{"amount":10000,"currency":"TWD"}}</code></pre>
-<p>沒帶版本時拿到第 1 版，是因為範例設了 <code>setVersionRequired(false)</code> 與預設版本 1。不設的話，參考文件說「啟用 API 版本時預設必須帶版本，沒帶就丟 MissingApiVersionException，回 400」（By default, a version is required when API versioning is enabled, and MissingApiVersionException is raised resulting in a 400 response if not present.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a> 對已經上線、從沒帶過版本的舊 App，給預設版本是比較溫和的做法。</p>
+<p>沒帶版本時拿到第 1 版，是因為範例設了 <code>setVersionRequired(false)</code> 與預設版本 1。不設的話，啟用 API 版本時預設必須帶版本，沒帶就丟 <code>MissingApiVersionException</code>，回 400。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a> 對已經上線、從沒帶過版本的舊 App，給預設版本是比較溫和的做法。</p>
 
 <div class="drill">
   <p class="dq">Spring Framework 7 起，同一個路徑要對到第 1 版和第 2 版兩個方法，控制器上怎麼寫？</p>
@@ -156,7 +163,7 @@ Content-Type: application/json;v=2
 <div class="drill">
   <p class="dq">實跑 <code>GET /v3/accounts/A-001</code>，控制器只宣告了第 1、2 版。結果是什麼？</p>
   <ul class="dopts"><li>404，找不到這個路徑</li><li data-ok>400，版本不受支援</li><li>200，退回最新的第 2 版</li><li>500，伺服器例外</li></ul>
-  <p class="dexp">實跑回 400，detail 是 Invalid API version: '3.0.0'。參考文件：版本不受支援時丟 InvalidApiVersionException，回 400。</p>
+  <p class="dexp">實跑回 400，detail 是 Invalid API version: '3.0.0'。版本不受支援時丟 InvalidApiVersionException，回 400。</p>
 </div>
 <div class="drill">
   <p class="dq">版本放標頭、沒有設定 <code>setVersionRequired(false)</code>，請求完全沒帶版本會怎樣？</p>
@@ -165,10 +172,10 @@ Content-Type: application/json;v=2
 </div>
 
 <h3 class="head">要淘汰舊版時，先用標頭通知</h3>
-<p>新版上線後，舊版不能說關就關，要先通知、給期限。Spring 內建的處理器能送三種標頭：「內建的 StandardApiVersionDeprecationHandler 可以設定 RFC 9745 與 RFC 8594 定義的 Deprecation、Sunset 標頭與 Link 標頭」（The built-in StandardApiVersionDeprecationHandler can set the "Deprecation" "Sunset" headers and "Link" headers as defined in RFC 9745 and RFC 8594.）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a></p>
+<p>新版上線後，舊版不能說關就關，要先通知、給期限。Spring 內建的 <code>StandardApiVersionDeprecationHandler</code> 能送 RFC 9745 與 RFC 8594 定義的三種標頭：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc-versioning.html" target="_blank" rel="noopener">出處</a></p>
 <ul>
-<li><strong>Deprecation</strong>（棄用）：「這個資源將要或已經被棄用」，值是結構化標頭的日期格式（Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651].），寫成 <code>@</code> 加上 1970 年起算的秒數。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9745" target="_blank" rel="noopener">出處</a> 實跑的 <code>@1790812800</code> 換算回來就是設定的 2026-10-01 00:00 UTC。</li>
-<li><strong>Sunset</strong>（停用日）：讓伺服器告訴用戶端「這個資源預計在某個時間點之後不再回應」（The Sunset HTTP response header field allows a server to communicate the fact that a resource is expected to become unresponsive at a specific point in time.），值是一般的 HTTP 日期。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8594" target="_blank" rel="noopener">出處</a></li>
+<li><strong>Deprecation</strong>（棄用）：表示這個資源將要或已經被棄用，值必須是結構化標頭的日期格式，寫成 <code>@</code> 加上 1970 年起算的秒數。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9745" target="_blank" rel="noopener">出處</a> 實跑的 <code>@1790812800</code> 換算回來就是設定的 2026-10-01 00:00 UTC。</li>
+<li><strong>Sunset</strong>（停用日）：伺服器用它告訴用戶端，這個資源預計在某個時間點之後不再回應，值是一般的 HTTP 日期。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8594" target="_blank" rel="noopener">出處</a></li>
 <li><strong>Link</strong>：<code>rel="sunset"</code> 指向遷移說明頁。</li>
 </ul>
 <p>棄用不等於停用：棄用日之後舊版照常回應，只是在提醒；停用日才是真的要關。第 2 版的回應沒有這三個標頭，因為只有第 1 版被設成棄用。</p>
@@ -176,7 +183,7 @@ Content-Type: application/json;v=2
 <div class="drill">
   <p class="dq">實跑打第 1 版，回應多了 <code>Deprecation: @1790812800</code>。這個值是什麼意思？</p>
   <ul class="dopts"><li>還剩 1790812800 秒停用</li><li>這支 API 的流水號</li><li data-ok>棄用日期，1970 年起算的秒數</li><li>伺服器處理這個請求花的微秒數</li></ul>
-  <p class="dexp">RFC 9745：Deprecation 的值是結構化標頭的 Date，寫成 @ 加秒數。換算回來是 2026-10-01 00:00 UTC，正是 setDeprecationDate 設的日期。</p>
+  <p class="dexp">Deprecation 的值是結構化標頭的 Date，寫成 @ 加秒數。換算回來是 2026-10-01 00:00 UTC，正是 setDeprecationDate 設的日期。</p>
 </div>
 <div class="drill">
   <p class="dq">Deprecation 與 Sunset 兩個標頭的差別，哪個說法對？</p>
@@ -210,7 +217,7 @@ $ curl 'http://127.0.0.1:9579/v1/accounts/0000001234/txs?page=1&amp;size=5'
 -- 偏移 900000
 -&gt; Limit/Offset: 20/900000 row(s)  (actual time=497..497 rows=20 loops=1)
     -&gt; Index lookup on tx using idx_acct_id (account_no='0000001234') (reverse)  (actual time=0.136..409 rows=900020 loops=1)</code></pre>
-<p>同樣只回 20 列，偏移 90 萬那條實際讀了 900,020 列、花了約 497 毫秒；第一頁 0.13 毫秒。毫秒數依機器與快取狀態而異，重點是讀了幾列。Spring Data 的文件也說得很直接：「偏移式捲動要求多數資料庫先把整個結果建出來，伺服器才能回傳」（Offset-based scrolling requires most databases to materialize the entire result before the server can return it.）。<a class="fixsrc" href="https://docs.spring.io/spring-data/commons/reference/repositories/scrolling.html" target="_blank" rel="noopener">出處</a></p>
+<p>同樣只回 20 列，偏移 90 萬那條實際讀了 900,020 列、花了約 497 毫秒；第一頁 0.13 毫秒。毫秒數依機器與快取狀態而異，重點是讀了幾列。偏移式捲動要求多數資料庫先把整個結果建出來，伺服器才能回傳。<a class="fixsrc" href="https://docs.spring.io/spring-data/commons/reference/repositories/scrolling.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">讀完第 0 頁後進來一筆新交易，再讀第 1 頁，實跑看到 id 46 出現兩次。原因是？</p>
@@ -274,7 +281,7 @@ $ curl 'http://127.0.0.1:9579/v1/accounts/0000001234/txs/scroll?size=5&amp;curso
 
 $ curl 'http://127.0.0.1:9579/v1/accounts/0000001234/txs/scroll?size=5&amp;cursor=aWQ6Ng'
 {"items":[{"id":5,…},{"id":4,…},{"id":3,…},{"id":2,…},{"id":1,"amount":370.00}],"nextCursor":null}</code></pre>
-<p><code>aWQ6NDY</code> 解開就是 <code>id:46</code>。第二頁從 45 開始，新插入的 51 不影響。Spring Data 也內建這種做法：Repository 方法收 <code>KeysetScrollPosition</code>、回 <code>Window</code>，用 <code>ScrollPosition.keyset()</code> 從頭開始；文件提醒鍵集「在可為 null 的屬性上會有意料外的結果」（Keyset-Filtering on nullable properties will lead to unexpected results.）。<a class="fixsrc" href="https://docs.spring.io/spring-data/commons/reference/repositories/scrolling.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>aWQ6NDY</code> 解開就是 <code>id:46</code>。第二頁從 45 開始，新插入的 51 不影響。Spring Data 也內建這種做法：Repository 方法收 <code>KeysetScrollPosition</code>、回 <code>Window</code>，用 <code>ScrollPosition.keyset()</code> 從頭開始；注意鍵集在可為 null 的屬性上會有意料外的結果。<a class="fixsrc" href="https://docs.spring.io/spring-data/commons/reference/repositories/scrolling.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th></th><th>偏移分頁</th><th>鍵集分頁（游標）</th></tr></thead><tbody>
 <tr><th>用戶端帶什麼</th><td><code>page</code>、<code>size</code></td><td>上一頁給的 <code>nextCursor</code></td></tr>
 <tr><th>翻到很後面</th><td>越來越慢（實測 90 萬偏移約 497 毫秒）</td><td>一樣快（約 0.05 毫秒）</td></tr>
@@ -309,16 +316,16 @@ $ curl 'http://127.0.0.1:9579/v1/accounts/0000001234/txs/scroll?size=5&amp;curso
 <p class="era">重送</p>
 <h3 class="head">為什麼轉帳需要冪等鍵</h3>
 <p>App 送出轉帳，伺服器扣款成功，回應卻在路上斷了。App 只看到逾時，不知道錢扣了沒，自動重送一次，結果扣了兩次。POST 本身不保證冪等（冪等：同一個操作做一次和做很多次，對伺服器的效果一樣；定義見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉），要靠應用層補上：用戶端替每一筆操作產生一個唯一編號，放在 <code>Idempotency-Key</code> 標頭，重送時帶同一個；伺服器看過這個編號，就不再做一次，直接回上次的結果。這個編號叫<strong>冪等鍵</strong>。</p>
-<p>它目前沒有正式標準。IETF（制定網路標準的組織）的草案 <code>draft-ietf-httpapi-idempotency-key-header</code> 最新是第 07 版，2026 年 4 月 18 日起已是過期狀態，下面引用的是它的內容，不是 RFC；業界的實作（例如 Stripe 的做法）見面試集〈系統設計：秒殺與限流〉。草案的定義：「由用戶端產生的唯一值，資源用它辨識同一個請求的後續重試」（An idempotency key is a unique value generated by the client which the resource uses to recognize subsequent retries of the same request.）。<a class="fixsrc" href="https://www.ietf.org/archive/id/draft-ietf-httpapi-idempotency-key-header-07.txt" target="_blank" rel="noopener">出處</a> 幾條重點（都出自同一份草案）：</p>
+<p>它目前沒有正式標準。IETF（制定網路標準的組織）的草案 <code>draft-ietf-httpapi-idempotency-key-header</code> 最新是第 07 版，2026 年 4 月 18 日起已是過期狀態，下面的規則都出自這份草案，不是 RFC；業界的實作（例如 Stripe 的做法）見面試集〈系統設計：秒殺與限流〉。冪等鍵是用戶端產生的唯一值，資源用它辨識同一個請求的後續重試。<a class="fixsrc" href="https://www.ietf.org/archive/id/draft-ietf-httpapi-idempotency-key-header-07.txt" target="_blank" rel="noopener">出處</a> 幾條重點：</p>
 <ul>
-<li>值是結構化標頭的字串（Its value MUST be a String (Section 3.3.3 of [RFC8941]).），所以要加雙引號：<code>Idempotency-Key: "8e0f6c1a-…"</code>；建議用 UUID（隨機產生、幾乎不會重複的 128 位元編號）（It is RECOMMENDED that a UUID [RFC4122] or a similar random identifier be used as an idempotency key.）。</li>
-<li>重試時回第一次的結果，不管成功或失敗（The resource SHOULD respond with the result of the previously completed operation, success or an error.）。</li>
-<li>文件規定要帶卻沒帶：回 400（the resource SHOULD reply with an HTTP 400 status code）。</li>
-<li>同一個鍵配了不同內容：回 422（If there is an attempt to reuse an idempotency key with a different request payload, the resource SHOULD reply with a HTTP 422 status code）。</li>
-<li>第一次還在處理、重試就到了：回 409（If the request is retried, while the original request is still being processed, the resource SHOULD reply with an HTTP 409 status code）。</li>
-<li>鍵可以有保存期限，要寫在文件裡（The resource SHOULD define such expiration policy and publish it in the documentation.）。<a class="fixsrc" href="https://www.ietf.org/archive/id/draft-ietf-httpapi-idempotency-key-header-07.txt" target="_blank" rel="noopener">出處</a></li>
+<li>值必須是結構化標頭的字串，所以要加雙引號：<code>Idempotency-Key: "8e0f6c1a-…"</code>；建議用 UUID（隨機產生、幾乎不會重複的 128 位元編號）或類似的隨機編號。</li>
+<li>重試時回第一次的結果，不管成功或失敗。</li>
+<li>API 文件規定要帶卻沒帶：回 400。</li>
+<li>同一個鍵配了不同內容：回 422。</li>
+<li>第一次還在處理、重試就到了：回 409。</li>
+<li>鍵可以有保存期限，要寫在 API 文件裡。<a class="fixsrc" href="https://www.ietf.org/archive/id/draft-ietf-httpapi-idempotency-key-header-07.txt" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>注意草案裡的 SHOULD（應該）不是 MUST（必須），狀態碼是建議。422 在 RFC 9110 的名字是 Unprocessable Content（it was unable to process the contained instructions）<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#section-15.5.21" target="_blank" rel="noopener">出處</a>；Spring Framework 7 把 <code>HttpStatus.UNPROCESSABLE_ENTITY</code> 標成棄用，改用 <code>UNPROCESSABLE_CONTENT</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-web/src/main/java/org/springframework/http/HttpStatus.java" target="_blank" rel="noopener">出處</a></p>
+<p>注意草案裡的 SHOULD（應該）不是 MUST（必須），狀態碼是建議。422 在 RFC 9110 的名字是 Unprocessable Content（伺服器無法處理請求裡的指示）<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9110#section-15.5.21" target="_blank" rel="noopener">出處</a>；Spring Framework 7 把 <code>HttpStatus.UNPROCESSABLE_ENTITY</code> 標成棄用，改用 <code>UNPROCESSABLE_CONTENT</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-web/src/main/java/org/springframework/http/HttpStatus.java" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 330" role="img" aria-label="冪等鍵的流程：App 送 POST /v2/transfers 帶冪等鍵 K；伺服器第一次看到 K，扣款並把 K 對應的結果存起來；201 回應在路上遺失；App 逾時後帶同一個 K 重送；伺服器查到 K 已經處理過，不再扣款，直接回同一個結果 T-1">
   <defs><marker id="ad-idem-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -452,7 +459,7 @@ $ curl http://127.0.0.1:9579/v2/accounts/A-001
 <section>
 <p class="era">錯誤格式</p>
 <h3 class="head">RFC 9457 的 ProblemDetail</h3>
-<p>每支 API 自己發明一種錯誤格式，用戶端就得每支各寫一套解析。RFC 9457 定了一種通用的格式，摘要說它定義「problem detail」，用來在 HTTP 回應裡放「機器讀得懂的錯誤細節，免得 HTTP API 各自定義新的錯誤格式」（to carry machine-readable details of errors in HTTP response content to avoid the need to define new error response formats for HTTP APIs.），並取代舊的 RFC 7807（This document obsoletes RFC 7807.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 媒體類型是 <code>application/problem+json</code>，五個標準欄位：</p>
+<p>每支 API 自己發明一種錯誤格式，用戶端就得每支各寫一套解析。RFC 9457 定了一種通用的格式，叫 problem detail：在 HTTP 回應裡放機器讀得懂的錯誤細節，HTTP API 就不用各自定義新的錯誤格式。它取代舊的 RFC 7807。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 媒體類型是 <code>application/problem+json</code>，五個標準欄位：</p>
 <div class="tablewrap"><table><thead><tr><th>欄位</th><th>意思</th><th>範例實跑的值</th></tr></thead><tbody>
 <tr><th><code>type</code></th><td>錯誤「種類」的識別網址；沒寫等於 <code>about:blank</code></td><td><code>https://bank.example/problems/insufficient-funds</code></td></tr>
 <tr><th><code>title</code></th><td>這個種類的簡短說明，同一種錯誤每次都一樣</td><td>餘額不足</td></tr>
@@ -460,12 +467,18 @@ $ curl http://127.0.0.1:9579/v2/accounts/A-001
 <tr><th><code>detail</code></th><td>「這一次」發生了什麼，給人看</td><td>帳戶 A-001 餘額 7000，不足以轉出 9000</td></tr>
 <tr><th><code>instance</code></th><td>這一次錯誤的識別</td><td><code>/v2/transfers</code></td></tr>
 </tbody></table></div>
-<p>表裡三條規則的原句：沒有 <code>type</code> 時「當作 about:blank」（When this member is not present, its value is assumed to be "about:blank".）；<code>status</code> 必須跟真正的狀態碼一致（Generators MUST use the same status code in the actual HTTP response）；用戶端不該解析 <code>detail</code>（Consumers SHOULD NOT parse the "detail" member for information; extensions are more suitable and less error-prone ways to obtain such information.）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 最後這句是重點：程式要判斷的東西放進自訂欄位，別讓用戶端去切 detail 字串。</p>
+<p>表裡三條規則：</p>
+<ul>
+<li>沒有 <code>type</code> 時，當作 <code>about:blank</code></li>
+<li><code>status</code> 必須跟真正的 HTTP 狀態碼一致</li>
+<li>用戶端不該解析 <code>detail</code> 取資訊；要取資訊用擴充欄位，比較不容易出錯 <a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>最後這條是重點：程式要判斷的東西放進自訂欄位，別讓用戶端去切 detail 字串。</p>
 
 <div class="drill">
   <p class="dq">RFC 9457 的錯誤回應，Content-Type 應該是什麼？</p>
   <ul class="dopts"><li><code>application/json</code></li><li data-ok><code>application/problem+json</code></li><li><code>text/plain</code></li><li><code>application/json+problem</code></li></ul>
-  <p class="dexp">RFC 9457：JSON 格式的 problem details 用 application/problem+json 這個媒體類型。實跑的 404、400、422 都是這個。</p>
+  <p class="dexp">JSON 格式的 problem details 用 application/problem+json 這個媒體類型。實跑的 404、400、422 都是這個。</p>
 </div>
 <div class="drill">
   <p class="dq">ProblemDetail 沒有 <code>type</code> 欄位時，依 RFC 9457 代表什麼？</p>
@@ -475,17 +488,23 @@ $ curl http://127.0.0.1:9579/v2/accounts/A-001
 <div class="drill">
   <p class="dq">用戶端想知道「餘額還剩多少」，以便顯示給使用者。依 RFC 9457 的建議，該從哪裡讀？</p>
   <ul class="dopts"><li>用正規表示式切 detail 字串</li><li>從 title 裡找數字</li><li>從 instance 解析</li><li data-ok>伺服器另外放一個擴充欄位</li></ul>
-  <p class="dexp">RFC：Consumers SHOULD NOT parse the "detail" member，擴充欄位比較不容易出錯。範例放了 "balance":7000 這個擴充欄位。</p>
+  <p class="dexp">用戶端不該解析 detail 取資訊，擴充欄位比較不容易出錯。範例放了 "balance":7000 這個擴充欄位。</p>
 </div>
 <div class="drill">
   <p class="dq">ProblemDetail 裡的 <code>status</code> 寫 422，HTTP 回應的狀態碼卻是 200。這樣可以嗎？</p>
   <ul class="dopts"><li>可以，status 只是參考</li><li data-ok>不行，兩邊必須是同一個狀態碼</li><li>可以，用戶端會以 body 為準</li><li>只要 type 有寫就可以</li></ul>
-  <p class="dexp">RFC 9457：Generators MUST use the same status code in the actual HTTP response，不懂這個格式的通用 HTTP 軟體才能照狀態碼正確運作。</p>
+  <p class="dexp">產生錯誤回應的一方必須在實際的 HTTP 回應用同一個狀態碼，不懂這個格式的通用 HTTP 軟體才能照狀態碼正確運作。</p>
 </div>
 
 <h3 class="head">Spring 怎麼產生 ProblemDetail</h3>
-<p>Spring 這邊有四個元件（參考文件 Error Responses 一節）：<code>ProblemDetail</code> 是資料容器；<code>ErrorResponse</code> 是讓例外說出自己對到什麼狀態碼與內容的介面（All Spring MVC exceptions implement this.）；<code>ErrorResponseException</code> 是它的基本實作；<code>ResponseEntityExceptionHandler</code> 是處理這些例外的 <code>@ControllerAdvice</code> 基底類別。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-ann-rest-exceptions.html" target="_blank" rel="noopener">出處</a></p>
-<p>Spring Boot 這邊，設定 <code>spring.mvc.problemdetails.enabled=true</code> 就會自動註冊一個處理器，內建例外都回 ProblemDetail（This support can be enabled by setting spring.mvc.problemdetails.enabled to true.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/web/servlet.html" target="_blank" rel="noopener">出處</a> 範例要再加欄位錯誤，所以自己繼承 <code>ResponseEntityExceptionHandler</code>；Boot 那個自動註冊的處理器帶有「容器裡沒有同型別才建立」的條件（〈Spring Boot 自動組態與 Actuator〉講的 <code>@ConditionalOnMissingBean</code>），看到範例自己的就退開。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-webmvc/src/main/java/org/springframework/boot/webmvc/autoconfigure/WebMvcAutoConfiguration.java#L728-L735" target="_blank" rel="noopener">出處</a></p>
+<p>Spring 這邊有四個元件：<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-ann-rest-exceptions.html" target="_blank" rel="noopener">出處</a></p>
+<ul>
+<li><code>ProblemDetail</code>：資料容器</li>
+<li><code>ErrorResponse</code>：讓例外說出自己對到什麼狀態碼與內容的介面，Spring MVC 的例外全都實作它</li>
+<li><code>ErrorResponseException</code>：它的基本實作</li>
+<li><code>ResponseEntityExceptionHandler</code>：處理這些例外的 <code>@ControllerAdvice</code> 基底類別</li>
+</ul>
+<p>Spring Boot 這邊，設定 <code>spring.mvc.problemdetails.enabled=true</code> 就會自動註冊一個處理器，內建例外都回 ProblemDetail。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/web/servlet.html" target="_blank" rel="noopener">出處</a> 範例要再加欄位錯誤，所以自己繼承 <code>ResponseEntityExceptionHandler</code>；Boot 那個自動註冊的處理器帶有「容器裡沒有同型別才建立」的條件（〈Spring Boot 自動組態與 Actuator〉講的 <code>@ConditionalOnMissingBean</code>），看到範例自己的就退開。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-webmvc/src/main/java/org/springframework/boot/webmvc/autoconfigure/WebMvcAutoConfiguration.java#L728-L735" target="_blank" rel="noopener">出處</a></p>
 <p>業務錯誤則讓例外直接繼承 <code>ErrorResponseException</code>，自己填好 type、title 與擴充欄位：</p>
 <pre><code>public class InsufficientFundsException extends ErrorResponseException {
     public InsufficientFundsException(String account, BigDecimal balance, BigDecimal amount) {
@@ -501,7 +520,7 @@ $ curl http://127.0.0.1:9579/v2/accounts/A-001
         return pd;
     }
 }</code></pre>
-<p><code>setProperty</code> 放進去的值，會被攤平成最外層的 JSON 欄位。參考文件：Spring 註冊的 Jackson 設定會「確保這個 properties Map 被攤開，在回應裡成為最外層的 JSON 屬性」（ensures this "properties" Map is unwrapped and rendered as top level JSON properties in the response）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-ann-rest-exceptions.html" target="_blank" rel="noopener">出處</a> 驗證失敗則覆寫 <code>handleMethodArgumentNotValid</code>，在 Spring 已經做好的 ProblemDetail 上補一個 <code>errors</code> 欄位：</p>
+<p><code>setProperty</code> 放進去的值，會被攤平成最外層的 JSON 欄位：Spring 註冊的 Jackson 設定會把這個 properties Map 攤開，在回應裡成為最外層的 JSON 屬性。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/web/webmvc/mvc-ann-rest-exceptions.html" target="_blank" rel="noopener">出處</a> 驗證失敗則覆寫 <code>handleMethodArgumentNotValid</code>，在 Spring 已經做好的 ProblemDetail 上補一個 <code>errors</code> 欄位：</p>
 <pre><code>@RestControllerAdvice
 public class ApiErrors extends ResponseEntityExceptionHandler {
     record FieldProblem(String field, String message) {}
@@ -528,9 +547,9 @@ Content-Type: application/problem+json
 HTTP/1.1 400
 {"detail":"Invalid request content.","instance":"/v2/transfers","status":400,"title":"Bad Request",
  "errors":[{"field":"amount","message":"至少 1 元"},{"field":"to","message":"不可空白"}]}</code></pre>
-<p>RFC 也要求用戶端「必須忽略看不懂的擴充欄位」（Clients consuming problem details MUST ignore any such extensions that they don't recognize），所以加 <code>balance</code>、<code>errors</code> 不會弄壞只認得標準欄位的用戶端；RFC 自己的驗證錯誤範例用的也是 <code>errors</code> 這個名字。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 沒有加 <code>errors</code> 之前，同一個請求只會拿到 <code>"detail":"Invalid request content."</code>，用戶端根本不知道是哪個欄位錯。</p>
-<p>注意實跑的 404、400 沒有 <code>type</code> 欄位。這是 Spring Framework 7 的改變：7.0 的 <code>ProblemDetail</code> 原始碼寫「預設不設定；依規格，沒有時當作 about:blank」（By default, this is not set. According to the spec, when not present, the type is assumed to be "about:blank"），<a class="fixsrc" href="https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-web/src/main/java/org/springframework/http/ProblemDetail.java" target="_blank" rel="noopener">出處</a> 6.2 版的欄位預設值則是 <code>about:blank</code>（<code>private URI type = BLANK_TYPE;</code>）<a class="fixsrc" href="https://github.com/spring-projects/spring-framework/blob/v6.2.14/spring-web/src/main/java/org/springframework/http/ProblemDetail.java#L60" target="_blank" rel="noopener">出處</a>，所以 Framework 6.2（Boot 3.5）同一個 404 會回 <code>"type":"about:blank"</code>，欄位順序也可能不同。兩種寫法依 RFC 意思相同，用戶端不該依賴 type 一定存在，也不該依賴欄位順序。另外，422 的 title 是 <code>Unprocessable Content</code>，用的是 RFC 9110 的新名字。</p>
-<p>最後一個提醒：RFC 說 problem detail「不是底層實作的除錯工具」（Problem details are not a debugging tool for the underlying implementation）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 例外的堆疊、SQL 錯誤訊息不要放進 detail，那是給攻擊者的線索；記在伺服器的記錄檔就好。</p>
+<p>用戶端必須忽略看不懂的擴充欄位，所以加 <code>balance</code>、<code>errors</code> 不會弄壞只認得標準欄位的用戶端；RFC 9457 自己的驗證錯誤範例用的也是 <code>errors</code> 這個名字。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 沒有加 <code>errors</code> 之前，同一個請求只會拿到 <code>"detail":"Invalid request content."</code>，用戶端根本不知道是哪個欄位錯。</p>
+<p>注意實跑的 404、400 沒有 <code>type</code> 欄位。這是 Spring Framework 7 的改變：7.0 的 <code>ProblemDetail</code> 預設不設定 <code>type</code>（依規格，沒有時當作 about:blank），<a class="fixsrc" href="https://github.com/spring-projects/spring-framework/blob/v7.0.9/spring-web/src/main/java/org/springframework/http/ProblemDetail.java" target="_blank" rel="noopener">出處</a> 6.2 版的欄位預設值則是 <code>about:blank</code>（<code>private URI type = BLANK_TYPE;</code>）<a class="fixsrc" href="https://github.com/spring-projects/spring-framework/blob/v6.2.14/spring-web/src/main/java/org/springframework/http/ProblemDetail.java#L60" target="_blank" rel="noopener">出處</a>，所以 Framework 6.2（Boot 3.5）同一個 404 會回 <code>"type":"about:blank"</code>，欄位順序也可能不同。兩種寫法依 RFC 意思相同，用戶端不該依賴 type 一定存在，也不該依賴欄位順序。另外，422 的 title 是 <code>Unprocessable Content</code>，用的是 RFC 9110 的新名字。</p>
+<p>最後一個提醒：problem detail 不是底層實作的除錯工具。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9457" target="_blank" rel="noopener">出處</a> 例外的堆疊、SQL 錯誤訊息不要放進 detail，那是給攻擊者的線索；記在伺服器的記錄檔就好。</p>
 
 <div class="drill">
   <p class="dq">範例自己繼承了 <code>ResponseEntityExceptionHandler</code>，又設了 <code>spring.mvc.problemdetails.enabled=true</code>。Boot 會再註冊一個自己的處理器嗎？</p>
@@ -555,15 +574,20 @@ HTTP/1.1 400
 <div class="drill">
   <p class="dq">驗證失敗時，把例外的堆疊追蹤整段放進 detail 方便前端除錯。這樣做好嗎？</p>
   <ul class="dopts"><li>好，RFC 9457 建議這樣做</li><li>好，detail 就是給工程師看的</li><li data-ok>不好，會把內部實作洩漏出去</li><li>好，只要狀態碼是 500</li></ul>
-  <p class="dexp">RFC：Problem details are not a debugging tool for the underlying implementation。堆疊、SQL 訊息記在伺服器記錄檔，detail 只寫幫用戶端修正的話。</p>
+  <p class="dexp">problem detail 不是底層實作的除錯工具。堆疊、SQL 訊息記在伺服器記錄檔，detail 只寫幫用戶端修正的話。</p>
 </div>
 </section>
 
 <section>
 <p class="era">文件</p>
 <h3 class="head">OpenAPI 與 springdoc</h3>
-<p><strong>OpenAPI</strong> 是描述 HTTP API 的標準格式（路徑、參數、請求與回應的長相，用 JSON 或 YAML 寫），規格說它讓人和電腦「不用看原始碼就能理解服務的能力」（allows both humans and computers to discover and understand the capabilities of the service without access to source code）。<a class="fixsrc" href="https://spec.openapis.org/oas/v3.1.0.html" target="_blank" rel="noopener">出處</a> 有了它，可以產生互動式文件頁（Swagger UI）、各語言的用戶端程式碼，也能在 CI 比對新舊版找出破壞相容的變更。</p>
-<p>springdoc-openapi「在執行期檢查應用程式，從 Spring 設定、類別結構與各種註解推斷 API 的語意」（springdoc-openapi works by examining an application at runtime to infer API semantics based on spring configurations, class structure and various annotations.），是社群專案、不是 Spring 官方維護的（This is a community-based project, not maintained by the Spring Framework Contributors (Pivotal).）；版本要對：「springdoc-openapi 3.x 相容 spring-boot 4」（springdoc-openapi 3.x is compatible with spring-boot 4），Boot 3.x 用 2.x。<a class="fixsrc" href="https://springdoc.org/" target="_blank" rel="noopener">出處</a> 加上 starter 不用任何設定，<code>/v3/api-docs</code> 就是 JSON 文件，<code>/swagger-ui.html</code> 會轉到互動頁（實跑回 302 到 <code>/swagger-ui/index.html</code>）。</p>
+<p><strong>OpenAPI</strong> 是描述 HTTP API 的標準格式（路徑、參數、請求與回應的長相，用 JSON 或 YAML 寫），讓人和電腦不用看原始碼就能理解服務的能力。<a class="fixsrc" href="https://spec.openapis.org/oas/v3.1.0.html" target="_blank" rel="noopener">出處</a> 有了它，可以產生互動式文件頁（Swagger UI）、各語言的用戶端程式碼，也能在 CI 比對新舊版找出破壞相容的變更。</p>
+<p>springdoc-openapi 在執行期檢查應用程式，從 Spring 設定、類別結構與各種註解推斷 API 的語意：</p>
+<ul>
+<li>它是社群專案，不是 Spring 官方維護的</li>
+<li>版本要對：springdoc-openapi 3.x 相容 Spring Boot 4，Boot 3.x 用 2.x <a class="fixsrc" href="https://springdoc.org/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>加上 starter 不用任何設定，<code>/v3/api-docs</code> 就是 JSON 文件，<code>/swagger-ui.html</code> 會轉到互動頁（實跑回 302 到 <code>/swagger-ui/index.html</code>）。</p>
 <p>實跑 springdoc 3.1.1 產生的文件是 <code>"openapi":"3.1.0"</code>。轉帳的請求格式直接從 record 與驗證註解推出來：</p>
 <pre><code>"TransferRequest": {
   "type": "object",
@@ -574,7 +598,7 @@ HTTP/1.1 400
   },
   "required": [ "amount", "from", "to" ]
 }</code></pre>
-<p><code>@NotBlank</code> 變成 <code>minLength: 1</code> 加上必填，<code>@DecimalMin("1")</code> 變成 <code>minimum: 1</code>，<code>@NotNull</code> 讓 amount 進了 <code>required</code>。如果只寫 <code>@DecimalMin</code>，文件裡 amount 不會列為必填，因為 <code>@DecimalMin</code> 本來就不擋 null（null elements are considered valid）<a class="fixsrc" href="https://jakarta.ee/specifications/bean-validation/3.1/apidocs/jakarta/validation/constraints/decimalmin" target="_blank" rel="noopener">出處</a>，不帶 amount 的請求會通過驗證；所以要再加 <code>@NotNull</code>。產生出來的文件也能幫你看出驗證的漏洞。版本放標頭時，文件還會自動列出 <code>API-Version</code> 這個標頭參數，可選值是 <code>"2"</code>、<code>"1"</code>、<code>"1.0.0"</code>。</p>
+<p><code>@NotBlank</code> 變成 <code>minLength: 1</code> 加上必填，<code>@DecimalMin("1")</code> 變成 <code>minimum: 1</code>，<code>@NotNull</code> 讓 amount 進了 <code>required</code>。如果只寫 <code>@DecimalMin</code>，文件裡 amount 不會列為必填，因為 <code>@DecimalMin</code> 本來就不擋 null<a class="fixsrc" href="https://jakarta.ee/specifications/bean-validation/3.1/apidocs/jakarta/validation/constraints/decimalmin" target="_blank" rel="noopener">出處</a>，不帶 amount 的請求會通過驗證；所以要再加 <code>@NotNull</code>。產生出來的文件也能幫你看出驗證的漏洞。版本放標頭時，文件還會自動列出 <code>API-Version</code> 這個標頭參數，可選值是 <code>"2"</code>、<code>"1"</code>、<code>"1.0.0"</code>。</p>
 <p>自動推斷也有推錯的地方。轉帳方法回的是 <code>ResponseEntity</code>，springdoc 看不出實際狀態碼，沒加註解前文件寫成 <code>"200"</code>，實際卻回 201；錯誤回應也完全沒列。要用 swagger 的註解補上：</p>
 <pre><code>@Operation(summary = "轉帳", description = "同一個 Idempotency-Key 重送只會扣一次款")
 @ApiResponse(responseCode = "201", description = "轉帳成功（重送時回第一次的結果）")
@@ -586,7 +610,7 @@ HTTP/1.1 400
 <div class="drill">
   <p class="dq">只寫 <code>@DecimalMin("1")</code> 時，springdoc 產生的文件裡 amount 不在 <code>required</code>。這反映了什麼？</p>
   <ul class="dopts"><li data-ok>不帶 amount 也會通過驗證</li><li>springdoc 讀不懂驗證註解</li><li>OpenAPI 不支援必填</li><li>BigDecimal 不能設成必填</li></ul>
-  <p class="dexp">@DecimalMin 把 null 當成通過，所以文件說它不是必填，正確反映了驗證的漏洞；範例補 @NotNull 後，amount 才進了 required。</p>
+  <p class="dexp">@DecimalMin 把 null 當成通過，所以產生的文件標它不是必填，正確反映了驗證的漏洞；範例補 @NotNull 後，amount 才進了 required。</p>
 </div>
 <div class="drill">
   <p class="dq">轉帳方法實際回 201，springdoc 沒加註解前的文件卻寫 200。怎麼修？</p>
@@ -605,9 +629,9 @@ HTTP/1.1 400
 <h3 class="head">REST、gRPC、GraphQL</h3>
 <p>三者的基本比較（契約、序列化、HTTP/2）面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉已經整理過，這裡用改版、錯誤、分頁、文件四個主題再對一次：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>REST（HTTP＋JSON）</th><th>gRPC</th><th>GraphQL</th></tr></thead><tbody>
-<tr><th>改版</th><td>路徑、標頭、媒體類型三選一，本課做法</td><td>.proto 加欄位通常相容；不相容就換服務或套件名稱</td><td>傾向不開版本，新增欄位、標記舊欄位棄用（GraphQL takes a strong opinion on avoiding versioning）<a class="fixsrc" href="https://graphql.org/learn/schema-design/" target="_blank" rel="noopener">出處</a></td></tr>
-<tr><th>錯誤</th><td>HTTP 狀態碼＋ProblemDetail</td><td>gRPC 自己的狀態碼（gRPC uses a set of well defined status codes as part of the RPC API）<a class="fixsrc" href="https://grpc.io/docs/guides/status-codes/" target="_blank" rel="noopener">出處</a></td><td>有資料就回 2xx，錯誤放在回應的 errors（since HTTP does not yet have a status code representing "partial success."）<a class="fixsrc" href="https://graphql.org/learn/serving-over-http/" target="_blank" rel="noopener">出處</a></td></tr>
-<tr><th>分頁</th><td>查詢參數帶頁碼或游標</td><td>請求訊息帶游標，或改用串流（含雙向串流：both sides send a sequence of messages using a read-write stream）<a class="fixsrc" href="https://grpc.io/docs/what-is-grpc/core-concepts/" target="_blank" rel="noopener">出處</a></td><td>常見用游標的連線模式</td></tr>
+<tr><th>改版</th><td>路徑、標頭、媒體類型三選一，本課做法</td><td>.proto 加欄位通常相容；不相容就換服務或套件名稱</td><td>傾向不開版本，新增欄位、標記舊欄位棄用<a class="fixsrc" href="https://graphql.org/learn/schema-design/" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><th>錯誤</th><td>HTTP 狀態碼＋ProblemDetail</td><td>gRPC 自己定義的一組狀態碼<a class="fixsrc" href="https://grpc.io/docs/guides/status-codes/" target="_blank" rel="noopener">出處</a></td><td>有資料就回 2xx，錯誤放在回應的 errors（HTTP 還沒有代表「部分成功」的狀態碼）<a class="fixsrc" href="https://graphql.org/learn/serving-over-http/" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><th>分頁</th><td>查詢參數帶頁碼或游標</td><td>請求訊息帶游標，或改用串流（含雙向串流：兩邊各用一條讀寫串流送一連串訊息）<a class="fixsrc" href="https://grpc.io/docs/what-is-grpc/core-concepts/" target="_blank" rel="noopener">出處</a></td><td>常見用游標的連線模式</td></tr>
 <tr><th>文件與契約</th><td>OpenAPI（可從程式碼產生）</td><td>.proto 檔就是契約</td><td>schema 就是契約，可以查詢 schema 本身</td></tr>
 <tr><th>適合</th><td>對外公開、瀏覽器與第三方直接呼叫</td><td>內部服務之間、低延遲、需要串流</td><td>前端畫面要的欄位組合多變、一次要拿好幾種資料</td></tr>
 </tbody></table></div>
@@ -621,7 +645,7 @@ HTTP/1.1 400
 <div class="drill">
   <p class="dq">內部兩個服務之間要低延遲、還要雙向一直傳訊息，三者中最適合哪一個？</p>
   <ul class="dopts"><li>REST 加偏移分頁</li><li>GraphQL 查詢</li><li data-ok>gRPC 的雙向串流</li><li>REST 加 ProblemDetail</li></ul>
-  <p class="dexp">gRPC 用二進位的 Protocol Buffers，內建雙向串流（both sides send a sequence of messages），適合內部服務之間。</p>
+  <p class="dexp">gRPC 用二進位的 Protocol Buffers，內建雙向串流（兩邊都能送一連串訊息），適合內部服務之間。</p>
 </div>
 </section>
 

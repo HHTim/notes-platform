@@ -4,15 +4,19 @@
 <section>
 <p class="era">表要改，但不能靠運氣</p>
 <h3 class="head">為什麼不能靠 ddl-auto</h3>
-<p>Spring Data JPA（見〈Spring 資料存取〉）可以用 <code>spring.<wbr>jpa.<wbr>hibernate.<wbr>ddl-<wbr>auto</code> 讓 Hibernate 依實體類別自己建表。Spring Boot 文件列出可用的值是 <code>none</code>、<code>validate</code>、<code>update</code>、<code>create</code>、<code>create-drop</code>，而且預設值看資料庫而定：用內嵌資料庫（H2 這類）又沒偵測到 Flyway 或 Liquibase 時預設 <code>create-drop</code>，「其他情況預設 none」（In all other cases, it defaults to none.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/data-initialization.html" target="_blank" rel="noopener">出處</a></p>
-<p>Hibernate 自己的文件也說：自動產生結構「對測試與做雛形很有用，但在正式環境，用遞增的遷移腳本管理結構彈性大得多」（Although the automatic schema generation is very useful for testing and prototyping purposes, in a production environment, it's much more flexible to manage the schema using incremental migration scripts.）。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#schema-generation" target="_blank" rel="noopener">出處</a> 銀行的正式資料庫裡，每一次改表都要能審查、能重現、能說得出是哪一版改的，這正是遷移工具（migration tool：把每一次改資料庫結構寫成一支有版本號的腳本、依序執行並記錄的工具）在做的事。Spring Boot 內建支援兩種：Flyway 與 Liquibase（Spring Boot supports two higher-level migration tools: Flyway and Liquibase.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/data-initialization.html" target="_blank" rel="noopener">出處</a></p>
+<p>Spring Data JPA（見〈Spring 資料存取〉）可以用 <code>spring.<wbr>jpa.<wbr>hibernate.<wbr>ddl-<wbr>auto</code> 讓 Hibernate 依實體類別自己建表。可用的值是 <code>none</code>、<code>validate</code>、<code>update</code>、<code>create</code>、<code>create-drop</code>，預設值看資料庫而定：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/data-initialization.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>用內嵌資料庫（H2 這類）又沒偵測到 Flyway 或 Liquibase：預設 <code>create-drop</code></li>
+<li>其他情況：預設 <code>none</code></li>
+</ul>
+<p>自動產生結構適合測試與做雛形；正式環境用遞增的遷移腳本管理結構，彈性大得多。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#schema-generation" target="_blank" rel="noopener">出處</a> 銀行的正式資料庫裡，每一次改表都要能審查、能重現、能說得出是哪一版改的，這正是遷移工具（migration tool：把每一次改資料庫結構寫成一支有版本號的腳本、依序執行並記錄的工具）在做的事。Spring Boot 內建支援兩種：Flyway 與 Liquibase。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/data-initialization.html" target="_blank" rel="noopener">出處</a></p>
 <p>示範專案的結構全部交給 Flyway，Hibernate 只設 <code>ddl-auto=validate</code>：對不上就不讓應用程式起來。</p>
 <p class="formula">正式環境：表由遷移腳本建、由遷移工具記錄；Hibernate 只用 validate 核對</p>
 
 <div class="drill">
   <p class="dq">Spring Boot 連的是 Docker 裡的 MySQL（不是內嵌資料庫），沒有另外設 <code>ddl-auto</code>。預設值是什麼？</p>
   <ul class="dopts"><li>create-drop，每次啟動都重建</li><li>update，自動補上缺的欄位</li><li data-ok>none</li><li>validate，啟動時核對結構</li></ul>
-  <p class="dexp">文件：只有內嵌資料庫而且沒偵測到 Flyway／Liquibase 時才預設 create-drop，其他情況預設 none。</p>
+  <p class="dexp">只有內嵌資料庫而且沒偵測到 Flyway／Liquibase 時才預設 create-drop，其他情況預設 none。</p>
 </div>
 <div class="drill">
   <p class="dq">結構交給 Flyway 管之後，<code>spring.<wbr>jpa.<wbr>hibernate.<wbr>ddl-<wbr>auto</code> 最適合設成哪一個？</p>
@@ -29,14 +33,24 @@
 <section>
 <p class="era">一個資料夾、一張表</p>
 <h3 class="head">Flyway 的兩樣東西：腳本與歷史表</h3>
-<p>Spring Boot 4 加 <code>spring-<wbr>boot-<wbr>starter-<wbr>flyway</code>；連 MySQL 還要加 <code>flyway-mysql</code>：文件寫內嵌與檔案型資料庫用 starter 就好，「其他情況還需要資料庫專用的模組」，例子就是 MySQL 用 <code>org.<wbr>flywaydb:flyway-<wbr>mysql</code>（Other cases require also a database-specific module. … org.<wbr>flywaydb:flyway-mysql with MySQL.）。腳本預設放在 <code>classpath:db/migration</code>，檔名是「V&lt;版本&gt;__&lt;名稱&gt;.sql」，版本用底線分隔，例如 1 或 2_1（Typically, migrations are scripts in the form V&lt;VERSION&gt;__&lt;NAME&gt;.sql (with &lt;VERSION&gt; an underscore-separated version, such as '1' or '2_1').）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/data-initialization.html" target="_blank" rel="noopener">出處</a></p>
+<p>Spring Boot 4 加 <code>spring-<wbr>boot-<wbr>starter-<wbr>flyway</code>。starter 只涵蓋內嵌與檔案型資料庫，其他資料庫還要加專用模組，MySQL 要加 <code>org.<wbr>flywaydb:flyway-<wbr>mysql</code>。腳本的位置與檔名：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/data-initialization.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>預設放在 <code>classpath:db/migration</code></li>
+<li>檔名是 <code>V&lt;版本&gt;__&lt;名稱&gt;.sql</code>，版本用底線分隔，例如 <code>1</code> 或 <code>2_1</code></li>
+</ul>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="Flyway 腳本檔名的結構：版本化腳本 V2_1__add_index_owner.sql 拆成前綴 V、版本 2_1（也就是 2.1）、兩個底線的分隔、描述與副檔名；可重複腳本 R__account_summary_view.sql 只有前綴 R、分隔、描述與副檔名，沒有版本">
 <rect x="40" y="40" width="50" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="65" y="68" font-size="15" text-anchor="middle" class="mono">V</text><text x="65" y="108" font-size="13" text-anchor="middle">前綴</text><rect x="98" y="40" width="70" height="46" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="133" y="68" font-size="15" text-anchor="middle" class="mono">2_1</text><text x="133" y="108" font-size="13" text-anchor="middle" fill="var(--gold-deep)">版本</text><text x="133" y="128" font-size="11.5" text-anchor="middle" opacity=".7">底線當點：2.1</text><rect x="176" y="40" width="60" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="206" y="68" font-size="15" text-anchor="middle" class="mono">__</text><text x="206" y="108" font-size="13" text-anchor="middle">分隔</text><text x="206" y="128" font-size="11.5" text-anchor="middle" opacity=".7">兩個底線</text><rect x="244" y="40" width="230" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="359" y="68" font-size="15" text-anchor="middle" class="mono">add_index_owner</text><text x="359" y="108" font-size="13" text-anchor="middle">描述</text><text x="359" y="128" font-size="11.5" text-anchor="middle" opacity=".7">給人看的，底線變空白</text><rect x="482" y="40" width="70" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="517" y="68" font-size="15" text-anchor="middle" class="mono">.sql</text><text x="517" y="108" font-size="13" text-anchor="middle">副檔名</text><text x="40" y="26" font-size="12.5" fill="var(--gold-deep)">版本化腳本：只跑一次，照版本排序</text><text x="40" y="170" font-size="12.5" fill="var(--slate-deep)">可重複腳本：沒有版本，內容一變就重跑</text><rect x="40" y="184" width="50" height="46" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="65" y="212" font-size="15" text-anchor="middle" class="mono">R</text><text x="65" y="252" font-size="13" text-anchor="middle">前綴</text><rect x="98" y="184" width="60" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="128" y="212" font-size="15" text-anchor="middle" class="mono">__</text><text x="128" y="252" font-size="13" text-anchor="middle">分隔</text><rect x="166" y="184" width="260" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="296" y="212" font-size="15" text-anchor="middle" class="mono">account_summary_view</text><text x="296" y="252" font-size="13" text-anchor="middle">描述</text><rect x="434" y="184" width="70" height="46" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="469" y="212" font-size="15" text-anchor="middle" class="mono">.sql</text><text x="469" y="252" font-size="13" text-anchor="middle">副檔名</text><text x="40" y="286" font-size="12" opacity=".6">前綴、分隔與副檔名都是預設值，可以設定；描述只影響顯示</text>
 </svg>
 <figcaption>檔名就是設定：V 加版本的只跑一次，R 開頭的沒有版本、內容改了就重跑。</figcaption>
 </figure>
-<p>Flyway 文件：版本化腳本「依順序、只套用一次」（Versioned migrations are applied to a target database in order exactly once.），而 <code>flyway_schema_history</code> 表「記錄哪些版本化腳本已經套用過，並存下校驗和，確保它們沒被改過」（tracks which versioned migrations have already been applied and stores the checksum to make sure they haven't changed.）；版本「照數字排序」（Versions are sorted numerically）。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a> 校驗和（checksum：把腳本內容算成一個數字，內容改一個字數字就變）是 CRC32（Validate works by storing a checksum (CRC32 for SQL migrations)）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/validate" target="_blank" rel="noopener">出處</a></p>
+<p>版本化腳本的規則：<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>依順序套用，每支只套用一次</li>
+<li>版本照數字大小排序</li>
+<li><code>flyway_schema_history</code> 表記錄哪些腳本已經套用過，並存下校驗和，確保腳本沒被改過</li>
+</ul>
+<p>校驗和（checksum：把腳本內容算成一個數字，內容改一個字數字就變），SQL 腳本用的是 CRC32。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/validate" target="_blank" rel="noopener">出處</a></p>
 <p>示範專案的前兩支腳本：</p>
 <pre><code>CREATE TABLE account (
     id      BIGINT PRIMARY KEY,
@@ -71,14 +85,14 @@ exit=0</code></pre>
   <p class="dexp">預設格式是 V＋版本＋兩個底線＋描述；版本裡的底線代表點。少了 V 或只有一個底線都不符合；R 開頭是可重複腳本，沒有版本。</p>
 </div>
 <div class="drill">
-  <p class="dq">已經加了 <code>spring-<wbr>boot-<wbr>starter-<wbr>flyway</code>，資料庫是 MySQL。照 Spring Boot 文件，還必須加哪個 Flyway 模組？</p>
+  <p class="dq">已經加了 <code>spring-<wbr>boot-<wbr>starter-<wbr>flyway</code>，資料庫是 MySQL。還必須加哪個 Flyway 模組？</p>
   <ul class="dopts"><li>不用，starter 已經支援所有資料庫</li><li>flyway-core，starter 沒有帶</li><li>flyway-database-postgresql</li><li data-ok>flyway-mysql</li></ul>
-  <p class="dexp">文件：starter 只涵蓋內嵌與檔案型資料庫，其他情況要加資料庫專用模組，MySQL 是 org.<wbr>flywaydb:flyway-mysql。</p>
+  <p class="dexp">starter 只涵蓋內嵌與檔案型資料庫，其他情況要加資料庫專用模組，MySQL 是 org.<wbr>flywaydb:flyway-mysql。</p>
 </div>
 <div class="drill">
   <p class="dq">示範專案把腳本放在專案外的 <code>mig/</code> 資料夾，啟動時加 <code>--<wbr>spring.<wbr>flyway.<wbr>locations=filesystem:mig</code>。這個屬性的作用是？</p>
   <ul class="dopts"><li>指定 flyway_schema_history 要建在哪個 schema</li><li data-ok>指定去哪裡找遷移腳本</li><li>指定 MySQL 存放資料檔的磁碟路徑</li><li>只在測試環境有效的除錯開關</li></ul>
-  <p class="dexp">文件：預設 classpath:db/migration，可以用 spring.flyway.locations 改成一個或多個 classpath: 或 filesystem: 位置。</p>
+  <p class="dexp">預設 classpath:db/migration，可以用 spring.flyway.locations 改成一個或多個 classpath: 或 filesystem: 位置。</p>
 </div>
 <div class="drill">
   <p class="dq">第一次對空資料庫啟動，日誌顯示 <code>Schema history table ... does not exist yet</code>。接下來 Flyway 做了什麼？</p>
@@ -93,7 +107,7 @@ exit=0</code></pre>
 <div class="drill">
   <p class="dq">檔案 <code>V10__add_fee.sql</code> 與 <code>V9__add_rate.sql</code> 都還沒跑過。Flyway 先跑哪一支？</p>
   <ul class="dopts"><li>V10，因為字串排序 "1" 在 "9" 前面</li><li>兩支同時跑</li><li>看檔案建立的時間</li><li data-ok>V9，版本照數字排序</li></ul>
-  <p class="dexp">文件：Versions are sorted numerically as you would normally expect。9 小於 10。</p>
+  <p class="dexp">版本照數字大小排序，9 小於 10。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑日誌裡，Hibernate 的 <code>entityManagerFactory</code> 依賴 <code>flywayInitializer</code>。這代表什麼？</p>
@@ -108,7 +122,12 @@ exit=0</code></pre>
 <p>什麼都沒改，再啟動一次：</p>
 <pre><code>INFO DbMigrate : Current version of schema `bank`: 2
 INFO DbMigrate : Schema `bank` is up to date. No migration necessary.</code></pre>
-<p>加一支 <code>V3__add_branch.sql</code>（<code>ALTER TABLE account ADD COLUMN branch VARCHAR(<wbr>10) NULL, ALGORITHM=INSTANT;</code>），再加一支可重複腳本 <code>R__account_summary_view.<wbr>sql</code> 建一個 view。可重複腳本「每次校驗和改變就（重新）套用」（repeatable migrations are (re-)applied to a database on migrate every time their checksum changes.），而且「在同一次執行裡，永遠在所有待跑的版本化腳本之後才跑」（Within a single migration run, repeatable migrations are always applied last, after all pending versioned migrations have been executed.）；可以重複執行是你的責任，通常靠 <code>CREATE OR REPLACE</code>。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/flyway-concepts/migrations/repeatable-migrations" target="_blank" rel="noopener">出處</a></p>
+<p>加一支 <code>V3__add_branch.sql</code>（<code>ALTER TABLE account ADD COLUMN branch VARCHAR(<wbr>10) NULL, ALGORITHM=INSTANT;</code>），再加一支可重複腳本 <code>R__account_summary_view.<wbr>sql</code> 建一個 view。可重複腳本的規則：<a class="fixsrc" href="https://documentation.red-gate.com/flyway/flyway-concepts/migrations/repeatable-migrations" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>每次校驗和改變，migrate 時就（重新）套用</li>
+<li>同一次執行裡，永遠排在所有待跑的版本化腳本之後</li>
+<li>能不能重複執行是你的責任，通常靠 <code>CREATE OR REPLACE</code></li>
+</ul>
 <pre><code>CREATE OR REPLACE VIEW account_summary AS
 SELECT owner, balance FROM account;</code></pre>
 <pre><code>INFO DbMigrate : Current version of schema `bank`: 2
@@ -129,7 +148,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank` (execution ti
 <div class="drill">
   <p class="dq">同一次啟動有一支新的 V3 和一支新的 R 腳本，執行順序是？</p>
   <ul class="dopts"><li>R 先跑，因為字母 R 在 V 前面</li><li>兩支同時跑</li><li>看檔案大小</li><li data-ok>V3 先，R 最後</li></ul>
-  <p class="dexp">文件：repeatable migrations are always applied last, after all pending versioned migrations。實跑日誌也是先 version "3 - add branch"，再 repeatable migration。</p>
+  <p class="dexp">可重複腳本永遠排在所有待跑的版本化腳本之後。實跑日誌也是先 version "3 - add branch"，再 repeatable migration。</p>
 </div>
 <div class="drill">
   <p class="dq">把 <code>R__account_summary_view.<wbr>sql</code> 的 SELECT 多加一個欄位再啟動，會發生什麼？</p>
@@ -139,7 +158,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank` (execution ti
 <div class="drill">
   <p class="dq">可重複腳本裡建 view，用 <code>CREATE VIEW</code> 而不是 <code>CREATE OR REPLACE VIEW</code>。第二次重跑時最可能怎樣？</p>
   <ul class="dopts"><li>Flyway 會自動先 DROP</li><li>沒差，結果一樣</li><li data-ok>失敗，因為 view 已經存在</li><li>跳過不跑</li></ul>
-  <p class="dexp">文件說確保可重複執行是你的責任，通常用 CREATE OR REPLACE。單純 CREATE 在物件已存在時會報錯。</p>
+  <p class="dexp">確保可重複執行是你的責任，通常用 CREATE OR REPLACE。單純 CREATE 在物件已存在時會報錯。</p>
 </div>
 </section>
 
@@ -151,10 +170,10 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank` (execution ti
 -&gt; Applied to database : 490333979
 -&gt; Resolved locally    : 64298645
 Either revert the changes to the migration, or run repair to update the schema history.</code></pre>
-<p>應用程式直接起不來。Spring Boot 的 <code>spring.<wbr>flyway.<wbr>validate-<wbr>on-<wbr>migrate</code> 預設是 true（Whether to automatically call validate when performing a migration. true）<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>，validate 不過就不 migrate。錯誤訊息給了兩條路：</p>
+<p>應用程式直接起不來。Spring Boot 的 <code>spring.<wbr>flyway.<wbr>validate-<wbr>on-<wbr>migrate</code>（migrate 時先自動 validate）預設是 true<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>，validate 不過就不 migrate。錯誤訊息給了兩條路：</p>
 <ul class="plainlist">
-<li><strong>把檔案改回去</strong>（revert the changes）：這幾乎永遠是對的。改 V1 不會讓已經存在的表變成 80，正式環境的表還是 50，只是腳本跟實際對不上了。要改長度，<strong>新增一支 V</strong> 去 ALTER。Flyway 文件的建議就是：已經套用到下游環境的版本化腳本不要改，「最好建立一支新的版本化腳本，往前修」（It's best to create a new versioned migration script and roll forward any necessary changes.）。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>執行 repair</strong>：repair 會「把已套用腳本的校驗和、描述與類型，對齊成目前檔案的版本」（Realign the checksums, descriptions and types of the applied migrations with the ones of the available migrations）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/repair" target="_blank" rel="noopener">出處</a> 它只改歷史表、不改你的表。比較安全的用法是只在改了註解、排版這類不影響結果的內容時用它。</li>
+<li><strong>把檔案改回去</strong>（revert the changes）：這幾乎永遠是對的。改 V1 不會讓已經存在的表變成 80，正式環境的表還是 50，只是腳本跟實際對不上了。要改長度，<strong>新增一支 V</strong> 去 ALTER：已經套用到下游環境的版本化腳本不要改，建立一支新的版本化腳本往前修。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>執行 repair</strong>：repair 把已套用腳本的校驗和、描述與類型，對齊成目前檔案的版本。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/repair" target="_blank" rel="noopener">出處</a> 它只改歷史表、不改你的表。比較安全的用法是只在改了註解、排版這類不影響結果的內容時用它。</li>
 </ul>
 <p class="formula">已套用的版本化腳本不改；要改結構就加一支新的 V；repair 只改歷史表</p>
 
@@ -169,9 +188,9 @@ Either revert the changes to the migration, or run repair to update the schema h
   <p class="dexp">repair 只對齊歷史表、不執行腳本：腳本說 80、資料庫是 50，新建的環境會跟正式環境不一樣。</p>
 </div>
 <div class="drill">
-  <p class="dq">owner 欄位需要從 50 加長到 80，照 Flyway 文件建議該怎麼做？</p>
+  <p class="dq">owner 欄位需要從 50 加長到 80，照 Flyway 的做法該怎麼做？</p>
   <ul class="dopts"><li>改 V1，再 repair</li><li>直接在正式資料庫下 ALTER，不寫腳本</li><li data-ok>新增一支版本化腳本去 ALTER</li><li>把 V1 刪掉重新編號</li></ul>
-  <p class="dexp">文件：It's best to create a new versioned migration script and roll forward any necessary changes。每個環境都照同樣的腳本走到同樣的結果。</p>
+  <p class="dexp">已經套用的版本化腳本不改，建立一支新的版本化腳本往前修。每個環境都照同樣的腳本走到同樣的結果。</p>
 </div>
 <div class="drill">
   <p class="dq">什麼情況下用 repair 處理校驗和不符是合理的？</p>
@@ -190,11 +209,11 @@ Either revert the changes to the migration, or run repair to update the schema h
 <h3 class="head">晚到的版本：out-of-order</h3>
 <p>團隊同時開發時常見：A 寫了 V3 先上了，B 的 V2_1 比較晚合進來。這時資料庫已經在 V3，又出現一支版本更小、還沒跑過的 V2_1：</p>
 <pre><code>Detected resolved migration not applied to database: 2.1.</code></pre>
-<p>預設是拒絕。要讓它跑，設 <code>spring.<wbr>flyway.<wbr>out-<wbr>of-<wbr>order=true</code>（預設 false）：Flyway 文件的說明是「已經套用 1.0 與 3.0、又找到 2.0 時，也會把它套用，而不是忽略」（If you already have versions 1.0 and 3.0 applied, and now a version 2.0 is found, it will be applied too instead of being ignored.）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-out-of-order-setting" target="_blank" rel="noopener">出處</a></p>
+<p>預設是拒絕。要讓它跑，設 <code>spring.<wbr>flyway.<wbr>out-<wbr>of-<wbr>order=true</code>（預設 false）：已經套用 1.0 與 3.0、又找到 2.0 時，會把 2.0 也套用，而不是忽略。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-out-of-order-setting" target="_blank" rel="noopener">出處</a></p>
 <pre><code>WARN DbMigrate : outOfOrder mode is active. Migration of schema `bank` may not be reproducible.
 INFO DbMigrate : Migrating schema `bank` to version "2.1 - add index owner" [out of order]
 INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at version v2.1 (execution time 00:00.015s)</code></pre>
-<p>它跑了，但警告「可能無法重現」（may not be reproducible）：正式環境是 V3 → V2_1，新建的環境卻是 V2_1 → V3。另一種做法是用時間當版本號的一部分。Flyway 文件寫 Flyway Desktop 產生腳本時「預設把時間戳記放進版本號，因為這樣可以避免兩位成員同時新增遷移時撞號」（Flyway Desktop generates a timestamp as part of the version by default when generating migrations as it helps to avoid conflicts if two team members simultaneously add migrations with no conflicting SQL）。它減少的是撞號；晚合進來的腳本照樣是晚到的版本。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></p>
+<p>它跑了，但警告結果可能無法重現：正式環境是 V3 → V2_1，新建的環境卻是 V2_1 → V3。另一種做法是用時間當版本號的一部分：Flyway Desktop 產生腳本時，預設把時間戳記放進版本號，避免兩位成員同時新增遷移時撞號。它減少的是撞號；晚合進來的腳本照樣是晚到的版本。<a class="fixsrc" href="https://documentation.red-gate.com/fd/versioned-migrations-273973333.html" target="_blank" rel="noopener">出處</a></p>
 <p class="formula">版本比目前小又沒跑過：預設擋下；out-of-order=true 會跑，但順序可能不能重現</p>
 
 <div class="drill">
@@ -208,9 +227,9 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
   <p class="dexp">新環境從頭跑時照版本排序，跟正式環境實際的順序不同；兩支有關聯時結果就可能不同。</p>
 </div>
 <div class="drill">
-  <p class="dq">兩個人常在同一天各自新增遷移腳本、撞到同一個版本號。Flyway 文件建議的減少衝突方式是？</p>
+  <p class="dq">兩個人常在同一天各自新增遷移腳本、撞到同一個版本號。Flyway 減少衝突的方式是？</p>
   <ul class="dopts"><li data-ok>版本號加上時間</li><li>兩個人共用同一支腳本，輪流往下寫</li><li>全部改用可重複腳本，就不需要版本號</li><li>每次部署都打開 out-of-order</li></ul>
-  <p class="dexp">文件說 Flyway Desktop 預設把時間戳記放進版本號，because it helps to avoid conflicts if two team members simultaneously add migrations。</p>
+  <p class="dexp">Flyway Desktop 預設把時間戳記放進版本號，避免兩位成員同時新增遷移時撞號。</p>
 </div>
 </section>
 
@@ -238,9 +257,13 @@ Line       : 2</code></pre>
 7	4	add status	0
 Field	Type	Null	Key	Default	Extra
 status	varchar(10)	NO		ACTIVE	</code></pre>
-<p>歷史表多了一筆 <code>success = 0</code>，而第一句加的 <code>status</code> 欄位<strong>已經在表裡了</strong>。原因在 MySQL：手冊寫 DDL 會「隱含地結束目前的交易，就像先做了 COMMIT」，而且「大多數也會在執行後隱含提交」（implicitly end any transaction active in the current session, as if you had done a COMMIT before executing the statement. Most of these statements also cause an implicit commit after executing.）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html" target="_blank" rel="noopener">出處</a>。</p>
-<p>8.0 起的原子 DDL 也只保證單一句子不留半套，手冊特別註明「原子 DDL 不是交易式 DDL」（Atomic DDL is not transactional DDL.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html" target="_blank" rel="noopener">出處</a></p>
-<p>Flyway 文件也說，資料庫不能乾淨地在交易裡跑 DDL 時，失敗了它「無法乾淨地退回，只會把這支腳本標成失敗，表示可能需要手動清理」，也可能要跑 repair（Flyway won't be able to perform a clean rollback in case of failure and will instead mark the migration as failed, indicating that some manual cleanup may be required.）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/flyway-concepts/migrations/migration-transaction-handling" target="_blank" rel="noopener">出處</a></p>
+<p>歷史表多了一筆 <code>success = 0</code>，而第一句加的 <code>status</code> 欄位<strong>已經在表裡了</strong>。原因在 MySQL 的 DDL：<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>執行前隱含地結束目前的交易，就像先做了 COMMIT</li>
+<li>大多數 DDL 執行後也會隱含提交</li>
+</ul>
+<p>8.0 起的原子 DDL 也只保證單一句子不留半套；原子 DDL 不是交易式 DDL。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html" target="_blank" rel="noopener">出處</a></p>
+<p>資料庫不能乾淨地在交易裡跑 DDL 時，Flyway 失敗了無法乾淨地退回，只會把這支腳本標成失敗，表示可能需要手動清理，也可能要跑 repair。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/flyway-concepts/migrations/migration-transaction-handling" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 282" role="img" aria-label="MySQL 上的遷移失敗：V4 腳本第一句加欄位成功並已提交，第二句打錯字失敗，歷史表記下 success 為 0。修復步驟：改好腳本、手動清掉已經生效的半套、執行 repair 移除失敗紀錄、重新啟動讓 V4 從頭跑">
 <defs><marker id="fw-m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="20" y="28" font-size="12.5" fill="var(--gold-deep)">V4__add_status.sql 有兩句，MySQL 的 DDL 會隱含提交</text><rect x="20" y="44" width="330" height="44" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="185" y="71" font-size="13" text-anchor="middle">第 1 句：ADD COLUMN status …</text><text x="360" y="72" font-size="12.5" fill="var(--slate-deep)">成功，已經提交，退不回去</text><rect x="20" y="98" width="330" height="44" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="185" y="125" font-size="13" text-anchor="middle">第 2 句：ADD CONSTRAINT …（打錯字）</text><text x="360" y="126" font-size="12.5" fill="var(--gold-deep)">失敗：歷史表記一筆 success = 0</text><rect x="20" y="180" width="168" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="104" y="205" font-size="13" text-anchor="middle">1. 改好腳本</text><text x="104" y="223" font-size="11.5" text-anchor="middle" opacity=".7">直接重啟還是不行</text><line x1="190" y1="208" x2="204" y2="208" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#fw-m2)"/><rect x="206" y="180" width="168" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="290" y="205" font-size="13" text-anchor="middle">2. 手動清掉半套</text><text x="290" y="223" font-size="11.5" text-anchor="middle" opacity=".7">DROP COLUMN status</text><line x1="376" y1="208" x2="390" y2="208" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#fw-m2)"/><rect x="392" y="180" width="168" height="56" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="476" y="205" font-size="13" text-anchor="middle">3. repair</text><text x="476" y="223" font-size="11.5" text-anchor="middle" opacity=".7">移除失敗的那筆</text><line x1="562" y1="208" x2="576" y2="208" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#fw-m2)"/><rect x="578" y="180" width="168" height="56" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="662" y="205" font-size="13" text-anchor="middle">4. 重新啟動</text><text x="662" y="223" font-size="11.5" text-anchor="middle" opacity=".7">V4 從頭跑一次</text><text x="20" y="268" font-size="12" opacity=".6">能在交易裡跑 DDL 的資料庫，失敗時會整支腳本退回；MySQL 不行，所以一支腳本最好只做一件 DDL</text>
@@ -250,13 +273,17 @@ status	varchar(10)	NO		ACTIVE	</code></pre>
 <p>把腳本改好直接重啟，還是起不來：</p>
 <pre><code>Detected failed migration to version 4 (add status).
 Please remove any half-completed changes then run repair to fix the schema history.</code></pre>
-<p>照訊息做：手動 <code>ALTER TABLE account DROP COLUMN status;</code> 清掉半套，再執行 repair。repair 的第一件事就是「移除失敗的紀錄（留下的物件仍要手動清理）」（Remove any failed migrations (User objects left behind must still be cleaned up manually)），而且文件提醒 repair「必須給跟 migrate 一樣的 locations」（repair must be given the same locations as migrate!）。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/repair" target="_blank" rel="noopener">出處</a></p>
+<p>照訊息做：手動 <code>ALTER TABLE account DROP COLUMN status;</code> 清掉半套，再執行 repair。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/repair" target="_blank" rel="noopener">出處</a></p>
+<ul class="plainlist">
+<li>repair 的第一件事是移除失敗的紀錄；留下的物件仍要手動清理</li>
+<li>repair 必須給跟 migrate 一樣的 locations</li>
+</ul>
 <pre><code>DbRepair : Successfully repaired schema history table `bank`.`flyway_schema_history` (execution time 00:00.052s).
 DbRepair : Manual cleanup of the remaining effects of the failed migration may still be required.
 repair：[Removed failed migrations]</code></pre>
 <pre><code>INFO DbMigrate : Migrating schema `bank` to version "4 - add status"
 INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at version v4 (execution time 00:00.038s)</code></pre>
-<p class="muted">實跑時故意讓 repair 去預設位置找（腳本其實在 <code>mig/</code>），預設位置只有舊的 V1、V2。它回報 <code>Marked missing migrations as deleted</code>，在歷史表插了一筆 type 為 <code>DELETE</code> 的紀錄，把找不到檔案的那支可重複腳本標成已刪除；V3〜V6 比本機最高的 V2 新，被當成未來版本，預設忽略。歷史表就這樣被改了，這是文件那句提醒的原因。</p>
+<p class="muted">實跑時故意讓 repair 去預設位置找（腳本其實在 <code>mig/</code>），預設位置只有舊的 V1、V2。它回報 <code>Marked missing migrations as deleted</code>，在歷史表插了一筆 type 為 <code>DELETE</code> 的紀錄，把找不到檔案的那支可重複腳本標成已刪除；V3〜V6 比本機最高的 V2 新，被當成未來版本，預設忽略。歷史表就這樣被改了，所以 repair 必須給跟 migrate 一樣的 locations。</p>
 <p class="formula">MySQL 的 DDL 一句一提交：建議一支腳本只放一件 DDL；失敗了先清半套、repair（同樣的 locations）、再重跑</p>
 
 <div class="drill">
@@ -282,7 +309,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <div class="drill">
   <p class="dq">執行 repair 時沒給跟 migrate 一樣的 locations，預設位置只有舊的 V1、V2，沒有後來的 V3〜V6，也沒有那支可重複腳本。實跑結果是？</p>
   <ul class="dopts"><li data-ok>那支可重複腳本被標成已刪除</li><li>報錯並停止，什麼都不改</li><li>V3〜V6 全部被標成已刪除</li><li>自動在整台機器上搜尋正確的資料夾</li></ul>
-  <p class="dexp">repair 會 Mark all missing migrations as deleted，實跑多了一筆 type 為 DELETE 的紀錄，就是那支可重複腳本。V3〜V6 比本機最高的 V2 還新，被當成 future（未來版本），預設忽略、不處理。結果看起來沒事，其實歷史表已經被改了，所以文件寫 repair must be given the same locations as migrate。</p>
+  <p class="dexp">repair 會把找不到檔案的腳本標成已刪除（Mark all missing migrations as deleted），實跑多了一筆 type 為 DELETE 的紀錄，就是那支可重複腳本。V3〜V6 比本機最高的 V2 還新，被當成 future（未來版本），預設忽略、不處理。結果看起來沒事，其實歷史表已經被改了，所以 repair 必須給跟 migrate 一樣的 locations。</p>
 </div>
 <div class="drill">
   <p class="dq">在 MySQL 上，為什麼建議一支遷移腳本只放一件 DDL？</p>
@@ -294,10 +321,10 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <section>
 <p class="era">回不去，只能往前</p>
 <h3 class="head">回退策略：社群版沒有 undo</h3>
-<p>Flyway 有 undo 腳本（檔名 U 開頭，對應同版本的 V），但 undo 指令的文件頁一開頭就標著 <strong>Flyway Teams</strong>，是付費版的功能。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/undo" target="_blank" rel="noopener">出處</a> Spring Boot 內建的 Flyway 是社群版，所以上線後發現改錯，做法是<strong>往前修</strong>：再寫一支新的 V 把結構改回需要的樣子。這也符合前面那句「roll forward any necessary changes」。</p>
+<p>Flyway 有 undo 腳本（檔名 U 開頭，對應同版本的 V），但 undo 指令屬於 <strong>Flyway Teams</strong>，是付費版的功能。<a class="fixsrc" href="https://documentation.red-gate.com/flyway/reference/commands/undo" target="_blank" rel="noopener">出處</a> Spring Boot 內建的 Flyway 是社群版，所以上線後發現改錯，做法是<strong>往前修</strong>：再寫一支新的 V 把結構改回需要的樣子，跟前面「已套用的腳本不改，加新的 V」是同一個原則。</p>
 <ul class="plainlist">
 <li><strong>先備份再上線。</strong>刪欄位、刪表這種資料會消失的改動，undo 腳本也救不回資料；能救的是上線前的備份。</li>
-<li><strong>不要在正式環境開 clean。</strong>Flyway 的 clean 會清空整個 schema。Spring Boot 的 <code>spring.<wbr>flyway.<wbr>clean-<wbr>disabled</code> 預設是 true（Whether to disable cleaning of the database. true）<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>，不要把它關掉。</li>
+<li><strong>不要在正式環境開 clean。</strong>Flyway 的 clean 會清空整個 schema。Spring Boot 的 <code>spring.<wbr>flyway.<wbr>clean-<wbr>disabled</code>（停用 clean）預設是 true<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>，不要把它關掉。</li>
 <li><strong>既有資料庫第一次導入 Flyway</strong>：已經有表的 schema 不是空的，要先 baseline，標記「現在這個狀態是起點」。Spring Boot 有 <code>spring.<wbr>flyway.<wbr>baseline-<wbr>on-<wbr>migrate</code>（預設 false，Whether to automatically call baseline when migrating a non-empty schema.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p class="formula">社群版沒有 undo：改錯就加一支新的 V 往前修；刪資料的改動靠備份；clean 永遠關著</p>
@@ -322,7 +349,12 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <section>
 <p class="era">同一件事，另一套工具</p>
 <h3 class="head">Liquibase 一眼</h3>
-<p>Liquibase 用 changelog（變更紀錄檔）描述結構，裡面每一個 changeset 是一個變更單位。文件：changeset「由 author 與 id 兩個屬性，加上 changelog 的檔案路徑，唯一標記」（A changeset is uniquely tagged by both the author and id attributes (author:id), as well as the changelog file path.）<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changeset" target="_blank" rel="noopener">出處</a>；changelog 可以寫成 SQL、XML、YAML、JSON。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changelog" target="_blank" rel="noopener">出處</a> Spring Boot 加 <code>spring-<wbr>boot-<wbr>starter-<wbr>liquibase</code> 就會在啟動時執行。示範的第二個 changeset（YAML）：</p>
+<p>Liquibase 用 changelog（變更紀錄檔）描述結構，裡面每一個 changeset 是一個變更單位：</p>
+<ul class="plainlist">
+<li>changeset 由 author 與 id 兩個屬性（寫成 <code>author:id</code>），加上 changelog 的檔案路徑，唯一標記<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changeset" target="_blank" rel="noopener">出處</a></li>
+<li>changelog 可以寫成 SQL、XML、YAML、JSON<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-changelog" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>Spring Boot 加 <code>spring-<wbr>boot-<wbr>starter-<wbr>liquibase</code> 就會在啟動時執行。示範的第二個 changeset（YAML）：</p>
 <pre><code>id: 2-add-branch
 author: tim
 changes:
@@ -347,35 +379,35 @@ INFO liquibase.ui : Liquibase: Update has been successful. Rows affected: 0
 == DATABASECHANGELOG
 1-create-account | tim | db/changelog/db.changelog-master.yaml | 1 | EXECUTED | 9:892c705d500f19ec07bac40f80041de0
 2-add-branch | tim | db/changelog/db.changelog-master.yaml | 2 | EXECUTED | 9:bfcf4d4016e4557afc19012dc5fb492d</code></pre>
-<p>它記錄執行狀況的表叫 DATABASECHANGELOG，<code>MD5SUM</code> 欄位是「changeset 執行時的校驗和」，每次執行都拿來確認 changelog 沒有被意外修改（Checksum of the changeset when it was executed. Used on each run to ensure no unexpected changes to the changesets in the changelog file.）。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-the-databasechangelog-table" target="_blank" rel="noopener">出處</a> 跟 Flyway 最大的差別在回退：用 XML、YAML、JSON 寫的 changelog「可以為 changeset 定義自訂的回退邏輯」（If you use modeled changelogs (XML, YAML, JSON), you can define custom rollback logic for your changesets.），<code>rollback-count</code> 這類指令標示「所有版本」都有（All editions）。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-rollback" target="_blank" rel="noopener">出處</a> 上面的 <code>rollback</code> 區塊就是寫給這個用的。</p>
+<p>它記錄執行狀況的表叫 DATABASECHANGELOG，<code>MD5SUM</code> 欄位存 changeset 執行時的校驗和，每次執行都拿來確認 changelog 沒有被意外修改。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-the-databasechangelog-table" target="_blank" rel="noopener">出處</a> 跟 Flyway 最大的差別在回退：用 XML、YAML、JSON 寫的 changelog 可以為 changeset 定義自訂的回退邏輯，<code>rollback-count</code> 這類指令所有版本（All editions）都有。<a class="fixsrc" href="https://docs.liquibase.com/secure/user-guide-5-1/what-is-a-rollback" target="_blank" rel="noopener">出處</a> 上面的 <code>rollback</code> 區塊就是寫給這個用的。</p>
 <p class="formula">Liquibase：changelog 裡一個個 changeset，用 author:id 加檔案路徑辨識，可以自帶 rollback</p>
 
 <div class="drill">
   <p class="dq">Liquibase 怎麼辨識「這個 changeset 跑過了沒」？</p>
   <ul class="dopts"><li>只看 id，id 必須是遞增的整數</li><li>看檔名裡的版本號，跟 Flyway 一樣</li><li data-ok>author、id 與 changelog 路徑</li><li>看每個 changeset 最後一次被修改的時間</li></ul>
-  <p class="dexp">文件：uniquely tagged by both the author and id attributes (author:id), as well as the changelog file path；而且 id 不決定執行順序、也不必是整數。</p>
+  <p class="dexp">changeset 由 author、id 加上 changelog 的檔案路徑唯一標記；而且 id 不決定執行順序、也不必是整數。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑時 DATABASECHANGELOG 裡兩個 changeset 的 <code>EXECTYPE</code> 是什麼？</p>
   <ul class="dopts"><li>SUCCESS</li><li data-ok>EXECUTED</li><li>APPLIED</li><li>1（代表成功）</li></ul>
-  <p class="dexp">實跑印出 1-create-account | tim | … | 1 | EXECUTED。文件列的可能值還有 FAILED、SKIPPED、RERAN、MARK_RAN。</p>
+  <p class="dexp">實跑印出 1-create-account | tim | … | 1 | EXECUTED。可能的值還有 FAILED、SKIPPED、RERAN、MARK_RAN。</p>
 </div>
 <div class="drill">
   <p class="dq">Liquibase 的 changeset 依什麼順序執行？</p>
   <ul class="dopts"><li data-ok>changelog 裡的順序</li><li>id 的數字由小到大</li><li>author 名字的字母順序</li><li>檔案在磁碟上的修改時間</li></ul>
-  <p class="dexp">文件：The id tag is just an identifier—it doesn't direct the order that changes are run。順序是 changelog 寫的順序。</p>
+  <p class="dexp">id 只是識別用，不決定執行順序。順序是 changelog 寫的順序。</p>
 </div>
 <div class="drill">
   <p class="dq">團隊需要「每個變更都附上怎麼退回」，而且只能用免費版。Flyway 社群版與 Liquibase 哪個比較直接？</p>
   <ul class="dopts"><li>Flyway 社群版，用 U 開頭的 undo 腳本就好</li><li>兩個都沒有任何回退機制</li><li data-ok>Liquibase，changeset 可寫 rollback</li><li>兩個都要買付費版才能回退</li></ul>
-  <p class="dexp">Flyway 的 undo 標示為 Flyway Teams；Liquibase 文件說模型化的 changelog 可以自訂 rollback，rollback-count 等指令標為 All editions。</p>
+  <p class="dexp">Flyway 的 undo 屬於 Flyway Teams；Liquibase 用模型化的 changelog 可以自訂 rollback，rollback-count 等指令所有版本（All editions）都有。</p>
 </div>
 </section>
 
 <section>
 <p class="era">改名不停機：先加、再搬、最後刪</p>
 <h3 class="head">擴張收縮：不停機改欄位</h3>
-<p>把 <code>owner</code> 改名成 <code>owner_name</code>，最直覺的寫法是一支 V 做 <code>RENAME COLUMN</code>。問題是上線那一刻：新版程式還沒全部部署完，舊版程式（還在讀寫 <code>owner</code>）已經找不到欄位；滾動更新期間新舊版本一定會同時在跑。Martin Fowler 把解法叫平行變更（parallel change），「也叫擴張收縮」，把不相容的改動拆成三個階段：「擴張、遷移、收縮」（Parallel change, also known as expand and contract, … by breaking the change into three distinct phases: expand, migrate, and contract.），並說「大多數資料庫重構都照這個模式」（Most database refactorings follow the parallel change pattern）。<a class="fixsrc" href="https://martinfowler.com/bliki/ParallelChange.html" target="_blank" rel="noopener">出處</a></p>
+<p>把 <code>owner</code> 改名成 <code>owner_name</code>，最直覺的寫法是一支 V 做 <code>RENAME COLUMN</code>。問題是上線那一刻：新版程式還沒全部部署完，舊版程式（還在讀寫 <code>owner</code>）已經找不到欄位；滾動更新期間新舊版本一定會同時在跑。解法叫平行變更（parallel change），也叫擴張收縮（expand and contract），把不相容的改動拆成三個階段：擴張、遷移、收縮。大多數資料庫重構都照這個模式。<a class="fixsrc" href="https://martinfowler.com/bliki/ParallelChange.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 262" role="img" aria-label="擴張收縮的三個階段：擴張時用 V5 加上可為 NULL 的 owner_name 並複製資料，舊程式繼續用 owner；遷移階段所有程式改用 owner_name；收縮時用 V6 把 owner_name 改成 NOT NULL 並刪掉 owner。owner 欄位在前兩個階段都在，收縮後才消失">
 <defs><marker id="fw-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><rect x="20" y="40" width="222" height="40" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="131" y="65" font-size="14" text-anchor="middle">擴張</text><text x="131" y="104" font-size="12" text-anchor="middle">V5：加 owner_name（可 NULL）、複製資料</text><text x="131" y="126" font-size="11.5" text-anchor="middle" opacity=".75">舊程式讀寫 owner；過渡版程式兩欄都寫</text><line x1="244" y1="60" x2="266" y2="60" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#fw-m3)"/><rect x="268" y="40" width="222" height="40" rx="8" fill="var(--surface)" stroke="currentColor"/><text x="379" y="65" font-size="14" text-anchor="middle">遷移</text><text x="379" y="104" font-size="12" text-anchor="middle">不動結構</text><text x="379" y="126" font-size="11.5" text-anchor="middle" opacity=".75">所有程式改讀寫 owner_name，舊版全部下線</text><line x1="492" y1="60" x2="514" y2="60" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#fw-m3)"/><rect x="516" y="40" width="222" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="627" y="65" font-size="14" text-anchor="middle">收縮</text><text x="627" y="104" font-size="12" text-anchor="middle">V6：owner_name 改 NOT NULL、刪 owner</text><text x="627" y="126" font-size="11.5" text-anchor="middle" opacity=".75">同一版更新用到 owner 的 view</text><text x="20" y="176" font-size="13" class="mono">owner</text><rect x="120" y="162" width="200" height="20" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="338" y="162" width="200" height="20" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="556" y="162" width="200" height="20" rx="4" fill="none" stroke="currentColor" stroke-dasharray="4 3" stroke-opacity=".4"/><text x="20" y="210" font-size="13" class="mono">owner_name</text><rect x="120" y="196" width="200" height="20" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="338" y="196" width="200" height="20" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><rect x="556" y="196" width="200" height="20" rx="4" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="20" y="248" font-size="12" opacity=".6">灰藍＝欄位還在。任何時間點，正在跑的每一版程式都找得到它要的欄位，所以不用停機</text>
@@ -413,7 +445,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank` (execution ti
 <div class="drill">
   <p class="dq">擴張收縮的三個階段，正確順序是？</p>
   <ul class="dopts"><li>收縮、遷移、擴張</li><li data-ok>擴張、遷移、收縮</li><li>遷移、擴張、收縮</li><li>擴張、收縮、遷移</li></ul>
-  <p class="dexp">Fowler：expand, migrate, and contract。先加新的、再讓所有程式改用新的、最後刪舊的。</p>
+  <p class="dexp">三個階段：擴張、遷移、收縮（expand、migrate、contract）。先加新的、再讓所有程式改用新的、最後刪舊的。</p>
 </div>
 <div class="drill">
   <p class="dq">什麼時候才能跑收縮那支 V6（刪掉 <code>owner</code>）？</p>

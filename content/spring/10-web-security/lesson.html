@@ -25,7 +25,7 @@
   ← 實際回應</code></pre>
 <div class="terms"><div class="term"><b>Access-Control-Allow-Origin</b><span>允許讀取這個回應的來源。</span></div><div class="term"><b>Access-Control-Allow-Methods</b><span>允許使用的 HTTP 方法。</span></div><div class="term"><b>Access-Control-Allow-Headers</b><span>允許送出的請求標頭。</span></div><div class="term"><b>Access-Control-Allow-Credentials</b><span>允不允許帶 Cookie 這類憑證。</span></div><div class="term"><b>Access-Control-Max-Age</b><span>瀏覽器可以把預檢結果快取多久。</span></div></div>
 <p>要允許瀏覽器帶 Cookie，前端與後端都得配合設定，而且回應的允許來源不能寫萬用字元 <code>*</code>，必須列出明確的來源。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@CrossOrigin 不能和 Spring Security 同時使用」，查證後更正：官方文件說明兩者可以一起用，做法是在 Spring Security 啟用 cors 支援、不另外給 CorsConfigurationSource，它就會「使用提供給 Spring MVC 的 CORS 設定」（頁面上沒有點名 @CrossOrigin，它屬於 Spring MVC 的 CORS 設定是推論）；真正的關鍵是「CORS must be processed before Spring Security, because the pre-flight request does not contain any cookies」——預檢請求不帶 Cookie，如果 Spring Security 先跑就會判定未認證而擋掉">兩者可以一起用。官方文件說明只要在 Spring Security 啟用 <code>cors</code> 支援、又沒有另外給 <code>CorsConfigurationSource</code>，它就會「使用提供給 Spring MVC 的 CORS 設定」——<code>@CrossOrigin</code> 就屬於這一套。真正的關鍵是順序：預檢請求不帶 Cookie，Spring Security 若先跑就會判定未認證而擋掉，所以 CORS 必須排在它前面處理</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記寫「@CrossOrigin 不能和 Spring Security 同時使用」，查證後更正：官方文件說明兩者可以一起用，做法是在 Spring Security 啟用 cors 支援、不另外給 CorsConfigurationSource，它就會「使用提供給 Spring MVC 的 CORS 設定」（頁面上沒有點名 @CrossOrigin，它屬於 Spring MVC 的 CORS 設定是推論）；真正的關鍵是「CORS must be processed before Spring Security, because the pre-flight request does not contain any cookies」——預檢請求不帶 Cookie，如果 Spring Security 先跑就會判定未認證而擋掉">兩者可以一起用。只要在 Spring Security 啟用 <code>cors</code> 支援、又沒有另外給 <code>CorsConfigurationSource</code>，它就會沿用提供給 Spring MVC 的 CORS 設定，<code>@CrossOrigin</code> 就屬於這一套。真正的關鍵是順序：預檢請求不帶 Cookie，Spring Security 若先跑就會判定未認證而擋掉，所以 CORS 必須排在它前面處理</mark><a class="fixsrc" href="https://docs.spring.io/spring-security/reference/servlet/integrations/cors.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>CORS 可以設在 Spring MVC、Spring Security 或反向代理層。挑一個地方統一管，不要讓不同層回傳互相矛盾的標頭；也可以統一交給反向代理（reverse proxy，站在應用程式前面代收請求的伺服器，例如 Nginx）處理。</p>
 </section>
 
@@ -67,7 +67,7 @@ X-XSRF-TOKEN: 這個工作階段對應的防偽權杖</code></pre>
 <p class="era">密碼不能只做一次快速雜湊</p>
 <h3 class="head">安全保存密碼</h3>
 <p>一般雜湊雖然不可逆，攻擊者還是可以大量猜測候選密碼再比對雜湊結果。彩虹表（Rainbow Table）就是預先算好結果的一種攻擊方式；鹽值（Salt）則是替每一筆密碼加入不同的隨機值，讓相同的密碼不會產生相同的儲存結果。</p>
-<p class="muted">「同一個字串，每次算出來的雜湊值一定一模一樣」——單講雜湊函式本身，這句話沒錯。但下一步要接上：一旦加了每筆不同的隨機鹽值，同一組密碼存進資料庫的結果就不會一樣了。OWASP 的說法是「加鹽表示在沒有破解雜湊的情況下，無法判斷兩個使用者是不是用同一組密碼，因為不同的鹽值會讓相同的密碼算出不同的雜湊值」。所以驗證密碼不能自己把輸入雜湊一次再比字串，要交給專門的驗證方法<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">「同一個字串，每次算出來的雜湊值一定一模一樣」——單講雜湊函式本身，這句話沒錯。但下一步要接上：一旦加了每筆不同的隨機鹽值，同一組密碼存進資料庫的結果就不會一樣了。不同的鹽值讓相同的密碼算出不同的雜湊值，不破解雜湊就看不出兩個使用者是不是用同一組密碼。所以驗證密碼不能自己把輸入雜湊一次再比字串，要交給專門的驗證方法<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>密碼要用專門的 <code>PasswordEncoder</code> 與成本可調整的密碼雜湊演算法，而不是 MD5 這類為速度設計的一般雜湊。註冊時存編碼結果；登入時用驗證方法比對輸入的原始密碼與已存的結果，不需要也不應該把密碼「解密」出來。</p>
 <p class="formula">註冊：原始密碼 → PasswordEncoder → 存下密碼雜湊結果</p>
 <p class="formula">登入：輸入密碼 ＋ 已存結果 → PasswordEncoder.matches(...) → 相不相符</p>
