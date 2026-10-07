@@ -16,9 +16,9 @@
     <p class="q">面試官：主鍵為什麼建議用自動遞增整數，不用 UUID？</p>
     <p>三個理由都能在手冊找到：</p>
 <ul class="plainlist">
-<li><b>第一，</b>沒有天然的唯一非空欄位時，手冊直接建議加一個自動遞增欄位當主鍵<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。</li>
-<li><b>第二，</b>主鍵值會被複製進每一個二級索引，主鍵長就整體變大<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html" target="_blank" rel="noopener">出處</a>。</li>
-<li><b>第三，</b>依序插入時索引頁大約填到 15/16，隨機插入則只有 1/2 到 15/16<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>——UUID 的值是亂跳的，會到處插頁、造成頁分裂（一頁塞滿要拆成兩頁）與空洞。</li>
+<li><b>沒有天然主鍵</b>：沒有天然的唯一非空欄位時，手冊直接建議加一個自動遞增欄位當主鍵<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>主鍵會複製進二級索引</b>：主鍵值會被複製進每一個二級索引，主鍵長就整體變大<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>插入順序與頁分裂</b>：依序插入時索引頁大約填到 15/16，隨機插入則只有 1/2 到 15/16<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>——UUID 的值是亂跳的，會到處插頁、造成頁分裂（一頁塞滿要拆成兩頁）與空洞。</li>
 </ul>
 <p>真的要用 UUID，MySQL 提供 <code>UUID_TO_BIN(uuid, 1)</code> 把變動快的時間部分換到後面，手冊說這樣存進索引欄位可以改善索引效率<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html#function_uuid-to-bin" target="_blank" rel="noopener">出處</a>。</p>
 </section>
