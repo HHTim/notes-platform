@@ -40,7 +40,8 @@ server {
     }
 }</code></pre>
 <p><code>try_files</code> 常用於單頁應用程式：若實體檔案不存在，就回傳 <code>index.html</code>，再由前端路由處理網址。這也表示真正不存在的靜態資源可能被回成 HTML，設定時要配合資源路徑與錯誤處理。</p>
-<p><code>proxy_pass http://application_backend</code> 裡的名稱要先用 <code>upstream</code> 區塊定義——它替一組後端伺服器取名字，裡面可以列多台、設權重<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_upstream_module.html#upstream" target="_blank" rel="noopener">出處</a>。若沒有這個區塊，Nginx 會把 <code>application_backend</code> 當成一般主機名稱、在載入設定時就去查 DNS；查不到就整份設定載入失敗，錯誤訊息是 <code>host not found in upstream</code><a class="fixsrc" href="https://www.f5.com/company/blog/nginx/dns-service-discovery-nginx-plus" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/core/ngx_inet.c" target="_blank" rel="noopener">原始碼（搜 host not found）</a>。下面兩節的坑，就是從這個「載入時解析」的行為長出來的。</p>
+<p><code>proxy_pass http://application_backend</code> 裡的名稱要先用 <code>upstream</code> 區塊定義——它替一組後端伺服器取名字，裡面可以列多台、設權重<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_upstream_module.html#upstream" target="_blank" rel="noopener">出處</a>。</p>
+<p>若沒有這個區塊，Nginx 會把 <code>application_backend</code> 當成一般主機名稱、在載入設定時就去查 DNS；查不到就整份設定載入失敗，錯誤訊息是 <code>host not found in upstream</code><a class="fixsrc" href="https://www.f5.com/company/blog/nginx/dns-service-discovery-nginx-plus" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://github.com/nginx/nginx/blob/master/src/core/ngx_inet.c" target="_blank" rel="noopener">原始碼（搜 host not found）</a>。下面兩節的坑，就是從這個「載入時解析」的行為長出來的。</p>
 </section>
 
 <section>

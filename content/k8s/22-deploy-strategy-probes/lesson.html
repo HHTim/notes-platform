@@ -190,7 +190,16 @@ $ kubectl patch service pay --type=json -p '[{"op":"remove","path":"/spec/select
 # 從叢集內連打 400 次 http://pay/version，統計：
  307 blue
   93 green          ← 約 23%，接近 1/4；每次跑會差幾次，重跑一次是 298／102</code></pre>
-<p>原生做法的限制很明顯：比例只能用 Pod 數湊（要 1% 就得開 100 份），而且看錯誤率、決定要不要繼續推、出事自動退回，全都要人來做。<strong>Argo Rollouts</strong> 是補這一塊的外部工具，它的文件自我介紹是「一個 Kubernetes 控制器與一組 CRD，提供藍綠、金絲雀、金絲雀分析、實驗與漸進式交付等進階部署能力」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a> CRD（自訂資源定義）是讓 K8s 認得新種類物件的機制，裝了它就多出一種叫 <code>Rollout</code> 的物件取代 Deployment。它列出原生滾動更新的限制：「對推進速度的控制很少」「無法控制流向新版的流量」「無法查詢外部指標來驗證更新」「可以停下推進，但無法自動中止並退回」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a> 金絲雀用 <code>setWeight</code> 與 <code>pause</code> 一步一步寫：<code>setWeight</code>「指定送到金絲雀的流量百分比」，<code>pause</code> 讓推進停下來等人或等時間；沒接流量管理時，它照百分比去調兩邊的副本數，「10 份、第一步 10%，就是新版 1 份、舊版 9 份」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/canary/" target="_blank" rel="noopener">出處</a> 藍綠則用 <code>activeService</code>（正式流量）與 <code>previewService</code>（新版預覽）兩個 Service。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/bluegreen/" target="_blank" rel="noopener">出處</a></p>
+<p>原生做法的限制很明顯：比例只能用 Pod 數湊（要 1% 就得開 100 份），而且看錯誤率、決定要不要繼續推、出事自動退回，全都要人來做。<strong>Argo Rollouts</strong> 是補這一塊的外部工具，它的文件自我介紹是「一個 Kubernetes 控制器與一組 CRD，提供藍綠、金絲雀、金絲雀分析、實驗與漸進式交付等進階部署能力」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a> CRD（自訂資源定義）是讓 K8s 認得新種類物件的機制，裝了它就多出一種叫 <code>Rollout</code> 的物件取代 Deployment。</p>
+<p>它列出原生滾動更新的限制：</p>
+<ul class="plainlist">
+<li>「對推進速度的控制很少」</li>
+<li>「無法控制流向新版的流量」</li>
+<li>「無法查詢外部指標來驗證更新」</li>
+<li>「可以停下推進，但無法自動中止並退回」<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>金絲雀用 <code>setWeight</code> 與 <code>pause</code> 一步一步寫：<code>setWeight</code>「指定送到金絲雀的流量百分比」，<code>pause</code> 讓推進停下來等人或等時間；沒接流量管理時，它照百分比去調兩邊的副本數，「10 份、第一步 10%，就是新版 1 份、舊版 9 份」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/canary/" target="_blank" rel="noopener">出處</a></p>
+<p>藍綠則用 <code>activeService</code>（正式流量）與 <code>previewService</code>（新版預覽）兩個 Service。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/bluegreen/" target="_blank" rel="noopener">出處</a></p>
 <pre><code># Argo Rollouts 的金絲雀步驟長這樣（示意，本課沒有安裝它）
 strategy:
   canary:
@@ -496,7 +505,14 @@ mem-100 1/1 Running 重啟=1        ← 被核心殺掉，kubelet 照重啟政�
 <section>
 <p class="era">Java 在容器裡看到多少記憶體</p>
 <h3 class="head">JVM 的容器感知、MaxRAMPercentage 與堆外記憶體</h3>
-<p>JVM 在 Linux 上會看容器的限制。java 手冊：<code>-XX:+UseContainerSupport</code>「僅限 Linux」，讓 VM「判斷 docker 容器裡的 Java 行程可用的記憶體量與處理器數」，「預設為 true」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a> 堆的上限怎麼算，同一份手冊：<code>-XX:MaxRAM</code> 預設是「JVM 行程可用的最大記憶體，或 128 GB，取小的」，可用記憶體是「機器的實體記憶體與環境（例如容器）限制取小的」；<code>-XX:MaxRAMPercentage</code>「預設 25%」；但<strong>小的堆</strong>改用 <code>-XX:MinRAMPercentage</code>，手冊說「小的堆大約是 125 MB」，預設 50%。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a> 〈JVM 記憶體與垃圾回收〉說的「最大堆預設是實體記憶體的 1/4」，在容器裡就是「容器上限的 1/4」，記憶體很小時例外。用 Docker 的 <code>-m</code> 限制記憶體，實跑 <code>java -XX:+PrintFlagsFinal -version</code> 看 <code>MaxHeapSize</code>（eclipse-temurin:21-jre）：</p>
+<p>JVM 在 Linux 上會看容器的限制。java 手冊：<code>-XX:+UseContainerSupport</code>「僅限 Linux」，讓 VM「判斷 docker 容器裡的 Java 行程可用的記憶體量與處理器數」，「預設為 true」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
+<p>堆的上限怎麼算，同一份手冊：</p>
+<ul class="plainlist">
+<li><b><code>-XX:MaxRAM</code></b>：預設是「JVM 行程可用的最大記憶體，或 128 GB，取小的」，可用記憶體是「機器的實體記憶體與環境（例如容器）限制取小的」。</li>
+<li><b><code>-XX:MaxRAMPercentage</code></b>：「預設 25%」。</li>
+<li><b><code>-XX:MinRAMPercentage</code></b>：<strong>小的堆</strong>改用它，手冊說「小的堆大約是 125 MB」，預設 50%。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>〈JVM 記憶體與垃圾回收〉說的「最大堆預設是實體記憶體的 1/4」，在容器裡就是「容器上限的 1/4」，記憶體很小時例外。用 Docker 的 <code>-m</code> 限制記憶體，實跑 <code>java -XX:+PrintFlagsFinal -version</code> 看 <code>MaxHeapSize</code>（eclipse-temurin:21-jre）：</p>
 <div class="tablewrap"><table><thead><tr><th>容器記憶體上限</th><th>預設最大堆</th><th>比例</th></tr></thead><tbody>
 <tr><td>128m</td><td>64 MiB</td><td>50%（小的堆）</td></tr>
 <tr><td>256m</td><td>126 MiB</td><td>約 50%（小的堆）</td></tr>
