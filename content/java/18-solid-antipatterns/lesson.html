@@ -791,7 +791,15 @@ final class Withdrawals {                              // 業務規則放在資�
 }</code></pre>
 <pre><code>提 300 成功，餘額 700
 提 5000 被拒：金額不合法</code></pre>
-<p>注意它跟上面的貧血版不一樣：record 不可變，沒有 setter 可以把餘額改成 -5000；結果用 sealed 介面表達，呼叫端的 switch 少處理一種會編譯失敗。兩派其實有交集：Fowler 在同一篇文章也說「領域模型不一定總是最好的工具」（Domain Models aren't always the best tool）<a class="fixsrc" href="https://martinfowler.com/bliki/AnemicDomainModel.html" target="_blank" rel="noopener">出處</a>，他在《企業應用架構模式》裡把「每個請求寫成一個程序」的做法叫 Transaction Script，跟 Domain Model 並列為兩種組織業務邏輯的方式。<a class="fixsrc" href="https://martinfowler.com/eaaCatalog/transactionScript.html" target="_blank" rel="noopener">Transaction Script</a><a class="fixsrc" href="https://martinfowler.com/eaaCatalog/domainModel.html" target="_blank" rel="noopener">Domain Model</a> 實務上的判斷：規則多、彼此牽連、不變條件很重要（帳戶、額度、利率），偏向充血模型；資料只是在服務之間流動、規則簡單（查詢結果、API 回應），把資料寫成 record、邏輯放在服務或函式裡也很合理。真正要避免的是「看起來是物件、其實誰都能用 setter 亂改」的那一種。</p>
+<p>注意它跟上面的貧血版不一樣：record 不可變，沒有 setter 可以把餘額改成 -5000；結果用 sealed 介面表達，呼叫端的 switch 少處理一種會編譯失敗。</p>
+<p>兩派其實有交集：Fowler 在同一篇文章也說「領域模型不一定總是最好的工具」（Domain Models aren't always the best tool）<a class="fixsrc" href="https://martinfowler.com/bliki/AnemicDomainModel.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>他在《企業應用架構模式》裡把「每個請求寫成一個程序」的做法叫 Transaction Script，跟 Domain Model 並列為兩種組織業務邏輯的方式。<a class="fixsrc" href="https://martinfowler.com/eaaCatalog/transactionScript.html" target="_blank" rel="noopener">Transaction Script</a><a class="fixsrc" href="https://martinfowler.com/eaaCatalog/domainModel.html" target="_blank" rel="noopener">Domain Model</a></p>
+<p>實務上的判斷：</p>
+<ul class="plainlist">
+<li><b>偏向充血模型</b>：規則多、彼此牽連、不變條件很重要（帳戶、額度、利率）。</li>
+<li><b>record 加服務</b>：資料只是在服務之間流動、規則簡單（查詢結果、API 回應），把資料寫成 record、邏輯放在服務或函式裡也很合理。</li>
+</ul>
+<p>真正要避免的是「看起來是物件、其實誰都能用 setter 亂改」的那一種。</p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="規則放在哪裡的三種做法：貧血模型的 Account 只有 getter 與 setter，規則在 AccountService，任何人都能直接呼叫 setter 繞過規則；充血模型的 Account 自己有 withdraw，沒有 setter；資料導向是不可變的 record 加上分開的 Withdrawals 函式，回傳 sealed 結果">
   <text x="130" y="26" font-size="13" text-anchor="middle" font-weight="700">貧血模型</text>

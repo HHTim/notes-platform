@@ -232,14 +232,21 @@
 <tr><th>G1</th><td>「大致並行」（mostly concurrent）的回收器，「能以高機率達成停頓時間目標，同時保有高吞吐量」</td><td>回應時間比吞吐量重要，停頓要短</td><td><code>-XX:+UseG1GC</code></td></tr>
 <tr><th>ZGC</th><td>「最大停頓在一毫秒以內，但犧牲一些吞吐量」，停頓時間與堆大小無關，適合「幾百 MB 到 16 TB」的堆</td><td>延遲最優先</td><td>Java 21：<code>-XX:+UseZGC -XX:+ZGenerational</code></td></tr>
 </tbody></table></div>
-<p><strong>G1 怎麼縮短停頓：</strong>調校指南：G1 把堆切成「一組大小相等的區域」，每塊是「配置與回收的單位」；比較花時間的全堆標記「與應用程式並行」；並「追蹤過去應用程式行為與回收停頓的資訊，建立成本模型」，用來決定每次停頓做多少工作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a> 停頓目標用 <code>-XX:MaxGCPauseMillis</code> 設，java 手冊寫「G1 預設的最大停頓目標是 200 毫秒」，而且它只是「軟性目標」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a> 指南也明說「G1 不是即時回收器」，只是以高機率達成目標。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>G1 怎麼縮短停頓：</strong></p>
+<ul class="plainlist">
+<li><b>區域</b>：調校指南：G1 把堆切成「一組大小相等的區域」，每塊是「配置與回收的單位」；比較花時間的全堆標記「與應用程式並行」；並「追蹤過去應用程式行為與回收停頓的資訊，建立成本模型」，用來決定每次停頓做多少工作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>停頓目標</b>：用 <code>-XX:MaxGCPauseMillis</code> 設，java 手冊寫「G1 預設的最大停頓目標是 200 毫秒」，而且它只是「軟性目標」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>不是即時回收器</b>：指南也明說「G1 不是即時回收器」，只是以高機率達成目標。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-g1-garbage-collector1.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p><strong>Java 21 預設哪一個：</strong>調校指南：「伺服器級機器上用 G1，否則用 Serial」，而 VM 認定伺服器級的條件是「偵測到兩顆以上處理器，且實體記憶體大於等於 1792 MB」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/gctuning/ergonomics1.html" target="_blank" rel="noopener">出處</a> G1 自 Java 9 起成為預設，JEP 248 的理由是「一般來說，限制 GC 停頓時間比最大化吞吐量更重要」（Limiting GC pause times is, in general, more important than maximizing throughput.）。<a class="fixsrc" href="https://openjdk.org/jeps/248" target="_blank" rel="noopener">出處</a> 用 Docker 限制 CPU 與記憶體實跑 <code>java -XX:+PrintCommandLineFlags -version</code>：</p>
 <div class="tablewrap"><table><thead><tr><th>容器限制</th><th>Java 21 選到的回收器</th></tr></thead><tbody>
 <tr><td><code>--cpus=1 --memory=2g</code></td><td><code>-XX:+UseSerialGC</code>（只有一顆 CPU）</td></tr>
 <tr><td><code>--cpus=2 --memory=1g</code></td><td><code>-XX:+UseSerialGC</code>（記憶體不到 1792 MB）</td></tr>
 <tr><td><code>--cpus=2 --memory=2g</code></td><td><code>-XX:+UseG1GC</code></td></tr>
 </tbody></table></div>
-<p>所以 K8s 上 <code>limits</code> 設成 1 顆 CPU，或記憶體 <code>limits</code> 低於 1792 MB（例如 1 GB）的 Java 服務，沒指定的話跑的是 Serial；實跑 <code>--memory=1792m</code> 是 G1、<code>--memory=1791m</code> 就變 Serial。只設 <code>requests</code> 不算：K8s 文件說 CPU 的 request「通常定義的是一個權重」（The CPU request typically defines a weighting）<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>，落到節點上是 CPU 份額（shares），而 Java 19 起 JVM 不再用份額算處理器數（JDK-8281181，Do not use CPU Shares to compute active processor count）<a class="fixsrc" href="https://bugs.openjdk.org/browse/JDK-8281181" target="_blank" rel="noopener">出處</a>；實跑 <code>--cpu-shares=512 --memory=2g</code> 照樣是 G1。同一個 <code>Churn</code> 程式換回收器，日誌的開頭也不一樣：</p>
+<p>所以 K8s 上 <code>limits</code> 設成 1 顆 CPU，或記憶體 <code>limits</code> 低於 1792 MB（例如 1 GB）的 Java 服務，沒指定的話跑的是 Serial；實跑 <code>--memory=1792m</code> 是 G1、<code>--memory=1791m</code> 就變 Serial。</p>
+<p>只設 <code>requests</code> 不算：K8s 文件說 CPU 的 request「通常定義的是一個權重」（The CPU request typically defines a weighting）<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a>，落到節點上是 CPU 份額（shares），而 Java 19 起 JVM 不再用份額算處理器數（JDK-8281181，Do not use CPU Shares to compute active processor count）<a class="fixsrc" href="https://bugs.openjdk.org/browse/JDK-8281181" target="_blank" rel="noopener">出處</a>；實跑 <code>--cpu-shares=512 --memory=2g</code> 照樣是 G1。</p>
+<p>同一個 <code>Churn</code> 程式換回收器，日誌的開頭也不一樣：</p>
 <pre><code>// java -Xmx64m -XX:+UseSerialGC -Xlog:gc Churn
 // [0.001s][info][gc] Using Serial
 // [0.033s][info][gc] GC(0) Pause Young (Allocation Failure) 18M-&gt;1M(61M) 0.384ms
@@ -638,7 +645,8 @@ jdk.GarbageCollection {
 //   which is held by "transfer-A-to-B"
 // ...
 // Found 1 deadlock.</code></pre>
-<p>jstat 手冊對 <code>-gcutil</code> 各欄的定義：S0、S1、E、O、M 分別是兩塊 Survivor、Eden、老年代、Metaspace 占目前容量的百分比，YGC 是年輕代回收的次數<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstat.html" target="_blank" rel="noopener">出處</a>。這兩個工具的手冊都標著「實驗性、不受支援」（This command is experimental and unsupported.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstack.html" target="_blank" rel="noopener">出處</a>；jstack 印的內容用 <code>jcmd &lt;pid&gt; Thread.print</code> 也拿得到。死結怎麼避免見〈執行緒與並行〉。<strong>JFR</strong>（Flight Recorder）適合開在正式環境：指南說用預設設定的固定時間錄製，「對大多數應用的效能負擔低於 2%」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-performance-issues-using-jfr.html" target="_blank" rel="noopener">出處</a></p>
+<p>jstat 手冊對 <code>-gcutil</code> 各欄的定義：S0、S1、E、O、M 分別是兩塊 Survivor、Eden、老年代、Metaspace 占目前容量的百分比，YGC 是年輕代回收的次數<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstat.html" target="_blank" rel="noopener">出處</a>。這兩個工具的手冊都標著「實驗性、不受支援」（This command is experimental and unsupported.）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jstack.html" target="_blank" rel="noopener">出處</a>；jstack 印的內容用 <code>jcmd &lt;pid&gt; Thread.print</code> 也拿得到。死結怎麼避免見〈執行緒與並行〉。</p>
+<p><strong>JFR</strong>（Flight Recorder）適合開在正式環境：指南說用預設設定的固定時間錄製，「對大多數應用的效能負擔低於 2%」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-performance-issues-using-jfr.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>想知道</th><th>用</th></tr></thead><tbody>
 <tr><td>服務卡住了，執行緒在等什麼、有沒有死結</td><td><code>jcmd &lt;pid&gt; Thread.print</code>（或 <code>jstack</code>）</td></tr>
 <tr><td>堆裡哪個類別最多、最占空間</td><td><code>jcmd &lt;pid&gt; GC.<wbr>class_histogram</code>（或 <code>jmap -histo</code>）</td></tr>

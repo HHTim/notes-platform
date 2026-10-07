@@ -81,7 +81,13 @@ System.out.println("建立完成");</code></pre>
 <tr><td><code>(x, int y) -> x + y</code></td><td>不合法：推論型別與自己寫的型別不能混用</td></tr>
 <tr><td><code>(x, final y) -> x + y</code></td><td>不合法：推論型別的參數不能加修飾字</td></tr>
 </tbody></table></div>
-<p>本體有兩種：<strong>運算式本體</strong>（一個運算式，它的值就是回傳值，不寫 <code>return</code> 也不寫分號）與<strong>區塊本體</strong>（大括號包起來的一般程式碼，要回傳值就得寫 <code>return</code>）。JLS 說「lambda 本體不是單一運算式就是一個區塊」（A lambda body is either a single expression or a block）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> 參數的型別也可以寫 <code>var</code>（JLS 的參數語法列了 <code>var</code> 這個選項<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.1" target="_blank" rel="noopener">出處</a>；它由 JEP 323 在 Java 11 加入，目標是讓 lambda 參數的寫法「跟區域變數宣告的寫法一致」，Align the syntax of a formal parameter declaration in an implicitly typed lambda expression with the syntax of a local variable declaration.<a class="fixsrc" href="https://openjdk.org/jeps/323" target="_blank" rel="noopener">出處</a>），但同一個參數列裡要嘛全寫、要嘛全不寫，混用會被 javac 擋下。</p>
+<p>本體有兩種：</p>
+<ul class="plainlist">
+<li><b>運算式本體</b>：一個運算式，它的值就是回傳值，不寫 <code>return</code> 也不寫分號。</li>
+<li><b>區塊本體</b>：大括號包起來的一般程式碼，要回傳值就得寫 <code>return</code>。</li>
+</ul>
+<p>JLS 說「lambda 本體不是單一運算式就是一個區塊」。<span class="orig">JLS：A lambda body is either a single expression or a block<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></span></p>
+<p>參數的型別也可以寫 <code>var</code>（JLS 的參數語法列了 <code>var</code> 這個選項<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.1" target="_blank" rel="noopener">出處</a>；它由 JEP 323 在 Java 11 加入，目標是讓 lambda 參數的寫法「跟區域變數宣告的寫法一致」，Align the syntax of a formal parameter declaration in an implicitly typed lambda expression with the syntax of a local variable declaration.<a class="fixsrc" href="https://openjdk.org/jeps/323" target="_blank" rel="noopener">出處</a>），但同一個參數列裡要嘛全寫、要嘛全不寫，混用會被 javac 擋下。</p>
 <p><strong>型別推論</strong>（type inference，編譯器從上下文猜出型別）能成立，是因為 lambda 永遠有一個「目標型別」：它被指定給的變數、被傳進的參數、或被轉型成的型別。JLS 規定 lambda 只能出現在指定、方法呼叫、轉型這三種場合，放在別處就是編譯錯誤（It is a compile-time error if a lambda expression occurs in a program in someplace other than an assignment context (§5.2), an invocation context (§5.3), or a casting context (§5.5).）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a> 所以下面這行編不過——<code>var</code> 要從右邊推型別，lambda 卻要從左邊拿型別，兩邊都在等對方：</p>
 <pre><code>var f = x -&gt; x + 1;
 // error: cannot infer type for local variable f
@@ -226,7 +232,13 @@ Predicate&lt;String&gt; hasText = Predicate.not(String::isBlank);
 Predicate&lt;String&gt; isTW = s -&gt; s.startsWith("TW");
 hasText.and(isTW).test("TW123");       // true
 hasText.test("  ");                    // false</code></pre>
-<p><strong>基本型別版：</strong>泛型只能放參考型別，所以 <code>Predicate&lt;Integer&gt;</code> 每次判斷都要把 <code>int</code> 包成 <code>Integer</code>（裝箱，boxing）再拆開（拆箱）。dev.java 說這個裝箱與拆箱「不是免費的」，多數時候比起查資料庫不算什麼，但有時無法接受（This boxing / unboxing does not come for free.）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/functional-interfaces/" target="_blank" rel="noopener">出處</a> 所以 JDK 另外準備了直接收基本型別的版本，命名有規則：前綴 <code>Int</code>、<code>Long</code>、<code>Double</code> 表示參數是基本型別，<code>ToInt</code> 這類前綴表示回傳基本型別（To specialize the return type ... we prefix ToXxx, as in ToIntFunction.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a> 例如 <code>IntPredicate</code> 是「<code>Predicate</code> 收 <code>int</code> 的基本型別特化版」（This is the int-consuming primitive type specialization of Predicate.）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/IntPredicate.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>基本型別版：</strong>泛型只能放參考型別，所以 <code>Predicate&lt;Integer&gt;</code> 每次判斷都要把 <code>int</code> 包成 <code>Integer</code>（裝箱，boxing）再拆開（拆箱）。dev.java 說這個裝箱與拆箱「不是免費的」，多數時候比起查資料庫不算什麼，但有時無法接受。<span class="orig">dev.java：This boxing / unboxing does not come for free.<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/functional-interfaces/" target="_blank" rel="noopener">出處</a></span></p>
+<p>所以 JDK 另外準備了直接收基本型別的版本，命名有規則：</p>
+<ul class="plainlist">
+<li><b>參數是基本型別</b>：前綴 <code>Int</code>、<code>Long</code>、<code>Double</code> 表示參數是基本型別。</li>
+<li><b>回傳基本型別</b>：<code>ToInt</code> 這類前綴表示回傳基本型別。<span class="orig">To specialize the return type ... we prefix ToXxx, as in ToIntFunction.<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/package-summary.html" target="_blank" rel="noopener">出處</a></span></li>
+</ul>
+<p>例如 <code>IntPredicate</code> 是「<code>Predicate</code> 收 <code>int</code> 的基本型別特化版」。<span class="orig">API 文件：This is the int-consuming primitive type specialization of Predicate.<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/function/IntPredicate.html" target="_blank" rel="noopener">出處</a></span></p>
 <pre><code>IntPredicate isEven = n -&gt; n % 2 == 0;          // 收 int，不裝箱
 ToLongFunction&lt;Tx&gt; amountOf = Tx::amount;        // 回傳 long，不裝箱
 IntUnaryOperator plusOne = n -&gt; n + 1;
@@ -566,7 +578,13 @@ String b = Optional.of("信義分行").orElseGet(() -&gt; loadDefaultBranch());
 String c = Optional.&lt;String&gt;empty().orElseGet(() -&gt; loadDefaultBranch());
 // 印出：（去資料庫查預設分行）
 // c 是 總行</code></pre>
-<p><strong>不要怎麼用：</strong>dev.java 的使用守則第五條是「不要把 Optional 用在欄位、方法參數、集合與 Map 裡」（Rule #5 Do not use optional in fields, method parameters, collections, and maps.），第一條是「Optional 型別的變數或回傳值永遠不要是 null」（Rule #1 Never use null for an optional variable or returned value.）。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a> API 文件也說「型別是 Optional 的變數本身永遠不該是 null，應該一律指向一個 Optional 實例」，並提醒不要拿 <code>==</code> 跟 <code>Optional.empty()</code> 比，「它不保證是同一個物件」，要用 <code>isEmpty()</code> 或 <code>isPresent()</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a> 先 <code>isPresent()</code> 再 <code>get()</code> 雖然不會錯，但跟直接判斷 null 沒有兩樣，<code>map</code>、<code>orElse</code> 這些方法才是 <code>Optional</code> 好用的地方；dev.java 同一頁的第三條也是這個意思：「優先用 <code>ifPresent()</code>、<code>orElseThrow()</code>、<code>get()</code> 以外的替代寫法」（Rule #3 Prefer alternatives to ifPresent(), orElseThrow(), or get().）。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>不要怎麼用：</strong></p>
+<ul class="plainlist">
+<li><b>不放欄位、參數、集合</b>：dev.java 的使用守則第五條是「不要把 Optional 用在欄位、方法參數、集合與 Map 裡」。<span class="orig">dev.java：Rule #5 Do not use optional in fields, method parameters, collections, and maps.</span></li>
+<li><b>本身不是 null</b>：第一條是「Optional 型別的變數或回傳值永遠不要是 null」。<span class="orig">dev.java：Rule #1 Never use null for an optional variable or returned value.<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></span>API 文件也說「型別是 Optional 的變數本身永遠不該是 null，應該一律指向一個 Optional 實例」。</li>
+<li><b>不用 == 比</b>：API 文件提醒不要拿 <code>==</code> 跟 <code>Optional.empty()</code> 比，「它不保證是同一個物件」，要用 <code>isEmpty()</code> 或 <code>isPresent()</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>少用 get</b>：先 <code>isPresent()</code> 再 <code>get()</code> 雖然不會錯，但跟直接判斷 null 沒有兩樣，<code>map</code>、<code>orElse</code> 這些方法才是 <code>Optional</code> 好用的地方；dev.java 同一頁的第三條也是這個意思：「優先用 <code>ifPresent()</code>、<code>orElseThrow()</code>、<code>get()</code> 以外的替代寫法」。<span class="orig">dev.java：Rule #3 Prefer alternatives to ifPresent(), orElseThrow(), or get().<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/optionals/" target="_blank" rel="noopener">出處</a></span></li>
+</ul>
 <p class="formula">Optional 當回傳型別用；查不到回傳 Optional.empty()，不回傳 null；預設值很貴就用 orElseGet</p>
 
 <div class="drill">

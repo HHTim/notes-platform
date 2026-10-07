@@ -214,7 +214,15 @@ System.out.println(found);</code></pre>
 <tr><th><code>skip(n)</code></th><td>丟掉前 n 個</td><td>不足 n 個就得到空的流</td></tr>
 <tr><th><code>peek(動作)</code></th><td>元素經過時做一個動作，元素原樣往下傳</td><td>主要給除錯用</td></tr>
 </tbody></table></div>
-<p>表中「要記得的事」一欄都來自 <code>Stream</code> 的方法說明：<code>flatMap</code>「把每個元素換成套用函式後產生的流的內容」，效果是「一對多的轉換，再把產生的元素攤平成一條新的流」（The flatMap() operation has the effect of applying a one-to-many transformation to the elements of the stream, and then flattening the resulting elements into a new stream.）；<code>distinct</code>「對有順序的流，挑選是穩定的（重複的元素保留順序中最先出現的那一個）」；<code>sorted</code>「對有順序的流，排序是穩定的」（For ordered streams, the sort is stable.）；<code>skip</code> 在元素少於 n 個時「回傳空的流」；<code>peek</code>「這個方法主要是為了支援除錯」（This method exists mainly to support debugging）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 穩定排序（stable sort）是指比較結果相等的元素，排完仍維持原本的先後。<code>distinct</code>、<code>sorted</code> 是有狀態的操作，套件說明舉例「看完流的所有元素之前，排序產生不了任何結果」（one cannot produce any results from sorting a stream until one has seen all elements of the stream）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></p>
+<p>表中「要記得的事」一欄都來自 <code>Stream</code> 的方法說明：</p>
+<ul class="plainlist">
+<li><b>flatMap</b>：「把每個元素換成套用函式後產生的流的內容」，效果是「一對多的轉換，再把產生的元素攤平成一條新的流」。<span class="orig">The flatMap() operation has the effect of applying a one-to-many transformation to the elements of the stream, and then flattening the resulting elements into a new stream.</span></li>
+<li><b>distinct</b>：「對有順序的流，挑選是穩定的（重複的元素保留順序中最先出現的那一個）」。</li>
+<li><b>sorted</b>：「對有順序的流，排序是穩定的」。<span class="orig">For ordered streams, the sort is stable.</span></li>
+<li><b>skip</b>：在元素少於 n 個時「回傳空的流」。</li>
+<li><b>peek</b>：「這個方法主要是為了支援除錯」。<span class="orig">This method exists mainly to support debugging<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a></span></li>
+</ul>
+<p>穩定排序（stable sort）是指比較結果相等的元素，排完仍維持原本的先後。<code>distinct</code>、<code>sorted</code> 是有狀態的操作，套件說明舉例「看完流的所有元素之前，排序產生不了任何結果」。<span class="orig">one cannot produce any results from sorting a stream until one has seen all elements of the stream<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></span></p>
 <pre><code>record Account(String id, List&lt;Long&gt; deposits) {}
 
 List&lt;Account&gt; accounts = List.of(
@@ -316,7 +324,14 @@ System.out.println(n);</code></pre>
 <tr><th><code>min</code>／<code>max(比較器)</code></th><td><code>Optional</code></td><td>空的流得到空的 Optional</td></tr>
 <tr><th><code>toList()</code>（Java 16 起）</th><td>不可修改的 <code>List</code></td><td>改它會丟 <code>UnsupportedOperationException</code></td></tr>
 </tbody></table></div>
-<p>表中的根據，都在 <code>Stream</code> 的方法說明裡：<code>forEach</code>「的行為明確是不確定的」（The behavior of this operation is explicitly nondeterministic.），平行時不保證照順序；<code>anyMatch</code>「如果流是空的，回傳 false，而且不評估條件」（If the stream is empty then false is returned and the predicate is not evaluated.），<code>allMatch</code>、<code>noneMatch</code> 在空的流則回傳 true；<code>findFirst</code>、<code>min</code>、<code>max</code> 在空的流回傳空的 <code>Optional</code>；<code>toList()</code>「回傳的 List 是不可修改的，呼叫任何修改方法都一定會丟出 <code>UnsupportedOperationException</code>」（The returned List is unmodifiable; calls to any mutator method will always cause UnsupportedOperationException to be thrown.），它標示 Since 16。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a> 舊寫法 <code>collect(<wbr>Collectors.<wbr>toList())</code> 則「對回傳 List 的型別、可變性……沒有任何保證」（There are no guarantees on the type, mutability, serializability, or thread-safety of the List returned），需要能修改的清單就用 <code>Collectors.<wbr>toCollection(<wbr>ArrayList::new)</code> 指定。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></p>
+<p>表中的根據，都在 <code>Stream</code> 的方法說明裡：</p>
+<ul class="plainlist">
+<li><b>forEach</b>：「的行為明確是不確定的」，平行時不保證照順序。<span class="orig">The behavior of this operation is explicitly nondeterministic.</span></li>
+<li><b>anyMatch</b>：「如果流是空的，回傳 false，而且不評估條件」，<code>allMatch</code>、<code>noneMatch</code> 在空的流則回傳 true。<span class="orig">If the stream is empty then false is returned and the predicate is not evaluated.</span></li>
+<li><b>findFirst、min、max</b>：在空的流回傳空的 <code>Optional</code>。</li>
+<li><b>toList()</b>：「回傳的 List 是不可修改的，呼叫任何修改方法都一定會丟出 <code>UnsupportedOperationException</code>」，它標示 Since 16。<span class="orig">The returned List is unmodifiable; calls to any mutator method will always cause UnsupportedOperationException to be thrown.<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Stream.html" target="_blank" rel="noopener">出處</a></span></li>
+</ul>
+<p>舊寫法 <code>collect(<wbr>Collectors.<wbr>toList())</code> 則「對回傳 List 的型別、可變性……沒有任何保證」，需要能修改的清單就用 <code>Collectors.<wbr>toCollection(<wbr>ArrayList::new)</code> 指定。<span class="orig">There are no guarantees on the type, mutability, serializability, or thread-safety of the List returned<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/Collectors.html" target="_blank" rel="noopener">出處</a></span></p>
 <pre><code>long sum = txs.stream().map(Tx::amount).reduce(0L, Long::sum);
 System.out.println(sum);                                                   // 297700
 System.out.println(txs.stream().anyMatch(tx -&gt; tx.amount() &gt; 100_000));    // true

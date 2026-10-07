@@ -173,7 +173,17 @@ pool.execute(() -&gt; System.out.println("第 3 個任務由 " + Thread.currentT
 <section>
 <p class="era">方便的預設值有代價</p>
 <h3 class="head">Executors 工廠方法的坑，與池子要開多大</h3>
-<p><code>ThreadPoolExecutor</code> 的文件其實是鼓勵用 <code>Executors</code> 的工廠方法的（programmers are urged to use the more convenient Executors factory methods）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a>，問題在於要知道它們的預設值。OpenJDK 21 的原始碼：<code>newFixedThreadPool</code> 是 <code>new LinkedBlockingQueue&lt;Runnable&gt;()</code>，沒給容量；<code>newCachedThreadPool</code> 是核心 0、最大 <code>Integer.MAX_VALUE</code>，配 <code>SynchronousQueue</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/Executors.java" target="_blank" rel="noopener">出處</a> 對照文件的三種佇列策略：無界佇列「不會建立超過 corePoolSize 的執行緒（maximumPoolSize 因此沒有作用）」，但「工作佇列可能無限制地成長」；直接交遞（<code>SynchronousQueue</code>）「通常需要無上限的 maximumPoolSize」，這又「允許執行緒無限制地成長」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a> 實跑各送 100 個卡住的任務：</p>
+<p><code>ThreadPoolExecutor</code> 的文件其實是鼓勵用 <code>Executors</code> 的工廠方法的（programmers are urged to use the more convenient Executors factory methods）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a>，問題在於要知道它們的預設值。OpenJDK 21 的原始碼：</p>
+<ul class="plainlist">
+<li><b>newFixedThreadPool</b>：是 <code>new LinkedBlockingQueue&lt;Runnable&gt;()</code>，沒給容量。</li>
+<li><b>newCachedThreadPool</b>：是核心 0、最大 <code>Integer.MAX_VALUE</code>，配 <code>SynchronousQueue</code>。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/Executors.java" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>對照文件的三種佇列策略：</p>
+<ul class="plainlist">
+<li><b>無界佇列</b>：「不會建立超過 corePoolSize 的執行緒（maximumPoolSize 因此沒有作用）」，但「工作佇列可能無限制地成長」。</li>
+<li><b>直接交遞</b>（<code>SynchronousQueue</code>）：「通常需要無上限的 maximumPoolSize」，這又「允許執行緒無限制地成長」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>實跑各送 100 個卡住的任務：</p>
 <pre><code>CountDownLatch release = new CountDownLatch(1);
 ThreadPoolExecutor fixed = (ThreadPoolExecutor) Executors.newFixedThreadPool(2);
 ThreadPoolExecutor cached = (ThreadPoolExecutor) Executors.newCachedThreadPool();
@@ -353,7 +363,12 @@ for (Future&lt;?&gt; f : fs) {
 }
 // 同一批四次實跑，HashMap 總和：760220、768839、759175、751849（每次都少，而且每次不同）
 // ConcurrentHashMap 總和：800000（四次都是）</code></pre>
-<p><strong>為什麼快又安全。</strong>文件：它「支援完整並行的讀取與高度並行的更新」，「所有操作都是執行緒安全的，但讀取操作不涉及鎖定，也不支援鎖住整張表」（retrieval operations do not entail locking）；讀取（包括 <code>get</code>）「一般不會阻塞，可以跟更新重疊」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a> 寫入怎麼做，OpenJDK 21 原始碼的註解：在空的桶放進第一個節點「只靠 CAS 就完成」（performed by just CASing it to the bin），這是最常見的情況；其他更新需要鎖，但不想替每個桶配一個鎖物件，「所以直接用桶裡串列的第一個節點當鎖」，靠內建的 <code>synchronized</code> 監視器。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java" target="_blank" rel="noopener">出處</a> 不同的桶互不影響，所以 8 條執行緒同時寫不同分行，大多不會互等。CAS 是什麼見〈執行緒與並行〉。</p>
+<p><strong>為什麼快又安全。</strong></p>
+<ul class="plainlist">
+<li><b>讀取</b>：文件：它「支援完整並行的讀取與高度並行的更新」，「所有操作都是執行緒安全的，但讀取操作不涉及鎖定，也不支援鎖住整張表」；讀取（包括 <code>get</code>）「一般不會阻塞，可以跟更新重疊」。<span class="orig">retrieval operations do not entail locking<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>寫入</b>：OpenJDK 21 原始碼的註解：在空的桶放進第一個節點「只靠 CAS 就完成」，這是最常見的情況；其他更新需要鎖，但不想替每個桶配一個鎖物件，「所以直接用桶裡串列的第一個節點當鎖」，靠內建的 <code>synchronized</code> 監視器。<span class="orig">performed by just CASing it to the bin<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-21-ga/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java" target="_blank" rel="noopener">出處</a></span></li>
+</ul>
+<p>不同的桶互不影響，所以 8 條執行緒同時寫不同分行，大多不會互等。CAS 是什麼見〈執行緒與並行〉。</p>
 <p><strong>兩個用法提醒。</strong>第一，它「不允許 null 當鍵或值」（does not allow null to be used as a key or value）<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html" target="_blank" rel="noopener">出處</a>，實跑 <code>put("中正", null)</code> 丟 <code>NullPointerException</code>。第二，「先 get 再 put」是兩次呼叫，中間會被別的執行緒插隊；要一次做完就用 <code>merge</code>、<code>compute</code>、<code>computeIfAbsent</code>：</p>
 <pre><code>ConcurrentHashMap&lt;String, LongAdder&gt; freq = new ConcurrentHashMap&lt;&gt;();
 for (String b : List.of("信義", "大安", "信義")) {
@@ -609,7 +624,12 @@ System.out.println("普通欄位：設成 true 兩秒後，迴圈還在跑嗎？
 <section>
 <p class="era">等待型的工作，有另一個答案</p>
 <h3 class="head">虛擬執行緒什麼時候用</h3>
-<p>Java 21 的 Virtual Threads 指南有兩條跟執行緒池直接相關的建議。第一，「把每個應用程式的任務都表示成一條執行緒」，不要共用一個池；虛擬執行緒很多，「每條都應該代表一個任務，而不是共用的、池化的資源」，所以「永遠不要池化虛擬執行緒」。第二，要限制並行數，例如某個外部服務最多只能同時接 10 個請求，以前用固定大小的池來達成，但「限制並行只是執行緒池運作的副作用」，「池是為了共用稀有資源而設計的，虛擬執行緒並不稀有，所以永遠不該被池化」；要限量就「用專門為這個目的設計的結構：<code>Semaphore</code> 類別」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html" target="_blank" rel="noopener">出處</a> JEP 444 也說虛擬執行緒適合大部分時間在等的工作，不是讓計算變快。<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a> 實跑一萬個「各等 100 毫秒」的任務：</p>
+<p>Java 21 的 Virtual Threads 指南有兩條跟執行緒池直接相關的建議：</p>
+<ul class="plainlist">
+<li><b>不要池化</b>：「把每個應用程式的任務都表示成一條執行緒」，不要共用一個池；虛擬執行緒很多，「每條都應該代表一個任務，而不是共用的、池化的資源」，所以「永遠不要池化虛擬執行緒」。</li>
+<li><b>限量用 Semaphore</b>：要限制並行數，例如某個外部服務最多只能同時接 10 個請求，以前用固定大小的池來達成，但「限制並行只是執行緒池運作的副作用」，「池是為了共用稀有資源而設計的，虛擬執行緒並不稀有，所以永遠不該被池化」；要限量就「用專門為這個目的設計的結構：<code>Semaphore</code> 類別」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>JEP 444 也說虛擬執行緒適合大部分時間在等的工作，不是讓計算變快。<a class="fixsrc" href="https://openjdk.org/jeps/444" target="_blank" rel="noopener">出處</a> 實跑一萬個「各等 100 毫秒」的任務：</p>
 <pre><code>try (ExecutorService pool = Executors.newFixedThreadPool(100)) {
     for (int i = 0; i &lt; 10_000; i++) {
         pool.submit(() -&gt; { Thread.sleep(100); return null; });
