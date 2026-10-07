@@ -1,5 +1,5 @@
 <!-- 來源：依 Oracle Java SE 21 API 文件（java.lang.FunctionalInterface、java.util.function 套件與 Function、Predicate、Consumer、Supplier、BiFunction、UnaryOperator、IntPredicate，java.util.Comparator、java.util.Optional）、Java 語言規格 SE 21 第 4.12.4、9.8、11.2.3、15.12.4、15.13、15.27 節、dev.java Lambda 教學（first-lambdas、functional-interfaces、method-references、writing-comparators）與 Using Optionals、JEP 456 新寫；範例與練習題全部自編，程式碼以 Java 21 實際編譯執行，Java 22 起的寫法以 Java 25 執行 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 lambda 解決什麼問題，把匿名類別改寫成 lambda，並看懂各種省略寫法</li><li>判斷一個介面是不是函式介面，替一段行為挑對 <code>java.util.function</code> 裡的介面</li><li>認出方法參考的四種寫法，說明為什麼 lambda 只能讀 effectively final 的區域變數，以及 <code>this</code> 在 lambda 與匿名類別裡指的東西不同</li><li>用 <code>Comparator</code> 的組合方法寫多鍵排序，用 <code>Optional</code> 表達「可能查不到」</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把匿名類別改寫成 lambda</li><li>替一段行為挑對函式介面</li><li>認出方法參考的四種寫法</li><li>用 Comparator 組合多鍵排序</li></ul></div>
 
 <section>
 <p class="era">先看痛點，再看解法</p>
@@ -21,7 +21,7 @@ System.out.println(txs);
 txs.sort((a, b) -&gt; Long.compare(b.amount(), a.amount()));   // Java 8 起：lambda（這次由大到小）
 System.out.println(txs);
 // [Tx[id=T3, amount=980], Tx[id=T1, amount=500], Tx[id=T2, amount=120]]</code></pre>
-<p class="muted"><code>record</code> 是 Java 16 起的精簡資料類別：一行宣告就自動有建構子、讀取方法 <code>amount()</code>、<code>equals</code>、<code>hashCode</code> 與上面印出來的那種 <code>toString</code>，細節在〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。這兩課的範例都用它來放交易資料。</p>
+<p class="muted"><code>record</code> 是 Java 16 起的精簡資料類別：一行宣告就自動有建構子、讀取方法 <code>amount()</code>、<code>equals</code>、<code>hashCode</code> 與上面印出來的那種 <code>toString</code>，細節在〈現代 Java 語法：var、record、switch、文字區塊與 sealed〉。</p>
 <p>匿名類別五行裡真正在做事的只有 <code>return</code> 那一行，其餘都是格式。lambda 把格式拿掉，只留「參數」與「本體」。dev.java 的教學說，lambda 是在某些特定情況下「寫匿名類別實例的另一種、更簡單的方式」（lambda expressions are another, simpler way of writing instances of anonymous classes, in some precise cases）<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a>；Java 語言規格（JLS）的定義是「lambda 運算式就像一個方法：它提供一串形式參數，以及用這些參數寫成的本體（一個運算式或一個區塊）」（A lambda expression is like a method: it provides a list of formal parameters and a body - an expression or block - expressed in terms of those parameters.）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27" target="_blank" rel="noopener">出處</a></p>
 <p>好處在設計上：方法只負責流程，「挑哪幾筆」這種會變的規則改由呼叫端傳進來。下面的 <code>select</code> 寫一次，就能配任何篩選條件（<code>Predicate</code> 是下一段會介紹的現成介面，意思是「回答是或否的規則」）：</p>
 <pre><code>static List&lt;Tx&gt; select(List&lt;Tx&gt; txs, Predicate&lt;Tx&gt; rule) {

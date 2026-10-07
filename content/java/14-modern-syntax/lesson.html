@@ -1,10 +1,10 @@
 <!-- 來源：依 OpenJDK JEP 286、361、378、394、395、409、440、441、444、456、507、513 與 Local Variable Type Inference 風格指南、Java 語言規格 SE 21 第 14.4、14.30.2 節、Oracle Java SE 21 API 文件（java.lang.Record、java.lang.Thread）新寫；範例與練習題全部自編，程式碼以 Java 21 實際編譯執行，Java 22 起的寫法以 Java 25 執行 · 收錄日期：2026-10-02 -->
-<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷哪裡能寫 <code>var</code>、哪裡不能，以及什麼時候寫出型別比較好讀</li><li>用 <code>record</code> 寫不可變的資料類別（例如金額加幣別），在緊湊建構子裡驗證參數</li><li>寫 switch 運算式，用型別模式、<code>when</code> 守衛、record 解構模式取代一長串 <code>instanceof</code> 與轉型</li><li>寫文字區塊、看懂它的縮排規則，並用 <code>sealed</code> 讓 switch 不必寫 <code>default</code> 也能窮舉</li></ul></div>
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷哪裡能寫 var、何時不該寫</li><li>用 record 寫不可變的資料類別</li><li>用 switch 運算式與模式比對取代轉型</li><li>寫文字區塊，用 sealed 讓 switch 窮舉</li></ul></div>
 
 <section>
 <p class="era">先看全貌，每個功能哪一版定案</p>
 <h3 class="head">Java 10 到 21 新增的語法，一張表</h3>
-<p>〈Java 是什麼、環境怎麼裝〉列過幾個分水嶺：Java 10 有 <code>var</code>，Java 14〜17 有 switch 運算式、文字區塊、record、sealed，Java 21 有虛擬執行緒與 switch 的模式比對。這一課把它們逐一講清楚。新語法在 OpenJDK 裡都用 <strong>JEP</strong>（JDK Enhancement Proposal，描述一項新功能的公開提案文件）追蹤，多數先當幾版<strong>預覽功能</strong>（preview，要加 <code>--enable-preview</code> 才能用、之後可能再改）才正式定案。下表的「正式版本」取自各 JEP 頁面的 Release 欄：</p>
+<p>〈Java 是什麼、環境怎麼裝〉列過幾個分水嶺：Java 10 有 <code>var</code>，Java 14〜17 有 switch 運算式、文字區塊、record、sealed，Java 21 有虛擬執行緒與 switch 的模式比對。新語法在 OpenJDK 裡都用 <strong>JEP</strong>（JDK Enhancement Proposal，描述一項新功能的公開提案文件）追蹤，多數先當幾版<strong>預覽功能</strong>（preview，要加 <code>--enable-preview</code> 才能用、之後可能再改）才正式定案。下表的「正式版本」取自各 JEP 頁面的 Release 欄：</p>
 <div class="tablewrap"><table><thead><tr><th>功能</th><th>JEP</th><th>正式版本</th><th>一句話</th></tr></thead><tbody>
 <tr><th><code>var</code> 區域變數型別推論</th><td><a href="https://openjdk.org/jeps/286" target="_blank" rel="noopener">286</a></td><td>10</td><td>區域變數的型別讓編譯器從初始值推論</td></tr>
 <tr><th>switch 運算式與箭頭</th><td><a href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">361</a></td><td>14</td><td>switch 可以產生值，箭頭寫法不會穿透</td></tr>
