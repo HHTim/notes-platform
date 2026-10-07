@@ -5,7 +5,11 @@
 <p class="era">單元測試之外，還要寫多少別的測試</p>
 <h3 class="head">測試金字塔：每一層各寫多少</h3>
 <p>〈Spring Boot 單元測試〉把一個服務方法單獨拿出來，用替身物件（Mock）換掉資料庫與其他元件來測。那課最後提醒：測試一旦啟動了完整的 Spring 容器、連了真的資料庫，或跨越多個元件，就比較接近<strong>整合測試</strong>（integration test：把好幾個真的元件接起來一起測，例如控制器、服務加資料庫）。</p>
-<p>先回答「要寫多少」。Martin Fowler 說測試金字塔是「思考不同種類的自動化測試該怎麼搭配、組成一個平衡組合的方式」（a way of thinking about how different kinds of automated tests should be used to create a balanced portfolio），重點是「低層的單元測試要比透過畫面跑的高層測試多很多」（you should have many more low-level UnitTests than high level BroadStackTests running through a GUI）。理由是透過畫面跑完整流程的測試「容易壞、寫起來貴、跑起來花時間」（brittle, expensive to write, and time consuming to run）。<a class="fixsrc" href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">出處</a></p>
+<p>先回答「要寫多少」。測試金字塔是用來想不同種類的自動化測試該怎麼搭配、組成平衡組合的方式：</p>
+<ul>
+<li>低層的單元測試要比透過畫面跑的高層測試多很多</li>
+<li>理由：透過畫面跑完整流程的測試容易壞、寫起來貴、跑起來花時間<a class="fixsrc" href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>金字塔中間還有一層：不經過畫面、直接從服務層或 API 層打進去的測試。</p>
 <ul class="plainlist">
 <li>它拿得到端對端測試的很多好處，又避開處理畫面框架的許多麻煩；在網頁應用程式裡就是透過 API 層測試。</li>
@@ -266,7 +270,7 @@ class AccountControllerTest {
 <section>
 <p class="era">測試連的資料庫，最好跟正式環境同一套</p>
 <h3 class="head">Testcontainers：每次測試起一個真的 MySQL</h3>
-<p>整合測試要連資料庫，最直接的做法是連一個跟正式環境同一套的資料庫。<strong>Testcontainers</strong> 是一個 Java 函式庫，它「支援 JUnit 測試，提供常見資料庫……或任何能在 Docker 容器裡跑的東西的輕量、用完即丟的實例」（providing lightweight, throwaway instances of common databases, Selenium web browsers, or anything else that can run in a Docker container）。用在資料存取層的整合測試，就是「用容器化的 MySQL、PostgreSQL 或 Oracle 測試資料存取程式碼，確認完全相容，又不需要在開發者電腦上做複雜設定，而且每次測試都從已知的資料庫狀態開始」。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/index.md" target="_blank" rel="noopener">出處</a> 前提是跑測試的電腦要有容器執行環境：「要跑以 Testcontainers 為基礎的測試，需要一個相容 Docker API 的容器執行環境」（you need a Docker-API compatible container runtime），本機裝 Docker 是最常見的做法，CI 機器也一樣。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/supported_docker_environment/index.md" target="_blank" rel="noopener">出處</a>（Docker 容器跟 Spring 容器是兩回事：前者是一個隔離執行的程式環境，這裡用來跑 MySQL；後者是 Spring 管理 Bean 的 ApplicationContext。）</p>
+<p>整合測試要連資料庫，最直接的做法是連一個跟正式環境同一套的資料庫。<strong>Testcontainers</strong> 是一個 Java 函式庫，搭配 JUnit 測試，替常見資料庫、Selenium 瀏覽器或任何能在 Docker 容器裡跑的東西，提供輕量、用完即丟的實例。用在資料存取層的整合測試，就是用容器化的 MySQL、PostgreSQL 或 Oracle 測試資料存取程式碼：確認完全相容，不需要在開發者電腦上做複雜設定，每次測試都從已知的資料庫狀態開始。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/index.md" target="_blank" rel="noopener">出處</a> 前提是跑測試的電腦要有相容 Docker API 的容器執行環境，本機裝 Docker 是最常見的做法，CI 機器也一樣。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/supported_docker_environment/index.md" target="_blank" rel="noopener">出處</a>（Docker 容器跟 Spring 容器是兩回事：前者是一個隔離執行的程式環境，這裡用來跑 MySQL；後者是 Spring 管理 Bean 的 ApplicationContext。）</p>
 <p>連線設定交給 Spring Boot 的<strong>服務連線</strong>（service connection）。服務連線是對任何遠端服務的連線，Spring Boot 的自動設定讀取它的細節來建立連線；這時，連線細節比任何連線相關的設定屬性優先。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/testcontainers.html" target="_blank" rel="noopener">出處</a> 在容器上標 <code>@ServiceConnection</code>，資料來源的網址、帳號、密碼就自動接到這個容器，不用自己寫 <code>spring.datasource.url</code>。本課把容器宣告成 Bean，放在一個測試設定類別裡：</p>
 <pre><code>import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -515,7 +519,7 @@ class RandomPortTest {
 <section>
 <p class="era">同樣的設定，只啟動一次</p>
 <h3 class="head">Spring 容器快取：為什麼有個測試類別不到 0.1 秒</h3>
-<p>啟動 Spring 容器很花時間，連資料庫的還要等 MySQL 容器。所以 TestContext 框架（Spring 負責替測試建立與管理容器的那一套機制）的做法是：「為某個測試載入 ApplicationContext 之後，就把它快取起來，同一個測試套件裡之後宣告相同設定的測試都重用它」（that context is cached and reused for all subsequent tests that declare the same unique context configuration within the same test suite）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a></p>
+<p>啟動 Spring 容器很花時間，連資料庫的還要等 MySQL 容器。所以 TestContext 框架（Spring 負責替測試建立與管理容器的那一套機制）的做法是：為某個測試載入 ApplicationContext 之後就快取起來，同一個測試套件裡，之後宣告相同設定的測試都重用它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>什麼叫「相同設定」</strong>：快取的鍵由載入容器用的設定組合而成，包括設定類別、設定檔、啟用的 profile、測試屬性，以及 contextCustomizers，文件寫明這裡「包括 <code>@DynamicPropertySource</code> 方法、Bean 覆蓋（例如 <code>@TestBean</code>、<code>@MockitoBean</code>、<code>@MockitoSpyBean</code> 等），以及 Spring Boot 測試支援的各種功能」。換句話說，多一個或少一個 <code>@MockitoBean</code>，就是另一個容器。</li>
 <li><strong>什麼叫「同一個測試套件」</strong>：快取存在一個 static 變數裡，所以「測試若在不同的行程裡跑，每次執行之間靜態快取就被清掉，等於關掉快取機制」；用 Maven 或 Gradle 跑時要確認建置工具沒有在測試之間另開行程。</li>

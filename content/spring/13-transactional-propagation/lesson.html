@@ -167,7 +167,7 @@ NEVER          外層沒有：沒有交易｜外層有：丟出 IllegalTransacti
 <ul class="plainlist">
 <li><strong>REQUIRED</strong>：每個方法各有一個邏輯範圍，但這些範圍全部對應到同一筆實體交易，所以內層設的還原標記會影響外層能不能真正提交。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>REQUIRES_NEW</strong>：「對每個受影響的交易範圍都用獨立的實體交易，絕不參與外層既有的交易」，所以「可以各自獨立提交或還原」，內層的鎖「在它完成後馬上釋放」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>NESTED</strong>：「用單一實體交易，帶著好幾個可以退回去的儲存點」（uses a single physical transaction with multiple savepoints that it can roll back to），內層可以只還原自己那一段，外層繼續；它「通常對應到 JDBC 儲存點，所以只對 JDBC 資源交易有效」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 儲存點（savepoint）是交易中途做的記號，可以只退回到記號那裡，不用整筆還原。</li>
+<li><strong>NESTED</strong>：用單一實體交易，帶著好幾個可以退回去的儲存點，內層可以只還原自己那一段，外層繼續。它通常對應到 JDBC 儲存點，所以只對 JDBC 資源交易有效。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 儲存點（savepoint）是交易中途做的記號，可以只退回到記號那裡，不用整筆還原。</li>
 </ul>
 <p>實驗用一個稽核服務，三個方法只差傳播行為；<code>fail</code> 為 true 時寫完稽核再丟例外：</p>
 <pre><code>    @Transactional                                     // 預設 REQUIRED：加入外層交易
@@ -509,7 +509,7 @@ readOnly = true：隔離層級 REPEATABLE_READ，唯讀 true
     例外：TransientDataAccessResourceException；transfer_record 0 筆 []、audit_log 0 筆</code></pre>
 <ul class="plainlist">
 <li><strong>預設的 <code>Isolation.DEFAULT</code> 是「用底層資料庫的預設」</strong>（Use the default isolation level of the underlying data store）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Isolation.html" target="_blank" rel="noopener">出處</a> 所以同一支程式，MySQL 跑出來是 REPEATABLE_READ，換 H2 實跑是 READ_COMMITTED。換資料庫時這個差別要留意。</li>
-<li><strong>隔離層級只在開新交易時生效。</strong>參考文件的設定表寫 isolation「只適用於 REQUIRED 或 REQUIRES_NEW 傳播」；而且加入既有交易時，「預設會沿用外層範圍的特性，默默忽略自己的隔離層級、逾時與唯讀設定」（silently ignoring the local isolation level, timeout value, or read-only flag (if any)）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 想讓這種不一致直接報錯，可以把交易管理器的 <code>validateExistingTransaction</code> 設成 true。</li>
+<li><strong>隔離層級只在開新交易時生效。</strong>isolation 只適用於 REQUIRED 或 REQUIRES_NEW 傳播；加入既有交易時，預設沿用外層範圍的特性，自己的隔離層級、逾時與唯讀設定會被默默忽略。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 想讓這種不一致直接報錯，可以把交易管理器的 <code>validateExistingTransaction</code> 設成 true。</li>
 <li><strong>唯讀只是提示。</strong><code>readOnly</code> 只是給實際交易子系統的提示，不一定會讓寫入失敗；看不懂這個提示的交易管理器會直接忽略它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html" target="_blank" rel="noopener">出處</a> 實跑結果正好示範：連線確實被設成唯讀（唯讀 true），MySQL 的驅動拒絕寫入；同一段程式換成 H2，寫入照樣成功、留下 1 筆。唯讀交易的價值是讓資料庫與 ORM 做最佳化，不是拿來當權限控管。</li>
 </ul>
 

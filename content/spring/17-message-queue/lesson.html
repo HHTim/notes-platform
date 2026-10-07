@@ -86,7 +86,7 @@ docker run -d --name mq17-rabbit --hostname mq17-rabbit \
 <h3 class="head">Kafka 的模型：主題、分區、位移、消費者群組</h3>
 <p>把 Kafka 想成銀行櫃檯的流水帳本：每發生一件事就往最後一行寫，寫上去就不改，誰想看都可以從某一行開始往下讀。Kafka 裡這本帳叫<strong>日誌</strong>（log），四個名詞都從這裡長出來：</p>
 <ul class="plainlist">
-<li><strong>主題</strong>（topic）：一類事件放一個主題，例如 <code>transfers</code>。「跟傳統的訊息系統不同，事件被消費之後不會刪除」（unlike traditional messaging systems, events are not deleted after consumption），保留多久由主題的設定決定。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>主題</strong>（topic）：一類事件放一個主題，例如 <code>transfers</code>。跟傳統的訊息系統不同，事件被消費之後不會刪除，保留多久由主題的設定決定。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>分區</strong>（partition）：一個主題切成好幾本帳，放在不同的 broker 上，才能很多人同時讀寫。同一個 key 的事件寫進同一個分區，讀一個分區的順序跟寫入時相同（Events with the same event key… are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition’s events in exactly the same order as they were written.）。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>位移</strong>（offset）：每本帳的行號，從 0 開始。消費者讀到哪裡，就只是記一個數字：它在每個分區的位置只是一個整數，也就是下一則要讀的訊息的位移。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>消費者群組</strong>（consumer group）：用同一個群組名稱、一起分工的消費者。規則只有一條：每個分區在任一時刻，只歸群組裡的一個消費者（each of which is consumed by exactly one consumer within each subscribing consumer group at any given time）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
@@ -289,7 +289,7 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 </svg>
 <figcaption>一則 transfer.tw.large 同時符合三個樣式，三條佇列各收到一份副本。transfer.jp.small 只符合 #。</figcaption>
 </figure>
-<p><strong>讀完就刪。</strong>這是跟 Kafka 最大的不同：RabbitMQ 收到消費者的確認（ack）之後，「才會把訊息從佇列裡完全移除」（a broker will only completely remove a message from a queue when it receives a notification for that message）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
+<p><strong>讀完就刪。</strong>這是跟 Kafka 最大的不同：RabbitMQ 收到消費者的確認（ack）之後，才會把訊息從佇列裡完全移除。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
 <p>所以同一條佇列有好幾個消費者時，一則只給一個人，通常是輪流分；<a class="fixsrc" href="https://www.rabbitmq.com/docs/consumers" target="_blank" rel="noopener">出處</a> 要讓好幾個服務都收到，就像上面那樣給每個服務一條自己的佇列。</p>
 <p>還有一種情況要小心：沒有任何綁定符合的訊息，在生產者的 mandatory 屬性是預設的 false 時會被丟掉（或轉給另外設定的備用交換器）（the publisher set the mandatory message property to false (this is the default), the message is discarded or republished to an alternate exchange, if any）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/publishers" target="_blank" rel="noopener">出處</a></p>
 
@@ -375,7 +375,7 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 </svg>
 <figcaption>當機一定會發生在某兩步之間。先記位移，壞掉的是「丟」；先處理，壞掉的是「重複」。</figcaption>
 </figure>
-<p>銀行的帳寧可重複、不能丟（重複可以靠程式擋掉，丟了就是錢對不上），所以通常選<strong>至少一次</strong>，再讓消費者擋掉重複。生產者沒收到 broker 回應時也只能重送；<code>enable.idempotence</code> 開著時，「生產者會確保每則訊息在串流裡只寫入一份」（the producer will ensure that exactly one copy of each message is written in the stream），而且預設開啟（Idempotence is enabled by default if no conflicting configurations are set.）。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/producer-configs/" target="_blank" rel="noopener">出處</a> 它擋不住「消費者處理兩次」。</p>
+<p>銀行的帳寧可重複、不能丟（重複可以靠程式擋掉，丟了就是錢對不上），所以通常選<strong>至少一次</strong>，再讓消費者擋掉重複。生產者沒收到 broker 回應時也只能重送；<code>enable.idempotence</code> 開著時，生產者確保每則訊息在串流裡只寫入一份；沒有互相衝突的設定時，它預設開啟。<a class="fixsrc" href="https://kafka.apache.org/43/configuration/producer-configs/" target="_blank" rel="noopener">出處</a> 它擋不住「消費者處理兩次」。</p>
 <p><strong>剛好一次要什麼前提？</strong>這個保證有但書，只在「從 Kafka 讀、寫回 Kafka」時成立：<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li>交易式生產者把輸出的訊息和消費者的位移寫進同一筆 Kafka 交易。</li>
@@ -486,7 +486,7 @@ void onDebit(ConsumerRecord&lt;String, String&gt; rec, Acknowledgment ack) {
 <section>
 <p class="era">做過的事記下來，第二次來就說「做過了」</p>
 <h3 class="head">冪等消費：去重表</h3>
-<p><strong>冪等</strong>（idempotent）是「做一次和做很多次，結果一樣」。按電梯的樓層鍵就是冪等，按十次也只去那一層；扣款不是。面試集〈系統設計：訊息佇列與最終一致性〉列了三招：去重表、業務唯一鍵、版本號；消費者「必須冪等，例如追蹤已經處理過的訊息編號」（a message consumer must be idempotent, perhaps by tracking the IDs of the messages that it has already processed）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 這裡把去重表實作出來。</p>
+<p><strong>冪等</strong>（idempotent）是「做一次和做很多次，結果一樣」。按電梯的樓層鍵就是冪等，按十次也只去那一層；扣款不是。面試集〈系統設計：訊息佇列與最終一致性〉列了三招：去重表、業務唯一鍵、版本號。消費者必須冪等，做法之一是記下已經處理過的訊息編號。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 這裡把去重表實作出來。</p>
 <p>關鍵只有一句：<strong>去重表那一列和扣款，寫在同一筆資料庫交易裡。</strong>重複的訊息一插入就撞主鍵，整筆交易回復，扣款也跟著沒發生。</p>
 <pre><code>CREATE TABLE processed_message (
   message_id   VARCHAR(64) NOT NULL,     -- 生產者給的唯一編號（這裡用轉帳序號）
@@ -699,7 +699,7 @@ void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt
 <p class="era">先寫進自己的資料庫，再慢慢寄出去</p>
 <h3 class="head">交易式 Outbox 的實作骨架</h3>
 <p>最後一個問題：扣款寫資料庫、發事件寫 broker，是對兩個系統各寫一次（這叫雙重寫入）。先寫資料庫、再送訊息，中間當機，下游就永遠不知道這筆扣款；先送訊息、交易卻回復了，下游收到一件沒發生的事。用兩階段提交（2PC，先問兩邊能不能做、都說能才一起提交）也不實際（The database and/or the message broker might not support 2PC.）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 用 <code>@TransactionalEventListener</code>（預設在 AFTER_COMMIT，交易提交後才執行）去送訊息，擋得住「交易還原了、訊息卻送出」，擋不住「提交之後、送出之前當機」，那則訊息就丟了；這正是 Outbox 要解決的。這個監聽器的用法見〈@Transactional 的傳播、隔離與失效情境〉。</p>
-<p>解法是<strong>交易式 Outbox</strong>（transactional outbox）：「先把訊息當作更新業務資料那筆交易的一部分存進資料庫，再由另一個程序把訊息送到 broker」（first store the message in the database as part of the transaction that updates the business entities. A separate process then sends the messages to the message broker.）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 存訊息的表叫寄件匣（outbox），另一個程序叫訊息轉送器（message relay）。骨架三塊：</p>
+<p>解法是<strong>交易式 Outbox</strong>（transactional outbox）：先把訊息當作更新業務資料那筆交易的一部分存進資料庫，再由另一個程序把訊息送到 broker。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 存訊息的表叫寄件匣（outbox），另一個程序叫訊息轉送器（message relay）。骨架三塊：</p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="交易式 Outbox：左邊虛線框是同一筆資料庫交易，裡面有更新 account 與插入 outbox 兩步；中間的轉送器每 0.5 秒撈 outbox 裡還沒送的，送到 Kafka 主題 transfer-events，送成功再標記已送；右邊下游服務從 Kafka 讀">
   <defs><marker id="mq-5-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
