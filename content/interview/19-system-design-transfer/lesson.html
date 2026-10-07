@@ -57,7 +57,13 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
   amount      BIGINT NOT NULL,                             -- 轉出記負、轉入記正
   created_at  TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );</code></pre>
-<p>三個設計重點：金額用整數（元或分）或 <code>DECIMAL</code>，不用浮點數，MySQL 文件說 DECIMAL 存的是精確值，「在需要保持精確時使用，例如金額」（These types are used when it is important to preserve exact precision, for example with monetary data.）；<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html" target="_blank" rel="noopener">出處</a> 分錄只新增、不修改，記錯了就再記一筆反向分錄沖回去；轉帳表的冪等鍵是唯一索引（下一段）。<code>CHECK (balance &gt;= 0)</code> 當最後一道防線：MySQL 文件寫，沒寫執行子句或寫 ENFORCED 時，「約束會被建立並執行」（If omitted or specified as ENFORCED, the constraint is created and enforced.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html" target="_blank" rel="noopener">出處</a></p>
+<p>三個設計重點：</p>
+<ul class="plainlist">
+<li><b>金額</b>：用整數（元或分）或 <code>DECIMAL</code>，不用浮點數，MySQL 文件說 DECIMAL 存的是精確值，「在需要保持精確時使用，例如金額」<span class="orig">These types are used when it is important to preserve exact precision, for example with monetary data.<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>分錄</b>：只新增、不修改，記錯了就再記一筆反向分錄沖回去</li>
+<li><b>冪等鍵</b>：轉帳表的冪等鍵是唯一索引（下一段）。</li>
+</ul>
+<p><code>CHECK (balance &gt;= 0)</code> 當最後一道防線：MySQL 文件寫，沒寫執行子句或寫 ENFORCED 時，「約束會被建立並執行」（If omitted or specified as ENFORCED, the constraint is created and enforced.）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">A 轉 1000 元給 B，照本課的雙重記帳會寫幾筆分錄？加總是多少？</p>
@@ -135,7 +141,9 @@ CREATE TABLE journal_entry (                               -- 分錄：只新增
 不固定順序上鎖：成功 1036 筆、餘額不足 0 筆、死結 175 次
   總餘額 20000，所有分錄加總 0，分錄筆數 2072，加總不為 0 的轉帳 0 筆
 應用程式帳號改分錄：UPDATE command denied to user 'app'@'172.17.0.1' for table 'journal_entry'</code></pre>
-<p>兩種上鎖順序最後的帳都對得上（總餘額 20000、分錄加總 0、每筆轉帳的分錄加總都是 0），因為死結時 InnoDB「自動偵測交易死結，還原一筆或多筆交易來解開死結」（InnoDB automatically detects transaction deadlocks and rolls back a transaction or transactions to break the deadlock.），<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 被還原的那筆不留痕跡。差別在死結次數：固定順序 0 次；不固定順序這一次實跑 175 次（每次跑不同，約 160〜185 次；固定順序每次都是 0），每一次都是一筆得重試的失敗轉帳。MySQL 也提醒「隨時準備好在死結時重新執行交易」（Always be prepared to re-issue a transaction if it fails due to deadlock.）、「讓交易小而短」（Keep transactions small and short in duration）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 所以交易裡不要呼叫外部服務（簡訊、風控 API），那會讓鎖握得很久。隔離層級與鎖的細節見〈交易隔離層級與鎖〉。</p>
+<p>兩種上鎖順序最後的帳都對得上（總餘額 20000、分錄加總 0、每筆轉帳的分錄加總都是 0），因為死結時 InnoDB「自動偵測交易死結，還原一筆或多筆交易來解開死結」（InnoDB automatically detects transaction deadlocks and rolls back a transaction or transactions to break the deadlock.），<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a> 被還原的那筆不留痕跡。</p>
+<p>差別在死結次數：固定順序 0 次；不固定順序這一次實跑 175 次（每次跑不同，約 160〜185 次；固定順序每次都是 0），每一次都是一筆得重試的失敗轉帳。</p>
+<p>MySQL 也提醒「隨時準備好在死結時重新執行交易」（Always be prepared to re-issue a transaction if it fails due to deadlock.）、「讓交易小而短」（Keep transactions small and short in duration）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a> 所以交易裡不要呼叫外部服務（簡訊、風控 API），那會讓鎖握得很久。隔離層級與鎖的細節見〈交易隔離層級與鎖〉。</p>
 
 <div class="drill">
   <p class="dq">同行轉帳「扣款、入帳、寫兩筆分錄」為什麼要放在同一筆資料庫交易裡？</p>

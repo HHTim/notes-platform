@@ -8,7 +8,9 @@
     <p class="q">面試官：單體、SOA、微服務怎麼演進？ESB 跟現在的 API Gateway 差在哪？</p>
     <p><strong>一句話定義：</strong>三者差在「拆多細」與「聰明放哪裡」。單體（monolith）是一個部署單位；SOA（服務導向架構）拆成服務，但整合邏輯集中在 ESB（Enterprise Service Bus，企業服務匯流排）；微服務拆得更小，整合邏輯留在服務身上。</p>
     <p><strong>ESB 是什麼：</strong>Fowler 的微服務文章把 ESB 當「把大量聰明放進通訊機制本身」的代表：「ESB 產品常內建精密的訊息路由、編排、轉換與套用業務規則的功能」（sophisticated facilities for message routing, choreography, transformation, and applying business rules）。<a class="fixsrc" href="https://martinfowler.com/articles/microservices.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>API Gateway 是什麼：</strong>microservices.io 的定義：「提供每個用戶端一個統一介面去存取服務」。<a class="fixsrc" href="https://microservices.io/patterns/index.html" target="_blank" rel="noopener">出處</a> 它管入口：路由、認證、限流、TLS 終結（加密連線在大門解開，後面走內部網路）；模式頁也寫它會「分派到多個服務」合併結果、把對外協定「轉成內部用的協定」。<a class="fixsrc" href="https://microservices.io/patterns/apigateway.html" target="_blank" rel="noopener">出處</a> 界線在業務規則：規則留在服務裡，對應 Fowler 那篇的小標「聰明端點、笨管線」（smart endpoints and dumb pipes）。<a class="fixsrc" href="https://martinfowler.com/articles/microservices.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>API Gateway 是什麼：</strong>microservices.io 的定義：「提供每個用戶端一個統一介面去存取服務」。<a class="fixsrc" href="https://microservices.io/patterns/index.html" target="_blank" rel="noopener">出處</a></p>
+    <p>它管入口：路由、認證、限流、TLS 終結（加密連線在大門解開，後面走內部網路）；模式頁也寫它會「分派到多個服務」合併結果、把對外協定「轉成內部用的協定」。<a class="fixsrc" href="https://microservices.io/patterns/apigateway.html" target="_blank" rel="noopener">出處</a></p>
+    <p>界線在業務規則：規則留在服務裡，對應 Fowler 那篇的小標「聰明端點、笨管線」（smart endpoints and dumb pipes）。<a class="fixsrc" href="https://martinfowler.com/articles/microservices.html" target="_blank" rel="noopener">出處</a></p>
     <div class="tablewrap"><table>
       <thead><tr><th></th><th>ESB</th><th>API Gateway</th></tr></thead>
       <tbody>
@@ -27,7 +29,17 @@
     <p><strong>一句話定義：</strong>差別在「誰去查名冊」（名冊就是服務註冊表，Service Registry）。用戶端模式（client-side discovery）：「用戶端查詢服務註冊表，取得服務實例的位置」。<a class="fixsrc" href="https://microservices.io/patterns/client-side-discovery.html" target="_blank" rel="noopener">出處</a> 伺服器端模式（server-side discovery）：「用戶端透過位置固定的路由器（也就是負載平衡器）發請求，路由器查服務註冊表，再轉給可用的實例」。<a class="fixsrc" href="https://microservices.io/patterns/server-side-discovery.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>取捨：</strong>用戶端模式「零件與網路跳數較少」，代價是「把用戶端跟服務註冊表綁在一起」、每種語言各寫一次。<a class="fixsrc" href="https://microservices.io/patterns/client-side-discovery.html" target="_blank" rel="noopener">出處</a> 伺服器端模式「用戶端程式碼較簡單」，代價是除非雲端環境內建，路由器是「另一個要安裝、設定」的元件，而且「需要更多網路跳數」。<a class="fixsrc" href="https://microservices.io/patterns/server-side-discovery.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>K8s 的 Service 算哪種：</strong>伺服器端。microservices.io 伺服器端那頁寫：Kubernetes 這類叢集方案「在每台主機跑一個代理，當作伺服器端發現的路由器」。<a class="fixsrc" href="https://microservices.io/patterns/server-side-discovery.html" target="_blank" rel="noopener">出處</a> 例外是 headless Service：平台「不做負載平衡或代理」，把 Pod 位址交給用戶端「自己挑想連的 Pod」，這時就是用戶端模式。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/service/" target="_blank" rel="noopener">出處</a> 原理見〈Service：找路〉。</p>
-    <p><strong>版本註記（Eureka 現況）：</strong>Spring Cloud Netflix 現行版 5.0.2 只列「服務發現（Eureka）」<a class="fixsrc" href="https://docs.spring.io/spring-cloud-netflix/reference/" target="_blank" rel="noopener">出處</a>；Hystrix、Ribbon、Zuul 在 Spring Cloud 2020.0 移除<a class="fixsrc" href="https://github.com/spring-cloud/spring-cloud-release/wiki/Spring-Cloud-2020.0-Release-Notes" target="_blank" rel="noopener">出處</a>，Hystrix 的現況見〈後端與雲端面試題庫〉。現在的答案：用戶端負載平衡用 Spring Cloud LoadBalancer<a class="fixsrc" href="https://docs.spring.io/spring-cloud-commons/reference/spring-cloud-commons/loadbalancer.html" target="_blank" rel="noopener">出處</a>，斷路器用 Spring Cloud Circuit Breaker（「跨不同斷路器實作的抽象層」，支援 Resilience4J 與 Spring Retry）<a class="fixsrc" href="https://spring.io/projects/spring-cloud-circuitbreaker" target="_blank" rel="noopener">出處</a>；Spring Cloud 2025.1 對應 Spring Boot 4.0，要配 4.1 得用 2025.1.2 起。<a class="fixsrc" href="https://spring.io/projects/spring-cloud" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>版本註記（Eureka 現況）：</strong></p>
+    <ul class="plainlist">
+    <li>Spring Cloud Netflix 現行版 5.0.2 只列「服務發現（Eureka）」<a class="fixsrc" href="https://docs.spring.io/spring-cloud-netflix/reference/" target="_blank" rel="noopener">出處</a></li>
+    <li>Hystrix、Ribbon、Zuul 在 Spring Cloud 2020.0 移除<a class="fixsrc" href="https://github.com/spring-cloud/spring-cloud-release/wiki/Spring-Cloud-2020.0-Release-Notes" target="_blank" rel="noopener">出處</a>，Hystrix 的現況見〈後端與雲端面試題庫〉</li>
+    </ul>
+    <p>現在的答案：</p>
+    <ul class="plainlist">
+    <li><b>用戶端負載平衡</b>：用 Spring Cloud LoadBalancer<a class="fixsrc" href="https://docs.spring.io/spring-cloud-commons/reference/spring-cloud-commons/loadbalancer.html" target="_blank" rel="noopener">出處</a></li>
+    <li><b>斷路器</b>：用 Spring Cloud Circuit Breaker（「跨不同斷路器實作的抽象層」，支援 Resilience4J 與 Spring Retry）<a class="fixsrc" href="https://spring.io/projects/spring-cloud-circuitbreaker" target="_blank" rel="noopener">出處</a></li>
+    <li><b>版本</b>：Spring Cloud 2025.1 對應 Spring Boot 4.0，要配 4.1 得用 2025.1.2 起。<a class="fixsrc" href="https://spring.io/projects/spring-cloud" target="_blank" rel="noopener">出處</a></li>
+    </ul>
     <p class="q">面試官：集中設定怎麼做？Spring Cloud Config 跟 ConfigMap 怎麼選？</p>
     <p><strong>一句話定義：</strong>Spring Cloud Config「提供分散式系統中外部化設定的伺服器端與用戶端支援」，「儲存後端的預設實作用 git，因此很容易支援有標籤版本的設定」。<a class="fixsrc" href="https://docs.spring.io/spring-cloud-config/reference/" target="_blank" rel="noopener">出處</a> 用戶端設 <code>spring.<wbr>config.<wbr>import=<wbr>optional:<wbr>configserver:</code> 會「連到預設位置 http://localhost:8888 的 Config Server」，拿掉 <code>optional:</code> 則連不到就失敗。<a class="fixsrc" href="https://docs.spring.io/spring-cloud-config/reference/client.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>ConfigMap 這條路：</strong>「ConfigMap 是用來存放非機密資料的 API 物件，形式是鍵值對」，可當「環境變數、命令列參數，或 volume 裡的設定檔」用；「ConfigMap 不提供保密或加密」，機密的改用 Secret。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/configmap/" target="_blank" rel="noopener">出處</a> 實作見〈K8s 上手：Minikube 與上雲〉。</p>
@@ -65,8 +77,14 @@
     <p><strong>Resilience4j 的參數：</strong>兩種實作，「SemaphoreBulkhead 用 Semaphore；FixedThreadPoolBulkhead 用有界佇列加固定執行緒池」。Semaphore 版是 <code>maxConcurrentCalls</code>（預設 25，「允許的最大並行執行數」）與 <code>maxWaitDuration</code>（預設 0，擠不進去時最多卡多久）<a class="fixsrc" href="https://resilience4j.readme.io/docs/bulkhead" target="_blank" rel="noopener">出處</a>，就是〈Java 並行快答：執行緒池、鎖與並行集合〉的 <code>Semaphore</code> 限量放行。</p>
     <p class="q">面試官：逾時怎麼設？為什麼說逾時比重試更重要？</p>
     <p><strong>一句話定義：</strong>逾時是其他三件的前提。Azure 的斷路器頁：「逾時太長，跑斷路器的執行緒可能被卡很久，斷路器才知道操作失敗」。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a> 重試同樣要等上一次結束，隔艙名額也會被卡住的呼叫占著。多長：同頁寫「設短一點，但要夠長，讓操作大多數時候能成功」。</p>
-    <p><strong>Resilience4j 的做法：</strong>TimeLimiter 設逾時時間（<code>timeoutDuration</code>）與要不要取消執行中的 future（代表「之後才拿得到結果」的物件；<code>cancelRunningFuture</code>），包的是 <code>CompletionStage</code> 或 <code>Future</code>。<a class="fixsrc" href="https://resilience4j.readme.io/docs/timeout" target="_blank" rel="noopener">出處</a> 注意：對 <code>CompletableFuture</code>，逾時只是讓呼叫端先拿到失敗，JDK 文件寫它的 cancel「不用中斷來控制處理」，底層呼叫還在跑。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> 真正把呼叫停下來，要靠 HTTP 用戶端自己的連線逾時與讀取逾時。註解疊加的預設套用順序：「Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( Function ) ) ) ) )」，要改就用各自的 <code>…AspectOrder</code> 屬性。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></p>
-    <p>查餘額呼叫核心帳務，四件套在 <code>application.yml</code> 設完。鍵名照文件的 Spring Boot 3 範例頁（模組 <code>resilience4j-spring-boot3</code>，要有 actuator 與 aop 兩個 starter）<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a>；Spring Boot 4 要換 2.4.0 起的 <code>resilience4j-spring-boot4</code><a class="fixsrc" href="https://github.com/resilience4j/resilience4j/releases/tag/v2.4.0" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://repo1.maven.org/maven2/io/github/resilience4j/resilience4j-spring-boot4/" target="_blank" rel="noopener">出處</a>，aop starter 在 Boot 4 改名為 <code>spring-boot-starter-aspectj</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>Resilience4j 的做法：</strong>TimeLimiter 設逾時時間（<code>timeoutDuration</code>）與要不要取消執行中的 future（代表「之後才拿得到結果」的物件；<code>cancelRunningFuture</code>），包的是 <code>CompletionStage</code> 或 <code>Future</code>。<a class="fixsrc" href="https://resilience4j.readme.io/docs/timeout" target="_blank" rel="noopener">出處</a></p>
+    <p>注意：對 <code>CompletableFuture</code>，逾時只是讓呼叫端先拿到失敗，JDK 文件寫它的 cancel「不用中斷來控制處理」，底層呼叫還在跑。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> 真正把呼叫停下來，要靠 HTTP 用戶端自己的連線逾時與讀取逾時。</p>
+    <p>註解疊加的預設套用順序：「Retry ( CircuitBreaker ( RateLimiter ( TimeLimiter ( Bulkhead ( Function ) ) ) ) )」，要改就用各自的 <code>…AspectOrder</code> 屬性。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></p>
+    <p>查餘額呼叫核心帳務，四件套在 <code>application.yml</code> 設完。</p>
+    <ul class="plainlist">
+    <li>鍵名照文件的 Spring Boot 3 範例頁（模組 <code>resilience4j-spring-boot3</code>，要有 actuator 與 aop 兩個 starter）<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></li>
+    <li>Spring Boot 4 要換 2.4.0 起的 <code>resilience4j-spring-boot4</code><a class="fixsrc" href="https://github.com/resilience4j/resilience4j/releases/tag/v2.4.0" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://repo1.maven.org/maven2/io/github/resilience4j/resilience4j-spring-boot4/" target="_blank" rel="noopener">出處</a>，aop starter 在 Boot 4 改名為 <code>spring-boot-starter-aspectj</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a></li>
+    </ul>
     <pre><code>resilience4j.circuitbreaker:
   instances:
     coreBanking:
@@ -127,21 +145,38 @@ private CompletableFuture&lt;Balance&gt; balanceFallback(String account, CallNot
     <p><strong>分工怎麼答：</strong>指標說「有沒有事」，追蹤說「事在哪一段」，日誌說「那一段發生了什麼」。四個黃金訊號「延遲、流量、錯誤、飽和」見〈系統設計：秒殺與限流〉；面試官再追問時，補上原文：「若只能量四個指標，就專注這四個」（原文限定面向使用者的系統），飽和要「強調最受限的資源」<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a>，例如網銀 API 的飽和可能是核心帳務連線池使用率，不是 CPU。</p>
     <p class="q">面試官：Prometheus 為什麼是拉取？Micrometer 跟 Actuator 怎麼把指標吐出來？</p>
     <p><strong>一句話定義：</strong>Prometheus 總覽列的特性：「多維資料模型，時間序列由指標名稱與鍵值對識別」、「時間序列的收集透過 HTTP 拉取模型進行」（via a pull model over HTTP）、「推送透過中介的 gateway 支援」。<a class="fixsrc" href="https://prometheus.io/docs/introduction/overview/" target="_blank" rel="noopener">出處</a> Micrometer 是中間那層：「供應商中立的應用可觀測性門面（facade）」，「把它想成可觀測性版的 SLF4J」（Think SLF4J, but for observability）。<a class="fixsrc" href="https://docs.micrometer.io/micrometer/reference/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>Actuator 怎麼接：</strong>Spring Boot Actuator「替 Micrometer 提供相依管理與自動設定」；「Prometheus 預期抓取或輪詢各個應用實例」，專案加了 <code>micrometer-registry-prometheus</code> 相依，Spring Boot 就提供 <code>/actuator/prometheus</code> 端點；來不及被抓的「短命或批次工作」用 Pushgateway（中繼站：工作先把指標推給它，Prometheus 再去拉）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a>容易漏掉的一步：「預設只有 health 端點透過 HTTP 與 JMX 暴露」，要用 <code>management.endpoints.web.exposure.include</code> 打開，端點「可能含敏感資訊」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>Actuator 怎麼接：</strong><a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/metrics.html" target="_blank" rel="noopener">出處</a></p>
+    <ul class="plainlist">
+    <li>Spring Boot Actuator「替 Micrometer 提供相依管理與自動設定」</li>
+    <li>「Prometheus 預期抓取或輪詢各個應用實例」，專案加了 <code>micrometer-registry-prometheus</code> 相依，Spring Boot 就提供 <code>/actuator/prometheus</code> 端點</li>
+    <li>來不及被抓的「短命或批次工作」用 Pushgateway（中繼站：工作先把指標推給它，Prometheus 再去拉）。</li>
+    </ul>
+    <p>容易漏掉的一步：「預設只有 health 端點透過 HTTP 與 JMX 暴露」，要用 <code>management.endpoints.web.exposure.include</code> 打開，端點「可能含敏感資訊」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code># application.properties（Spring Boot 4.1）
 # 預設只有 health；# 只在行首才算註解，寫在行尾會變成值的一部分
 management.endpoints.web.exposure.include=health,info,prometheus
 # 預設 0.1；對帳期間全取樣
 management.tracing.sampling.probability=1.0</code></pre>
     <p class="q">面試官：分散式追蹤的 trace ID 怎麼從 A 服務傳到 B 服務？OpenTelemetry 在做什麼？</p>
-    <p><strong>一句話定義：</strong>OpenTelemetry 文件：「A 服務呼叫 B 服務時，A 把 trace ID 與 span ID（span 是一條追蹤裡的一段工作）放進情境（context）；B 用這些值建立屬於同一條 trace 的新 span，把 A 的 span 當父節點」；傳播「通常由 instrumentation 函式庫處理」（替你在程式裡自動收集遙測資料的函式庫），預設用「W3C TraceContext 規格定義的標頭」。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank" rel="noopener">出處</a> OpenTelemetry 是產生、收集遙測資料的框架，「與廠商和工具無關」，「本身不是可觀測性後端」。<a class="fixsrc" href="https://opentelemetry.io/docs/what-is-opentelemetry/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>OpenTelemetry 文件：「A 服務呼叫 B 服務時，A 把 trace ID 與 span ID（span 是一條追蹤裡的一段工作）放進情境（context）；B 用這些值建立屬於同一條 trace 的新 span，把 A 的 span 當父節點」。<a class="fixsrc" href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank" rel="noopener">出處</a></p>
+    <p>傳播「通常由 instrumentation 函式庫處理」（替你在程式裡自動收集遙測資料的函式庫），預設用「W3C TraceContext 規格定義的標頭」。</p>
+    <p>OpenTelemetry 是產生、收集遙測資料的框架，「與廠商和工具無關」，「本身不是可觀測性後端」。<a class="fixsrc" href="https://opentelemetry.io/docs/what-is-opentelemetry/" target="_blank" rel="noopener">出處</a></p>
     <p><strong>那個標頭長什麼樣：</strong>W3C 規格：「<code>traceparent</code> 標頭識別追蹤系統中的傳入請求，有四個欄位」；trace-id「是整個追蹤森林的 ID」，16 位元組；parent-id「是呼叫端所知的這個請求的 ID（有些追蹤系統叫 span-id）」，8 位元組；全零都是無效值。<a class="fixsrc" href="https://www.w3.org/TR/trace-context/" target="_blank" rel="noopener">出處</a> 規格自己的範例：</p>
     <pre><code>traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
              │  │                                │                └ trace-flags：01 表示呼叫端可能記錄了這條追蹤
              │  │                                └ parent-id：呼叫端這一段（span）的 ID，8 個位元組
              │  └ trace-id：整條追蹤的 ID，16 個位元組，所有服務帶同一個
              └ version：本規格是 00</code></pre>
-    <p><strong>Spring Boot 這邊：</strong>Actuator「替 Micrometer Tracing 提供相依管理與自動設定」，可接 OpenTelemetry 用 OTLP（OpenTelemetry 自己的傳輸協定）送出<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a>；屬性附錄：<code>management.tracing.propagation.produce</code> 預設 <code>[W3C]</code>、<code>management.tracing.sampling.probability</code> 預設 0.1。<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 追問：日誌怎麼跟 trace 對上——「用了 Micrometer Tracing，預設就把關聯 ID 放進日誌」，形如 <code>[traceId-spanId]</code>；文件點名的斷鏈原因——「<code>RestTemplate</code>、<code>RestClient</code> 或 <code>WebClient</code> 不是用自動設定的 builder 建立，自動的追蹤傳播就不會生效」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>Spring Boot 這邊：</strong></p>
+    <ul class="plainlist">
+    <li>Actuator「替 Micrometer Tracing 提供相依管理與自動設定」，可接 OpenTelemetry 用 OTLP（OpenTelemetry 自己的傳輸協定）送出<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></li>
+    <li>屬性附錄：<code>management.tracing.propagation.produce</code> 預設 <code>[W3C]</code>、<code>management.tracing.sampling.probability</code> 預設 0.1。<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p>追問：<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/tracing.html" target="_blank" rel="noopener">出處</a></p>
+    <ul class="plainlist">
+    <li>日誌怎麼跟 trace 對上——「用了 Micrometer Tracing，預設就把關聯 ID 放進日誌」，形如 <code>[traceId-spanId]</code></li>
+    <li>文件點名的斷鏈原因——「<code>RestTemplate</code>、<code>RestClient</code> 或 <code>WebClient</code> 不是用自動設定的 builder 建立，自動的追蹤傳播就不會生效」。</li>
+    </ul>
     <p class="formula">指標說有事、追蹤說在哪、日誌說是什麼；三者靠同一個 trace ID 串起來，trace ID 靠 traceparent 標頭傳下去</p>
 </section>
 <section>
@@ -153,7 +188,13 @@ management.tracing.sampling.probability=1.0</code></pre>
     <p><strong>代價與選型：</strong>每個 Pod 多一個代理、每一跳多一次轉發，再加一個要維運的控制平面。服務少、語言單一，函式庫可能就夠；服務多、多語言、要全面 mTLS，網格比較划算。</p>
     <p class="q">面試官：Serverless 適合什麼、不適合什麼？冷啟動是什麼？</p>
     <p><strong>一句話定義：</strong>Lambda 與 ECS、EKS 的三選一見〈後端與雲端面試題庫〉。面試官接著會問生命週期：「Init 階段做三件事：啟動所有擴充、啟動 runtime（語言的執行環境，例如 JVM）、執行函式的靜態程式碼」。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>冷啟動：</strong>同一頁：「下載程式碼與建立環境這前兩步常被稱為冷啟動（cold start）。這段時間會計費，並且加在整次呼叫的延遲上」；冷啟動與 Init 的初始化程式碼，都算在新環境第一次呼叫的延遲裡；「冷啟動通常發生在不到 1% 的呼叫，時間從不到 100 毫秒到超過 1 秒」。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> JVM 啟動與 Spring 初始化都落在 Init，Java 的冷啟動可能偏長；解法之一是 SnapStart：發布版本時先初始化、存成快照，之後「從快取的快照恢復新環境，而不是從頭初始化」。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>冷啟動：</strong>同一頁：<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a></p>
+    <ul class="plainlist">
+    <li>「下載程式碼與建立環境這前兩步常被稱為冷啟動（cold start）。這段時間會計費，並且加在整次呼叫的延遲上」</li>
+    <li>冷啟動與 Init 的初始化程式碼，都算在新環境第一次呼叫的延遲裡</li>
+    <li>「冷啟動通常發生在不到 1% 的呼叫，時間從不到 100 毫秒到超過 1 秒」。</li>
+    </ul>
+    <p>JVM 啟動與 Spring 初始化都落在 Init，Java 的冷啟動可能偏長；解法之一是 SnapStart：發布版本時先初始化、存成快照，之後「從快取的快照恢復新環境，而不是從頭初始化」。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a></p>
     <p><strong>適合與不適合：</strong>適合事件驅動、流量一陣一陣、工作短而獨立，例如對帳完發通知。不適合的從生命週期推：長時間執行（一般函式單次最長 15 分鐘<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a>）、要常駐連線或本機狀態（環境會被凍結與回收）、對延遲敏感又流量稀疏（冷啟動比例高）。</p>
     <p class="q">面試官：十二要素裡的設定、日誌、無狀態行程三條怎麼答？</p>
     <div class="tablewrap"><table>

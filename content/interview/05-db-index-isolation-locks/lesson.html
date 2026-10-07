@@ -14,7 +14,13 @@
     <p><strong>差別：</strong>叢集索引之外的索引都叫二級索引（secondary index），它的每一筆記錄除了被索引的欄位，還帶著那一列的主鍵值；InnoDB 拿這個主鍵值再到叢集索引裡找出整列<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>——這第二趟就是「回表」。所以走二級索引查一列要找兩棵樹，走主鍵只要一棵。</p>
     <p class="formula">主鍵越長，每一個二級索引都要跟著變胖——手冊的建議是主鍵要短</p>
     <p class="q">面試官：主鍵為什麼建議用自動遞增整數，不用 UUID？</p>
-    <p>三個理由都能在手冊找到：第一，沒有天然的唯一非空欄位時，手冊直接建議加一個自動遞增欄位當主鍵<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。第二，主鍵值會被複製進每一個二級索引，主鍵長就整體變大<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html" target="_blank" rel="noopener">出處</a>。第三，依序插入時索引頁大約填到 15/16，隨機插入則只有 1/2 到 15/16<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>——UUID 的值是亂跳的，會到處插頁、造成頁分裂（一頁塞滿要拆成兩頁）與空洞。真的要用 UUID，MySQL 提供 <code>UUID_TO_BIN(uuid, 1)</code> 把變動快的時間部分換到後面，手冊說這樣存進索引欄位可以改善索引效率<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html#function_uuid-to-bin" target="_blank" rel="noopener">出處</a>。</p>
+    <p>三個理由都能在手冊找到：</p>
+<ul class="plainlist">
+<li><b>第一，</b>沒有天然的唯一非空欄位時，手冊直接建議加一個自動遞增欄位當主鍵<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>第二，</b>主鍵值會被複製進每一個二級索引，主鍵長就整體變大<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>第三，</b>依序插入時索引頁大約填到 15/16，隨機插入則只有 1/2 到 15/16<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html" target="_blank" rel="noopener">出處</a>——UUID 的值是亂跳的，會到處插頁、造成頁分裂（一頁塞滿要拆成兩頁）與空洞。</li>
+</ul>
+<p>真的要用 UUID，MySQL 提供 <code>UUID_TO_BIN(uuid, 1)</code> 把變動快的時間部分換到後面，手冊說這樣存進索引欄位可以改善索引效率<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html#function_uuid-to-bin" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 <section>
     <p class="era">怎麼用索引</p>
@@ -61,7 +67,9 @@
         <tr><th>ALL</th><td>全表掃描；手冊說當它不是第一張表時「通常非常糟」，加索引可以避掉</td></tr>
       </tbody>
     </table></div>
-    <p>以上各型的定義都在手冊的 EXPLAIN Join Types 一節<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-join-types" target="_blank" rel="noopener">出處</a>。<code>rows</code> 對 InnoDB 是估計值，不見得準<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a>。Extra 欄除了 <code>Using index</code>，要認得 <code>Using index condition</code>（先用索引裡的欄位過濾、再決定要不要回表）、<code>Using filesort</code>（要多做一趟排序）、<code>Using temporary</code>（要建暫存資料表）——手冊直接說想讓查詢快就盯後兩個<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-extra-information" target="_blank" rel="noopener">出處</a>。</p>
+    <p>以上各型的定義都在手冊的 EXPLAIN Join Types 一節<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-join-types" target="_blank" rel="noopener">出處</a>。</p>
+<p><code>rows</code> 對 InnoDB 是估計值，不見得準<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>Extra 欄除了 <code>Using index</code>，要認得 <code>Using index condition</code>（先用索引裡的欄位過濾、再決定要不要回表）、<code>Using filesort</code>（要多做一趟排序）、<code>Using temporary</code>（要建暫存資料表）——手冊直接說想讓查詢快就盯後兩個<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html#explain-extra-information" target="_blank" rel="noopener">出處</a>。</p>
     <pre><code>EXPLAIN SELECT id, status FROM orders WHERE customer_id = 42 AND status = 'PAID';
 -- type=ref  key=idx_cust_status_created  key_len=86  rows=14  Extra=Using index
 EXPLAIN SELECT * FROM orders WHERE status = 'PAID';
@@ -70,7 +78,9 @@ EXPLAIN FORMAT=TREE SELECT id, status FROM orders WHERE customer_id = 42 AND sta
 -- -&gt; Covering index lookup on orders using idx_cust_status_created (customer_id=42, status='PAID')</code></pre>
     <p class="muted">MySQL 8.4 的 <code>EXPLAIN</code> 預設輸出格式由 <code>explain_format</code> 變數決定；TREE 格式描述得更精確，也是 <code>EXPLAIN ANALYZE</code>（真的執行一次、附上實際耗時與列數）固定使用的格式<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/explain.html" target="_blank" rel="noopener">出處</a>。</p>
     <p class="q">面試官：慢查詢怎麼找？</p>
-    <p>開慢查詢日誌（slow query log）：執行時間超過 <code>long_query_time</code> 秒、且檢查的列數達到 <code>min_examined_row_limit</code> 的 SQL 會被記下來；<code>long_query_time</code> 最小 0、預設 10 秒，可以到微秒；日誌預設是關的<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/slow-query-log.html" target="_blank" rel="noopener">出處</a>。沒用到索引的查詢預設不記，要另外開 <code>log_queries_not_using_indexes</code>；日誌太長就用 <code>mysqldumpslow</code> 彙整<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/slow-query-log.html#slow-query-log-parameters" target="_blank" rel="noopener">出處</a>。找出來之後就是上一題：拿 EXPLAIN 看它為什麼慢。</p>
+    <p>開慢查詢日誌（slow query log）：執行時間超過 <code>long_query_time</code> 秒、且檢查的列數達到 <code>min_examined_row_limit</code> 的 SQL 會被記下來；<code>long_query_time</code> 最小 0、預設 10 秒，可以到微秒；日誌預設是關的<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/slow-query-log.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>沒用到索引的查詢預設不記，要另外開 <code>log_queries_not_using_indexes</code>；日誌太長就用 <code>mysqldumpslow</code> 彙整<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/slow-query-log.html#slow-query-log-parameters" target="_blank" rel="noopener">出處</a>。</p>
+<p>找出來之後就是上一題：拿 EXPLAIN 看它為什麼慢。</p>
 </section>
 <section>
     <p class="era">交易隔離</p>
@@ -92,7 +102,9 @@ EXPLAIN FORMAT=TREE SELECT id, status FROM orders WHERE customer_id = 42 AND sta
         <tr><th>SERIALIZABLE</th><td>不會</td><td>不會</td><td>不會</td></tr>
       </tbody>
     </table></div>
-    <p>InnoDB 提供 SQL:1992 標準的全部四級，<strong>預設 REPEATABLE READ</strong><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>；<strong>PostgreSQL 預設 READ COMMITTED</strong>，而且內部只實作三級——它的 READ UNCOMMITTED 行為等同 READ COMMITTED；PostgreSQL 的 REPEATABLE READ 實作也不允許幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>。InnoDB 在 REPEATABLE READ 下，一般 SELECT 讀的是交易第一次讀取時建立的快照；READ COMMITTED 則每次讀都拿新快照，而且一般搜尋與索引掃描不加間隙鎖（只剩外鍵檢查與重複鍵檢查會用），所以會出現幻讀<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。SERIALIZABLE 是在 REPEATABLE READ 之上，把所有一般 SELECT 隱含改成 <code>SELECT ... FOR SHARE</code>（autocommit 關閉時）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p>InnoDB 提供 SQL:1992 標準的全部四級，<strong>預設 REPEATABLE READ</strong><a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>；<strong>PostgreSQL 預設 READ COMMITTED</strong>，而且內部只實作三級——它的 READ UNCOMMITTED 行為等同 READ COMMITTED；PostgreSQL 的 REPEATABLE READ 實作也不允許幻讀<a class="fixsrc" href="https://www.postgresql.org/docs/current/transaction-iso.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>InnoDB 在 REPEATABLE READ 下，一般 SELECT 讀的是交易第一次讀取時建立的快照；READ COMMITTED 則每次讀都拿新快照，而且一般搜尋與索引掃描不加間隙鎖（只剩外鍵檢查與重複鍵檢查會用），所以會出現幻讀<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>SERIALIZABLE 是在 REPEATABLE READ 之上，把所有一般 SELECT 隱含改成 <code>SELECT ... FOR SHARE</code>（autocommit 關閉時）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">出處</a>。</p>
     <pre><code>SELECT @@transaction_isolation;                          -- REPEATABLE-READ
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;  -- 只改這條連線</code></pre>
     <p class="q">面試官：MVCC 是什麼？InnoDB 怎麼用 undo log（記錄「修改前長什麼樣」的日誌）讀到舊版本？</p>
@@ -106,7 +118,9 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;  -- 只改這條連線</
     <p class="q">面試官：悲觀鎖對樂觀鎖，各適合什麼？</p>
     <p><strong>一句話定義：</strong>悲觀鎖是「先鎖再改」——假設會有人跟你搶；樂觀鎖是「先改再驗」——假設多半沒人搶，提交時才檢查資料有沒有被動過。手冊對這兩個詞的定義：悲觀策略犧牲效能或並行度換安全，適合失敗比例高或失敗代價大的情況；樂觀策略則假設多數請求會成功，先做再處理少數失敗<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_pessimistic" target="_blank" rel="noopener">出處</a>。</p>
     <div class="ledger">
-      <div class="box"><b>悲觀鎖：<code>SELECT ... FOR UPDATE</code></b><p>對搜尋碰到的索引記錄加排他鎖（exclusive lock，同一時間只能一筆交易持有），效果跟對那些列下 UPDATE 一樣；其他交易不能改、不能 <code>FOR SHARE</code>，鎖在提交或還原時才放<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a>。只擋寫不擋讀的用 <code>FOR SHARE</code>。要注意鎖定讀只在 autocommit（每條語句自動當成一筆交易立刻提交）關閉、或已 <code>START TRANSACTION</code> 時才有意義<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a>。不想排隊等鎖可以加 <code>NOWAIT</code>（有鎖就立刻報錯）或 <code>SKIP LOCKED</code>（跳過被鎖的列，適合佇列型資料表）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html#innodb-locking-reads-nowait-skip-locked" target="_blank" rel="noopener">出處</a>。</p></div>
+      <div class="box"><b>悲觀鎖：<code>SELECT ... FOR UPDATE</code></b><p>對搜尋碰到的索引記錄加排他鎖（exclusive lock，同一時間只能一筆交易持有），效果跟對那些列下 UPDATE 一樣；其他交易不能改、不能 <code>FOR SHARE</code>，鎖在提交或還原時才放<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>只擋寫不擋讀的用 <code>FOR SHARE</code>。要注意鎖定讀只在 autocommit（每條語句自動當成一筆交易立刻提交）關閉、或已 <code>START TRANSACTION</code> 時才有意義<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>不想排隊等鎖可以加 <code>NOWAIT</code>（有鎖就立刻報錯）或 <code>SKIP LOCKED</code>（跳過被鎖的列，適合佇列型資料表）<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html#innodb-locking-reads-nowait-skip-locked" target="_blank" rel="noopener">出處</a>。</p></div>
       <div class="box"><b>樂觀鎖：版本欄位</b><p>資料表多一個 <code>version</code> 欄位，更新時把讀到的版本帶進 WHERE：</p><pre><code>UPDATE accounts
    SET balance = balance - 100, version = version + 1
  WHERE id = 1 AND version = 7;
@@ -137,7 +151,9 @@ VALUES (42, 'NEW', NOW(), 1, '0999999999');
 UPDATE accounts SET ... WHERE id = 1;      UPDATE accounts SET ... WHERE id = 2;
 UPDATE accounts SET ... WHERE id = 2;  ←等  UPDATE accounts SET ... WHERE id = 1;  ←等
 -- 其中一方收到：ERROR 1213 (40001) Deadlock found when trying to get lock; try restarting transaction</code></pre>
-    <p><strong>InnoDB 怎麼處理：</strong>死結偵測預設開啟，偵測到就還原其中一筆交易（受害者）來解開，挑的是「較小」的那筆——大小以插入、更新、刪除的列數計<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a>。若用 <code>innodb_deadlock_detect</code> 關掉偵測，就靠 <code>innodb_lock_wait_timeout</code>（預設 50 秒）逾時，錯誤碼 1205。要注意逾時預設<strong>只還原當下那一條語句、不是整筆交易</strong>（要整筆還原得開 <code>innodb_rollback_on_timeout</code>）；應用程式若以為交易已整筆還原就直接開新交易，前面的語句其實還在原交易裡、鎖也還握著<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a>。所以就算應用程式邏輯正確，也要處理「交易必須重試」的情況<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>InnoDB 怎麼處理：</strong>死結偵測預設開啟，偵測到就還原其中一筆交易（受害者）來解開，挑的是「較小」的那筆——大小以插入、更新、刪除的列數計<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlock-detection.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>若用 <code>innodb_deadlock_detect</code> 關掉偵測，就靠 <code>innodb_lock_wait_timeout</code>（預設 50 秒）逾時，錯誤碼 1205。要注意逾時預設<strong>只還原當下那一條語句、不是整筆交易</strong>（要整筆還原得開 <code>innodb_rollback_on_timeout</code>）；應用程式若以為交易已整筆還原就直接開新交易，前面的語句其實還在原交易裡、鎖也還握著<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_lock_wait_timeout" target="_blank" rel="noopener">出處</a>。</p>
+<p>所以就算應用程式邏輯正確，也要處理「交易必須重試」的情況<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>怎麼排查：</strong><code>SHOW ENGINE INNODB STATUS</code> 的 <code>LATEST DETECTED DEADLOCK</code> 區段列出最近一次死結牽涉的交易、各自正在執行的語句、持有與等待的鎖，以及 InnoDB 決定還原哪一筆<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-standard-monitor.html" target="_blank" rel="noopener">出處</a>。它只留最近一次；死結頻繁時開 <code>innodb_print_all_deadlocks</code>，把每一次都寫進錯誤日誌<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
     <p><strong>怎麼減少：</strong>手冊的清單——交易小而短、做完一組相關變更就提交；不同交易對多張表或大範圍列用同樣的順序操作；替 <code>FOR UPDATE</code> 與 <code>UPDATE ... WHERE</code> 用到的欄位建好索引，掃得少就鎖得少；能接受舊快照的 SELECT 就別加 <code>FOR UPDATE</code>；鎖定讀若能接受，改用 READ COMMITTED 這類較低的隔離層級<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html" target="_blank" rel="noopener">出處</a>。</p>
     <p class="formula">「Deadlocks are not dangerous. Just try again.」——手冊原句；面試答到重試機制才算完整</p>

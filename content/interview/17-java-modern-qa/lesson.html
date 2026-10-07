@@ -7,7 +7,8 @@
 
     <p class="q">面試官：lambda 跟匿名類別差在哪？</p>
     <p><strong>一句話定義：</strong>lambda 是只留參數與本體的匿名方法，用來實作函式介面那唯一的抽象方法；dev.java 說它是在某些情況下「寫匿名類別實例的另一種、更簡單的方式」（another, simpler way of writing instances of anonymous classes, in some precise cases）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/first-lambdas/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>差別一，this 指誰：</strong>匿名類別是一個新類別，裡面的 <code>this</code> 指那個匿名物件；JLS 說 lambda 本體裡的名稱與 <code>this</code>、<code>super</code>「跟周圍的程式碼意義相同」（are the same as in the surrounding context）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a> <strong>差別二，編譯方式（點到即可）：</strong>匿名類別會多編出一個 <code>外層$1.class</code>；lambda 不會，本體編成外層類別裡的私有方法（javac 的做法，Java 21 實測），執行時才由 <code>invokedynamic</code> 指令透過 <code>LambdaMetafactory</code> 產生實作物件，API 文件說這些方法「通常當作 invokedynamic 呼叫點的啟動方法，用來支援 lambda 運算式與方法參考」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/LambdaMetafactory.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>差別一，this 指誰：</strong>匿名類別是一個新類別，裡面的 <code>this</code> 指那個匿名物件；JLS 說 lambda 本體裡的名稱與 <code>this</code>、<code>super</code>「跟周圍的程式碼意義相同」（are the same as in the surrounding context）。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.27.2" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>差別二，編譯方式（點到即可）：</strong>匿名類別會多編出一個 <code>外層$1.class</code>；lambda 不會，本體編成外層類別裡的私有方法（javac 的做法，Java 21 實測），執行時才由 <code>invokedynamic</code> 指令透過 <code>LambdaMetafactory</code> 產生實作物件，API 文件說這些方法「通常當作 invokedynamic 呼叫點的啟動方法，用來支援 lambda 運算式與方法參考」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/LambdaMetafactory.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>public class ThisDemo {
     String name = "外層物件";
 
@@ -99,7 +100,14 @@ public class CaptureFix {
     <p><strong>常被追問：</strong>lambda 能不能丟受檢例外？要看函式介面的方法有沒有宣告 throws：JLS 規定 lambda 本體丟出的受檢例外，必須是目標方法 throws 子句所列例外的子類別<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html#jls-11.2.3" target="_blank" rel="noopener">出處</a>，而 <code>Function.apply</code>、<code>Consumer.accept</code> 都沒宣告，所以在 <code>forEach</code> 裡直接讀檔會編不過，只能在 lambda 裡自己 try／catch，或改回一般迴圈。</p>
 
     <p class="q">面試官：方法參考有哪幾種？</p>
-    <p><strong>一句話定義：</strong>方法參考用 <code>::</code>「指稱一個方法的呼叫，而不實際執行那個呼叫」（to refer to the invocation of a method without actually performing the invocation）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a>；dev.java 說它是用來取代那種「只是呼叫某個在別處定義好的方法」的 lambda（lambda expressions that are just calls to specific methods defined somewhere else）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a> dev.java 分四種：靜態方法（<code>Integer::parseInt</code>）、特定物件的實例方法（<code>System.out::println</code>，也叫綁定）、某型別任意物件的實例方法（<code>String::toUpperCase</code>，未綁定，第一個參數當呼叫者）、建構子（<code>ArrayList::new</code>，依目標型別決定呼叫哪個建構子）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>一句話定義：</strong>方法參考用 <code>::</code>「指稱一個方法的呼叫，而不實際執行那個呼叫」（to refer to the invocation of a method without actually performing the invocation）<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html#jls-15.13" target="_blank" rel="noopener">出處</a>；dev.java 說它是用來取代那種「只是呼叫某個在別處定義好的方法」的 lambda（lambda expressions that are just calls to specific methods defined somewhere else）。<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+    <p>dev.java 分四種：<a class="fixsrc" href="https://dev.java/learn/language/fp/lambdas/method-references/" target="_blank" rel="noopener">出處</a></p>
+    <ul class="plainlist">
+    <li><b>靜態方法</b>：<code>Integer::parseInt</code></li>
+    <li><b>特定物件的實例方法</b>：<code>System.out::println</code>，也叫綁定</li>
+    <li><b>某型別任意物件的實例方法</b>：<code>String::toUpperCase</code>，未綁定，第一個參數當呼叫者</li>
+    <li><b>建構子</b>：<code>ArrayList::new</code>，依目標型別決定呼叫哪個建構子</li>
+    </ul>
     <pre><code>import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
@@ -257,7 +265,15 @@ toUnmodifiableList 不收 null
 
     <p class="q">面試官：平行流什麼時候不該用？</p>
     <p><strong>一句話定義：</strong><code>parallelStream()</code> 把工作切給整個 JVM 共用的 Fork/Join 池；Oracle 教學說「平行不會自動比循序快」，資料夠多、核心夠多時才可能。<a class="fixsrc" href="https://docs.oracle.com/javase/tutorial/collections/streams/parallelism.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>不該用的情況：</strong>資料量小；來源難切（dev.java 舉 <code>LinkedList</code>）或合併成本高；lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）；lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a> 這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：文件說「沒有明確 Executor 參數的非同步方法，都用 ForkJoinPool.commonPool() 執行」（All async methods without an explicit Executor argument are performed using the ForkJoinPool.commonPool()）。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a> dev.java 的守則是「不要猜，量測你的程式碼的效能」。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
+    <p><strong>不該用的情況：</strong></p>
+    <ul class="plainlist">
+    <li>資料量小</li>
+    <li>來源難切（dev.java 舉 <code>LinkedList</code>）或合併成本高</li>
+    <li>lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）</li>
+    <li>lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p>這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：文件說「沒有明確 Executor 參數的非同步方法，都用 ForkJoinPool.commonPool() 執行」<span class="orig">All async methods without an explicit Executor argument are performed using the ForkJoinPool.commonPool()<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></span></p>
+    <p>dev.java 的守則是「不要猜，量測你的程式碼的效能」。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
     <pre><code>import java.util.List;
 import java.util.stream.IntStream;
 
@@ -375,7 +391,13 @@ public class VarDemo {
 Long</code></pre>
 
     <p class="q">面試官：switch 運算式跟以前的 switch 差在哪？模式比對又是什麼？</p>
-    <p><strong>一句話定義：</strong>JEP 361（Java 14）讓 switch 可以產生值；箭頭 <code>-&gt;</code>「只執行箭頭右邊……不會穿透」（no fall through），區塊裡用 <code>yield</code> 交出值，而且 switch 運算式「必須窮舉」。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a> 模式比對是「檢查形狀、順便取出內容」：<code>instanceof String s</code>（JEP 394，Java 16）<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a>；Java 21 起 case 可以寫型別模式、<code>when</code> 守衛與 <code>case null</code>（JEP 441）<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a>，還能把 record 元件直接拆出來（JEP 440）<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>一句話定義：</strong>JEP 361（Java 14）讓 switch 可以產生值；箭頭 <code>-&gt;</code>「只執行箭頭右邊……不會穿透」（no fall through），區塊裡用 <code>yield</code> 交出值，而且 switch 運算式「必須窮舉」。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a></p>
+    <p>模式比對是「檢查形狀、順便取出內容」：</p>
+    <ul class="plainlist">
+    <li><code>instanceof String s</code>（JEP 394，Java 16）<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></li>
+    <li>Java 21 起 case 可以寫型別模式、<code>when</code> 守衛與 <code>case null</code>（JEP 441）<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a></li>
+    <li>還能把 record 元件直接拆出來（JEP 440）<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a>。</li>
+    </ul>
     <pre><code>public class SwitchPattern {
     sealed interface Payment permits Card, Transfer, Cash {}
     record Card(String last4, long amount) implements Payment {}

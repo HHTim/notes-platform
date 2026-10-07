@@ -12,7 +12,9 @@
     <p><strong>快取失效規則：</strong>「一旦某一層變了，下游每一層都要重建」，即使結果不會不同。<a class="fixsrc" href="https://docs.docker.com/build/cache/" target="_blank" rel="noopener">出處</a> <code>COPY</code> 與 <code>ADD</code> 怎麼判斷變了：看檔案中繼資料算出的檢查碼，但「修改時間不算進去」。<a class="fixsrc" href="https://docs.docker.com/build/cache/invalidation/" target="_blank" rel="noopener">出處</a> 所以常改的放後面，例子見〈映像檔與 Dockerfile〉。</p>
     <p class="q">面試官：多階段建置解決什麼？Spring Boot 的分層 JAR 是什麼？</p>
     <p><strong>多階段：</strong>一份 Dockerfile 寫多個 <code>FROM</code>，「可以挑選要從一個階段複製到下一階段的產物，其餘留在後面」，編譯工具不進最終映像檔。<a class="fixsrc" href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>分層 JAR（layered jar）：</strong>Spring Boot 打出來的可執行 JAR 是「胖 JAR」（uber jar，程式和所有相依套件包成一個檔）。文件說把它整包放進同一層「不是最佳做法」，因為程式碼重新編譯比升級 Spring Boot 頻繁。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/packaging/container-images/efficient-images.html" target="_blank" rel="noopener">出處</a> 所以 JAR 裡附一份 <code>layers.idx</code>，預設四層依序是 <code>dependencies</code>、<code>spring-boot-loader</code>、<code>snapshot-dependencies</code>、<code>application</code>，Maven 外掛「預設就會放進」這份索引。<a class="fixsrc" href="https://docs.spring.io/spring-boot/maven-plugin/packaging.html" target="_blank" rel="noopener">出處</a> 下面照官方範例寫，另加一個非 root 使用者（Docker 建議：服務不需要特權就用 <code>USER</code> 換成非 root）<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a>：</p>
+    <p><strong>分層 JAR（layered jar）：</strong>Spring Boot 打出來的可執行 JAR 是「胖 JAR」（uber jar，程式和所有相依套件包成一個檔）。文件說把它整包放進同一層「不是最佳做法」，因為程式碼重新編譯比升級 Spring Boot 頻繁。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/packaging/container-images/efficient-images.html" target="_blank" rel="noopener">出處</a></p>
+    <p>所以 JAR 裡附一份 <code>layers.idx</code>，預設四層依序是 <code>dependencies</code>、<code>spring-boot-loader</code>、<code>snapshot-dependencies</code>、<code>application</code>，Maven 外掛「預設就會放進」這份索引。<a class="fixsrc" href="https://docs.spring.io/spring-boot/maven-plugin/packaging.html" target="_blank" rel="noopener">出處</a></p>
+    <p>下面照官方範例寫，另加一個非 root 使用者（Docker 建議：服務不需要特權就用 <code>USER</code> 換成非 root）<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a>：</p>
     <pre><code># 第一段：把 jar 拆成四層
 FROM bellsoft/liberica-openjre-debian:25-cds AS builder
 WORKDIR /builder
@@ -30,10 +32,17 @@ COPY --from=builder /builder/extracted/spring-boot-loader/ ./
 COPY --from=builder /builder/extracted/snapshot-dependencies/ ./
 COPY --from=builder /builder/extracted/application/ ./
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "application.jar"]</code></pre>
-    <p>拆層指令與兩段結構出自 Spring Boot 的 Dockerfile 頁。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/packaging/container-images/dockerfiles.html" target="_blank" rel="noopener">出處</a> 用 <code>docker build --progress=plain</code> 可以自己看：只改一個類別再建，只有 <code>application</code> 那層重做，其餘三層標 CACHED。不寫 Dockerfile 的另一條路是 Buildpacks（替應用自動配好 JRE 並打成映像檔的工具）：<code>mvn spring-boot:build-image</code>，映像檔「以非 root 使用者建置與執行」<a class="fixsrc" href="https://docs.spring.io/spring-boot/maven-plugin/build-image.html" target="_blank" rel="noopener">出處</a>，而且同樣吃 <code>layers.idx</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/packaging/container-images/cloud-native-buildpacks.html" target="_blank" rel="noopener">出處</a></p>
+    <p>拆層指令與兩段結構出自 Spring Boot 的 Dockerfile 頁。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/packaging/container-images/dockerfiles.html" target="_blank" rel="noopener">出處</a> 用 <code>docker build --progress=plain</code> 可以自己看：只改一個類別再建，只有 <code>application</code> 那層重做，其餘三層標 CACHED。</p>
+    <p>不寫 Dockerfile 的另一條路是 Buildpacks（替應用自動配好 JRE 並打成映像檔的工具）：<code>mvn spring-boot:build-image</code>，映像檔「以非 root 使用者建置與執行」<a class="fixsrc" href="https://docs.spring.io/spring-boot/maven-plugin/build-image.html" target="_blank" rel="noopener">出處</a>，而且同樣吃 <code>layers.idx</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/packaging/container-images/cloud-native-buildpacks.html" target="_blank" rel="noopener">出處</a></p>
     <p class="q">面試官：<code>CMD</code> 跟 <code>ENTRYPOINT</code> 差在哪？<code>COPY</code> 跟 <code>ADD</code> 呢？</p>
     <p><strong>分工：</strong>「把容器當執行檔用時，應該定義 <code>ENTRYPOINT</code>」；<code>CMD</code> 用來給 <code>ENTRYPOINT</code> 預設參數，或臨時跑別的指令，「容器帶著其他參數啟動時，<code>CMD</code> 會被蓋掉」。<a class="fixsrc" href="https://docs.docker.com/reference/dockerfile/" target="_blank" rel="noopener">出處</a> 會被蓋掉的範例見〈映像檔與 Dockerfile〉。</p>
-    <p><strong>面試官接著會追問兩種寫法：</strong>exec 形式是 JSON 陣列 <code>["java","-jar","app.jar"]</code>；shell 形式是一行字，會自動套一層 shell。shell 形式的 <code>ENTRYPOINT</code>「以 <code>/bin/sh -c</code> 的子指令啟動，而它不會轉傳訊號，所以你的程式不是容器的 PID 1，收不到 Unix 訊號」，包括 <code>docker stop</code> 送的 SIGTERM（請程式收尾結束的訊號）。<a class="fixsrc" href="https://docs.docker.com/reference/dockerfile/" target="_blank" rel="noopener">出處</a> 為什麼要緊：K8s 刪 Pod 時也是「讓容器執行環境送 TERM 訊號給每個容器裡的 1 號行程」，寬限期預設 30 秒，到期再送 KILL。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/" target="_blank" rel="noopener">出處</a> 可以自己驗證：把上面的 <code>ENTRYPOINT</code> 改成 shell 形式，<code>docker exec 容器名稱 cat /proc/1/cmdline | tr '\0' ' '</code>（參數之間用看不見的 \0 字元隔開，換成空白才好讀）會看到 1 號行程是 <code>/bin/sh -c java -jar application.jar</code>；<code>docker stop</code> 後 <code>docker inspect</code> 的結束碼是 137（被 KILL 結束），日誌沒有 Spring 的優雅關閉訊息；exec 形式則有。</p>
+    <p><strong>面試官接著會追問兩種寫法：</strong></p>
+    <ul class="plainlist">
+    <li>exec 形式是 JSON 陣列 <code>["java","-jar","app.jar"]</code></li>
+    <li>shell 形式是一行字，會自動套一層 shell。</li>
+    </ul>
+    <p>shell 形式的 <code>ENTRYPOINT</code>「以 <code>/bin/sh -c</code> 的子指令啟動，而它不會轉傳訊號，所以你的程式不是容器的 PID 1，收不到 Unix 訊號」，包括 <code>docker stop</code> 送的 SIGTERM（請程式收尾結束的訊號）。<a class="fixsrc" href="https://docs.docker.com/reference/dockerfile/" target="_blank" rel="noopener">出處</a> 為什麼要緊：K8s 刪 Pod 時也是「讓容器執行環境送 TERM 訊號給每個容器裡的 1 號行程」，寬限期預設 30 秒，到期再送 KILL。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/" target="_blank" rel="noopener">出處</a></p>
+    <p>可以自己驗證：把上面的 <code>ENTRYPOINT</code> 改成 shell 形式，<code>docker exec 容器名稱 cat /proc/1/cmdline | tr '\0' ' '</code>（參數之間用看不見的 \0 字元隔開，換成空白才好讀）會看到 1 號行程是 <code>/bin/sh -c java -jar application.jar</code>；<code>docker stop</code> 後 <code>docker inspect</code> 的結束碼是 137（被 KILL 結束），日誌沒有 Spring 的優雅關閉訊息；exec 形式則有。</p>
     <p><strong>COPY 對 ADD：</strong><code>COPY</code> 只做基本複製；<code>ADD</code> 還能抓遠端 HTTPS 與 Git 網址、自動解開 tar 檔。一般用 <code>COPY</code>，要在建置時下載遠端檔案才用 <code>ADD</code>，它支援檢查碼驗證。<a class="fixsrc" href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noopener">出處</a></p>
     <p class="formula">常改的放後面、編譯工具留在前一段、ENTRYPOINT 用 exec 形式：快、小、收得到 SIGTERM</p>
 </section>
@@ -105,7 +114,11 @@ spec:
       </tbody>
     </table></div>
     <p>表格與預設值出自官方探針頁：<code>periodSeconds</code> 10 秒、<code>timeoutSeconds</code> 1 秒、<code>failureThreshold</code> 3。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>設錯的後果：</strong>官方警告存活探針「實作錯誤可能導致連鎖故障」，高負載下容器反被重啟。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> Spring Boot 文件講得更具體：存活探針「不應依賴外部系統的健康檢查」，否則資料庫一掛，「Kubernetes 可能重啟所有應用實例，造成連鎖故障」；就緒探針要不要查外部系統，「要由開發者審慎決定」，所以 Spring Boot 預設不替這兩組加其他健康指標。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 另一個錯是啟動慢卻沒設啟動探針，還在初始化就被存活探針判死重啟。官方做法是啟動探針用同一個端點，讓 <code>failureThreshold × periodSeconds</code> 蓋過最慢的啟動時間，例如 30 × 10 = 300 秒。<a class="fixsrc" href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>設錯的後果：</strong></p>
+    <ul class="plainlist">
+    <li><b>存活探針查了外部系統</b>：官方警告存活探針「實作錯誤可能導致連鎖故障」，高負載下容器反被重啟。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> Spring Boot 文件講得更具體：存活探針「不應依賴外部系統的健康檢查」，否則資料庫一掛，「Kubernetes 可能重啟所有應用實例，造成連鎖故障」；就緒探針要不要查外部系統，「要由開發者審慎決定」，所以 Spring Boot 預設不替這兩組加其他健康指標。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></li>
+    <li><b>沒設啟動探針</b>：另一個錯是啟動慢卻沒設啟動探針，還在初始化就被存活探針判死重啟。官方做法是啟動探針用同一個端點，讓 <code>failureThreshold × periodSeconds</code> 蓋過最慢的啟動時間，例如 30 × 10 = 300 秒。<a class="fixsrc" href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank" rel="noopener">出處</a></li>
+    </ul>
     <p>Spring Boot Actuator 現成的兩個端點是 <code>/actuator/health/liveness</code> 與 <code>/actuator/health/readiness</code><a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a>；4.1 的屬性附錄寫 <code>management.endpoint.health.probes.enabled</code> 預設 true。<a class="fixsrc" href="https://docs.spring.io/spring-boot/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></p>
     <pre><code>startupProbe:
   httpGet:
@@ -126,7 +139,9 @@ readinessProbe:
   periodSeconds: 5
   failureThreshold: 3</code></pre>
     <p class="q">面試官：<code>requests</code> 跟 <code>limits</code> 差在哪？QoS 等級怎麼判？OOMKilled 是什麼？</p>
-    <p><strong>一句話定義：</strong>排程器確保一台節點上「所有容器的 requests 加總小於節點容量」，所以 requests 決定排在哪；limits 由核心強制執行。CPU 超過上限是被節流（throttling，跑慢一點）；記憶體超過上限「核心可能終止它」，但要等核心偵測到記憶體壓力。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a> 被終止時容器狀態的 reason 是 <code>OOMKilled</code>（記憶體不足被殺），結束碼 137。<a class="fixsrc" href="https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/" target="_blank" rel="noopener">出處</a> 137 只代表被 KILL 訊號結束，shell 形式那個例子也是 137，要看 reason 是不是 <code>OOMKilled</code> 才能確定是記憶體。基本差別見〈Deployment：下單〉，單位見〈K8s 上手：Minikube 與上雲〉。</p>
+    <p><strong>一句話定義：</strong>排程器確保一台節點上「所有容器的 requests 加總小於節點容量」，所以 requests 決定排在哪；limits 由核心強制執行。CPU 超過上限是被節流（throttling，跑慢一點）；記憶體超過上限「核心可能終止它」，但要等核心偵測到記憶體壓力。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
+    <p>被終止時容器狀態的 reason 是 <code>OOMKilled</code>（記憶體不足被殺），結束碼 137。<a class="fixsrc" href="https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/" target="_blank" rel="noopener">出處</a> 137 只代表被 KILL 訊號結束，shell 形式那個例子也是 137，要看 reason 是不是 <code>OOMKilled</code> 才能確定是記憶體。</p>
+    <p>基本差別見〈Deployment：下單〉，單位見〈K8s 上手：Minikube 與上雲〉。</p>
     <p><strong>QoS 三級怎麼判：</strong><a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a></p>
     <ul class="plainlist">
       <li><strong>Guaranteed：</strong>每個容器的 CPU 與記憶體都有 request 與 limit、都大於 0，而且 limit 等於 request。</li>
@@ -193,7 +208,9 @@ jobs:
           context: .
           push: ${{ github.event_name == 'push' }}
           tags: ghcr.io/example/core-banking:${{ github.sha }}</code></pre>
-    <p><code>GITHUB_TOKEN</code> 是每次執行時 GitHub 自動發給 workflow 的權杖，<code>permissions</code> 把它的權限縮到最小。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a> <code>context: .</code> 不能省：build-push-action 預設用 Git 內容建置，「前面步驟對檔案的任何變更都會被忽略」，<code>mvn</code> 剛打好的 jar 就進不去。<a class="fixsrc" href="https://github.com/docker/build-push-action" target="_blank" rel="noopener">出處</a> 部署那一步可以接 <code>kubectl set image</code>，或改 Git 裡的 YAML，交給 GitOps 工具（以 Git 裡的設定為準、自動同步叢集的部署工具）。例如 Argo CD 自稱「宣告式、GitOps 的 Kubernetes 持續交付工具」，遵循 GitOps 模式，「用 Git 儲存庫當作定義應用期望狀態的依據（source of truth）」。<a class="fixsrc" href="https://argo-cd.readthedocs.io/en/stable/" target="_blank" rel="noopener">出處</a></p>
+    <p><code>GITHUB_TOKEN</code> 是每次執行時 GitHub 自動發給 workflow 的權杖，<code>permissions</code> 把它的權限縮到最小。<a class="fixsrc" href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax" target="_blank" rel="noopener">出處</a></p>
+    <p><code>context: .</code> 不能省：build-push-action 預設用 Git 內容建置，「前面步驟對檔案的任何變更都會被忽略」，<code>mvn</code> 剛打好的 jar 就進不去。<a class="fixsrc" href="https://github.com/docker/build-push-action" target="_blank" rel="noopener">出處</a></p>
+    <p>部署那一步可以接 <code>kubectl set image</code>，或改 Git 裡的 YAML，交給 GitOps 工具（以 Git 裡的設定為準、自動同步叢集的部署工具）。例如 Argo CD 自稱「宣告式、GitOps 的 Kubernetes 持續交付工具」，遵循 GitOps 模式，「用 Git 儲存庫當作定義應用期望狀態的依據（source of truth）」。<a class="fixsrc" href="https://argo-cd.readthedocs.io/en/stable/" target="_blank" rel="noopener">出處</a></p>
     <p class="q">面試官：十二要素裡哪幾條跟容器化直接相關？</p>
     <p>設定（III）、行程（VI）、日誌（XI）三條見〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉，建置發布執行（V）在上一題。另外三條：</p>
     <div class="tablewrap"><table>

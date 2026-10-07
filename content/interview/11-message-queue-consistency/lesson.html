@@ -90,11 +90,20 @@ BEGIN;   -- 業務寫入與寄件匣同一筆交易
 UPDATE account SET balance = balance - 1000 WHERE account_id = 'A';
 INSERT INTO outbox (...) VALUES (...);
 COMMIT;</code></pre>
-    <p><strong>轉送器兩種做法：</strong>輪詢發布者（polling publisher）定期查 outbox 表，缺點「難以按順序發布」<a class="fixsrc" href="https://microservices.io/patterns/data/polling-publisher.html" target="_blank" rel="noopener">出處</a>；交易日誌尾隨（transaction log tailing）改讀資料庫的變更日誌，缺點「需要資料庫專屬的方案」<a class="fixsrc" href="https://microservices.io/patterns/data/transaction-log-tailing.html" target="_blank" rel="noopener">出處</a>。AWS 另給不建 outbox 表的做法：用 DynamoDB Streams（把每筆資料變更依序吐出來的串流）這種變更資料擷取（CDC）直接把變更當事件送出。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>轉送器兩種做法：</strong></p>
+<ul class="plainlist">
+<li><b>輪詢發布者</b>（polling publisher）定期查 outbox 表，缺點「難以按順序發布」<a class="fixsrc" href="https://microservices.io/patterns/data/polling-publisher.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>交易日誌尾隨</b>（transaction log tailing）改讀資料庫的變更日誌，缺點「需要資料庫專屬的方案」<a class="fixsrc" href="https://microservices.io/patterns/data/transaction-log-tailing.html" target="_blank" rel="noopener">出處</a>。</li>
+</ul>
+<p>AWS 另給不建 outbox 表的做法：用 DynamoDB Streams（把每筆資料變更依序吐出來的串流）這種變更資料擷取（CDC）直接把變更當事件送出。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html" target="_blank" rel="noopener">出處</a></p>
     <p class="formula">Outbox 把「發訊息」變成至少一次——轉送器「可能在發布之後、記錄之前當機，重啟就再發一次」，消費端還是要冪等<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a></p>
     <p class="q">面試官：Saga 的兩種協調方式？補償怎麼設計？</p>
     <p><strong>一句話定義：</strong>Saga「是一連串本地交易，每筆更新資料庫並發布事件觸發下一筆；若某筆因違反業務規則失敗，就執行一連串補償交易（compensating transaction）倒回前面的變更」（A saga is a sequence of local transactions… executes a series of compensating transactions that undo the changes）。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a></p>
-    <p><strong>兩種協調方式：</strong>協同式（choreography；〈後端與雲端面試題庫〉稱事件協作式）「每筆本地交易發布領域事件，觸發其他服務的本地交易」<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a>，適合參與者少，代價是「參與者變多就難以追蹤彼此的相依」<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-choreography.html" target="_blank" rel="noopener">出處</a>。編排式（orchestration；同課稱中央協調式）由「一個編排器（orchestrator）告訴參與者要執行哪些本地交易」<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a>，AWS 用 Step Functions（AWS 的流程編排服務）實作，代價是「編排器可能成為單點故障」<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a>。</p>
+    <p><strong>兩種協調方式：</strong></p>
+<ul class="plainlist">
+<li><b>協同式</b>（choreography；〈後端與雲端面試題庫〉稱事件協作式）「每筆本地交易發布領域事件，觸發其他服務的本地交易」<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a>，適合參與者少，代價是「參與者變多就難以追蹤彼此的相依」<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-choreography.html" target="_blank" rel="noopener">出處</a>。</li>
+<li><b>編排式</b>（orchestration；同課稱中央協調式）由「一個編排器（orchestrator）告訴參與者要執行哪些本地交易」<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a>，AWS 用 Step Functions（AWS 的流程編排服務）實作，代價是「編排器可能成為單點故障」<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a>。</li>
+</ul>
     <pre><code>編排式 Saga 的狀態機（跨行轉帳）
 
   STARTED ──扣款成功──▶ DEBITED ──對方入帳成功──▶ COMPLETED
@@ -104,7 +113,12 @@ COMMIT;</code></pre>
   FAILED           COMPENSATING ──退回扣款成功──▶ FAILED（錢已回到原帳戶）
                           │
                      退回也失敗 ──▶ 死信 + 人工介入</code></pre>
-    <p><strong>補償三條規則：</strong>第一，補償是反向動作不是刪除——退回同金額、留下兩筆紀錄，因為 Saga「沒有自動回復，開發者必須設計明確倒回變更的補償交易」。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a> 第二，每步與每個補償都冪等，才能「在當機或編排器故障後重複執行」。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a> 第三，Saga「缺少 ACID 裡的隔離性，多個 Saga 同時執行可能造成資料異常」<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a>——扣款後入帳前，別人看到的餘額已經少了；AWS 建議「語意鎖」<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a>，實務上就是把那筆錢標成「轉出中」凍結。</p>
+    <p><strong>補償三條規則：</strong></p>
+<ul class="plainlist">
+<li><b>第一，補償是反向動作不是刪除</b>——退回同金額、留下兩筆紀錄，因為 Saga「沒有自動回復，開發者必須設計明確倒回變更的補償交易」。<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>第二，每步與每個補償都冪等</b>，才能「在當機或編排器故障後重複執行」。<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>第三，Saga「缺少 ACID 裡的隔離性</b>，多個 Saga 同時執行可能造成資料異常」<a class="fixsrc" href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">出處</a>——扣款後入帳前，別人看到的餘額已經少了；AWS 建議「語意鎖」<a class="fixsrc" href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html" target="_blank" rel="noopener">出處</a>，實務上就是把那筆錢標成「轉出中」凍結。</li>
+</ul>
 </section>
 <section>
     <p class="era">最終一致與銀行帳務</p>
