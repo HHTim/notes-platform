@@ -19,8 +19,8 @@
 </tbody></table></div>
 <p>表格的防法都出自各類別頁的「How to prevent」。幾句原文：</p>
 <ul class="plainlist">
-<li><b>A01</b>：「除了公開資源以外，預設拒絕」，而且存取控制「只有實作在受信任的伺服器端程式碼裡才有效」。<span class="orig">Except for public resources, deny by default.<a class="fixsrc" href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">出處</a></span></li>
-<li><b>A05</b>：「最好的方法是讓資料跟指令、查詢分開」。<span class="orig">keeping data separate from commands and queries<a class="fixsrc" href="https://top10.owasp.org/2025/A05_2025-Injection/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>A01</b>：「除了公開資源以外，預設拒絕」，而且存取控制「只有實作在受信任的伺服器端程式碼裡才有效」。<span class="orig">OWASP：Except for public resources, deny by default.<a class="fixsrc" href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>A05</b>：「最好的方法是讓資料跟指令、查詢分開」。<span class="orig">OWASP：keeping data separate from commands and queries<a class="fixsrc" href="https://top10.owasp.org/2025/A05_2025-Injection/" target="_blank" rel="noopener">出處</a></span></li>
 <li><b>A10</b>：正好用轉帳當例子：「扣款、入帳、記錄交易」做到一半出錯，系統沒把整筆撤回（fail closed），攻擊者可能把帳戶掏空。<a class="fixsrc" href="https://top10.owasp.org/2025/A10_2025-Mishandling_of_Exceptional_Conditions/" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>跟 2021 年版比，導言說 SSRF「已併入」A01（Server-Side Request Forgery (SSRF) has been rolled into this category），並有兩個新類別：A03 供應鏈與 A10 例外狀況。<a class="fixsrc" href="https://top10.owasp.org/2025/0x00_2025-Introduction/" target="_blank" rel="noopener">出處</a></p>
@@ -198,8 +198,8 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 <p>沒編碼的版本，攻擊者的程式真的執行了；編碼後，<code>&lt;</code> 變成 <code>&amp;lt;</code>，瀏覽器只當成文字顯示。OWASP 的 XSS 防範速查表：「要把資料照使用者輸入的樣子安全顯示時，建議用輸出編碼」，變數「不應被當成程式碼，而是文字」；而且先用框架內建的自動編碼，現代框架「靠樣板與自動跳脫」讓 XSS 少很多。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></p>
 <p>框架內建的預設：</p>
 <ul class="plainlist">
-<li><b>Thymeleaf</b>：教學說 <code>th:text</code> 把標籤跳脫掉「是 th:text 屬性的預設行為」，不要跳脫才改用 <code>th:utext</code>（unescaped text）。<span class="orig">This is the default behaviour of the th:text attribute.<a class="fixsrc" href="https://www.thymeleaf.org/doc/tutorials/3.1/usingthymeleaf.html#unescaped-text" target="_blank" rel="noopener">出處</a></span></li>
-<li><b>Angular</b>：安全指南說它「預設把所有值都當成不受信任」，透過樣板綁定或插值放進頁面時「會淨化並跳脫不受信任的值」。<span class="orig">Angular sanitizes and escapes untrusted values<a class="fixsrc" href="https://angular.dev/best-practices/security" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>Thymeleaf</b>：教學說 <code>th:text</code> 把標籤跳脫掉「是 th:text 屬性的預設行為」，不要跳脫才改用 <code>th:utext</code>（unescaped text）。<span class="orig">Thymeleaf 教學：This is the default behaviour of the th:text attribute.<a class="fixsrc" href="https://www.thymeleaf.org/doc/tutorials/3.1/usingthymeleaf.html#unescaped-text" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>Angular</b>：安全指南說它「預設把所有值都當成不受信任」，透過樣板綁定或插值放進頁面時「會淨化並跳脫不受信任的值」。<span class="orig">Angular 安全指南：Angular sanitizes and escapes untrusted values<a class="fixsrc" href="https://angular.dev/best-practices/security" target="_blank" rel="noopener">出處</a></span></li>
 </ul>
 <p>但框架都留了跳脫出口，例如 Angular 的 <code>bypassSecurityTrust…</code> 系列、Thymeleaf 的 <code>th:utext</code>、直接設定 <code>innerHTML</code>，用了就等於關掉這層保護；XSS 速查表也提醒，「熱門框架像 React 與 Angular 仍然有安全缺口」（security gaps still exist in popular frameworks like React and Angular）。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></p>
 <p>要注意<strong>編碼要對位置</strong>：放進 HTML 內文、HTML 屬性、JavaScript、網址，各有不同的編碼規則，速查表也提醒「輸出編碼不是萬能的」，像直接放進 <code>&lt;script&gt;</code> 裡、CSS 裡這些「危險的位置」，編碼也救不了，根本不該放使用者資料。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></p>
@@ -394,7 +394,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 <li><b>HSTS</b>：「指示瀏覽器只用 HTTPS 存取網站，即使使用者試著用 HTTP 連線」，速查表也警告設錯或憑證出問題時「合法使用者可能無法連上網站」<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a>；MDN 補充 HSTS 生效後，瀏覽器「不允許使用者略過安全連線的錯誤，例如無效的憑證」。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security" target="_blank" rel="noopener">出處</a></li>
 <li><b>X-Content-Type-Options</b>：用來阻擋瀏覽器的類型猜測（MIME sniffing），那「可能把不可執行的類型變成可執行的類型」。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></li>
 <li><b>Referrer-Policy</b>：建議 <code>strict-origin-when-cross-origin</code>，MDN 說這個值「同源請求送完整網址，跨來源只送來源，從 HTTPS 到 HTTP 則不送」，也是沒指定時的預設。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy" target="_blank" rel="noopener">出處</a></li>
-<li><b>frame-ancestors</b>：「取代了」X-Frame-Options。<span class="orig">obsoletes X-Frame-Options for supporting browsers<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></span></li>
+<li><b>frame-ancestors</b>：「取代了」X-Frame-Options。<span class="orig">OWASP 速查表：obsoletes X-Frame-Options for supporting browsers<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></span></li>
 <li><b>X-XSS-Protection</b>：警告是「在某些情況下，這個標頭會在原本安全的網站製造 XSS 漏洞」，建議值是 0。<a class="fixsrc" href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>點擊劫持（clickjacking）是把你的頁面透明地疊在惡意網站上，騙使用者點到看不見的按鈕；MDN 說 <code>frame-ancestors 'none'</code>「類似 <code>X-Frame-Options: deny</code>」。<a class="fixsrc" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/frame-ancestors" target="_blank" rel="noopener">出處</a></p>
