@@ -64,16 +64,28 @@
 
     <h4>三個最容易混在一起的問題</h4>
     <ul class="plainlist">
-      <li><strong>「Controller 是哪一個程式？」</strong>——<strong class="win">沒有唯一答案，要自己挑一個裝。</strong>Kubernetes 本身不附執行者，官方文件列了一整排可選的 Ingress Controller，各家雲端商、各家廠商都有自己的版本。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/" target="_blank" rel="noopener">出處</a></li>
+      <li><strong>「Controller 是哪一個程式？」</strong>——<strong class="win">沒有唯一答案，要自己挑一個裝。</strong>Kubernetes 本身不附執行者，可選的 Ingress Controller 有一整排，各家雲端商、各家廠商都有自己的版本。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/" target="_blank" rel="noopener">出處</a></li>
       <li><strong>「是 router 嗎？」</strong>——概念上是，但 router 在網路領域專指看 IP 的那種路由器。這裡的東西<strong>看得懂網址路徑</strong>（<code>/api</code> 跟 <code>/login</code> 可以送去不同地方），業界比較常說<strong>反向代理</strong>——意思是它代替後面那些服務出面接客，外面的人只看得到它。</li>
       <li><strong>「為什麼不直接讓 Service 對外？」</strong>——可以，Service 有一種型別會跟雲端要一個對外 IP。但<strong>一個 Service 一個 IP，十個服務就十個 IP</strong>，又貴又難管。對外入口的價值就是：<strong>一個 IP，依網址分給很多 Service。</strong></li>
     </ul>
 
     <h4>挑 Controller 之前，先知道 Ingress 這個 API 的現況</h4>
-    <p>「單子＋執行者」這個結構不會變，但<strong>單子這一格的規格已經封版了</strong>。Kubernetes 官方在 Ingress 說明頁最上面掛了一段話：「The Kubernetes project recommends using Gateway instead of Ingress. The Ingress API has been frozen.」——<strong>官方建議改用 Gateway API</strong>，Ingress 這個 API 已經凍結。同一頁也把「凍結」講清楚：Ingress 不會被移除、既有的照常能用，但<strong>不再新增或修改任何功能</strong>。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/ingress/" target="_blank" rel="noopener">出處</a></p>
-    <p>執行者那一格也有一件必須知道的事：<strong>歷史上用得最廣的那一個社群 Ingress Controller「Ingress NGINX」已經退役了。</strong>Kubernetes 的網路小組（SIG Network）與資安應變委員會在公告裡寫：「Best-effort maintenance will continue until March 2026. Afterward, there will be no further releases, no bugfixes, and no updates to resolve any security vulnerabilities that may be discovered.」——2026 年 3 月之後<strong>不再發版、不再修臭蟲、發現資安漏洞也不會補</strong>；已經裝好的不會壞掉，但從此沒有人維護。<a class="fixsrc" href="https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/" target="_blank" rel="noopener">出處</a></p>
-    <p>官方後續那篇說明講得更直白：「choosing to remain with Ingress NGINX after its retirement leaves you and your users vulnerable to attack. None of the available alternatives are direct drop-in replacements.」——<strong class="hot">留著不換等於把自己和使用者暴露在攻擊下</strong>，而且<strong>沒有任何一個替代品是直接換上去就好的</strong>，要排時間做。<a class="fixsrc" href="https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/" target="_blank" rel="noopener">出處</a></p>
-    <p class="muted">名字很像、要分清楚的兩個東西：退役的是 Kubernetes 社群維護的 <strong>Ingress NGINX</strong>。另外還有一個 <strong>F5 NGINX Ingress Controller</strong>，是 F5（NGINX 這個網頁伺服器的東家）自己的產品、另一個專案，仍在維護——它的產品頁把自己定位成「a stable and enterprise-backed alternative to community-maintained NGINX ingress controllers」。<a class="fixsrc" href="https://www.f5.com/products/nginx/nginx-ingress-controller" target="_blank" rel="noopener">出處</a></p>
+    <p>「單子＋執行者」這個結構不會變，但<strong>單子這一格的規格已經封版了</strong>。Kubernetes 專案<strong>建議改用 Gateway API</strong>，Ingress 這個 API 已經凍結：</p>
+    <ul>
+      <li>Ingress 不會被移除，既有的照常能用</li>
+      <li>但<strong>不再新增或修改任何功能</strong> <a class="fixsrc" href="https://kubernetes.io/docs/concepts/services-networking/ingress/" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p>執行者那一格也有一件必須知道的事：<strong>歷史上用得最廣的那一個社群 Ingress Controller「Ingress NGINX」已經退役了。</strong>Kubernetes 的網路小組（SIG Network）與資安應變委員會已公告，維護只盡力做到 2026 年 3 月，之後：</p>
+    <ul>
+      <li><strong>不再發版、不再修臭蟲、發現資安漏洞也不會補</strong></li>
+      <li>已經裝好的不會壞掉，但從此沒有人維護 <a class="fixsrc" href="https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p>留著不換的風險：</p>
+    <ul>
+      <li><strong class="hot">留著不換等於把自己和使用者暴露在攻擊下</strong></li>
+      <li><strong>沒有任何一個替代品是直接換上去就好的</strong>，要排時間做 <a class="fixsrc" href="https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/" target="_blank" rel="noopener">出處</a></li>
+    </ul>
+    <p class="muted">名字很像、要分清楚的兩個東西：退役的是 Kubernetes 社群維護的 <strong>Ingress NGINX</strong>。另外還有一個 <strong>F5 NGINX Ingress Controller</strong>，是 F5（NGINX 這個網頁伺服器的東家）自己的產品、另一個專案，仍在維護，定位是有企業支援、可以取代社群版的穩定選項。<a class="fixsrc" href="https://www.f5.com/products/nginx/nginx-ingress-controller" target="_blank" rel="noopener">出處</a></p>
     <p class="formula">觀念不變：Ingress 是單子，要有一個 Controller 去執行<br>變的是：官方建議新專案寫 Gateway API，而且社群的 Ingress NGINX 已退役、不再修補漏洞，繼續用等於把自己暴露在攻擊下</p>
 
     <h4>換成雲端託管的服務，那個執行者就不見了</h4>

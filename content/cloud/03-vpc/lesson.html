@@ -52,17 +52,21 @@
 <p class="era">兩種位址轉換</p>
 <h3 class="head">Internet Gateway 做的也是 NAT，只是一對一</h3>
 <p>情境二有個地方值得停下來想：EC2 的作業系統裡其實看不到自己的公有 IP。你登進去查它的網路設定（Linux 上就是 <code>ip addr</code> 這個指令），看到的只會是 VPC 配給它的私有位址。那外面的人是怎麼連到它的？答案是 Internet Gateway 一路在替它換位址。</p>
-<p>AWS 的說明是：「Internet Gateway 在邏輯上代表你的執行個體提供一對一的 NAT，因此當流量離開你的 VPC 子網路前往網際網路時，回覆位址欄位會被設成該執行個體的公有 IPv4 位址或 Elastic IP 位址，而不是它的私有 IP 位址。」反方向也一樣，送往那個公有位址的流量，會先被轉換成執行個體的私有 IPv4 位址，才被送進 VPC<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html" target="_blank" rel="noopener">出處</a>。</p>
+<p>Internet Gateway 在邏輯上替你的執行個體做一對一的 NAT：</p>
+<ul>
+  <li>出去：流量離開 VPC 子網路前往網際網路時，回覆位址欄位被設成該執行個體的公有 IPv4 位址或 Elastic IP 位址，而不是它的私有 IP 位址</li>
+  <li>進來：送往那個公有位址的流量，會先被轉換成執行個體的私有 IPv4 位址，才被送進 VPC<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>「一對一」是指一個私有位址固定配一個公有位址，兩邊像門牌與郵政信箱一樣一對一掛勾。NAT Gateway 就不是這樣，它是多對一：一整批私有 EC2 共用它那一個對外位址出去。這個差別直接決定了「外面連不連得進來」。</p>
 <div class="tablewrap"><table><thead><tr><th>比較項目</th><th>Internet Gateway</th><th>NAT Gateway</th></tr></thead><tbody><tr><td>位址對應</td><td>一對一：一個私有位址對一個公有位址</td><td>多對一：多台私有 EC2 共用對外位址</td></tr><tr><td>EC2 自己要有公有位址嗎</td><td>要，公有 IPv4 或 Elastic IP</td><td>不用</td></tr><tr><td>連線方向</td><td>內對外、外對內都可以</td><td>只能由內主動往外</td></tr><tr><td>擺在哪裡</td><td>掛在 VPC 上</td><td>建在公開子網路裡</td></tr></tbody></table></div>
-<p class="muted">這段講的是 IPv4。IPv6 沒有這回事——AWS 同一頁寫的是「IPv6 位址是全球唯一的，因此預設就是公有的」，要對外通訊是讓 VPC 與子網路關聯一段 IPv6 位址範圍（CIDR 區塊，用「起始位址／斜線數字」寫成的一段連續位址）、並指派 IPv6 位址給執行個體，不經過這種位址轉換<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">這段講的是 IPv4。IPv6 沒有這回事：IPv6 位址是全球唯一的，所以預設就是公有的。要對外通訊是讓 VPC 與子網路關聯一段 IPv6 位址範圍（CIDR 區塊，用「起始位址／斜線數字」寫成的一段連續位址）、並指派 IPv6 位址給執行個體，不經過這種位址轉換<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>
 <p class="era">網卡才是網路身分</p>
 <h3 class="head">ENI、EC2 與 Security Group 的關係</h3>
 <p>ENI（Elastic Network Interface，彈性網路介面）就是虛擬網卡。EC2 是運算資源，它透過掛上 ENI 才取得私有 IP、所屬 Subnet 這些網路身分。</p>
-<p><mark class="fixnote" tabindex="0" data-note="原筆記的條列寫「EC2 外面包了 SG」「SG 在某一個 Subnet 裡面」，查證後更正：Security Group 是 VPC 層級的資源，關聯的對象是 ENI，不隸屬於某個 Subnet。原筆記下一段其實自己就補了「SG 其實是跟著 ENI 走的」，但那條錯的條列沒有收回，所以這裡講清楚">Security Group（安全群組）是 VPC 層級的資源，關聯的對象是 ENI，不是「住在某個 Subnet 裡」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">出處</a>。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的——AWS 列出網路介面有哪些屬性時，Security groups 就明白列在那張清單裡<a class="fixsrc" href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html" target="_blank" rel="noopener">出處</a>。</p>
+<p><mark class="fixnote" tabindex="0" data-note="原筆記的條列寫「EC2 外面包了 SG」「SG 在某一個 Subnet 裡面」，查證後更正：Security Group 是 VPC 層級的資源，關聯的對象是 ENI，不隸屬於某個 Subnet。原筆記下一段其實自己就補了「SG 其實是跟著 ENI 走的」，但那條錯的條列沒有收回，所以這裡講清楚">Security Group（安全群組）是 VPC 層級的資源，關聯的對象是 ENI，不是「住在某個 Subnet 裡」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">出處</a>。把它想成包在 EC2 外面的保護膜很好懂，但更精確的說法是：規則是跟著網卡走的，Security groups 本身就是網路介面的屬性之一<a class="fixsrc" href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html" target="_blank" rel="noopener">出處</a>。</p>
 <p>在條件允許時，ENI 可以從一台 EC2 卸下來，再掛到另一台 EC2。這樣就能保留部分網路設定，只換掉背後的運算資源。</p>
 </section>
 
@@ -71,10 +75,19 @@
 <h3 class="head">Security Group 與 Network ACL</h3>
 <div class="tablewrap"><table><thead><tr><th>比較項目</th><th>Security Group</th><th>Network ACL</th></tr></thead><tbody><tr><td>保護範圍</td><td>ENI（資源層級）</td><td>Subnet 邊界</td></tr><tr><td>規則種類</td><td>只有允許規則</td><td>允許與拒絕規則都有</td></tr><tr><td>狀態</td><td>有狀態（Stateful）</td><td>無狀態（Stateless）</td></tr><tr><td>回程流量</td><td>已允許連線的回應可自動通過</td><td>入站、出站都要分別允許</td></tr><tr><td>評估方式</td><td>綜合所有適用的規則</td><td>依規則編號由小到大比對</td></tr></tbody></table></div>
 <p>Network ACL 是無狀態的，所以跨 Subnet 邊界時，要分別想來源端的出站規則與目的端的入站規則，回程流量也必須有對應規則才通得過。</p>
-<p class="muted">Network ACL 的預設值也要分兩種，而且方向剛好相反。VPC 附的那個預設 Network ACL 是進出全放；<b>你自己新建</b>的 Network ACL 則是什麼都不通——官方寫「每個 Network ACL 都包含一條預設入站規則與一條預設出站規則，規則編號是星號（*）。這些規則確保一個封包如果不符合其他任何規則，就會被拒絕」，而且「你無法刪除規則編號為星號的規則」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html" target="_blank" rel="noopener">出處</a>。所以自訂一個之後要自己把該放的流量一條條加回去，判讀現有環境時直接去看實際規則，不要靠印象。</p>
-<p>Security Group 的預設值則可以記成一句話：<b>進來全拒、出去全放</b>。AWS 列的規則特性原文是「當你第一次建立一個安全群組時，它沒有任何入站規則。因此在你加入入站規則之前，不允許任何入站流量」，以及「當你第一次建立一個安全群組時，它有一條允許該資源所有出站流量的出站規則」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html" target="_blank" rel="noopener">出處</a>。</p>
-<p>這解釋了一個常見現象：剛開好的 EC2 從外面連不進去（沒有入站規則），但機器自己連得出去、抓得到系統更新（出站全放）。要收緊出站也做得到——同一頁接著寫「如果你的安全群組沒有出站規則，就不允許任何出站流量」。</p>
-<p class="muted">「進來全拒」這句要綁在<b>自己新建的</b>安全群組上。每個 VPC 都附一個名叫 default 的預設安全群組，它不一樣：它預設就帶一條入站規則，來源寫的是這個安全群組自己，效果是「掛著同一個安全群組的資源彼此可以互通」；出站則是全放的 IPv4 一條；只有在 VPC 有關聯 IPv6 位址範圍時，才會再多一條 IPv6 的（官方在那條規則旁註明「這條規則只有在你的 VPC 有關聯的 IPv6 CIDR 區塊時才會加入」）。AWS 自己也建議別用它——「我們建議你為特定資源或資源群組建立安全群組，而不是使用預設安全群組」<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/default-security-group.html" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">Network ACL 的預設值也要分兩種，而且方向剛好相反。VPC 附的那個預設 Network ACL 是進出全放；<b>你自己新建</b>的 Network ACL 則是什麼都不通：</p>
+<ul class="muted">
+  <li>每個 Network ACL 都有一條預設入站規則與一條預設出站規則，規則編號是星號（<code>*</code>），封包不符合其他任何規則就會被拒絕</li>
+  <li>規則編號為星號的規則刪不掉<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p class="muted">所以自訂一個之後要自己把該放的流量一條條加回去，判讀現有環境時直接去看實際規則，不要靠印象。</p>
+<p>Security Group 的預設值則可以記成一句話：<b>進來全拒、出去全放</b>。剛建立的安全群組：</p>
+<ul>
+  <li>沒有任何入站規則，所以在你加入入站規則之前，不允許任何入站流量</li>
+  <li>有一條出站規則，允許該資源所有出站流量<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>這解釋了一個常見現象：剛開好的 EC2 從外面連不進去（沒有入站規則），但機器自己連得出去、抓得到系統更新（出站全放）。要收緊出站也做得到：安全群組沒有出站規則時，就不允許任何出站流量。</p>
+<p class="muted">「進來全拒」這句要綁在<b>自己新建的</b>安全群組上。每個 VPC 都附一個名叫 default 的預設安全群組，它不一樣：它預設就帶一條入站規則，來源寫的是這個安全群組自己，效果是「掛著同一個安全群組的資源彼此可以互通」；出站則是全放的 IPv4 一條；只有在 VPC 有關聯 IPv6 CIDR 區塊時，才會再多一條 IPv6 的。建議別用它，改為特定資源或資源群組自己建安全群組<a class="fixsrc" href="https://docs.aws.amazon.com/vpc/latest/userguide/default-security-group.html" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>

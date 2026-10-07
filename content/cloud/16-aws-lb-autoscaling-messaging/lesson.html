@@ -51,7 +51,7 @@
 </svg>
 <figcaption>前半段（ALB＋Auto Scaling）處理「現在就要回應」的請求；後半段（SNS＋SQS）處理「晚一點做也可以」的工作。</figcaption>
 </figure>
-<p>SQS、SNS 的指令在 <strong>LocalStack</strong>（在 Docker 裡模擬 AWS API 的工具，社群版 4.14）上實際執行，輸出是真的；ALB、NLB、Auto Scaling 不在 LocalStack 社群版裡，只寫概念與官方的設定方式，<strong>沒有輸出</strong>。</p>
+<p>SQS、SNS 的指令在 <strong>LocalStack</strong>（在 Docker 裡模擬 AWS API 的工具，社群版 4.14）上實際執行，輸出是真的；ALB、NLB、Auto Scaling 不在 LocalStack 社群版裡，只寫概念與 AWS 的設定方式，<strong>沒有輸出</strong>。</p>
 
 <div class="drill">
   <p class="dq">網路銀行的登入 API 突然湧進三倍流量，要「多開幾台、讓流量平均分過去」，用到的是哪兩個服務？</p>
@@ -70,15 +70,15 @@
 <h3 class="head">ALB 對 NLB：第 7 層與第 4 層</h3>
 <p>OSI 模型把網路分成七層，這裡只看兩層：第 4 層傳輸層（TCP、UDP，只看 IP 與連接埠）、第 7 層應用層（HTTP，看得到網址、主機名稱、標頭）。</p>
 <ul class="plainlist">
-<li><strong>ALB</strong> 在第七層（functions at the application layer, the seventh layer），收到請求後「依優先順序評估監聽器（listener；AWS 中文文件叫「接聽程式」）規則」，再從那條規則的目標群組選一台（evaluates the listener rules in priority order）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>NLB</strong> 在第四層，「每秒可以處理數百萬個請求」（It can handle millions of requests per second.）。它不看 HTTP 內容，TCP 流量用來源與目的 IP、連接埠、序號算出的流雜湊（flow hash）選目標，同一條連線會一直送到同一台。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>ALB</strong> 在第七層（應用層），收到請求後依優先順序評估監聽器（listener；AWS 中文文件叫「接聽程式」）規則，再從那條規則的目標群組選一台。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>NLB</strong> 在第四層，每秒可以處理數百萬個請求。它不看 HTTP 內容，TCP 流量用來源與目的 IP、連接埠、序號算出的流雜湊（flow hash）選目標，同一條連線會一直送到同一台。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>比喻：ALB 是銀行大廳的服務台，會看你手上的單子（網址、主機名稱）再指你去哪個櫃檯；NLB 是總機轉接，只看你撥的分機號碼（IP、連接埠），飛快接過去，不管你要講什麼。</p>
 
-<p><strong>ALB 的規則。</strong>監聽器是在某個連接埠等連線的那一端，例如 HTTPS 443。它的規則「依優先順序由小到大評估」，「都不符合時，執行預設規則的動作」（Rules are evaluated in priority order, from the lowest value to the highest value. … If the conditions for no rules are met, the actions for the default rule are performed.）。<a class="fixsrc" href="https://docs.aws.amazon.com/cli/latest/reference/elbv2/create-rule.html" target="_blank" rel="noopener">出處</a> 最常用的兩種條件：</p>
+<p><strong>ALB 的規則。</strong>監聽器是在某個連接埠等連線的那一端，例如 HTTPS 443。它的規則依優先順序由小到大評估，都不符合時，執行預設規則的動作。<a class="fixsrc" href="https://docs.aws.amazon.com/cli/latest/reference/elbv2/create-rule.html" target="_blank" rel="noopener">出處</a> 最常用的兩種條件：</p>
 <ul class="plainlist">
-<li><code>path-pattern</code>（依網址路徑，例如 <code>/api/*</code>）：路徑樣式「區分大小寫」（A path pattern is case-sensitive），而且「只比對網址的路徑，不比對查詢參數」（applied only to the path of the URL, not to its query parameters）。</li>
-<li><code>host-header</code>（依主機名稱，例如 <code>admin.example.com</code>）：主機名稱「不區分大小寫」（A hostname is not case-sensitive）。</li>
+<li><code>path-pattern</code>（依網址路徑，例如 <code>/api/*</code>）：路徑樣式<strong>區分大小寫</strong>，而且只比對網址的路徑，不比對查詢參數。</li>
+<li><code>host-header</code>（依主機名稱，例如 <code>admin.example.com</code>）：主機名稱<strong>不區分大小寫</strong>。</li>
 </ul>
 <p>兩種條件都能用萬用字元：<code>*</code> 比對 0 個以上的字元、<code>?</code> 剛好比對 1 個字元。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/rule-condition-types.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
@@ -112,16 +112,16 @@
 
 <p><strong>後端怎麼知道使用者的 IP？</strong>兩種負載平衡器做法不同。</p>
 <ul class="plainlist">
-<li><strong>ALB</strong>：後端看到的連線來自負載平衡器，使用者的 IP 要從 X-Forwarded-For 標頭讀（helps you identify the IP address of a client）；原本的請求已經帶著這個標頭時，ALB 把用戶端 IP 接在後面，所以可能有「好幾個以逗號分隔的 IP」（multiple IP addresses that are comma separated）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/x-forwarded-headers.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>NLB</strong> 可以<strong>保留來源 IP</strong>（can preserve the source IP addresses of clients）。instance 類型的目標群組預設開啟；IP 類型、協定是 TCP 或 TLS 的預設關閉，關閉時後端看到的是 NLB 的私有 IP。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/edit-target-group-attributes.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>ALB</strong>：後端看到的連線來自負載平衡器，使用者的 IP 要從 X-Forwarded-For 標頭讀；原本的請求已經帶著這個標頭時，ALB 把用戶端 IP 接在後面，所以可能有好幾個以逗號分隔的 IP。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/x-forwarded-headers.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>NLB</strong> 可以<strong>保留來源 IP</strong>。instance 類型的目標群組預設開啟；IP 類型、協定是 TCP 或 TLS 的預設關閉，關閉時後端看到的是 NLB 的私有 IP。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/edit-target-group-attributes.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>保留來源 IP 時，後端 EC2 的安全群組（〈VPC 網路架構〉）看到的是使用者的 IP，入站規則要照這個放行。NLB 在每個可用區有固定 IP，對外的還能「每個子網路掛一個 Elastic IP」（one Elastic IP address per subnet），適合給合作廠商加白名單。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">出處</a></p>
+<p>保留來源 IP 時，後端 EC2 的安全群組（〈VPC 網路架構〉）看到的是使用者的 IP，入站規則要照這個放行。NLB 在每個可用區有固定 IP，對外的還能每個子網路掛一個 Elastic IP，適合給合作廠商加白名單。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th></th><th>ALB</th><th>NLB</th></tr></thead><tbody>
 <tr><th>運作層</th><td>第 7 層（HTTP、HTTPS）</td><td>第 4 層（TCP、UDP、TLS）</td></tr>
 <tr><th>能依什麼分流</th><td>路徑、主機名稱、標頭、查詢參數、方法、來源 IP</td><td>只依監聽器的連接埠與協定（規則條件只支援 source-ip）</td></tr>
 <tr><th>後端看到的來源 IP</th><td>ALB 的 IP；使用者 IP 在 X-Forwarded-For</td><td>可保留使用者的 IP（預設值看目標類型）</td></tr>
 </tbody></table></div>
-<p>ALB 預設輪流（The default routing algorithm is round robin.）<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html" target="_blank" rel="noopener">出處</a>；在 Kubernetes 裡，這兩層的工作由 Service 與 Ingress 分擔，見〈Service：找路〉與〈對外入口〉。</p>
+<p>ALB 預設輪流（round robin）<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html" target="_blank" rel="noopener">出處</a>；在 Kubernetes 裡，這兩層的工作由 Service 與 Ingress 分擔，見〈Service：找路〉與〈對外入口〉。</p>
 <p class="formula">ALB＝第 7 層，看路徑與主機名稱分流，使用者 IP 在 X-Forwarded-For；NLB＝第 4 層，流雜湊選後端，可保留來源 IP、可有固定 IP</p>
 
 <div class="drill">
@@ -137,12 +137,12 @@
 <div class="drill">
   <p class="dq">規則是 <code>path-pattern /api/*</code>，請求路徑是 <code>/API/users</code>。會符合嗎？</p>
   <ul class="dopts"><li>會，ALB 比對路徑時不分大小寫</li><li>會，因為 * 可以比對任何字元</li><li data-ok>不會，路徑樣式區分大小寫</li><li>要看後端伺服器的設定</li></ul>
-  <p class="dexp">文件：A path pattern is case-sensitive。/API 跟 /api 不一樣。主機名稱才不分大小寫。</p>
+  <p class="dexp">路徑樣式區分大小寫，/API 跟 /api 不一樣。主機名稱才不分大小寫。</p>
 </div>
 <div class="drill">
   <p class="dq">請求 <code>/api/users?page=2</code>，規則 <code>path-pattern /api/users</code>（沒有萬用字元）。會符合嗎？</p>
   <ul class="dopts"><li>不會，因為多了 ?page=2</li><li>不會，沒有 * 就只能比對完全相同的整串網址，連查詢參數也要一模一樣</li><li>要另外打開「比對查詢參數」的設定</li><li data-ok>會，路徑樣式只比對路徑，不看查詢參數</li></ul>
-  <p class="dexp">文件：The path pattern is applied only to the path of the URL, not to its query parameters。要依查詢參數分流，另有 query-string 條件。</p>
+  <p class="dexp">路徑樣式只比對網址的路徑，不比對查詢參數。要依查詢參數分流，另有 query-string 條件。</p>
 </div>
 <div class="drill">
   <p class="dq">Spring Boot 服務放在 ALB 後面，程式裡用 <code>request.getRemoteAddr()</code> 取到的 IP 都一樣、不是使用者的。最可能的原因是？</p>
@@ -152,7 +152,7 @@
 <div class="drill">
   <p class="dq">X-Forwarded-For 的值是 <code>203.0.113.7, 198.51.100.20</code>，為什麼有兩個 IP？</p>
   <ul class="dopts"><li data-ok>原本就有這標頭，ALB 再接上自己看到的</li><li>ALB 有兩個節點，各寫了一次</li><li>使用者同時用了兩條網路連線，所以帶兩個 IP</li><li>這是設定錯誤，正常情況下這個標頭只會有一個 IP</li></ul>
-  <p class="dexp">文件：原本就有 X-Forwarded-For 時，ALB 把用戶端 IP 接在既有標頭後面，所以可能有好幾個以逗號分隔的 IP（例如中間還經過一層代理）。讀的時候要知道哪一段是自己的負載平衡器加的。</p>
+  <p class="dexp">原本就有 X-Forwarded-For 時，ALB 把用戶端 IP 接在既有標頭後面，所以可能有好幾個以逗號分隔的 IP（例如中間還經過一層代理）。讀的時候要知道哪一段是自己的負載平衡器加的。</p>
 </div>
 <div class="drill">
   <p class="dq">合作廠商要求「只能從固定 IP 連進來，他們要加白名單」，協定是自訂的 TCP，後面有好幾台機器要分流。比較適合用？</p>
@@ -162,14 +162,14 @@
 <div class="drill">
   <p class="dq">NLB 的目標群組是 instance 類型，後端 EC2 收到的封包，來源 IP 預設是誰的？</p>
   <ul class="dopts"><li>NLB 的私有 IP</li><li>NLB 的 Elastic IP</li><li data-ok>使用者自己的公有 IP</li><li>NAT Gateway 的公有 IP</li></ul>
-  <p class="dexp">文件的預設值表：instance 類型的目標群組預設開啟保留來源 IP。IP 類型、協定是 TCP 或 TLS 的才預設關閉，關閉時後端看到的是 NLB 的私有 IP。</p>
+  <p class="dexp">instance 類型的目標群組預設開啟保留來源 IP。IP 類型、協定是 TCP 或 TLS 的才預設關閉，關閉時後端看到的是 NLB 的私有 IP。</p>
 </div>
 </section>
 
 <section>
 <p class="era">每隔幾秒敲一次門，沒人應就不派客人過去</p>
 <h3 class="head">目標群組與健康檢查</h3>
-<p><strong>目標群組</strong>（target group）是負載平衡器要分給的那群後端，<strong>目標類型</strong>（instance、ip、lambda）「建立之後不能改」（After you create a target group, you can't change its target type.）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html" target="_blank" rel="noopener">出處</a> 健康檢查（AWS 中文主控台叫「運作狀態檢查」）設在目標群組上，ALB 的參數與預設值：</p>
+<p><strong>目標群組</strong>（target group）是負載平衡器要分給的那群後端，<strong>目標類型</strong>（instance、ip、lambda）建立之後不能改。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html" target="_blank" rel="noopener">出處</a> 健康檢查（AWS 中文主控台叫「運作狀態檢查」）設在目標群組上，ALB 的參數與預設值：</p>
 <div class="tablewrap"><table><thead><tr><th>參數</th><th>意思</th><th>ALB 預設（instance、ip 類型）</th></tr></thead><tbody>
 <tr><th><code>HealthCheckPath</code></th><td>打哪個路徑</td><td><code>/</code></td></tr>
 <tr><th><code>HealthCheckIntervalSeconds</code></th><td>每隔幾秒檢查一台</td><td>30 秒</td></tr>
@@ -178,12 +178,12 @@
 <tr><th><code>UnhealthyThresholdCount</code></th><td>連續失敗幾次就算不健康</td><td>2 次</td></tr>
 <tr><th><code>Matcher</code></th><td>哪些 HTTP 狀態碼算成功</td><td>200</td></tr>
 </tbody></table></div>
-<p>預設值出自 ALB 健康檢查一頁，例如「連續失敗超過 UnhealthyThresholdCount 次就移出服務」（takes the target out of service）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html" target="_blank" rel="noopener">出處</a> NLB 的間隔、門檻預設也是 30 秒、5 次、2 次。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/target-group-health-checks.html" target="_blank" rel="noopener">出處</a></p>
+<p>連續失敗超過 UnhealthyThresholdCount 次，目標就被移出服務。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html" target="_blank" rel="noopener">出處</a> NLB 的間隔、門檻預設也是 30 秒、5 次、2 次。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/target-group-health-checks.html" target="_blank" rel="noopener">出處</a></p>
 <p>用預設值粗算：一台機器壞掉，大約要 2 次 × 30 秒 ≈ 1 分鐘才被拿掉；修好之後要 5 次 × 30 秒 ≈ 2.5 分鐘才放回來。拿掉得快、放回得慢，是刻意的：寧可晚一點用它，也不要把客人派給剛恢復、還不穩的機器。間隔是「大約」，實際時間會有誤差。</p>
 <p>三個跟健康檢查有關的行為，常出現在面試與故障排除裡：</p>
 <ul class="plainlist">
-<li><strong>全部都不健康時，照樣送。</strong>「只剩不健康的目標時，負載平衡器把請求送給所有目標，不管健康狀態」（routes requests to all those targets, regardless of their health status）。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html" target="_blank" rel="noopener">出處</a> 這是怕健康檢查本身設錯時整個服務斷線，所以檢查全失敗、網站卻正常，要回頭看路徑和狀態碼。</li>
-<li><strong>拿掉一台時，先讓它做完手上的請求。</strong>取消註冊中的目標不收新請求，預設等 300 秒（waits 300 seconds before completing the deregistration process），手上沒請求就立刻完成，這叫取消註冊延遲。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html" target="_blank" rel="noopener">出處</a> 請求都很短的服務可以調短。</li>
+<li><strong>全部都不健康時，照樣送。</strong>只剩不健康的目標時，負載平衡器把請求送給所有目標，不管健康狀態。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html" target="_blank" rel="noopener">出處</a> 這是怕健康檢查本身設錯時整個服務斷線，所以檢查全失敗、網站卻正常，要回頭看路徑和狀態碼。</li>
+<li><strong>拿掉一台時，先讓它做完手上的請求。</strong>取消註冊中的目標不收新請求，預設等 300 秒才完成取消註冊，手上沒請求就立刻完成，這叫取消註冊延遲。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html" target="_blank" rel="noopener">出處</a> 請求都很短的服務可以調短。</li>
 <li><strong>健康檢查要檢查什麼，是設計取捨。</strong>例如指到 Spring Boot 的 <code>/actuator/health</code>，它若連帶檢查資料庫，資料庫一慢，所有機器會同時被判不健康。</li>
 </ul>
 <pre><code># 建立目標群組：健康檢查打 /actuator/health，每 15 秒一次，連續 3 次成功算健康
@@ -200,7 +200,7 @@ aws elbv2 create-target-group --name api-tg --protocol HTTP --port 8080 \
 <div class="drill">
   <p class="dq">新部署之後，目標群組裡 4 台全部顯示不健康，但使用者說網站還能用。最可能的情況是？</p>
   <ul class="dopts"><li data-ok>健康檢查設錯（例如路徑或狀態碼），全部不健康時 ALB 照樣送給所有目標</li><li>ALB 壞了，請求直接繞過它</li><li>使用者看到的是瀏覽器快取</li><li>Auto Scaling 已經換上新機器，新機器不在目標群組裡，所以顯示不健康也沒關係</li></ul>
-  <p class="dexp">文件：目標群組只剩不健康的目標時，請求會送給所有目標，不管健康狀態。網站正常、檢查卻全失敗，先懷疑檢查本身：路徑打錯、Matcher 只收 200 但程式回 302 之類。</p>
+  <p class="dexp">目標群組只剩不健康的目標時，請求會送給所有目標，不管健康狀態。網站正常、檢查卻全失敗，先懷疑檢查本身：路徑打錯、Matcher 只收 200 但程式回 302 之類。</p>
 </div>
 <div class="drill">
   <p class="dq">健康檢查路徑是 <code>/</code>，但應用程式在 <code>/</code> 回傳 302（轉到登入頁），Matcher 用預設值。結果會怎樣？</p>
@@ -222,13 +222,13 @@ aws elbv2 create-target-group --name api-tg --protocol HTTP --port 8080 \
 <section>
 <p class="era">設好上下限，讓台數跟著負載走</p>
 <h3 class="head">Auto Scaling 群組：目標追蹤、步進、排程</h3>
-<p>Auto Scaling 群組由三個數字管住：<strong>最小</strong>（never goes below this size）、<strong>最大</strong>（never goes above this size）、<strong>期望</strong>（desired capacity）。擴展政策做的事，就是在最小與最大之間調期望台數。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>壞掉的會被換掉，但預設只看 EC2 自己。</strong>Auto Scaling 預設用 EC2 狀態檢查，而且「預設忽略 Elastic Load Balancing 健康檢查的結果」（By default, Amazon EC2 Auto Scaling ignores the results of the Elastic Load Balancing health checks.）。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/health-checks-overview.html" target="_blank" rel="noopener">出處</a> 應用程式當掉、機器還開著時，ALB 不派請求給它，Auto Scaling 卻不換；要換，健康檢查類型要加上 ELB，並給一段寬限期（剛開機時先不算）。</p>
+<p>Auto Scaling 群組由三個數字管住：<strong>最小</strong>（台數不會低於它）、<strong>最大</strong>（台數不會高於它）、<strong>期望</strong>（desired capacity）。擴展政策做的事，就是在最小與最大之間調期望台數。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>壞掉的會被換掉，但預設只看 EC2 自己。</strong>Auto Scaling 預設用 EC2 狀態檢查，<strong>忽略 Elastic Load Balancing 健康檢查的結果</strong>。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/health-checks-overview.html" target="_blank" rel="noopener">出處</a> 應用程式當掉、機器還開著時，ALB 不派請求給它，Auto Scaling 卻不換；要換，健康檢查類型要加上 ELB，並給一段寬限期（剛開機時先不算）。</p>
 <p>台數怎麼變，有三種政策：</p>
 <ul class="plainlist">
-<li><strong>目標追蹤</strong>（target tracking）：選指標和目標值，例如平均 CPU 50%，「就像恆溫器維持目標溫度」（similar to how a thermostat maintains a target temperature）。內建指標有群組平均 CPU、每個目標分到的 ALB 請求數。設好幾條時，任何一條要擴展就擴展，全部準備縮減才縮減（It will scale in only if all of the target tracking policies … are ready to scale in.）。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>步進</strong>（step scaling）：自己建 CloudWatch 警報（AWS 監控服務在指標超標時發的通知），依超標幅度分段加減，例如到 60% 加 10 台、75% 加 30 台。但文件「強烈建議」CPU、每個目標請求數這類指標用目標追蹤（We strongly recommend that you use target tracking scaling policies）。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>排程</strong>（scheduled scaling）：負載可以預期時，在指定時間改台數，可用 cron 運算式（分、時、日、月、星期五個欄位）重複。重複排程「預設是 UTC」（By default, the recurring schedules that you set are in Coordinated Universal Time (UTC).），台灣時間要加 <code>--time-zone</code>。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scheduled-scaling.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>目標追蹤</strong>（target tracking）：選指標和目標值，例如平均 CPU 50%，就像恆溫器維持目標溫度。內建指標有群組平均 CPU、每個目標分到的 ALB 請求數。設好幾條時，任何一條要擴展就擴展，全部準備縮減才縮減。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>步進</strong>（step scaling）：自己建 CloudWatch 警報（AWS 監控服務在指標超標時發的通知），依超標幅度分段加減，例如到 60% 加 10 台、75% 加 30 台。但 CPU、每個目標請求數這類指標，強烈建議用目標追蹤。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>排程</strong>（scheduled scaling）：負載可以預期時，在指定時間改台數，可用 cron 運算式（分、時、日、月、星期五個欄位）重複。重複排程<strong>預設是 UTC</strong>，台灣時間要加 <code>--time-zone</code>。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scheduled-scaling.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <pre><code># 群組：最少 2 台、最多 10 台，掛到 api-tg，健康檢查類型用 ELB，寬限期 120 秒、預設暖機 120 秒
 aws autoscaling create-auto-scaling-group --auto-scaling-group-name api-asg \
@@ -252,15 +252,15 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
     "PredefinedMetricType": "ASGAverageCPUUtilization"
   }
 }</code></pre>
-<p>JSON 照官方文件的目標追蹤範例。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/policy_creating.html" target="_blank" rel="noopener">出處</a> 這些指令沒有在 AWS 上執行，只確認過 AWS CLI 2.37.8 接受這些參數。</p>
+<p>JSON 照 AWS 文件的目標追蹤範例。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/policy_creating.html" target="_blank" rel="noopener">出處</a> 這些指令沒有在 AWS 上執行，只確認過 AWS CLI 2.37.8 接受這些參數。</p>
 
 <p><strong>冷卻與暖機：兩種「先別急」。</strong></p>
 <ul class="plainlist">
-<li><strong>冷卻</strong>（cooldown）：加減完之後等一段時間才能再動，預設 300 秒，但它只管<strong>簡單擴展</strong>（警報響一次加減固定台數的舊做法）：「目標追蹤與步進政策可以馬上擴展，不用等冷卻結束」（Target tracking and step scaling policies can initiate a scale-out activity immediately without waiting for the cooldown period to end.）。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scaling-cooldowns.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>暖機</strong>（instance warmup）：新機器進入服務後先等一段時間，才把它的 CPU 算進群組平均；剛開機的機器在載入程式，CPU 很高但還沒接客，算進去會讓 Auto Scaling 多開。文件強烈建議設定，而且它「預設沒有開啟」（It is not enabled or configured by default.）。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-default-instance-warmup.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>冷卻</strong>（cooldown）：加減完之後等一段時間才能再動，預設 300 秒，但它只管<strong>簡單擴展</strong>（警報響一次加減固定台數的舊做法），目標追蹤與步進政策可以馬上擴展，不用等冷卻結束。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scaling-cooldowns.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>暖機</strong>（instance warmup）：新機器進入服務後先等一段時間，才把它的 CPU 算進群組平均；剛開機的機器在載入程式，CPU 很高但還沒接客，算進去會讓 Auto Scaling 多開。強烈建議設定，而且它<strong>預設沒有開啟</strong>。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-default-instance-warmup.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>K8s 的 HPA 也依指標調整數量，但調的是 Pod，見〈K8s 上手：Minikube 與上雲〉。</p>
-<p class="formula">最小 ≤ 期望 ≤ 最大；目標追蹤像恆溫器（官方建議優先用）、步進依超標幅度分段、排程依時間（預設 UTC）；冷卻只管簡單擴展、暖機預設沒開；健康檢查預設不看 ELB</p>
+<p class="formula">最小 ≤ 期望 ≤ 最大；目標追蹤像恆溫器（建議優先用）、步進依超標幅度分段、排程依時間（預設 UTC）；冷卻只管簡單擴展、暖機預設沒開；健康檢查預設不看 ELB</p>
 
 <div class="drill">
   <p class="dq">Auto Scaling 群組設成最小 2、期望 4、最大 6。目標追蹤算出來要 9 台，實際會有幾台？</p>
@@ -270,17 +270,17 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
 <div class="drill">
   <p class="dq">某台 EC2 上的 Java 程式當掉了，但機器還開著。ALB 已經把它判為不健康。Auto Scaling 群組沒改過健康檢查設定，會換掉它嗎？</p>
   <ul class="dopts"><li>會，ALB 判不健康就會通知 Auto Scaling 換掉</li><li data-ok>不會，預設忽略 ELB 健康檢查的結果</li><li>會，但要等冷卻 300 秒</li><li>不會，Auto Scaling 從來不換機器</li></ul>
-  <p class="dexp">文件：By default, Amazon EC2 Auto Scaling ignores the results of the Elastic Load Balancing health checks。預設只看 EC2 狀態檢查，機器開著就算健康。要換，健康檢查類型要加上 ELB。</p>
+  <p class="dexp">Auto Scaling 預設忽略 ELB 健康檢查的結果，只看 EC2 狀態檢查，機器開著就算健康。要換，健康檢查類型要加上 ELB。</p>
 </div>
 <div class="drill">
   <p class="dq">想讓「平均 CPU 維持在 50% 左右」，最推薦用哪一種擴展政策？</p>
   <ul class="dopts"><li data-ok>目標追蹤，設目標值</li><li>簡單擴展加上冷卻</li><li>排程擴展，每小時加一台</li><li>步進擴展，自己切段</li></ul>
-  <p class="dexp">目標追蹤就是「選指標和目標值，其他交給它」，文件也強烈建議 CPU、每個目標的請求數用目標追蹤。排程適合可預期的時段；步進要自己切段。</p>
+  <p class="dexp">目標追蹤就是「選指標和目標值，其他交給它」，CPU、每個目標的請求數也強烈建議用目標追蹤。排程適合可預期的時段；步進要自己切段。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個群組設了兩條目標追蹤：CPU 50%、每個目標的請求數 1000。現在 CPU 70%、請求數 600，會怎樣？</p>
   <ul class="dopts"><li>不動，兩條互相抵銷</li><li>縮減，請求數低於目標</li><li data-ok>擴展（任一條要就擴展）</li><li>取兩條的平均值再決定要不要動</li></ul>
-  <p class="dexp">文件：任何一條目標追蹤要擴展就擴展；要所有條都準備縮減才會縮減。偏向「寧可多一台」。</p>
+  <p class="dexp">任何一條目標追蹤要擴展就擴展；要所有條都準備縮減才會縮減。偏向「寧可多一台」。</p>
 </div>
 <div class="drill">
   <p class="dq">每個工作日早上 9 點（台灣時間）會湧進大量登入。用排程擴展寫 <code>--recurrence "0 9 * * 1-5"</code>，沒寫時區，會在什麼時候擴展？</p>
@@ -290,12 +290,12 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
 <div class="drill">
   <p class="dq">冷卻期間（預設 300 秒）會擋住哪一種政策再次擴展？</p>
   <ul class="dopts"><li>目標追蹤</li><li>步進</li><li>三種都會被擋</li><li data-ok>簡單擴展</li></ul>
-  <p class="dexp">文件：目標追蹤與步進政策可以馬上擴展、不用等冷卻結束；冷卻只管簡單擴展，而文件建議乾脆不要用簡單擴展與冷卻。</p>
+  <p class="dexp">目標追蹤與步進政策可以馬上擴展、不用等冷卻結束；冷卻只管簡單擴展，而 AWS 建議乾脆不要用簡單擴展與冷卻。</p>
 </div>
 <div class="drill">
   <p class="dq">新開的 EC2 前兩分鐘在載入程式，CPU 衝到 90%，但還沒開始處理請求。沒設暖機的話，目標追蹤可能會怎樣？</p>
   <ul class="dopts"><li>沒影響，Auto Scaling 只看舊機器</li><li data-ok>把這台的高 CPU 算進平均，以為不夠又多開</li><li>把這台判為不健康換掉</li><li>停止所有擴展，等新機器穩定下來</li></ul>
-  <p class="dexp">暖機就是「新機器進入服務後，先等一段時間才算進群組的指標」。它預設沒開，文件強烈建議目標追蹤與步進政策要設。</p>
+  <p class="dexp">暖機就是「新機器進入服務後，先等一段時間才算進群組的指標」。它預設沒開，目標追蹤與步進政策強烈建議要設。</p>
 </div>
 <div class="drill">
   <p class="dq">K8s 的 HPA 和 EC2 Auto Scaling 都是「依指標調整數量」。最大的差別是？</p>
@@ -307,7 +307,7 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
 <section>
 <p class="era">拿走的工作先藏起來，做完才真的刪掉</p>
 <h3 class="head">SQS：標準佇列與 FIFO 佇列</h3>
-<p>SQS 跟〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉的佇列有一個關鍵差別：<strong>沒有 ack</strong>。收走的訊息「仍在佇列中，但暫時對其他消費者不可見」（it remains in the queue but becomes temporarily invisible to other consumers），處理完要自己呼叫 <code>DeleteMessage</code>；沒刪，<strong>可見性逾時</strong>（visibility timeout）一過就重新可見，可能被別人取走。預設 30 秒、最長 12 小時（從第一次收到算起，延長也不會重算：Extending the timeout doesn't reset this 12-hour limit.），可用 <code>ChangeMessageVisibility</code> 延長。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">出處</a></p>
+<p>SQS 跟〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉的佇列有一個關鍵差別：<strong>沒有 ack</strong>。收走的訊息仍在佇列中，但暫時對其他消費者不可見，處理完要自己呼叫 <code>DeleteMessage</code>；沒刪，<strong>可見性逾時</strong>（visibility timeout）一過就重新可見，可能被別人取走。預設 30 秒、最長 12 小時（從第一次收到算起，延長也不會重算這 12 小時），可用 <code>ChangeMessageVisibility</code> 延長。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">出處</a></p>
 <p>在 LocalStack 上實跑（佇列的可見性逾時設 5 秒；<code>$Q</code> 是佇列網址，<code>None</code> 表示沒收到任何訊息；以下都是 LocalStack，不是真的 AWS）：</p>
 <pre><code># 佇列 transfer-jobs，可見性逾時 5 秒；$Q 是它的網址
 $ aws sqs send-message --queue-url $Q --message-body 't-3001 A轉出1000' --query MessageId --output text
@@ -349,12 +349,12 @@ None</code></pre>
 <figcaption>可見性逾時是 SQS 版的「處理完才確認」：Delete 就是確認，逾時到了還沒確認，就重新排回去。</figcaption>
 </figure>
 
-<p><strong>標準佇列：至少一次、不保證順序。</strong>「確保至少一次送達，……可能送達不只一份，偶爾也會不照順序」（more than one copy of a message might be delivered, and messages may occasionally arrive out of order）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html" target="_blank" rel="noopener">出處</a> 原因是訊息存在好幾台伺服器上，刪除時有一台連不上，那份就沒刪到，所以 AWS 建議把應用程式設計成冪等（Design your applications to be idempotent）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html" target="_blank" rel="noopener">出處</a> 這種重複 LocalStack 重現不了，上面看到的重複是可見性逾時造成的。</p>
+<p><strong>標準佇列：至少一次、不保證順序。</strong>確保至少一次送達，但可能送達不只一份，偶爾也會不照順序。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html" target="_blank" rel="noopener">出處</a> 原因是訊息存在好幾台伺服器上，刪除時有一台連不上，那份就沒刪到，所以應用程式要設計成冪等。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html" target="_blank" rel="noopener">出處</a> 這種重複 LocalStack 重現不了，上面看到的重複是可見性逾時造成的。</p>
 
 <p><strong>FIFO 佇列：照順序、不重複放進佇列。</strong>佇列名稱要以 <code>.fifo</code> 結尾。兩個重點：</p>
 <ul class="plainlist">
-<li><strong>訊息群組</strong>（message group ID）：每則都要帶。同一個群組裡嚴格照順序，不同群組之間可能亂序（may arrive or be processed out of order relative to one another）；群組裡有一則還在處理，後面的要等它刪掉或逾時。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-understanding-logic.html" target="_blank" rel="noopener">出處</a> 用帳號當群組，跟 Kafka 用 key 選分區是同一個想法。</li>
-<li><strong>去重編號</strong>（message deduplication ID）：5 分鐘的去重區間內，同編號的後續訊息「會回應成功，但不會送給消費者」（will be acknowledged but not delivered to consumers）。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagededuplicationid-property.html" target="_blank" rel="noopener">出處</a> 也可以開內容去重，用訊息內容的 SHA-256 雜湊當編號。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>訊息群組</strong>（message group ID）：每則都要帶。同一個群組裡嚴格照順序，不同群組之間可能亂序；群組裡有一則還在處理，後面的要等它刪掉或逾時。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-understanding-logic.html" target="_blank" rel="noopener">出處</a> 用帳號當群組，跟 Kafka 用 key 選分區是同一個想法。</li>
+<li><strong>去重編號</strong>（message deduplication ID）：5 分鐘的去重區間內，同編號的後續訊息會回應成功，但不會送給消費者。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagededuplicationid-property.html" target="_blank" rel="noopener">出處</a> 也可以開內容去重，用訊息內容的 SHA-256 雜湊當編號。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>LocalStack 實跑（<code>$FQ</code> 是 FIFO 佇列網址）：</p>
 <pre><code># FIFO 佇列名稱一定要以 .fifo 結尾；$FQ 是它的網址
@@ -384,7 +384,7 @@ A 轉出 200	acct-A</code></pre>
 <p>同一個去重編號 t-4001 送了兩次，拿回同一個 MessageId，佇列裡只有 3 則（不是 4 則）。消費者 1 拿走 A 的第一筆還沒刪時，消費者 2 拿不到 A 的第二筆，只拿到 B 的；A 的第一筆刪掉之後，A 的第二筆才出來。</p>
 <p>AWS 把這叫「剛好一次處理」（exactly-once processing），但它擋的是<strong>生產者重送造成佇列多一份</strong>；消費者沒在逾時內刪掉，一樣會再收到，寫資料庫那端還是要冪等。</p>
 
-<p><strong>死信佇列。</strong>來源佇列設<strong>轉送政策</strong>（redrive policy），<code>maxReceiveCount</code> 是被收到幾次之後搬去死信佇列；死信佇列「必須跟來源佇列在同一個帳號與區域」（must be in the same AWS account and Region），<code>maxReceiveCount</code> 太小（例如 1）一次失敗就進死信。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">出處</a> LocalStack 實跑（可見性逾時 2 秒、<code>maxReceiveCount</code> 2）：</p>
+<p><strong>死信佇列。</strong>來源佇列設<strong>轉送政策</strong>（redrive policy），<code>maxReceiveCount</code> 是被收到幾次之後搬去死信佇列；死信佇列<strong>必須跟來源佇列在同一個帳號與區域</strong>，<code>maxReceiveCount</code> 太小（例如 1）一次失敗就進死信。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">出處</a> LocalStack 實跑（可見性逾時 2 秒、<code>maxReceiveCount</code> 2）：</p>
 <pre><code># 先建死信佇列 payments-dlq（$DLQ），它的 ARN 是 arn:aws:sqs:ap-northeast-1:000000000000:payments-dlq
 # 來源佇列 payments（$Q）：可見性逾時 2 秒，收 2 次還沒刪就送死信
 $ aws sqs get-queue-attributes --queue-url $Q --attribute-names RedrivePolicy --query Attributes.RedrivePolicy --output text
@@ -405,7 +405,7 @@ $ aws sqs receive-message --queue-url $DLQ --query 'Messages[].Body' --output te
 p-9 金額格式錯誤</code></pre>
 <p>收了 2 次都沒刪，第 3 次來源佇列就是空的，訊息已經在 <code>payments-dlq</code>。死信佇列的保留期限要設得比來源佇列長：標準佇列的訊息到期時間從「最初進來源佇列」那一刻算起，搬到死信佇列不會重算。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">出處</a></p>
 
-<p><strong>長輪詢。</strong>收訊息要消費者主動去問（輪詢）。預設的<strong>短輪詢</strong>只查一部分伺服器，沒訊息也馬上回空的；<strong>長輪詢</strong>是 <code>WaitTimeSeconds</code> 大於 0，等到有訊息或時間到才回，最長 20 秒（The maximum long polling wait time is 20 seconds.），空回應少很多。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html" target="_blank" rel="noopener">出處</a> LocalStack 實測：空佇列短輪詢約 0.5〜0.6 秒就回空的（多半是啟動 CLI 容器的時間）；長輪詢等 10 秒、另一個程式在第 3 秒送一則進來，約 4 秒就拿到那一則回來（每次跑不同，重跑在 3.6〜4.2 秒之間），沒等滿 10 秒。</p>
+<p><strong>長輪詢。</strong>收訊息要消費者主動去問（輪詢）。預設的<strong>短輪詢</strong>只查一部分伺服器，沒訊息也馬上回空的；<strong>長輪詢</strong>是 <code>WaitTimeSeconds</code> 大於 0，等到有訊息或時間到才回，最長 20 秒，空回應少很多。<a class="fixsrc" href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html" target="_blank" rel="noopener">出處</a> LocalStack 實測：空佇列短輪詢約 0.5〜0.6 秒就回空的（多半是啟動 CLI 容器的時間）；長輪詢等 10 秒、另一個程式在第 3 秒送一則進來，約 4 秒就拿到那一則回來（每次跑不同，重跑在 3.6〜4.2 秒之間），沒等滿 10 秒。</p>
 <p class="formula">SQS 沒有 ack：收走＝暫時看不到，Delete 才是處理完；逾時沒刪就重新可見。標準至少一次、順序盡力；FIFO 群組內有序、5 分鐘內去重。maxReceiveCount 次後進死信；長輪詢最多等 20 秒</p>
 
 <div class="drill">
@@ -431,7 +431,7 @@ p-9 金額格式錯誤</code></pre>
 <div class="drill">
   <p class="dq">標準佇列的消費者偶爾會收到同一則訊息兩次（不是逾時造成的）。這是 bug 嗎？</p>
   <ul class="dopts"><li>是，要聯絡 AWS 處理</li><li>是，改成短輪詢、每次只拿一則就不會重複</li><li>是，把可見性逾時調長就好</li><li data-ok>不是，標準佇列本來就是至少一次</li></ul>
-  <p class="dexp">文件：標準佇列確保至少一次送達，可能送達不只一份，所以應用程式要設計成冪等。調逾時只能減少「逾時造成的重複」，擋不住這一種。</p>
+  <p class="dexp">標準佇列確保至少一次送達，可能送達不只一份，所以應用程式要設計成冪等。調逾時只能減少「逾時造成的重複」，擋不住這一種。</p>
 </div>
 <div class="drill">
   <p class="dq">轉帳指令要「同一個帳號照順序處理，不同帳號可以同時處理」。用 FIFO 佇列時，訊息群組 ID 該填什麼？</p>
@@ -456,12 +456,12 @@ p-9 金額格式錯誤</code></pre>
 <div class="drill">
   <p class="dq">轉送政策設 <code>maxReceiveCount</code> 為 1。會有什麼風險？</p>
   <ul class="dopts"><li>訊息永遠進不了死信佇列</li><li>佇列自動變成 FIFO</li><li>死信佇列被塞爆</li><li data-ok>一次失敗就進死信</li></ul>
-  <p class="dexp">文件：maxReceiveCount 設太低（例如 1），一次失敗就會進死信佇列；要設得夠高，讓暫時性錯誤有機會重試成功。</p>
+  <p class="dexp">maxReceiveCount 設太低（例如 1），一次失敗就會進死信佇列；要設得夠高，讓暫時性錯誤有機會重試成功。</p>
 </div>
 <div class="drill">
   <p class="dq">死信佇列可以建在另一個區域（例如來源在東京、死信在新加坡）嗎？</p>
   <ul class="dopts"><li>可以，任何區域都行</li><li>可以，但要先開跨區域複寫功能</li><li>只有 FIFO 佇列可以跨區域</li><li data-ok>不行，要同帳號、同區域</li></ul>
-  <p class="dexp">文件：The dead-letter queue must be in the same AWS account and Region as the source queue。</p>
+  <p class="dexp">死信佇列必須跟來源佇列在同一個 AWS 帳號與區域。</p>
 </div>
 <div class="drill">
   <p class="dq">消費者每秒問一次空的佇列，每次都馬上拿到空回應，帳單上的請求數很高。改什麼最有效？</p>
@@ -473,7 +473,7 @@ p-9 金額格式錯誤</code></pre>
 <section>
 <p class="era">發一次，每個訂閱的人都收到</p>
 <h3 class="head">SNS 扇出到多條 SQS</h3>
-<p>SQS 一則只給一個消費者；要讓通知、帳務、風控都收到同一個事件，就用 SNS。官方把「一則發布到主題的訊息被複製、推到多個端點」叫<strong>扇出</strong>（a message published to an SNS topic is replicated and pushed to multiple endpoints）。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">出處</a> SNS 負責馬上複製給每條佇列，SQS 負責替各服務保管到有空處理（The messages also persist in an Amazon SQS queue for other applications to process later.）。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html" target="_blank" rel="noopener">出處</a></p>
+<p>SQS 一則只給一個消費者；要讓通知、帳務、風控都收到同一個事件，就用 SNS。一則發布到主題的訊息被複製、推到多個端點，叫<strong>扇出</strong>（fanout）。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">出處</a> SNS 負責馬上複製給每條佇列，SQS 負責替各服務保管到有空處理。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="SNS 扇出：發布兩則事件到主題 transfer-events，三條 SQS 佇列訂閱。notify 收到兩則，包在 SNS 的 JSON 信封裡；ledger 開了原始訊息傳遞，收到兩則原始內容；risk-large 有篩選政策 amount 大於等於 100000，只收到 250000 那一則">
   <defs><marker id="lb-4-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
@@ -501,9 +501,9 @@ p-9 金額格式錯誤</code></pre>
 </figure>
 <p>要注意三個設定：</p>
 <ul class="plainlist">
-<li><strong>佇列政策</strong>：要在佇列上「允許這個 SNS 主題執行 sqs:SendMessage」（allows the Amazon SNS topic to perform the sqs:SendMessage action）。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/subscribe-sqs-queue-to-sns-topic.html" target="_blank" rel="noopener">出處</a> 政策寫法見〈AWS 全域架構與 IAM〉。</li>
-<li><strong>原始訊息傳遞</strong>（raw message delivery）：預設送到 SQS 的是 JSON 信封（Type、TopicArn、Message、簽章等）；開了之後「SNS 的中繼資料被拿掉，訊息原封不動送出」（sent as is）。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/sns-large-payload-raw-message-delivery.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>篩選政策</strong>（filter policy）：訂閱預設收到全部（receives every message that's published to the topic），要只收一部分就在訂閱上設篩選政策。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/sns-message-filtering.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>佇列政策</strong>：要在佇列上允許這個 SNS 主題執行 <code>sqs:SendMessage</code>。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/subscribe-sqs-queue-to-sns-topic.html" target="_blank" rel="noopener">出處</a> 政策寫法見〈AWS 全域架構與 IAM〉。</li>
+<li><strong>原始訊息傳遞</strong>（raw message delivery）：預設送到 SQS 的是 JSON 信封（Type、TopicArn、Message、簽章等）；開了之後 SNS 的中繼資料被拿掉，訊息原封不動送出。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/sns-large-payload-raw-message-delivery.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>篩選政策</strong>（filter policy）：訂閱預設收到發布到主題的全部訊息，要只收一部分就在訂閱上設篩選政策。<a class="fixsrc" href="https://docs.aws.amazon.com/sns/latest/dg/sns-message-filtering.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>LocalStack 實跑（三條佇列都先設好允許主題 <code>sqs:SendMessage</code> 的佇列政策；收的那三步，輸出交給一個小程式 <code>body.py</code> 整理成一則一行，JSON 信封只列重點欄位；訂閱與發布回傳的 ARN、MessageId 省略）：</p>
 <pre><code># 主題 transfer-events（$TOPIC_ARN）
@@ -558,4 +558,4 @@ JSON 信封：Type=Notification、Message=t-5002 A轉出250000、MessageAttribut
 </div>
 </section>
 
-<div class="keys"><p class="lbl">重點整理</p><ul><li>ALB 在第 7 層，依路徑（區分大小寫、不看查詢參數）、主機名稱（不分大小寫）等條件分流，規則照優先順序由小到大比、都不符合走預設規則；後端看到的來源是 ALB，使用者 IP 在 X-Forwarded-For。</li><li>NLB 在第 4 層，用流雜湊選後端，每秒可處理數百萬請求；可保留來源 IP（預設值看目標類型），每個可用區有固定 IP、可掛 Elastic IP。</li><li>目標群組的目標類型建了不能改；ALB 健康檢查預設間隔 30 秒、逾時 5 秒、健康 5 次、不健康 2 次、狀態碼 200；全部不健康時照樣送；取消註冊延遲預設 300 秒。</li><li>Auto Scaling 群組：最小 ≤ 期望 ≤ 最大；預設只看 EC2 狀態檢查、忽略 ELB 健康檢查；目標追蹤像恆溫器、官方建議優先用，任何一條要擴展就擴展、全部同意才縮減；步進依超標幅度；排程用 cron、預設 UTC；冷卻預設 300 秒只管簡單擴展；暖機預設沒開、強烈建議設。</li><li>SQS 沒有 ack：收走後在可見性逾時（預設 30 秒、最長 12 小時）內看不到，DeleteMessage（帶這次的 receipt handle）才是處理完。收到超過 maxReceiveCount 次就搬去死信佇列（同帳號同區域、保留期限比來源長）；長輪詢最多等 20 秒。</li><li>標準佇列至少一次、順序盡力，消費端要冪等；FIFO 佇列以 .fifo 結尾，同一個訊息群組嚴格有序，5 分鐘去重區間內同編號只留一份，但逾時沒刪一樣會再收到。</li><li>SNS 扇出：主題複製給每條訂閱的 SQS；佇列要允許主題 sqs:SendMessage（本課的 LocalStack 少了也照送，真的 AWS 會擋）；預設收 JSON 信封、可開原始傳遞；預設全收、可用篩選政策。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>ALB 在第 7 層，依路徑（區分大小寫、不看查詢參數）、主機名稱（不分大小寫）等條件分流，規則照優先順序由小到大比、都不符合走預設規則；後端看到的來源是 ALB，使用者 IP 在 X-Forwarded-For。</li><li>NLB 在第 4 層，用流雜湊選後端，每秒可處理數百萬請求；可保留來源 IP（預設值看目標類型），每個可用區有固定 IP、可掛 Elastic IP。</li><li>目標群組的目標類型建了不能改；ALB 健康檢查預設間隔 30 秒、逾時 5 秒、健康 5 次、不健康 2 次、狀態碼 200；全部不健康時照樣送；取消註冊延遲預設 300 秒。</li><li>Auto Scaling 群組：最小 ≤ 期望 ≤ 最大；預設只看 EC2 狀態檢查、忽略 ELB 健康檢查；目標追蹤像恆溫器、建議優先用，任何一條要擴展就擴展、全部同意才縮減；步進依超標幅度；排程用 cron、預設 UTC；冷卻預設 300 秒只管簡單擴展；暖機預設沒開、強烈建議設。</li><li>SQS 沒有 ack：收走後在可見性逾時（預設 30 秒、最長 12 小時）內看不到，DeleteMessage（帶這次的 receipt handle）才是處理完。收到超過 maxReceiveCount 次就搬去死信佇列（同帳號同區域、保留期限比來源長）；長輪詢最多等 20 秒。</li><li>標準佇列至少一次、順序盡力，消費端要冪等；FIFO 佇列以 .fifo 結尾，同一個訊息群組嚴格有序，5 分鐘去重區間內同編號只留一份，但逾時沒刪一樣會再收到。</li><li>SNS 扇出：主題複製給每條訂閱的 SQS；佇列要允許主題 sqs:SendMessage（本課的 LocalStack 少了也照送，真的 AWS 會擋）；預設收 JSON 信封、可開原始傳遞；預設全收、可用篩選政策。</li></ul></div>

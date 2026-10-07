@@ -4,25 +4,29 @@
 <section>
 <p class="era">先認識零件，再談怎麼放</p>
 <h3 class="head">DynamoDB 是什麼：表、項目、屬性與兩種主鍵</h3>
-<p>〈NoSQL 與資料庫設計〉把 NoSQL 分成四類，DynamoDB 屬於鍵值與文件（key-value pairs or document storage），是 AWS 代管的服務，不必自己開資料庫伺服器。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-general-nosql-design.html" target="_blank" rel="noopener">出處</a> 三個基本零件跟關聯式資料庫對得上：<strong>表</strong>（table）裝<strong>項目</strong>（item，像資料列），項目由<strong>屬性</strong>（attribute，像欄位）組成。最大的差別是「除了主鍵之外，表是無綱要的」（Other than the primary key, the People table is schemaless），屬性與型別都不必事先定義。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a></p>
+<p>〈NoSQL 與資料庫設計〉把 NoSQL 分成四類，DynamoDB 屬於鍵值與文件（key-value、document），是 AWS 代管的服務，不必自己開資料庫伺服器。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-general-nosql-design.html" target="_blank" rel="noopener">出處</a> 三個基本零件跟關聯式資料庫對得上：<strong>表</strong>（table）裝<strong>項目</strong>（item，像資料列），項目由<strong>屬性</strong>（attribute，像欄位）組成。最大的差別是：除了主鍵之外，表是<strong>無綱要</strong>的，屬性與型別都不必事先定義。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a></p>
 <p>主鍵有兩種。只有一個<strong>分割鍵</strong>（partition key）的叫簡單主鍵；分割鍵加<strong>排序鍵</strong>（sort key）叫複合主鍵。</p>
-<p>DynamoDB 把分割鍵的值丟進內部的<strong>雜湊函式</strong>（hash function，把任意字串算成一個數字，同樣的輸入永遠得到同樣的輸出），「雜湊的輸出決定項目存在哪個分割區（DynamoDB 內部的實體儲存空間）」（The output from the hash function determines the partition (physical storage internal to DynamoDB) in which the item will be stored）；有排序鍵時，「分割鍵相同的項目存在一起，依排序鍵的值排好」（All items with the same partition key value are stored together, in sorted order by sort key value）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a></p>
-<p>分割鍵相同的那一群項目叫<strong>項目集合</strong>（item collection），文件說它「為了有效率地取出集合裡的一段範圍而最佳化」（Item collections are optimized for efficient retrieval of ranges of the items within the collection）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html" target="_blank" rel="noopener">出處</a></p>
+<p>DynamoDB 把分割鍵的值丟進內部的<strong>雜湊函式</strong>（hash function，把任意字串算成一個數字，同樣的輸入永遠得到同樣的輸出）：</p>
+<ul>
+<li>雜湊的輸出決定項目存在哪個分割區（DynamoDB 內部的實體儲存空間）</li>
+<li>有排序鍵時，分割鍵相同的項目存在一起，依排序鍵的值排好<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>分割鍵相同的那一群項目叫<strong>項目集合</strong>（item collection），為了有效率地取出集合裡的一段範圍而最佳化。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 270" role="img" aria-label="分割鍵決定放哪個分割區，排序鍵決定分割區裡的順序。左邊三個項目的分割鍵分別是 ACCT#A001、ACCT#A002、ACCT#B777，經過雜湊函式後各自落到分割區一、分割區二、分割區三。放大分割區一：分割鍵都是 ACCT#A001 的項目排成一列，依排序鍵 PROFILE、TX#2026-09-30、TX#2026-10-01、TX#2026-10-02 由小到大排好，這一群叫項目集合">
 <defs><marker id="dy-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="90" y="26" font-size="12.5" text-anchor="middle" opacity=".75">項目的分割鍵</text><rect x="22" y="40" width="136" height="32" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="90" y="61" font-size="12.5" text-anchor="middle" class="mono">ACCT#A001</text><rect x="22" y="86" width="136" height="32" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="90" y="107" font-size="12.5" text-anchor="middle" class="mono">ACCT#A002</text><rect x="22" y="132" width="136" height="32" rx="5" fill="var(--surface)" stroke="currentColor"/><text x="90" y="153" font-size="12.5" text-anchor="middle" class="mono">ACCT#B777</text><rect x="210" y="70" width="110" height="64" rx="8" fill="var(--gold-soft)" stroke="var(--gold)"/><text x="265" y="98" font-size="13.5" text-anchor="middle">雜湊函式</text><text x="265" y="117" font-size="11" text-anchor="middle" opacity=".7">同樣輸入、同樣輸出</text><line x1="160" y1="56" x2="208" y2="88" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#dy-m1)"/><line x1="160" y1="102" x2="208" y2="102" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#dy-m1)"/><line x1="160" y1="148" x2="208" y2="116" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#dy-m1)"/><rect x="380" y="34" width="110" height="36" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="435" y="57" font-size="13" text-anchor="middle">分割區一</text><rect x="380" y="84" width="110" height="36" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="435" y="107" font-size="13" text-anchor="middle">分割區二</text><rect x="380" y="134" width="110" height="36" rx="5" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="435" y="157" font-size="13" text-anchor="middle">分割區三</text><line x1="322" y1="88" x2="378" y2="54" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#dy-m1)"/><line x1="322" y1="102" x2="378" y2="102" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#dy-m1)"/><line x1="322" y1="116" x2="378" y2="150" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#dy-m1)"/><text x="268" y="196" font-size="11.5" text-anchor="middle" opacity=".7">A001 → 一、A002 → 二、B777 → 三（示意）</text><path d="M492 52 L540 52" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/><rect x="540" y="22" width="200" height="176" rx="8" fill="none" stroke="var(--gold)" stroke-dasharray="4 3"/><text x="640" y="42" font-size="12" text-anchor="middle" fill="var(--gold-deep)">分割區一裡的 ACCT#A001</text><rect x="556" y="54" width="168" height="26" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="640" y="72" font-size="11.5" text-anchor="middle" class="mono">PROFILE</text><rect x="556" y="86" width="168" height="26" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="640" y="104" font-size="11.5" text-anchor="middle" class="mono">TX#2026-09-30…</text><rect x="556" y="118" width="168" height="26" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="640" y="136" font-size="11.5" text-anchor="middle" class="mono">TX#2026-10-01…</text><rect x="556" y="150" width="168" height="26" rx="4" fill="var(--surface)" stroke="currentColor"/><text x="640" y="168" font-size="11.5" text-anchor="middle" class="mono">TX#2026-10-02…</text><text x="640" y="192" font-size="11" text-anchor="middle" opacity=".7">依排序鍵由小到大</text><text x="380" y="232" font-size="12.5" text-anchor="middle">分割鍵決定「放哪一格」，排序鍵決定「格子裡怎麼排」</text><text x="380" y="254" font-size="11.5" text-anchor="middle" opacity=".6">古銅虛線框＝一個項目集合：分割鍵相同的項目，存在一起、排好順序</text>
 </svg>
 <figcaption>同一個帳戶的資料（分割鍵相同）住在一起、照排序鍵排好，所以「拿某帳戶某段時間的明細」只要讀連續的一段。</figcaption>
 </figure>
-<p>主鍵的屬性只能是字串、數字或二進位（The only data types allowed for primary key attributes are string, number, or binary），單一項目最大 400 KB（The maximum size of an individual item is 400 KB）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a></p>
+<p>主鍵的屬性只能是字串、數字或二進位，單一項目最大 400 KB。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a><a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a></p>
 <h4>實跑環境：DynamoDB Local</h4>
-<p>以下指令都在自己電腦上跑：Docker 映像 <code>amazon/dynamodb-local:3.3.1</code>（AWS 提供、可下載的 DynamoDB）加 AWS CLI 2.37.8。每個指令都要加 <code>--endpoint-url http://localhost:8000</code>（you must specify --endpoint-url with each AWS CLI command），範例版面上省略。本地版只供開發與測試，會碰到的差別有三條（同一頁出處）：<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html" target="_blank" rel="noopener">出處</a></p>
+<p>以下指令都在自己電腦上跑：Docker 映像 <code>amazon/dynamodb-local:3.3.1</code>（AWS 提供、可下載的 DynamoDB）加 AWS CLI 2.37.8。每個指令都要加 <code>--endpoint-url http://localhost:8000</code>，範例版面上省略。本地版只供開發與測試，會碰到的差別有三條（同一頁出處）：<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
-<li>佈建的吞吐量設定會被忽略（Provisioned throughput settings are ignored），所以<strong>限流</strong>（throttling，請求超過上限時被拒絕、要你稍後重試）在本地做不出來；差異頁在講串流時也提到本地沒有分割表格（there is no table partitioning），熱分割區只能用算的。</li>
-<li>讀取照樣是最終一致，但本地跑得快，「大部分讀取看起來像強一致」（most reads appear to be strongly consistent），「讀到舊值」也做不出來。</li>
-<li>不會丟出交易衝突的例外（TransactionConflictExceptions aren't thrown by downloadable DynamoDB for transactional APIs）。</li>
+<li>佈建的吞吐量設定會被忽略，所以<strong>限流</strong>（throttling，請求超過上限時被拒絕、要你稍後重試）在本地做不出來；本地也沒有分割表格，熱分割區只能用算的。</li>
+<li>讀取照樣是最終一致，但本地跑得快，大部分讀取看起來像強一致，「讀到舊值」也做不出來。</li>
+<li>交易 API 不會丟出交易衝突的例外（<code>TransactionConflictException</code>）。</li>
 </ul>
-<p>先建一張表 <code>Bank</code>：分割鍵 <code>pk</code>、排序鍵 <code>sk</code>，都是字串（<code>S</code>）。<code>HASH</code> 是分割鍵、<code>RANGE</code> 是排序鍵，名稱來自文件說的別名：分割鍵又叫 hash attribute、排序鍵又叫 range attribute。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a> 兩個索引（<code>byCustomer</code>、<code>byAmount</code>）後面講，這裡先一起建：</p>
+<p>先建一張表 <code>Bank</code>：分割鍵 <code>pk</code>、排序鍵 <code>sk</code>，都是字串（<code>S</code>）。<code>HASH</code> 是分割鍵、<code>RANGE</code> 是排序鍵，名稱來自別名：分割鍵又叫 hash attribute、排序鍵又叫 range attribute。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a> 兩個索引（<code>byCustomer</code>、<code>byAmount</code>）後面講，這裡先一起建：</p>
 <pre><code>$ aws dynamodb create-table --table-name Bank \
     --attribute-definitions AttributeName=pk,AttributeType=S AttributeName=sk,AttributeType=S \
         AttributeName=gsi1pk,AttributeType=S AttributeName=gsi1sk,AttributeType=S \
@@ -39,26 +43,26 @@ Bank	ACTIVE</code></pre>
 <div class="drill">
   <p class="dq">一張表的主鍵只有分割鍵 <code>accountId</code>。能不能有兩個項目的 <code>accountId</code> 都是 A001？</p>
   <ul class="dopts"><li>可以，DynamoDB 會自動加流水號</li><li>可以，只要其他屬性不一樣</li><li>不行，除非先建一個索引</li><li data-ok>不行，只有分割鍵時分割鍵就是唯一識別</li></ul>
-  <p class="dexp">文件：只有分割鍵的表，任兩個項目的分割鍵不能相同。要讓同一個帳戶有多筆，就要加排序鍵變成複合主鍵。</p>
+  <p class="dexp">只有分割鍵的表，任兩個項目的分割鍵不能相同。要讓同一個帳戶有多筆，就要加排序鍵變成複合主鍵。</p>
 </div>
 <div class="drill">
   <p class="dq">DynamoDB 用什麼決定一個項目存在哪個分割區？</p>
   <ul class="dopts"><li data-ok>分割鍵算出的雜湊值</li><li>項目寫入的先後順序</li><li>排序鍵的值，由小到大分配</li><li>項目大小，大的放新分割區</li></ul>
-  <p class="dexp">文件：分割鍵的值丟進內部雜湊函式，輸出決定分割區。排序鍵只決定同一個分割鍵底下的順序。</p>
+  <p class="dexp">分割鍵的值丟進內部雜湊函式，輸出決定分割區。排序鍵只決定同一個分割鍵底下的順序。</p>
 </div>
 <div class="drill">
   <p class="dq">在本地版測試時，對一張很忙的表狂寫，一直沒有被限流。可以推論雲端上也不會被限流嗎？</p>
   <ul class="dopts"><li>可以，本地版跟雲端的行為完全一樣</li><li>可以，因為隨需模式永遠不會限流</li><li data-ok>不行，本地版忽略吞吐量、也沒有分割區</li><li>不行，本地版的上限比雲端還低</li></ul>
-  <p class="dexp">官方差異清單：本地版忽略佈建吞吐量、速度只看電腦，也沒有分割表格，所以限流與熱分割區都要在雲端或用計算判斷。</p>
+  <p class="dexp">本地版忽略佈建吞吐量、速度只看電腦，也沒有分割表格，所以限流與熱分割區都要在雲端或用計算判斷。</p>
 </div>
 </section>
 
 <section>
 <p class="era">一格太擠，整張表都慢</p>
 <h3 class="head">熱分割區：分割鍵怎麼選</h3>
-<p>每個分割區的能力有上限：「每個分割區設計成每秒最多 3,000 個讀取單位、1,000 個寫入單位」（Every partition in a DynamoDB table is designed to deliver a maximum capacity of 3,000 read units per second and 1,000 write units per second）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html" target="_blank" rel="noopener">出處</a> 讀取、寫入單位怎麼算，「最終一致讀與強一致讀」那段講；先記得一個分割區能吃的流量有天花板。流量集中到少數分割鍵，那個分割區就變成<strong>熱分割區</strong>（hot partition）：「沒把 I/O 請求分散好的分割鍵設計，會造成『熱』分割區，導致限流」（A partition key design that doesn't distribute I/O requests effectively can create "hot" partitions that result in throttling）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-uniform-load.html" target="_blank" rel="noopener">出處</a></p>
-<p>文件給了一張對照表（同一頁出處），拿銀行系統套一次：</p>
-<div class="tablewrap"><table><thead><tr><th>拿什麼當分割鍵</th><th>文件評價</th><th>銀行裡的例子</th></tr></thead><tbody>
+<p>每個分割區的能力有上限：<strong>每秒最多 3,000 個讀取單位、1,000 個寫入單位</strong>。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html" target="_blank" rel="noopener">出處</a> 讀取、寫入單位怎麼算，「最終一致讀與強一致讀」那段講；先記得一個分割區能吃的流量有天花板。流量集中到少數分割鍵，那個分割區就變成<strong>熱分割區</strong>（hot partition）：分割鍵沒把 I/O 請求分散好，就會造成熱分割區，導致限流。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-uniform-load.html" target="_blank" rel="noopener">出處</a></p>
+<p>哪些分割鍵好、哪些不好（同一頁出處），拿銀行系統套一次：</p>
+<div class="tablewrap"><table><thead><tr><th>拿什麼當分割鍵</th><th>評價</th><th>銀行裡的例子</th></tr></thead><tbody>
 <tr><td>使用者編號，使用者很多</td><td>好（Good）</td><td>帳號、客戶編號</td></tr>
 <tr><td>狀態碼，只有少數幾種</td><td>不好（Bad）</td><td>交易狀態「成功／失敗／處理中」</td></tr>
 <tr><td>建立日期，取到天、小時或分鐘</td><td>不好（Bad）</td><td>「今天的所有交易」放同一個分割鍵</td></tr>
@@ -71,43 +75,43 @@ Bank	ACTIVE</code></pre>
 </svg>
 <figcaption>整張表總量沒超過，卻還是被限流：問題出在流量都擠進同一個分割鍵。</figcaption>
 </figure>
-<p>改法有兩個方向。第一，換一個值多、流量平均的分割鍵（choose a partition key that can have a large number of distinct values relative to the number of items in the table）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html" target="_blank" rel="noopener">出處</a> 第二，非用日期不可時做<strong>寫入碎片</strong>（write sharding）：分割鍵後面加 1 到 200 的亂數後綴，讓寫入散到多個分割區；代價是讀某一天全部資料時，200 個後綴要各查一次再合併（you would have to query the items for all the suffixes and then merge the results）。後綴也可以用要查的欄位算出來（例如交易編號算雜湊再取餘數），讀單筆時才知道去哪個後綴找。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html" target="_blank" rel="noopener">出處</a></p>
-<p>DynamoDB 自己也會幫忙：<strong>高載容量</strong>（burst capacity）保留最多五分鐘沒用完的讀寫容量給突然的尖峰；<strong>調適型容量</strong>（adaptive capacity）自動替流量較多的分割區提高容量，每張表都自動開著。但它的前提是流量不超過「分割區的最大容量」（provided that traffic does not exceed your table's total provisioned capacity or the partition maximum capacity），一個項目再熱，最多也只拿到 3,000 RCU、1,000 WCU。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener">出處</a> 它是安全網，不能代替選對分割鍵；跟〈快取放哪裡、怎麼失效〉講的 Redis 熱 key 是同一種問題。</p>
+<p>改法有兩個方向。第一，換一個值多、流量平均的分割鍵：不同值的個數相對於項目數要夠多。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html" target="_blank" rel="noopener">出處</a> 第二，非用日期不可時做<strong>寫入碎片</strong>（write sharding）：分割鍵後面加 1 到 200 的亂數後綴，讓寫入散到多個分割區；代價是讀某一天全部資料時，200 個後綴要各查一次再合併。後綴也可以用要查的欄位算出來（例如交易編號算雜湊再取餘數），讀單筆時才知道去哪個後綴找。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html" target="_blank" rel="noopener">出處</a></p>
+<p>DynamoDB 自己也會幫忙：<strong>高載容量</strong>（burst capacity）保留最多五分鐘沒用完的讀寫容量給突然的尖峰；<strong>調適型容量</strong>（adaptive capacity）自動替流量較多的分割區提高容量，每張表都自動開著。但它的前提是流量不超過表的總佈建容量或分割區的最大容量，一個項目再熱，最多也只拿到 3,000 RCU、1,000 WCU。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener">出處</a> 它是安全網，不能代替選對分割鍵；跟〈快取放哪裡、怎麼失效〉講的 Redis 熱 key 是同一種問題。</p>
 <p class="formula">每個分割區每秒最多 3,000 讀取單位、1,000 寫入單位；分割鍵要值多、流量平均；日期、狀態碼當分割鍵會熱，非用不可就加後綴</p>
 
 <div class="drill">
   <p class="dq">把「交易狀態」（只有成功、失敗、處理中三種）當分割鍵，最可能出什麼事？</p>
   <ul class="dopts"><li data-ok>形成熱分割區，流量擠在少數鍵</li><li>寫不進去，狀態值不能拿來當鍵</li><li>排序會變亂，查不到最新的那一筆</li><li>每筆寫入都要多付一倍的費用</li></ul>
-  <p class="dexp">文件把「只有少數幾種的狀態碼」列為不好的分割鍵：值太少，大部分流量會擠在「成功」那個分割鍵。</p>
+  <p class="dexp">只有少數幾種的狀態碼是不好的分割鍵：值太少，大部分流量會擠在「成功」那個分割鍵。</p>
 </div>
 <div class="drill">
   <p class="dq">每筆交易明細的分割鍵用「交易日期（取到天）」。下面哪個描述最貼近會發生的事？</p>
   <ul class="dopts"><li>每天的交易平均散到所有分割區</li><li>只要改用隨需模式就完全不會有問題</li><li>舊日期的分割區會被自動刪除</li><li data-ok>當天所有寫入擠進同一個分割鍵</li></ul>
-  <p class="dexp">建立日期取到天，是文件點名的不好例子：同一天的寫入全落在同一個分割鍵、同一個實體分割區。</p>
+  <p class="dexp">建立日期取到天，是不好的分割鍵：同一天的寫入全落在同一個分割鍵、同一個實體分割區。</p>
 </div>
 <div class="drill">
   <p class="dq">分割鍵改成「日期加 1〜200 的亂數後綴」之後，要拿某一天的全部交易，要怎麼做？</p>
   <ul class="dopts"><li>一次 Query 用 begins_with 查日期</li><li data-ok>200 個後綴各 Query 一次再合併</li><li>用 GetItem 指定日期就好</li><li>Scan 整張表一定比較快</li></ul>
-  <p class="dexp">Query 的分割鍵條件只能是「等於」一個值，後綴不同就是不同的分割鍵。文件明說要把所有後綴都查一遍、再由應用程式合併。</p>
+  <p class="dexp">Query 的分割鍵條件只能是「等於」一個值，後綴不同就是不同的分割鍵。要把所有後綴都查一遍、再由應用程式合併。</p>
 </div>
 <div class="drill">
   <p class="dq">調適型容量已經自動開著，為什麼選分割鍵還是要小心？</p>
   <ul class="dopts"><li>它要另外付費才會生效</li><li>它只對佈建模式有效</li><li>它會把熱的分割區刪掉重建</li><li data-ok>也超不過單一分割區的上限</li></ul>
-  <p class="dexp">文件：調適型容量的前提是流量不超過表的總容量或分割區的最大容量。一把鍵再熱，最多也只拿到一個分割區的 3,000 讀、1,000 寫。</p>
+  <p class="dexp">調適型容量的前提是流量不超過表的總容量或分割區的最大容量。一把鍵再熱，最多也只拿到一個分割區的 3,000 讀、1,000 寫。</p>
 </div>
 </section>
 
 <section>
 <p class="era">先想怎麼查，再決定鍵</p>
 <h3 class="head">單表設計：存取模式先行</h3>
-<p>關聯式資料庫的順序是先正規化、建好表，之後想到新的查詢再加。DynamoDB 反過來：「在知道它要回答哪些問題之前，不應該開始設計 DynamoDB 的綱要」（you shouldn't start designing your schema for DynamoDB until you know the questions it will need to answer）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-general-nosql-design.html" target="_blank" rel="noopener">出處</a> 第一步是列出<strong>存取模式</strong>（access pattern，應用程式會用什麼條件、拿哪些資料）。文件建議新系統從使用者故事整理，舊系統分析查詢日誌（For existing applications, analyze query logs）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-modeling-nosql.html" target="_blank" rel="noopener">出處</a> 網銀的帳戶頁先列這四個：</p>
+<p>關聯式資料庫的順序是先正規化、建好表，之後想到新的查詢再加。DynamoDB 反過來：<strong>在知道它要回答哪些問題之前，不應該開始設計綱要。</strong><a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-general-nosql-design.html" target="_blank" rel="noopener">出處</a> 第一步是列出<strong>存取模式</strong>（access pattern，應用程式會用什麼條件、拿哪些資料）。新系統從使用者故事整理，舊系統分析查詢日誌。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-modeling-nosql.html" target="_blank" rel="noopener">出處</a> 網銀的帳戶頁先列這四個：</p>
 <ol>
 <li>用帳號拿帳戶資料（戶名、餘額）。</li>
 <li>拿某帳戶某段時間的交易明細，依時間排序。</li>
 <li>拿某帳戶最新幾筆交易。</li>
 <li>拿某位客戶名下的所有帳戶。</li>
 </ol>
-<p>前三個都以帳戶為中心，所以分割鍵用帳號，帳戶資料與交易明細放同一個項目集合，用排序鍵區分：帳戶資料是 <code>PROFILE</code>，明細是 <code>TX#時間#序號</code>。這就是<strong>單表設計</strong>（single table design）：把多種實體存在同一張表（store multiple types (entities) of data in a single DynamoDB table），靠的是分割鍵相同的項目存在一起。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/data-modeling-foundations.html" target="_blank" rel="noopener">出處</a> 用 <code>#</code> 串起來的排序鍵讓你「在階層的任何一層做範圍查詢」（you can query at any level of the hierarchy）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-sort-keys.html" target="_blank" rel="noopener">出處</a></p>
+<p>前三個都以帳戶為中心，所以分割鍵用帳號，帳戶資料與交易明細放同一個項目集合，用排序鍵區分：帳戶資料是 <code>PROFILE</code>，明細是 <code>TX#時間#序號</code>。這就是<strong>單表設計</strong>（single table design）：把多種實體存在同一張表，靠的是分割鍵相同的項目存在一起。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/data-modeling-foundations.html" target="_blank" rel="noopener">出處</a> 用 <code>#</code> 串起來的排序鍵讓你在階層的任何一層做範圍查詢。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-sort-keys.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>pk（分割鍵）</th><th>sk（排序鍵）</th><th>其他屬性</th></tr></thead><tbody>
 <tr><td class="mono">ACCT#A001</td><td class="mono">PROFILE</td><td>holder=Tim、balance=12000、version=1、gsi1pk=CUST#C01、gsi1sk=ACCT#A001</td></tr>
 <tr><td class="mono">ACCT#A001</td><td class="mono">TX#2026-09-30T18:05:00#0001</td><td>amount=-150、memo=咖啡</td></tr>
@@ -118,7 +122,7 @@ Bank	ACTIVE</code></pre>
 <tr><td class="mono">ACCT#A002</td><td class="mono">PROFILE</td><td>holder=Tim、balance=300、version=1、gsi1pk=CUST#C01、gsi1sk=ACCT#A002</td></tr>
 </tbody></table></div>
 <p>寫入用 <code>put-item</code>，值要標型別：<code>S</code> 是字串、<code>N</code> 是數字（數字也用字串包起來傳），例如 <code>--item '{"pk":{"S":"ACCT#A001"},"sk":{"S":"PROFILE"},"balance":{"N":"12000"},…}'</code>；上表七個項目都這樣各寫一次。</p>
-<p>讀取用 <strong>Query</strong>：「一定要給分割鍵的名稱，和那個屬性的單一值」（You must provide the name of the partition key attribute and a single value for that attribute），可以再加排序鍵的比較條件縮小範圍。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html" target="_blank" rel="noopener">出處</a> 結果預設依排序鍵由小到大回傳，也可以要求反過來（By default, the items are returned in the order that they are stored (that is, in ascending order by sort key). Optionally, you can request descending order instead）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html" target="_blank" rel="noopener">出處</a> 四個存取模式的前三個，各一次 Query 或 GetItem 就拿到（<code>--output text</code> 每列一個項目、欄位用 tab 隔開，項目沒有那個屬性時 CLI 印 <code>None</code>）：</p>
+<p>讀取用 <strong>Query</strong>：一定要給分割鍵的名稱，和那個屬性的單一值，可以再加排序鍵的比較條件縮小範圍。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html" target="_blank" rel="noopener">出處</a> 結果預設依排序鍵由小到大回傳，也可以要求反過來。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html" target="_blank" rel="noopener">出處</a> 四個存取模式的前三個，各一次 Query 或 GetItem 就拿到（<code>--output text</code> 每列一個項目、欄位用 tab 隔開，項目沒有那個屬性時 CLI 印 <code>None</code>）：</p>
 <pre><code># 整個帳戶：帳戶資料加所有明細，依排序鍵由小到大
 $ aws dynamodb query --table-name Bank \
     --key-condition-expression 'pk = :a' \
@@ -148,7 +152,7 @@ $ aws dynamodb query --table-name Bank \
 TX#2026-10-02T21:30:00#0005	-3000	房租
 TX#2026-10-02T08:00:00#0004	50000	薪資</code></pre>
 <p>第一個查詢列出 PROFILE 排在 TX# 前面，因為排序鍵是字串、照字元比大小，<code>P</code> 比 <code>T</code> 小。第二個查詢的上界 <code>TX#2026-10-02</code> 不包含 10 月 2 日的明細：<code>TX#2026-10-02T08:00…</code> 比 <code>TX#2026-10-02</code> 長，字串比較時比它大，所以落在範圍外。排序鍵用固定格式的時間（年月日時分秒都補零）才排得對。</p>
-<p>反過來，拿不是鍵的屬性去 Query 會直接被拒；要在不是鍵的屬性上找東西只能 <strong>Scan</strong>，它「一定掃整張表或整個次要索引，再把不要的濾掉」（A Scan operation always scans the entire table or secondary index. It then filters out values to provide the result you want）<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html" target="_blank" rel="noopener">出處</a>，而且計費看的是「被評估過的項目大小，不是回傳的項目」（DynamoDB considers the size of the items that are evaluated, not the size of the items returned by the scan）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html" target="_blank" rel="noopener">出處</a></p>
+<p>反過來，拿不是鍵的屬性去 Query 會直接被拒；要在不是鍵的屬性上找東西只能 <strong>Scan</strong>，它一定掃整張表或整個次要索引，再把不要的濾掉<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html" target="_blank" rel="noopener">出處</a>，而且計費看的是<strong>被評估過的項目大小，不是回傳的項目</strong>。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>$ aws dynamodb query --table-name Bank \
     --key-condition-expression 'memo = :m' \
     --expression-attribute-values '{":m":{"S":"房租"}}'
@@ -160,7 +164,13 @@ $ aws dynamodb scan --table-name Bank \
     --expression-attribute-values '{":z":{"N":"0"}}' \
     --query '[Count,ScannedCount]' --output text
 4	7</code></pre>
-<p>單表不是唯一答案。文件也說多表設計「對不熟單表設計的人比較好設計」（Simpler to design for those who aren't used to working with single table design），不同實體需要各自備份、各自加密時也比較好管；如果「存取模式不需要把多個實體一起查，多表設計就是好而且足夠的做法」（If your application's access patterns do not have the need to query multiple entities or tables together, then multiple table design is a good and sufficient approach）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/data-modeling-foundations.html" target="_blank" rel="noopener">出處</a> 判斷的依據是存取模式：常常一起讀的放一起。</p>
+<p>單表不是唯一答案。多表設計的好處：</p>
+<ul>
+<li>對不熟單表設計的人比較好設計</li>
+<li>不同實體需要各自備份、各自加密時比較好管</li>
+<li>存取模式不需要把多個實體一起查時，多表設計就是好而且足夠的做法<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/data-modeling-foundations.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>判斷的依據是存取模式：常常一起讀的放一起。</p>
 <p class="formula">先列存取模式再設計鍵；一起讀的放同一個分割鍵、用排序鍵分類型與排時間；Query 一定要給分割鍵，Scan 掃全表、照掃過的量計費</p>
 
 <div class="drill">
@@ -186,19 +196,19 @@ $ aws dynamodb scan --table-name Bank \
 <div class="drill">
   <p class="dq">Scan 加 filter 找支出，回 <code>Count</code> 4、<code>ScannedCount</code> 7。讀取費用照哪個算？</p>
   <ul class="dopts"><li>照回傳的 4 筆</li><li>照 4 筆再打對折</li><li>只要有 filter 就不收費</li><li data-ok>照掃過的 7 筆</li></ul>
-  <p class="dexp">文件：Scan 計費看被評估過的項目，不是回傳的項目。filter 只是掃完再丟掉，省不了讀取量。</p>
+  <p class="dexp">Scan 計費看被評估過的項目，不是回傳的項目。filter 只是掃完再丟掉，省不了讀取量。</p>
 </div>
 <div class="drill">
-  <p class="dq">某系統的報表模組與會員模組從來不會一起查，而且報表資料要另外加密。哪個說法比較符合文件？</p>
+  <p class="dq">某系統的報表模組與會員模組從來不會一起查，而且報表資料要另外加密。哪個說法比較合理？</p>
   <ul class="dopts"><li>一定要單表，DynamoDB 規定如此</li><li data-ok>分成兩張表是好而且足夠的做法</li><li>兩邊放同一張表才能分別加密</li><li>改用 Scan 就不用煩惱表的設計</li></ul>
-  <p class="dexp">文件：不需要一起查多個實體時，多表設計就夠；表的加密是整張共用的，要分開加密時多表比較好管。</p>
+  <p class="dexp">不需要一起查多個實體時，多表設計就夠；表的加密是整張共用的，要分開加密時多表比較好管。</p>
 </div>
 </section>
 
 <section>
 <p class="era">主鍵不夠用的時候</p>
 <h3 class="head">次要索引：GSI 與 LSI</h3>
-<p>第四個存取模式「某客戶名下的所有帳戶」用表的主鍵查不到：分割鍵是帳號，不是客戶編號。這時加<strong>次要索引</strong>（secondary index）：「用另一組鍵查表裡的資料」（lets you query the data in the table using an alternate key）。建索引時要決定哪些屬性從表複製進索引，這叫<strong>投影</strong>（projection）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a> 兩種索引的差別，官方有一張對照表，挑最常用到的幾列（出處同一頁）：</p>
+<p>第四個存取模式「某客戶名下的所有帳戶」用表的主鍵查不到：分割鍵是帳號，不是客戶編號。這時加<strong>次要索引</strong>（secondary index），用另一組鍵查表裡的資料。建索引時要決定哪些屬性從表複製進索引，這叫<strong>投影</strong>（projection）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a> 兩種索引的差別，挑最常用到的幾列（出處同一頁）：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>全域次要索引（GSI）</th><th>本地次要索引（LSI）</th></tr></thead><tbody>
 <tr><th>鍵</th><td>分割鍵、排序鍵都可以跟表不同</td><td>分割鍵一定跟表相同，只換排序鍵</td></tr>
 <tr><th>什麼時候建</th><td>建表時，或之後隨時加、隨時刪</td><td>只能建表時一起建，之後不能加也不能刪</td></tr>
@@ -206,7 +216,7 @@ $ aws dynamodb scan --table-name Bank \
 <tr><th>大小限制</th><td>沒有</td><td>每個分割鍵值（含表與索引）最多 10 GB</td></tr>
 <tr><th>容量</th><td>自己一份，跟表分開</td><td>吃表的容量</td></tr>
 </tbody></table></div>
-<p class="muted">LSI 那一列的關鍵原句：You cannot add a local secondary index to an existing table；GSI：Queries on global secondary indexes support eventual consistency only。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/SecondaryIndexes.html" target="_blank" rel="noopener">出處</a> 每張表預設最多 20 個 GSI、5 個 LSI。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">最要記的兩條：既有的表加不了 LSI；GSI 的查詢只支援最終一致。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/SecondaryIndexes.html" target="_blank" rel="noopener">出處</a> 每張表預設最多 20 個 GSI、5 個 LSI。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank" rel="noopener">出處</a></p>
 <p>建表時加的 <code>byCustomer</code> 是 GSI，用帳戶項目上的 <code>gsi1pk</code>（客戶編號）當分割鍵；<code>byAmount</code> 是 LSI，分割鍵一樣是 <code>pk</code>，排序鍵換成 <code>amount</code>，讓同一個帳戶的明細可以照金額排：</p>
 <pre><code># 存取模式 4：客戶 C01 名下的帳戶（查 GSI）
 $ aws dynamodb query --table-name Bank --index-name byCustomer \
@@ -230,7 +240,7 @@ $ aws dynamodb query --table-name Bank --index-name byAmount \
     --query 'Items[].[amount.N,memo.S]' --output text
 -3000	房租
 -1200	電費</code></pre>
-<p>GSI 是另一份資料，表寫入後「非同步更新」（updated asynchronously, using an eventually consistent model），一般不到一秒。GSI 的佈建寫入容量文件建議「等於或大於表的寫入容量」（should be equal or greater than the write capacity of the base table），不夠時連表的寫入都會被限流。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html" target="_blank" rel="noopener">出處</a> 索引寫入也要算容量：另外開一台全新的本地版建同一張表，加 <code>--return-consumed-capacity INDEXES</code> 看細項。帳戶項目有 <code>gsi1pk</code>，GSI 也寫一份；明細有 <code>amount</code>、沒有 <code>gsi1pk</code>，寫的是 LSI。沒有索引鍵屬性的項目不會進那個索引。</p>
+<p>GSI 是另一份資料，表寫入後以最終一致的方式非同步更新，一般不到一秒。GSI 的佈建寫入容量建議等於或大於表的寫入容量，不夠時連表的寫入都會被限流。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html" target="_blank" rel="noopener">出處</a> 索引寫入也要算容量：另外開一台全新的本地版建同一張表，加 <code>--return-consumed-capacity INDEXES</code> 看細項。帳戶項目有 <code>gsi1pk</code>，GSI 也寫一份；明細有 <code>amount</code>、沒有 <code>gsi1pk</code>，寫的是 LSI。沒有索引鍵屬性的項目不會進那個索引。</p>
 <pre><code># 寫帳戶資料（有 gsi1pk）
 "ConsumedCapacity": { "TableName": "Bank", "CapacityUnits": 2.0,
     "Table": { "CapacityUnits": 1.0 },
@@ -240,7 +250,7 @@ $ aws dynamodb query --table-name Bank --index-name byAmount \
 "ConsumedCapacity": { "TableName": "Bank", "CapacityUnits": 2.0,
     "Table": { "CapacityUnits": 1.0 },
     "LocalSecondaryIndexes": { "byAmount": { "CapacityUnits": 1.0 } } }</code></pre>
-<p class="muted">上面兩段是把 CLI 印出的 JSON 縮排併成幾行，數字照原樣。LSI 還有一個代價：表上有 LSI 時，調適型容量「不會把項目集合拆到多個分割區」（Adaptive capacity will not split item collections across multiple partitions of the table when there is a local secondary index on the table）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener">出處</a> LSI 一旦建了就拿不掉，加之前要想清楚。</p>
+<p class="muted">上面兩段是把 CLI 印出的 JSON 縮排併成幾行，數字照原樣。LSI 還有一個代價：表上有 LSI 時，調適型容量不會把項目集合拆到多個分割區。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener">出處</a> LSI 一旦建了就拿不掉，加之前要想清楚。</p>
 <p class="formula">GSI：鍵可以全換、隨時加、只能最終一致、容量自己一份；LSI：同分割鍵換排序鍵、只能建表時建、可強一致、每個分割鍵值 10 GB</p>
 
 <div class="drill">
@@ -266,7 +276,7 @@ $ aws dynamodb query --table-name Bank --index-name byAmount \
 <div class="drill">
   <p class="dq">表寫入很多，但 GSI 的寫入容量設得太小。會怎樣？</p>
   <ul class="dopts"><li data-ok>表上的寫入也會跟著被限流</li><li>只有 GSI 慢慢追，表不受影響</li><li>DynamoDB 自動刪掉那個 GSI</li><li>GSI 改成同步更新</li></ul>
-  <p class="dexp">文件：GSI 寫入容量不足時，表上的寫入活動會被限流。所以 GSI 的寫入容量建議至少跟表一樣。</p>
+  <p class="dexp">GSI 寫入容量不足時，表上的寫入活動會被限流。所以 GSI 的寫入容量建議至少跟表一樣。</p>
 </div>
 <div class="drill">
   <p class="dq">交易明細（沒有 gsi1pk 屬性）會不會出現在 GSI <code>byCustomer</code> 裡？</p>
@@ -278,13 +288,13 @@ $ aws dynamodb query --table-name Bank --index-name byAmount \
 <section>
 <p class="era">讀得新一點，就貴一倍</p>
 <h3 class="head">最終一致讀與強一致讀，以及容量單位怎麼算</h3>
-<p>讀取預設是<strong>最終一致</strong>（eventually consistent）：「回應可能不反映剛完成的寫入」（the responses might not reflect the results of a recently completed write operation）。把 <code>ConsistentRead</code> 設成 true 就是<strong>強一致讀</strong>（strongly consistent read），反映之前所有成功的寫入。價格差一倍（Eventually consistent reads are half the cost of strongly consistent reads）。不管哪一種都只讀到已提交的值（DynamoDB provides read-committed isolation）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html" target="_blank" rel="noopener">出處</a></p>
+<p>讀取預設是<strong>最終一致</strong>（eventually consistent）：回應可能不反映剛完成的寫入。把 <code>ConsistentRead</code> 設成 true 就是<strong>強一致讀</strong>（strongly consistent read），反映之前所有成功的寫入。價格差一倍：最終一致讀是強一致讀的一半。不管哪一種都只讀到已提交的值（read-committed）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html" target="_blank" rel="noopener">出處</a></p>
 <p>容量單位的算法（佈建模式叫 RCU、WCU，隨需模式叫讀取請求單位、寫入請求單位，算法一樣）：</p>
 <ul class="plainlist">
-<li><strong>讀</strong>：4 KB 以內的項目，強一致讀 1 個單位、最終一致讀半個、交易讀 2 個（A strongly consistent read request of an item up to 4 KB requires one read unit. An eventually consistent read request of an item up to 4 KB requires one-half read unit. A transactional read request of an item up to 4 KB requires two read units）；大小「無條件進位到 4 KB 的倍數」（rounded up to the next 4 KB multiple）。</li>
-<li><strong>寫</strong>：1 KB 以內的項目寫一次 1 個單位，交易寫 2 個（Transactional write requests require 2 write units to perform one write for items up to 1 KB）；大小進位到 1 KB 的倍數。</li>
-<li><strong>Query</strong> 把所有回傳項目的大小加總後才進位（All items returned are treated as a single read operation, where DynamoDB computes the total size of all items. DynamoDB then rounds up the size to the next 4 KB boundary）；BatchGetItem 則是每個項目各自進位再加。</li>
-<li>條件寫入就算條件不成立被拒絕，「仍然消耗寫入容量」（If the expression evaluates to false, DynamoDB still consumes write capacity units from the table）。</li>
+<li><strong>讀</strong>：4 KB 以內的項目，強一致讀 1 個單位、最終一致讀半個、交易讀 2 個；大小無條件進位到 4 KB 的倍數。</li>
+<li><strong>寫</strong>：1 KB 以內的項目寫一次 1 個單位，交易寫 2 個；大小進位到 1 KB 的倍數。</li>
+<li><strong>Query</strong> 把所有回傳項目的大小加總後，才進位到 4 KB 的倍數；BatchGetItem 則是每個項目各自進位再加。</li>
+<li>條件寫入就算條件不成立被拒絕，<strong>仍然消耗寫入容量</strong>。</li>
 </ul>
 <p>以上出處：<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html" target="_blank" rel="noopener">出處</a>。同一筆帳戶資料讀三次，看 <code>ConsumedCapacity</code>：</p>
 <pre><code># 預設（最終一致）
@@ -307,7 +317,7 @@ $ aws dynamodb transact-get-items --transact-items '[
     {"Get":{"TableName":"Bank","Key":{"pk":{"S":"ACCT#A002"},"sk":{"S":"PROFILE"}}}}]' \
     --return-consumed-capacity TOTAL --query 'ConsumedCapacity[0].CapacityUnits'
 4.0</code></pre>
-<p>0.5、1.0、每項 2.0，跟文件的算法一致。本地版跑得快，最終一致讀幾乎都會讀到剛寫的值（前面差異清單那條）；到雲端上，剛寫完馬上用最終一致讀，就可能讀到舊的。強一致讀只能用在表和 LSI，GSI 與串流只能最終一致（Strongly consistent reads are only supported on tables and local secondary indexes）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html" target="_blank" rel="noopener">出處</a> 這跟〈RDS 資料庫資源〉講的 Read Replica 是同一種取捨：讀複本便宜、能分流，但可能慢一步；要「寫完立刻讀到」就讀主要那一份。</p>
+<p>0.5、1.0、每項 2.0，跟上面的算法一致。本地版跑得快，最終一致讀幾乎都會讀到剛寫的值（前面差異清單那條）；到雲端上，剛寫完馬上用最終一致讀，就可能讀到舊的。強一致讀只能用在表和 LSI，GSI 與串流只能最終一致。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html" target="_blank" rel="noopener">出處</a> 這跟〈RDS 資料庫資源〉講的 Read Replica 是同一種取捨：讀複本便宜、能分流，但可能慢一步；要「寫完立刻讀到」就讀主要那一份。</p>
 <p class="formula">預設最終一致、半價；強一致 1 倍、只能讀表與 LSI；交易讀寫 2 倍。讀以 4 KB、寫以 1 KB 為單位無條件進位</p>
 
 <div class="drill">
@@ -323,7 +333,7 @@ $ aws dynamodb transact-get-items --transact-items '[
 <div class="drill">
   <p class="dq">條件寫入的條件不成立、寫入被拒絕。這次請求會消耗寫入容量嗎？</p>
   <ul class="dopts"><li>不會，沒寫進去就不收</li><li>只消耗讀取容量</li><li data-ok>會，照項目大小消耗</li><li>只有交易才會消耗</li></ul>
-  <p class="dexp">文件：條件不成立時 DynamoDB 仍然消耗寫入容量，數量看項目大小。被拒絕的重試也是要錢的。</p>
+  <p class="dexp">條件不成立時 DynamoDB 仍然消耗寫入容量，數量看項目大小。被拒絕的重試也是要錢的。</p>
 </div>
 <div class="drill">
   <p class="dq">剛存完款馬上要顯示新餘額，餘額放在表上（不是 GSI）。哪個讀法比較合適？</p>
@@ -335,7 +345,7 @@ $ aws dynamodb transact-get-items --transact-items '[
 <section>
 <p class="era">先檢查，再寫入</p>
 <h3 class="head">條件寫入與樂觀鎖</h3>
-<p>寫入預設不檢查任何東西：PutItem、DeleteItem「無條件覆寫同一主鍵的既有項目」（Each operation overwrites an existing item that has the specified primary key）。<strong>條件寫入</strong>（conditional write）「只有符合條件才成功，否則回錯誤」（succeeds only if the item attributes meet one or more expected conditions. Otherwise, it returns an error），條件對最新一版的項目檢查。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a> 最常用的兩個：開戶時 <code>attribute_not_exists(pk)</code> 防止蓋掉已存在的帳戶<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html" target="_blank" rel="noopener">出處</a>；扣款時 <code>balance &gt;= :amt</code> 防止扣成負數。</p>
+<p>寫入預設不檢查任何東西：PutItem、DeleteItem 會無條件覆寫同一主鍵的既有項目。<strong>條件寫入</strong>（conditional write）只有符合條件才成功，否則回錯誤，條件對最新一版的項目檢查。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a> 最常用的兩個：開戶時 <code>attribute_not_exists(pk)</code> 防止蓋掉已存在的帳戶<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html" target="_blank" rel="noopener">出處</a>；扣款時 <code>balance &gt;= :amt</code> 防止扣成負數。</p>
 <pre><code># 同一個帳號再開一次戶：條件不成立
 $ aws dynamodb put-item --table-name Bank \
     --item '{"pk":{"S":"ACCT#A001"},"sk":{"S":"PROFILE"},"balance":{"N":"0"}}' \
@@ -358,7 +368,7 @@ $ aws dynamodb update-item --table-name Bank \
     --expression-attribute-values '{":amt":{"N":"200"}}' \
     --return-values UPDATED_NEW --query Attributes.balance.N
 "100"</code></pre>
-<p>單一個 <code>UpdateItem</code> 是原子的（Individual write operations such as UpdateItem are atomic），<code>SET balance = balance - :amt</code> 在伺服器上算，不會互相蓋掉。會出事的是「先讀出來、在程式裡算好、再寫回去」，文件叫它讀—改—寫（read-modify-write cycle）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices_ImplementingVersionControl.html" target="_blank" rel="noopener">出處</a> 這就是〈交易隔離層級與鎖〉講的遺失更新，解法一樣是<strong>樂觀鎖</strong>（optimistic locking）：項目放一個版本號，「只有伺服器上的版本號沒變才能更新」（You can update the item, but only if the version number on the server side has not changed），不符就重讀再試。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBMapper.OptimisticLocking.html" target="_blank" rel="noopener">出處</a></p>
+<p>單一個 <code>UpdateItem</code> 是原子的，<code>SET balance = balance - :amt</code> 在伺服器上算，不會互相蓋掉。會出事的是「先讀出來、在程式裡算好、再寫回去」，叫讀—改—寫（read-modify-write cycle）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices_ImplementingVersionControl.html" target="_blank" rel="noopener">出處</a> 這就是〈交易隔離層級與鎖〉講的遺失更新，解法一樣是<strong>樂觀鎖</strong>（optimistic locking）：項目放一個版本號，只有伺服器上的版本號沒變才能更新，不符就重讀再試。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBMapper.OptimisticLocking.html" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 262" role="img" aria-label="樂觀鎖時間軸。櫃員甲與櫃員乙都讀到 A001 餘額 12000、版本 1。甲要扣 1000，用條件版本等於 1 寫入 11000 與版本 2，成功。乙要扣 500，也用條件版本等於 1 寫入 11500，失敗，因為版本已經是 2。乙重讀拿到 11000、版本 2，再用條件版本等於 2 寫入 10500 與版本 3，成功">
 <defs><marker id="dy-m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs><text x="40" y="58" font-size="13" text-anchor="start" fill="var(--gold-deep)">櫃員甲</text><text x="40" y="168" font-size="13" text-anchor="start" fill="var(--slate-deep)">櫃員乙</text><line x1="100" y1="54" x2="730" y2="54" stroke="currentColor" stroke-opacity=".3" stroke-width="1.5" marker-end="url(#dy-m3)"/><line x1="100" y1="164" x2="730" y2="164" stroke="currentColor" stroke-opacity=".3" stroke-width="1.5" marker-end="url(#dy-m3)"/><circle cx="150" cy="54" r="6" fill="var(--gold)"/><text x="150" y="36" font-size="11.5" text-anchor="middle">讀：12000、版本 1</text><circle cx="300" cy="54" r="6" fill="var(--gold)"/><text x="300" y="36" font-size="11.5" text-anchor="middle">寫 11000，條件版本＝1</text><text x="300" y="80" font-size="11.5" text-anchor="middle" fill="var(--gold-deep)">成功 → 版本 2</text><circle cx="190" cy="164" r="6" fill="var(--slate)"/><text x="190" y="146" font-size="11.5" text-anchor="middle">讀：12000、版本 1</text><circle cx="400" cy="164" r="6" fill="var(--slate)"/><text x="400" y="188" font-size="11.5" text-anchor="middle">寫 11500，條件版本＝1</text><text x="400" y="206" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)">失敗：版本已經是 2</text><circle cx="530" cy="164" r="6" fill="var(--slate)"/><text x="530" y="146" font-size="11.5" text-anchor="middle">重讀：11000、版本 2</text><circle cx="660" cy="164" r="6" fill="var(--slate)"/><text x="660" y="146" font-size="11.5" text-anchor="middle">寫 10500，條件版本＝2</text><text x="660" y="190" font-size="11.5" text-anchor="middle" fill="var(--slate-deep)">成功 → 版本 3</text><line x1="306" y1="90" x2="394" y2="156" stroke="var(--gold)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#dy-m3)"/><text x="380" y="112" font-size="11" text-anchor="middle" opacity=".7">版本變了，乙的條件不成立</text><text x="380" y="244" font-size="12" text-anchor="middle" opacity=".65">甲扣 1000、乙扣 500，最後 10500，兩筆都算到；沒有版本號的話乙會把甲那筆蓋掉，剩 11500</text>
@@ -397,7 +407,7 @@ $ aws dynamodb update-item --table-name Bank \
     --expression-attribute-values '{":nb":{"N":"10500"},":nv":{"N":"3"},":v":{"N":"2"}}' \
     --return-values UPDATED_NEW --query '[Attributes.balance.N,Attributes.version.N]' --output text
 10500	3</code></pre>
-<p>樂觀鎖適合「衝突不常發生、重試便宜、一次只改一個項目」（Conflicts are infrequent. Retrying a failed write is inexpensive. You are updating a single item at a time）；要同時改多個項目就用交易。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices_ImplementingVersionControl.html" target="_blank" rel="noopener">出處</a> 另外，<code>SET n = n + :x</code> 這種<strong>原子計數器</strong>（atomic counter）不檢查條件、重試可能多算，文件說它不適合銀行（An atomic counter would not be appropriate where overcounting or undercounting can't be tolerated (for example, in a banking application)），要用條件更新。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a> 瀏覽次數用它沒關係，餘額不行。</p>
+<p>樂觀鎖適合衝突不常發生、重試便宜、一次只改一個項目的情況；要同時改多個項目就用交易。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices_ImplementingVersionControl.html" target="_blank" rel="noopener">出處</a> 另外，<code>SET n = n + :x</code> 這種<strong>原子計數器</strong>（atomic counter）不檢查條件、重試可能多算或少算，不容許多算少算的地方（例如銀行）不適合，要用條件更新。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html" target="_blank" rel="noopener">出處</a> 瀏覽次數用它沒關係，餘額不行。</p>
 <p class="formula">寫入預設無條件覆寫；開戶用 attribute_not_exists、扣款用 balance &gt;= 金額；讀—改—寫要加版本號，不符就重讀重試；餘額不用原子計數器</p>
 
 <div class="drill">
@@ -418,24 +428,24 @@ $ aws dynamodb update-item --table-name Bank \
 <div class="drill">
   <p class="dq">樂觀鎖的寫入回 ConditionalCheckFailedException，下一步通常做什麼？</p>
   <ul class="dopts"><li data-ok>重讀新版本號，重算再寫</li><li>改成不加條件再寫一次</li><li>等 TTL 到期之後再寫一次</li><li>把版本號加 2 跳過衝突</li></ul>
-  <p class="dexp">條件不成立代表別人先改了。照文件的做法：重新讀出項目，用新的值與版本號重算再試。實跑乙重讀後用版本 2 寫入成功。</p>
+  <p class="dexp">條件不成立代表別人先改了。做法是重新讀出項目，用新的值與版本號重算再試。實跑乙重讀後用版本 2 寫入成功。</p>
 </div>
 <div class="drill">
   <p class="dq">網站的「文章瀏覽次數」與「帳戶餘額」，哪一個適合用原子計數器（<code>SET n = n + :x</code>、不加條件）？</p>
   <ul class="dopts"><li>兩個都適合，因為都是數字</li><li>只有帳戶餘額適合</li><li data-ok>只有瀏覽次數，多算幾次沒關係</li><li>兩個都不適合，DynamoDB 不支援</li></ul>
-  <p class="dexp">原子計數器失敗重試可能多算或少算。文件點名銀行應用程式不適合，要用條件更新；瀏覽次數可以容忍。</p>
+  <p class="dexp">原子計數器失敗重試可能多算或少算，銀行應用程式不適合，要用條件更新；瀏覽次數可以容忍。</p>
 </div>
 <div class="drill">
   <p class="dq">單一個 <code>update-item</code> 執行 <code>SET balance = balance - :amt</code>，兩個請求同時送到。會不會互相蓋掉？</p>
   <ul class="dopts"><li>會，DynamoDB 沒有任何保護</li><li data-ok>不會，單一更新是原子的</li><li>會，除非讀的時候用強一致</li><li>不會，第二個一定被限流</li></ul>
-  <p class="dexp">文件：UpdateItem 這類單一寫入是原子的，永遠作用在最新版本上。要擔心的是讀—改—寫，不是這種寫法。但它不擋扣成負數，所以還要加條件。</p>
+  <p class="dexp">UpdateItem 這類單一寫入是原子的，永遠作用在最新版本上。要擔心的是讀—改—寫，不是這種寫法。但它不擋扣成負數，所以還要加條件。</p>
 </div>
 </section>
 
 <section>
 <p class="era">要嘛全成，要嘛全不成</p>
 <h3 class="head">交易 API 一眼：TransactWriteItems</h3>
-<p>轉帳要改兩個帳戶、再記一筆明細，三個動作要一起成功。<code>TransactWriteItems</code>「把最多 100 個寫入動作包成一個全有或全無的操作」（groups up to 100 write actions in a single all-or-nothing operation），可以跨同一個帳號、同一個區域裡的多張表，總大小不能超過 4 MB；動作有 Put、Update、Delete 與 ConditionCheck（只檢查不寫）四種。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html" target="_blank" rel="noopener">出處</a> 它跟 <code>BatchWriteItem</code> 不一樣：批次寫入「可能只有部分動作成功」（With a BatchWriteItem operation, it is possible that only some of the actions in the batch succeed while the others do not）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html" target="_blank" rel="noopener">出處</a> 轉帳要用交易，不能用批次。</p>
+<p>轉帳要改兩個帳戶、再記一筆明細，三個動作要一起成功。<code>TransactWriteItems</code> 把最多 100 個寫入動作包成一個全有或全無的操作，可以跨同一個帳號、同一個區域裡的多張表，總大小不能超過 4 MB；動作有 Put、Update、Delete 與 ConditionCheck（只檢查不寫）四種。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html" target="_blank" rel="noopener">出處</a> 它跟 <code>BatchWriteItem</code> 不一樣：批次寫入可能只有部分動作成功。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html" target="_blank" rel="noopener">出處</a> 轉帳要用交易，不能用批次。</p>
 <pre><code># transfer.json：A001 扣 1000（條件：餘額夠）、A002 加 1000、記一筆明細
 [
  {"Update":{"TableName":"Bank","Key":{"pk":{"S":"ACCT#A001"},"sk":{"S":"PROFILE"}},
@@ -472,9 +482,9 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <p class="muted">上面那段錯誤 JSON 只留關鍵行、把縮排併成三行，內容照原樣。</p>
 <p>第二筆被取消時，<code>CancellationReasons</code> 依動作順序列出原因：第一個（A001 扣款）條件不成立，另外兩個是 <code>None</code>（本身沒問題，跟著一起取消）。A002 沒有被加上 999999，序號 0007 的明細也沒寫進去，這就是全有或全無。幾個要知道的限制（出處同一頁）：</p>
 <ul class="plainlist">
-<li>同一個交易裡不能對同一個項目做兩個動作（You can't target the same item with multiple operations within the same transaction），也不能對索引下交易（Transactions cannot be performed using indexes）。</li>
-<li>交易寫每個項目要做兩次底層寫入，「一次準備、一次提交」（one to prepare the transaction and one to commit it），所以容量是一般寫入的兩倍，取消了也照算。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html" target="_blank" rel="noopener">出處</a></li>
-<li>可以帶一個用戶端權杖（client token）讓請求<strong>冪等</strong>（idempotent，同一個請求送一次跟送很多次，結果一樣）：連線逾時重送時，「原本成功的話，帶同一個權杖的後續呼叫會直接回成功、不做任何修改」（subsequent TransactWriteItems calls with the same client token return successfully without making any changes）；權杖在請求完成後 10 分鐘內有效。</li>
+<li>同一個交易裡不能對同一個項目做兩個動作，也不能對索引下交易。</li>
+<li>交易寫每個項目要做兩次底層寫入，一次準備、一次提交，所以容量是一般寫入的兩倍，取消了也照算。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html" target="_blank" rel="noopener">出處</a></li>
+<li>可以帶一個用戶端權杖（client token）讓請求<strong>冪等</strong>（idempotent，同一個請求送一次跟送很多次，結果一樣）：連線逾時重送時，原本成功的話，帶同一個權杖的後續呼叫會直接回成功、不做任何修改；權杖在請求完成後 10 分鐘內有效。</li>
 <li>本地版不會丟出 <code>TransactionConflictException</code>（兩個交易同時改到同一個項目時雲端會丟的例外），衝突處理要在雲端或用模擬測。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p class="formula">TransactWriteItems：最多 100 個動作、全有或全無、每項容量兩倍；BatchWriteItem 可能部分成功，轉帳不能用；重送帶 client token 才不會做兩次</p>
@@ -482,7 +492,7 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <div class="drill">
   <p class="dq">轉帳要「A001 扣款、A002 入帳、記一筆明細」三件事一起成功。用 BatchWriteItem 有什麼風險？</p>
   <ul class="dopts"><li>BatchWriteItem 一次只能寫一筆</li><li data-ok>可能只有部分動作成功</li><li>BatchWriteItem 不能寫數字</li><li>沒有風險，跟交易一樣</li></ul>
-  <p class="dexp">文件：BatchWriteItem 裡可能有些成功、有些失敗；TransactWriteItems 才是全部成功或全部不做。</p>
+  <p class="dexp">BatchWriteItem 裡可能有些成功、有些失敗；TransactWriteItems 才是全部成功或全部不做。</p>
 </div>
 <div class="drill">
   <p class="dq">交易被取消，<code>CancellationReasons</code> 是 <code>[ConditionalCheckFailed, None, None]</code>。第二個動作（A002 加錢）的結果是？</p>
@@ -499,7 +509,7 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <section>
 <p class="era">先付錢，還是用多少付多少</p>
 <h3 class="head">容量模式：隨需與佈建</h3>
-<p>每張表要選一種容量模式。<strong>隨需模式</strong>（on-demand）照請求收費、不必估量，是「大部分工作負載的預設與建議選項」（On-demand mode is the default and recommended throughput option for most DynamoDB workloads）。<strong>佈建模式</strong>（provisioned）先指定每秒讀寫量，照佈建量收費、用不完也算（not how much of that provisioned capacity you actually consumed），適合流量穩定、能估準的工作負載。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/capacity-mode.html" target="_blank" rel="noopener">出處</a></p>
+<p>每張表要選一種容量模式。<strong>隨需模式</strong>（on-demand）照請求收費、不必估量，是大部分工作負載的預設與建議選項。<strong>佈建模式</strong>（provisioned）先指定每秒讀寫量，照佈建量收費、用不完也算，適合流量穩定、能估準的工作負載。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/capacity-mode.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th></th><th>隨需</th><th>佈建</th></tr></thead><tbody>
 <tr><th>怎麼收費</th><td>每次讀寫請求</td><td>每小時佈建的容量，用不完也算</td></tr>
 <tr><th>要不要估量</th><td>不用；新表一開始可撐每秒 4,000 寫、12,000 讀</td><td>要，可以開自動擴展</td></tr>
@@ -507,23 +517,23 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <tr><th>適合</th><td>新服務、流量難預測、大部分情況</td><td>流量穩定、能估準、要壓成本</td></tr>
 </tbody></table></div>
 <p class="muted">隨需那兩格的關鍵原句：On-demand capacity mode instantly accommodates up to double the previous peak traffic on a table；throttling can occur if you exceed double your previous peak within 30 minutes。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/on-demand-capacity-mode.html" target="_blank" rel="noopener">出處</a> 佈建模式改成隨需，24 小時內最多四次；隨需改回佈建隨時可以。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/provisioned-capacity-mode.html" target="_blank" rel="noopener">出處</a></p>
-<p>這課的表用 <code>--billing-mode PAY_PER_REQUEST</code> 建，就是隨需模式。佈建模式的估法照「最終一致讀與強一致讀」那段的單位算：每秒要強一致讀 80 筆 3 KB 的項目，每筆進位到 4 KB 是 1 個 RCU，就佈建 80 RCU，這是文件的例子（to read 80 items per second from a table, set the table's provisioned read throughput to 80 read capacity units）；同理，改成最終一致讀，40 RCU 就夠。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/provisioned-capacity-mode.html" target="_blank" rel="noopener">出處</a> 本地版會忽略佈建數字，這些都只能在雲端驗證。</p>
+<p>這課的表用 <code>--billing-mode PAY_PER_REQUEST</code> 建，就是隨需模式。佈建模式的估法照「最終一致讀與強一致讀」那段的單位算：每秒要強一致讀 80 筆 3 KB 的項目，每筆進位到 4 KB 是 1 個 RCU，就佈建 80 RCU；同理，改成最終一致讀，40 RCU 就夠。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/provisioned-capacity-mode.html" target="_blank" rel="noopener">出處</a> 本地版會忽略佈建數字，這些都只能在雲端驗證。</p>
 <p class="formula">隨需：照請求收費、預設也是建議選項；佈建：照每小時容量收費、流量穩定能估準時用；兩種的單位算法相同</p>
 
 <div class="drill">
   <p class="dq">新的網銀功能剛上線，流量完全猜不到。容量模式先選哪個比較合適？</p>
   <ul class="dopts"><li data-ok>隨需模式，照請求收費</li><li>佈建模式，先開很大</li><li>佈建模式，先開很小</li><li>兩種都不選，用本地版</li></ul>
-  <p class="dexp">文件：隨需是大部分工作負載的預設與建議選項，不必做容量規劃；佈建適合流量穩定、能預估的情況。</p>
+  <p class="dexp">隨需是大部分工作負載的預設與建議選項，不必做容量規劃；佈建適合流量穩定、能預估的情況。</p>
 </div>
 <div class="drill">
   <p class="dq">佈建模式設了 100 WCU，這個月實際只用了平均 20 WCU。費用照哪個算？</p>
   <ul class="dopts"><li>照實際的 20 WCU</li><li data-ok>照佈建的 100 WCU</li><li>照兩者平均的 60 WCU</li><li>沒用滿就不收費</li></ul>
-  <p class="dexp">文件：佈建模式照你佈建的每小時容量收費，不是照實際用量。估太多就是付錢買閒置。</p>
+  <p class="dexp">佈建模式照你佈建的每小時容量收費，不是照實際用量。估太多就是付錢買閒置。</p>
 </div>
 <div class="drill">
   <p class="dq">隨需表平常高峰每秒 5 萬次讀取，行銷活動突然衝到每秒 15 萬。可能發生什麼事？</p>
   <ul class="dopts"><li>隨需模式永遠不會限流</li><li>DynamoDB 會自動改成佈建模式</li><li>立刻撐到 15 萬，沒有任何限制</li><li data-ok>超過舊高峰兩倍，可能被限流</li></ul>
-  <p class="dexp">隨需可以立刻撐到之前高峰的兩倍（10 萬）；超過兩倍又在 30 分鐘內衝上去，可能被限流。文件建議預熱或把成長拉開到 30 分鐘以上。</p>
+  <p class="dexp">隨需可以立刻撐到之前高峰的兩倍（10 萬）；超過兩倍又在 30 分鐘內衝上去，可能被限流。建議預熱或把成長拉開到 30 分鐘以上。</p>
 </div>
 <div class="drill">
   <p class="dq">佈建模式，每秒要最終一致讀 60 筆、每筆 6 KB 的項目，要佈建多少 RCU？</p>
@@ -535,19 +545,19 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <section>
 <p class="era">不是選誰比較新，是選誰比較合</p>
 <h3 class="head">DynamoDB 跟 RDS 怎麼選：銀行情境</h3>
-<p>DynamoDB 開發者指南自己列了一張對照，挑跟選型最有關的幾列（文件把左邊寫成 RDBMS，在 AWS 上就是〈RDS 資料庫資源〉講的 RDS）：</p>
+<p>跟選型最有關的幾列（左邊是 RDBMS，在 AWS 上就是〈RDS 資料庫資源〉講的 RDS）：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>關聯式（RDS）</th><th>DynamoDB</th></tr></thead><tbody>
-<tr><th>最適合</th><td>臨時查詢、資料倉儲、線上分析（Ad hoc queries; data warehousing; OLAP）</td><td>網路規模的應用：社群、遊戲、影音分享、物聯網（Web-scale applications, including social networks, gaming, media sharing, and Internet of Things）</td></tr>
+<tr><th>最適合</th><td>臨時查詢（ad hoc）、資料倉儲、線上分析（OLAP）</td><td>網路規模的應用：社群、遊戲、影音分享、物聯網</td></tr>
 <tr><th>資料模型</th><td>要定義清楚的綱要，資料正規化成表、列、欄</td><td>無綱要，只有主鍵是必要的</td></tr>
 <tr><th>查詢</th><td>SQL，條件、JOIN 都能臨時組</td><td>照設計好的鍵查；也有相容 SQL 的 PartiQL</td></tr>
 <tr><th>擴充</th><td>最簡單是換更快的硬體往上擴；跨多台主機要額外投入</td><td>設計成用分散式叢集往外擴，每張表的項目數與總大小沒有上限</td></tr>
 </tbody></table></div>
-<p class="muted">出處同一頁<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/SQLtoNoSQL.WhyDynamoDB.html" target="_blank" rel="noopener">出處</a>。文件另一頁說得更直接：DynamoDB「只有少數幾種方式能查得有效率，超出這些方式可能又貴又慢」（data can be queried efficiently in a limited number of ways, outside of which queries can be expensive and slow）。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-general-nosql-design.html" target="_blank" rel="noopener">出處</a></p>
-<p>套到銀行系統（以下是依上面文件特性做的設計判斷，不是 AWS 的規定）：</p>
+<p class="muted">出處同一頁<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/SQLtoNoSQL.WhyDynamoDB.html" target="_blank" rel="noopener">出處</a>。說得更直接：DynamoDB 只有少數幾種方式能查得有效率，超出這些方式可能又貴又慢。<a class="fixsrc" href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-general-nosql-design.html" target="_blank" rel="noopener">出處</a></p>
+<p>套到銀行系統（以下是依上面這些特性做的設計判斷，不是 AWS 的規定）：</p>
 <ul class="plainlist">
 <li><strong>交易明細可以</strong>：查法固定（某帳戶、某段時間、依時間排）、量大、寫了幾乎不改，正好是「分割鍵＝帳號、排序鍵＝時間」的形狀，這課的 Query 都是一次拿到。</li>
 <li><strong>帳戶餘額要小心</strong>：做得到，但每個寫入都要自己守規矩：扣款加 <code>balance &gt;= 金額</code> 條件、讀—改—寫加版本號、轉帳用交易、要立刻顯示的讀用強一致讀；不能用原子計數器。關聯式資料庫的交易、約束、外鍵替你守的那些，在這裡都是應用程式的責任。</li>
-<li><strong>報表、對帳、稽核查詢</strong>：條件常變、要跨帳戶加總與 JOIN，屬於文件說的臨時查詢，適合關聯式；放在 DynamoDB 只能 Scan 或事先做好專用的鍵。</li>
+<li><strong>報表、對帳、稽核查詢</strong>：條件常變、要跨帳戶加總與 JOIN，屬於臨時查詢，適合關聯式；放在 DynamoDB 只能 Scan 或事先做好專用的鍵。</li>
 </ul>
 <p>同一個系統可以兩種都用，各自負責適合的部分，〈NoSQL 與資料庫設計〉最後一段也提醒過：每多一種資料庫，就多一份部署、監控、備份與一致性管理的成本。面試被問「什麼時候該用 NoSQL」的答法，見〈資料庫面試題：複寫、分片與 CAP〉。</p>
 <p class="formula">查法固定、量大、要往外擴，選 DynamoDB；查詢多變、要 JOIN 與複雜交易，選 RDS。明細放 DynamoDB 很合，餘額要靠條件、版本號與交易自己守</p>
@@ -555,7 +565,7 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <div class="drill">
   <p class="dq">稽核部門每個月要用不同條件（金額區間、分行、時段、客戶等級）交叉查詢交易。比較適合放哪裡？</p>
   <ul class="dopts"><li>DynamoDB，每種條件各加一個 LSI</li><li>DynamoDB，每次都 Scan 整張表</li><li data-ok>關聯式資料庫，臨時查詢是它的強項</li><li>DynamoDB Local 就夠了</li></ul>
-  <p class="dexp">條件常變是文件說的臨時查詢，RDBMS 的最適合項目。DynamoDB 只有設計好的幾種查法有效率，LSI 也只能建表時建、最多 5 個。</p>
+  <p class="dexp">條件常變是臨時查詢，RDBMS 的最適合項目。DynamoDB 只有設計好的幾種查法有效率，LSI 也只能建表時建、最多 5 個。</p>
 </div>
 <div class="drill">
   <p class="dq">「某帳戶近三個月的交易明細，依時間倒序分頁」，用 DynamoDB 怎麼設計最直接？</p>
@@ -565,7 +575,7 @@ TX#2026-10-03T10:00:00#0006	-1000	轉給 A002</code></pre>
 <div class="drill">
   <p class="dq">帳戶餘額放 DynamoDB，下面哪個做法<strong>不</strong>安全？</p>
   <ul class="dopts"><li>扣款加 balance &gt;= 金額的條件</li><li>讀—改—寫時加版本號條件</li><li>轉帳用 TransactWriteItems</li><li data-ok>用不加條件的原子計數器扣款</li></ul>
-  <p class="dexp">原子計數器不檢查條件、重試可能多扣或少扣，文件點名銀行應用程式不適合。其他三個都是這課示範過的保護。</p>
+  <p class="dexp">原子計數器不檢查條件、重試可能多扣或少扣，銀行應用程式不適合。其他三個都是這課示範過的保護。</p>
 </div>
 </section>
 

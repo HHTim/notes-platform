@@ -8,7 +8,7 @@
     "重新安裝 Istio 的控制平面",
     "替每個 Deployment 手寫 istio-proxy 容器"
    ],
-   "exp": "注入發生在 Pod 建立時。官方比較表：sidecar 模式要 restart all pods；不必重啟的是 ambient 模式。"
+   "exp": "注入發生在 Pod 建立時，所以 sidecar 模式要重啟所有 Pod；不必重啟的是 ambient 模式。"
   },
   {
    "q": "bank 命名空間套用 PeerAuthentication STRICT 之後，沒有 sidecar 的 legacy client 去打 bank 裡的服務，實跑結果是？",
@@ -58,7 +58,7 @@
     "先等 3 秒、Envoy 重試再等 3 秒，共 6 秒",
     "兩邊的逾時相加，總共等 5 秒才放棄"
    ],
-   "exp": "這是 Istio 官方舉的例子：the application’s timeout kicks in first, so your Envoy timeout and retry attempt has no effect。"
+   "exp": "程式的 2 秒逾時先觸發，Envoy 的逾時與重試就沒有作用。"
   },
   {
    "q": "在同一份 VirtualService 裡同時設故障注入的延遲 3 秒與 timeout: 1s，結果等滿 3 秒拿到 200。原因是？",
@@ -68,7 +68,7 @@
     "Istio 預設逾時是 15 秒，會蓋過 1s",
     "延遲注入只對 TCP 有效"
    ],
-   "exp": "VirtualService 參考文件：timeouts or retries will not be enabled when faults are enabled on the client side。"
+   "exp": "用戶端開了故障注入時，逾時與重試不會啟用。"
   },
   {
    "q": "ambient 模式下，負責第四層加密與身分的元件，以及要做 HTTP 權重切分時要加的元件，分別是？",
@@ -88,7 +88,7 @@
     "發佈版本時會失敗",
     "UUID 只在第一次 Invoke 時產生"
    ],
-   "exp": "初始化結果被拍進快照。官方範例把 UUID 改在 handler 裡第一次用到時才產生，或用快照前後的掛勾重新產生。"
+   "exp": "初始化結果被拍進快照，每個環境拿到同一個 UUID。解法是把 UUID 改在 handler 裡第一次用到時才產生，或用快照前後的掛勾重新產生。"
   },
   {
    "q": "同時有 40 個請求。Lambda 函式與並行上限 80 的 Cloud Run 服務，最少各需要幾個環境或執行個體？",

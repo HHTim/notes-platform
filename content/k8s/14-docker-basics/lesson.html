@@ -17,7 +17,7 @@
 <p class="era">裝之前</p>
 <h3 class="head">Linux 容器要的是 Linux 核心，所以 Mac 和 Windows 得墊一層</h3>
 <p>容器靠的是 Linux 核心內建的兩個機制（〈容器〉說過：一個讓你只看得到自己的東西，一個限制你能吃多少資源）。在 Linux 上這兩個機制本來就在，Docker Engine 直接用就好；在 macOS 和 Windows 上沒有 Linux 核心，所以得先有一個 Linux 環境，容器再跑在那裡面。</p>
-<p class="muted">要分清楚的是「誰需要 Linux」：<mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Engine 只能 run 在 Linux 環境!!」（連寫三次），查證後更正：Docker 官方文件寫 Docker Engine 透過 Docker Desktop 也能在 Windows 與 macOS 上取得；Windows 另有跑 Windows 容器的路線。「需要 Linux 核心」講的是 Linux 容器，不等於 Docker Engine 只存在於 Linux">需要 Linux 核心的是 <strong>Linux 容器</strong>，不是 Docker Engine 這支程式本身。Docker 官方文件寫的是 Docker Engine 透過 Docker Desktop 在 Windows、macOS、Linux 上都取得到，而且 Windows 上還有另一條跑 Windows 容器的路線</mark><a class="fixsrc" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">出處</a>。對 Mac 和 Windows 上要跑 Linux 容器的人來說，結論一樣：中間會有一層 Linux，只是你通常感覺不到。那一層長什麼樣，〈Docker Desktop 與 Colima〉拆開來看。</p>
+<p class="muted">要分清楚的是「誰需要 Linux」：<mark class="fixnote" tabindex="0" data-note="原筆記寫「Docker Engine 只能 run 在 Linux 環境!!」（連寫三次），查證後更正：Docker 官方文件寫 Docker Engine 透過 Docker Desktop 也能在 Windows 與 macOS 上取得；Windows 另有跑 Windows 容器的路線。「需要 Linux 核心」講的是 Linux 容器，不等於 Docker Engine 只存在於 Linux">需要 Linux 核心的是 <strong>Linux 容器</strong>，不是 Docker Engine 這支程式本身。Docker Engine 透過 Docker Desktop 在 Windows、macOS、Linux 上都取得到，而且 Windows 上還有另一條跑 Windows 容器的路線</mark><a class="fixsrc" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener">出處</a>。對 Mac 和 Windows 上要跑 Linux 容器的人來說，結論一樣：中間會有一層 Linux，只是你通常感覺不到。那一層長什麼樣，〈Docker Desktop 與 Colima〉拆開來看。</p>
 <div class="tablewrap">
   <table>
     <thead><tr><th scope="col">你的電腦</th><th scope="col">常見裝法</th><th scope="col">中間那層 Linux</th></tr></thead>
@@ -104,7 +104,7 @@ docker container exec -it web sh</code></pre>
 <p><code>-i</code> 是保持標準輸入（STDIN，也就是「你打的字送得進去」）開著；<code>-t</code> 是配一個偽終端機（TTY，讓你有提示符號、能按 Tab 補字、能按 Ctrl + C）。兩個一起用才有像在本機終端機操作的感覺。只給 <code>-i</code> 會沒有提示符號，只給 <code>-t</code> 則可能打不進字。</p>
 <p class="q">run 和 exec 差在哪？<strong>run 是開一個新容器；exec 是在已經在跑的容器裡再起一支程式。</strong>所以從 exec 開出來的 shell 打 <code>exit</code> 離開，容器還是 Up；但如果你離開的是容器的主程式，容器就跟著結束。</p>
 <p class="muted">不是每個映像檔裡都有 <code>bash</code>。精簡的映像檔（例如 Alpine 那一類）通常只有 <code>sh</code>，所以 <code>sh</code> 是比較保險的第一次嘗試。</p>
-<p class="muted">上面兩個鍵要補一個前提。官方文件寫的是：<code>--sig-proxy</code> 預設開著時，Ctrl + C 會把 SIGINT 送進容器；而 Ctrl + P 接 Ctrl + Q 這個脫離鍵，「if the container was run with <code>-i</code> and <code>-t</code>」才有用。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/attach/" target="_blank" rel="noopener">出處</a> 而且<strong>訊號送進去不保證停得掉</strong>：容器裡的主程式是編號 1 的程序，Linux 對它有特殊待遇——「A process running as PID 1 inside a container is treated specially by Linux: it ignores any signal with the default action. So, the process doesn't terminate on SIGINT or SIGTERM unless it's coded to do so.」，<strong>除非那支程式自己有寫處理，否則它會直接忽略 SIGINT 和 SIGTERM</strong>。停不掉的時候用 <code>docker container stop</code>（逾時後會改送 SIGKILL）。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/run/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">上面兩個鍵要補一個前提：<code>--sig-proxy</code> 預設開著時，Ctrl + C 會把 SIGINT 送進容器；而 Ctrl + P 接 Ctrl + Q 這個脫離鍵，只有容器是用 <code>-i</code> 和 <code>-t</code> 啟動時才有用。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/attach/" target="_blank" rel="noopener">出處</a> 而且<strong>訊號送進去不保證停得掉</strong>：容器裡的主程式是編號 1 的程序，Linux 對它有特殊待遇：預設動作的訊號一律忽略。所以<strong>除非那支程式自己有寫處理，否則它會直接忽略 SIGINT 和 SIGTERM</strong>。停不掉的時候用 <code>docker container stop</code>（逾時後會改送 SIGKILL）。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/run/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -136,7 +136,7 @@ docker container rm web</code></pre>
 <p>要一次處理很多個，用括號把清單餵進去：</p>
 <pre><code>docker container stop $(docker container ls -aq)   # -q 只印 ID</code></pre>
 <blockquote>
-<p><code>docker system prune</code> 這類指令一次會清掉多種「目前沒在用」的東西——停掉的容器、沒人掛的網路、以及<strong>懸空的映像檔</strong>（dangling image：沒有任何標籤指著它的那些，通常是重建之後被頂掉的舊層）。<strong>映像檔那一項預設只清懸空的</strong>；加上 <code>-a</code> 才會連「有標籤但目前沒有容器在用」的映像檔一起刪——官方對 <code>-a</code> 的說明就是「Remove all unused images not just dangling ones」。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/system/prune/" target="_blank" rel="noopener">出處</a> 在還不確定它會掃到什麼之前，先用 <code>ls</code> 把要刪的列出來看過，再動手。</p>
+<p><code>docker system prune</code> 這類指令一次會清掉多種「目前沒在用」的東西——停掉的容器、沒人掛的網路、以及<strong>懸空的映像檔</strong>（dangling image：沒有任何標籤指著它的那些，通常是重建之後被頂掉的舊層）。<strong>映像檔那一項預設只清懸空的</strong>；加上 <code>-a</code> 才會連「有標籤但目前沒有容器在用」的映像檔一起刪（<code>-a</code> 就是刪掉所有沒在用的映像檔，不只懸空的）。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/system/prune/" target="_blank" rel="noopener">出處</a> 在還不確定它會掃到什麼之前，先用 <code>ls</code> 把要刪的列出來看過，再動手。</p>
 </blockquote>
 </section>
 

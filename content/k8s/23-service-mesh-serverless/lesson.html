@@ -4,9 +4,9 @@
 <section>
 <p class="era">先看網格長什麼樣</p>
 <h3 class="head">Service Mesh 解決什麼，以及 sidecar 長什麼樣</h3>
-<p>〈Service：找路〉解決了「找得到」。找到之後，服務之間的連線還有一堆事：要不要加密、怎麼確認對方是誰、等多久算逾時、失敗要不要重試、新版本先給幾成流量。這些事可以每個服務用函式庫自己做（〈韌性模式：Resilience4j 的斷路器、重試與限流〉就是這條路），也可以交給平台。服務網格（Service Mesh）是後者，Istio 的定義：「一層基礎設施，讓應用程式不必改程式碼就得到 zero-trust 安全、可觀測性與進階的流量管理」（A service mesh is an infrastructure layer that gives applications capabilities like zero-trust security, observability, and advanced traffic management, without code changes.）。<a class="fixsrc" href="https://istio.io/latest/about/service-mesh/" target="_blank" rel="noopener">出處</a> zero-trust 的意思是不因為在內網就信任，每條連線都要驗身分。</p>
+<p>〈Service：找路〉解決了「找得到」。找到之後，服務之間的連線還有一堆事：要不要加密、怎麼確認對方是誰、等多久算逾時、失敗要不要重試、新版本先給幾成流量。這些事可以每個服務用函式庫自己做（〈韌性模式：Resilience4j 的斷路器、重試與限流〉就是這條路），也可以交給平台。服務網格（Service Mesh）是後者：一層基礎設施，讓應用程式不必改程式碼就得到 zero-trust 安全、可觀測性與進階的流量管理。<a class="fixsrc" href="https://istio.io/latest/about/service-mesh/" target="_blank" rel="noopener">出處</a> zero-trust 的意思是不因為在內網就信任，每條連線都要驗身分。</p>
 <p>面試怎麼答見〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。兩個名詞先記住：真正轉送流量的代理程式叫<strong>資料平面</strong>，Istio 用的代理是 Envoy；負責把設定與憑證發給這些代理的叫<strong>控制平面</strong>，在 Istio 是一個叫 <code>istiod</code> 的程式。</p>
-<p>實驗環境：用 kind（在 Docker 裡開 Kubernetes 節點的工具，〈部署策略與探針〉也用它）建一個單節點叢集，再用 <code>istioctl install --set profile=demo</code> 裝 Istio 1.31.1。demo 設定檔官方說是「用不多的資源展示 Istio 功能」，而且開了大量追蹤與存取日誌，「不適合做效能測試」（not suitable for performance tests）。<a class="fixsrc" href="https://istio.io/latest/docs/setup/additional-setup/config-profiles/" target="_blank" rel="noopener">出處</a> 開兩個命名空間：<code>bank</code> 貼上注入標籤，<code>legacy</code> 不貼，當對照組。兩邊各放一個只裝 curl 的 <code>client</code>；<code>bank</code> 另外放 Istio 官方範例 helloworld 的 v1、v2 各一份（呼叫 <code>/hello</code> 會回自己的版本）。<a class="fixsrc" href="https://github.com/istio/istio/tree/master/samples/helloworld" target="_blank" rel="noopener">出處</a></p>
+<p>實驗環境：用 kind（在 Docker 裡開 Kubernetes 節點的工具，〈部署策略與探針〉也用它）建一個單節點叢集，再用 <code>istioctl install --set profile=demo</code> 裝 Istio 1.31.1。demo 設定檔是用不多的資源展示 Istio 功能，開了大量追蹤與存取日誌，不適合做效能測試。<a class="fixsrc" href="https://istio.io/latest/docs/setup/additional-setup/config-profiles/" target="_blank" rel="noopener">出處</a> 開兩個命名空間：<code>bank</code> 貼上注入標籤，<code>legacy</code> 不貼，當對照組。兩邊各放一個只裝 curl 的 <code>client</code>；<code>bank</code> 另外放 Istio 官方範例 helloworld 的 v1、v2 各一份（呼叫 <code>/hello</code> 會回自己的版本）。<a class="fixsrc" href="https://github.com/istio/istio/tree/master/samples/helloworld" target="_blank" rel="noopener">出處</a></p>
 <pre><code>apiVersion: v1
 kind: Namespace
 metadata:
@@ -83,11 +83,11 @@ istio-proxy restartPolicy=Always
 $ kubectl get pod -n legacy -l app=client
 NAME                      READY   STATUS    RESTARTS   AGE
 client-5d4dc5766c-xv68c   1/1     Running   0          46s</code></pre>
-<p>同一份 Deployment，<code>bank</code> 那邊是 <code>2/2</code>、<code>legacy</code> 是 <code>1/1</code>：多出來的就是 sidecar（邊車，掛在主程式旁邊、跟它同生共死的輔助容器），也就是 <code>istio-proxy</code> 這個 Envoy。sidecar 不是自己寫進 YAML 的，是 Pod 建立時被 Istio 改寫規格加進去的，這叫注入。所以標籤要在 Pod 建立<strong>之前</strong>貼好；已經在跑的 Pod 要重啟才會被注入（Istio 的比較表：Label a namespace and restart all pods to have sidecars added）。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a></p>
+<p>同一份 Deployment，<code>bank</code> 那邊是 <code>2/2</code>、<code>legacy</code> 是 <code>1/1</code>：多出來的就是 sidecar（邊車，掛在主程式旁邊、跟它同生共死的輔助容器），也就是 <code>istio-proxy</code> 這個 Envoy。sidecar 不是自己寫進 YAML 的，是 Pod 建立時被 Istio 改寫規格加進去的，這叫注入。所以標籤要在 Pod 建立<strong>之前</strong>貼好；已經在跑的 Pod 要重啟才會被注入。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a></p>
 <p>有個細節：<code>spec.containers</code> 只有 <code>curl</code>，<code>istio-proxy</code> 放在 <code>initContainers</code>，而且 <code>restartPolicy=Always</code>。這是 Kubernetes 的原生 sidecar：在 <code>initContainers</code> 裡設 <code>restartPolicy</code> 的容器會一直跑，不像一般初始化容器跑完就結束；這功能 1.28 加入、1.33 起穩定。<a class="fixsrc" href="https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/" target="_blank" rel="noopener">出處</a></p>
-<p>Istio 的部落格說這樣設定是「告訴 Kubernetes 把它當 sidecar」（This tells Kubernetes to treat it as a sidecar.），好處是其他容器要等代理就緒才啟動，主程式結束後 Pod 也能結束。<a class="fixsrc" href="https://istio.io/latest/blog/2023/native-sidecars/" target="_blank" rel="noopener">出處</a></p>
-<p>另一個 <code>istio-init</code> 是一般的初始化容器，「設定 Pod 的網路流量轉向，進出都先經過 sidecar 代理」。<a class="fixsrc" href="https://istio.io/latest/docs/setup/additional-setup/cni/" target="_blank" rel="noopener">出處</a> 所以程式照常連 <code>helloworld:5000</code>，封包會先被轉到自己旁邊的 Envoy。</p>
-<p>代價也寫在官方文件裡：sidecar 模式「經過充分實戰，但有資源成本與維運負擔」（well understood and thoroughly battle-tested, but comes with a resource cost and operational overhead）。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 每個 Pod 多一個代理要吃 CPU 與記憶體，每一跳多經過兩個代理。</p>
+<p>這樣設定是告訴 Kubernetes 把它當 sidecar，好處是其他容器要等代理就緒才啟動，主程式結束後 Pod 也能結束。<a class="fixsrc" href="https://istio.io/latest/blog/2023/native-sidecars/" target="_blank" rel="noopener">出處</a></p>
+<p>另一個 <code>istio-init</code> 是一般的初始化容器，負責設定 Pod 的網路流量轉向，進出都先經過 sidecar 代理。<a class="fixsrc" href="https://istio.io/latest/docs/setup/additional-setup/cni/" target="_blank" rel="noopener">出處</a> 所以程式照常連 <code>helloworld:5000</code>，封包會先被轉到自己旁邊的 Envoy。</p>
+<p>sidecar 模式經過充分實戰，但有資源成本與維運負擔。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 每個 Pod 多一個代理要吃 CPU 與記憶體，每一跳多經過兩個代理。</p>
 <div class="drill">
   <p class="dq"><code>bank</code> 命名空間貼了 <code>istio-injection: enabled</code>，裡面一個單容器的 Pod 跑起來後 READY 顯示什麼？</p>
   <ul class="dopts"><li>1/1，sidecar 不算在 READY 裡</li><li data-ok>2/2，多了 istio-proxy</li><li>1/2，sidecar 要等第一個請求才啟動</li><li>2/2，多了 istiod</li></ul>
@@ -96,7 +96,7 @@ client-5d4dc5766c-xv68c   1/1     Running   0          46s</code></pre>
 <div class="drill">
   <p class="dq">先部署了服務，之後才替命名空間貼上注入標籤。現有的 Pod 會怎樣？</p>
   <ul class="dopts"><li>馬上被加上 sidecar，不必重啟</li><li>被 Istio 刪掉重建</li><li>變成 READY 0/1</li><li data-ok>不變，要重啟 Pod 才會被注入</li></ul>
-  <p class="dexp">注入發生在 Pod 建立時改寫規格。官方比較表寫 sidecar 模式加入網格要 restart all pods；不必重啟的是 ambient 模式。</p>
+  <p class="dexp">注入發生在 Pod 建立時改寫規格，所以 sidecar 模式加入網格要重啟所有 Pod；不必重啟的是 ambient 模式。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑的 Pod 裡，<code>istio-proxy</code> 出現在哪個欄位？</p>
@@ -106,26 +106,31 @@ client-5d4dc5766c-xv68c   1/1     Running   0          46s</code></pre>
 <div class="drill">
   <p class="dq">程式碼裡連的還是 <code>http://helloworld:5000</code>，流量怎麼會經過 Envoy？</p>
   <ul class="dopts"><li>Istio 改了 DNS，讓 helloworld 指到 Envoy 的位址</li><li>程式要改用 Istio 的用戶端函式庫才會經過 Envoy</li><li data-ok>istio-init 設好流量轉向，進出 Pod 都先經過 sidecar</li><li>Service 的 selector 被改成指向 Envoy</li></ul>
-  <p class="dexp">官方：istio-init 設定 Pod 網路流量進出 sidecar 代理的轉向。程式不必知道代理存在，這也是「不必改程式碼」的來源。</p>
+  <p class="dexp">istio-init 設定 Pod 網路流量進出 sidecar 代理的轉向。程式不必知道代理存在，這也是「不必改程式碼」的來源。</p>
 </div>
 <div class="drill">
-  <p class="dq">官方文件對 sidecar 模式的代價怎麼說？</p>
+  <p class="dq">sidecar 模式的代價是什麼？</p>
   <ul class="dopts"><li>沒有代價，只是設定比較多</li><li>只有控制平面要吃資源</li><li>只在跨叢集時才有額外負擔</li><li data-ok>有資源成本與維運負擔</li></ul>
-  <p class="dexp">原文 comes with a resource cost and operational overhead。每個 Pod 都多一個代理，每一跳多經過兩個代理。</p>
+  <p class="dexp">sidecar 模式有資源成本與維運負擔：每個 Pod 都多一個代理，每一跳多經過兩個代理。</p>
 </div>
 </section>
 
 <section>
 <p class="era">服務之間誰是誰</p>
 <h3 class="head">mTLS：自動加密與工作負載身分</h3>
-<p>一般的 HTTPS 只有伺服器出示憑證（握手過程見〈TCP、UDP 與 TLS 握手〉）。mTLS（雙向 TLS）是兩端都出示憑證，伺服器也能確認呼叫它的是誰。Istio 的流程：「Istio 把用戶端送出的流量轉到用戶端旁邊的 Envoy，用戶端的 Envoy 跟伺服器端的 Envoy 進行 mTLS 握手」（Istio re-routes the outbound traffic from a client to the client’s local sidecar Envoy. The client side Envoy starts a mutual TLS handshake with the server side Envoy.）。程式自己還是送明文 HTTP，加密在兩個代理之間做；而且不用設定，兩個代理之間的流量 Istio 會「自動升級成 mTLS」（Istio automatically upgrades all traffic between two PEPs to mutual TLS，PEP 指的就是代理）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a></p>
+<p>一般的 HTTPS 只有伺服器出示憑證（握手過程見〈TCP、UDP 與 TLS 握手〉）。mTLS（雙向 TLS）是兩端都出示憑證，伺服器也能確認呼叫它的是誰。Istio 的流程：</p>
+<ol>
+<li>Istio 把用戶端送出的流量轉到用戶端旁邊的 Envoy</li>
+<li>用戶端的 Envoy 跟伺服器端的 Envoy 進行 mTLS 握手</li>
+</ol>
+<p>程式自己還是送明文 HTTP，加密在兩個代理之間做；而且不用設定，兩個代理（文件叫 PEP）之間的流量 Istio 會自動升級成 mTLS。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a></p>
 <p>伺服器那一側收不收明文，由 PeerAuthentication 決定，三種模式：<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a></p>
-<div class="tablewrap"><table><thead><tr><th>模式</th><th>官方說明</th></tr></thead><tbody>
-<tr><th><code>PERMISSIVE</code></th><td>mTLS 與明文都收（Workloads accept both mutual TLS and plain text traffic），最適合搬遷期間；沒設定時網格預設就是它</td></tr>
-<tr><th><code>STRICT</code></th><td>只收 mTLS（Workloads only accept mutual TLS traffic）</td></tr>
+<div class="tablewrap"><table><thead><tr><th>模式</th><th>行為</th></tr></thead><tbody>
+<tr><th><code>PERMISSIVE</code></th><td>mTLS 與明文都收，最適合搬遷期間；沒設定時網格預設就是它</td></tr>
+<tr><th><code>STRICT</code></th><td>只收 mTLS</td></tr>
 <tr><th><code>DISABLE</code></th><td>關掉 mTLS；除非你有自己的安全方案，否則不該用</td></tr>
 </tbody></table></div>
-<p>官方也說了順序：搬遷時用 PERMISSIVE，「工作負載都注入 sidecar 之後，應該切到 STRICT」（Once workloads are migrated with sidecar injection, you should switch the mode to STRICT.）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a> 實驗：兩個 client 都去打 <code>helloworld</code>，先在預設狀態打一次，再套用下面這份規則打一次。</p>
+<p>順序：搬遷時用 PERMISSIVE，工作負載都注入 sidecar 之後，再切到 STRICT。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a> 實驗：兩個 client 都去打 <code>helloworld</code>，先在預設狀態打一次，再套用下面這份規則打一次。</p>
 <pre><code>apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
@@ -149,7 +154,7 @@ curl 結束碼 0
 $ （legacy 裡沒有 sidecar 的 client）curl helloworld.bank:5000/hello
 HTTP 000
 curl 結束碼 56</code></pre>
-<p>PERMISSIVE 時兩邊都通；切到 STRICT 後，有 sidecar 的照樣 200，沒有 sidecar 的拿到 <code>HTTP 000</code>（沒收到任何回應）與 curl 結束碼 56，手冊的意思是「接收網路資料失敗」（Failure in receiving network data）。<a class="fixsrc" href="https://curl.se/docs/manpage.html" target="_blank" rel="noopener">出處</a> 也就是連線建立了，但 helloworld 旁邊的代理不收明文，直接斷掉。參考文件說 STRICT 的用處就是「確保繞過網格的連線不可能成功」（STRICT mode is useful to ensure that connections that bypass the mesh are not possible.）。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/security/peer_authentication/" target="_blank" rel="noopener">出處</a></p>
+<p>PERMISSIVE 時兩邊都通；切到 STRICT 後，有 sidecar 的照樣 200，沒有 sidecar 的拿到 <code>HTTP 000</code>（沒收到任何回應）與 curl 結束碼 56，意思是接收網路資料失敗。<a class="fixsrc" href="https://curl.se/docs/manpage.html" target="_blank" rel="noopener">出處</a> 也就是連線建立了，但 helloworld 旁邊的代理不收明文，直接斷掉。STRICT 的用處就是確保繞過網格的連線不可能成功。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/security/peer_authentication/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 330" role="img" aria-label="sidecar 與 mTLS：bank 命名空間裡，client 的 Pod 有 curl 容器與 istio-proxy 兩個容器，helloworld 的 Pod 也有 istio-proxy；兩個 istio-proxy 之間是 mTLS 加密連線，雙方都出示 istiod 簽發的憑證；右下角 legacy 命名空間的 client 沒有 istio-proxy，送明文，在 STRICT 模式下被 helloworld 那一側的 istio-proxy 拒絕">
   <defs><marker id="sm-01-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -199,15 +204,15 @@ X509v3 Subject Alternative Name: critical
     URI:spiffe://cluster.local/ns/bank/sa/default
 notBefore=Oct  2 20:51:43 2026 GMT
 notAfter=Oct  3 20:53:43 2026 GMT</code></pre>
-<p>憑證裡的身分是 <code>spiffe://<wbr>cluster.<wbr>local/<wbr>ns/<wbr>bank/<wbr>sa/<wbr>default</code>。SPIFFE 是一套工作負載身分的標準，SPIFFE ID 是「唯一且明確識別一個工作負載的字串」，格式是 <code>spiffe://</code> 信任網域 / 工作負載識別。<a class="fixsrc" href="https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/" target="_blank" rel="noopener">出處</a> 在 Kubernetes 上，Istio 用的身分是 service account（服務帳號，Pod 跑起來時代表的 K8s 帳號）<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a>，所以這串讀作「<code>bank</code> 命名空間的 <code>default</code> 服務帳號」。</p>
-<p>實驗沒有替 Pod 指定服務帳號，大家都是 <code>default</code>；授權規則（AuthorizationPolicy）就是拿這個身分寫「誰可以呼叫我」，例如官方範例的 <code>principals: ["cluster.local/ns/default/sa/sleep"]</code><a class="fixsrc" href="https://istio.io/latest/docs/reference/config/security/authorization-policy/" target="_blank" rel="noopener">出處</a>，所以正式環境每個服務要有自己的服務帳號，否則分不出誰是誰。</p>
-<p>憑證的有效期間從 10/2 20:51:43 到 10/3 20:53:43，24 小時又 2 分鐘。多的 2 分鐘是起始時間（notBefore）往前多算的：Istio 簽憑證時把 notBefore 設成「現在減 2 分鐘」，原始碼註解說這是為了應付 CA 與工作負載之間的時鐘誤差（This is meant to handle cases where we have clock skew between the CA and workloads.）。<a class="fixsrc" href="https://github.com/istio/istio/blob/1.31.1/security/pkg/pki/util/generate_cert.go#L283-L285" target="_blank" rel="noopener">出處</a></p>
-<p>扣掉這 2 分鐘就是 24 小時，對上 Istio 代理的設定 <code>SECRET_TTL</code>，預設 <code>24h0m0s</code>，「Istio 代理要求的憑證壽命」（The cert lifetime requested by istio agent）。<a class="fixsrc" href="https://istio.io/latest/docs/reference/commands/pilot-agent/" target="_blank" rel="noopener">出處</a></p>
-<p>這麼短沒關係，因為換證是自動的：Istio 代理與 istiod「一起把金鑰與憑證的輪替自動化」（work together with istiod to automate key and certificate rotation at scale）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a> 根憑證（<code>ROOTCA</code>）實測有效十年。</p>
+<p>憑證裡的身分是 <code>spiffe://<wbr>cluster.<wbr>local/<wbr>ns/<wbr>bank/<wbr>sa/<wbr>default</code>。SPIFFE 是一套工作負載身分的標準，SPIFFE ID 是唯一且明確識別一個工作負載的字串，格式是 <code>spiffe://</code> 信任網域 / 工作負載識別。<a class="fixsrc" href="https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/" target="_blank" rel="noopener">出處</a> 在 Kubernetes 上，Istio 用的身分是 service account（服務帳號，Pod 跑起來時代表的 K8s 帳號）<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a>，所以這串讀作「<code>bank</code> 命名空間的 <code>default</code> 服務帳號」。</p>
+<p>實驗沒有替 Pod 指定服務帳號，大家都是 <code>default</code>；授權規則（AuthorizationPolicy）就是拿這個身分寫「誰可以呼叫我」，例如 <code>principals: ["cluster.local/ns/default/sa/sleep"]</code><a class="fixsrc" href="https://istio.io/latest/docs/reference/config/security/authorization-policy/" target="_blank" rel="noopener">出處</a>，所以正式環境每個服務要有自己的服務帳號，否則分不出誰是誰。</p>
+<p>憑證的有效期間從 10/2 20:51:43 到 10/3 20:53:43，24 小時又 2 分鐘。多的 2 分鐘是起始時間（notBefore）往前多算的：Istio 簽憑證時把 notBefore 設成「現在減 2 分鐘」，用來應付 CA 與工作負載之間的時鐘誤差。<a class="fixsrc" href="https://github.com/istio/istio/blob/1.31.1/security/pkg/pki/util/generate_cert.go#L283-L285" target="_blank" rel="noopener">出處</a></p>
+<p>扣掉這 2 分鐘就是 24 小時，對上 Istio 代理的設定 <code>SECRET_TTL</code>，預設 <code>24h0m0s</code>，是 Istio 代理要求的憑證壽命。<a class="fixsrc" href="https://istio.io/latest/docs/reference/commands/pilot-agent/" target="_blank" rel="noopener">出處</a></p>
+<p>這麼短沒關係，因為換證是自動的：Istio 代理與 istiod 一起把金鑰與憑證的輪替自動化。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/security/" target="_blank" rel="noopener">出處</a> 根憑證（<code>ROOTCA</code>）實測有效十年。</p>
 <div class="drill">
   <p class="dq">兩個都有 sidecar 的服務，沒寫任何 PeerAuthentication，它們之間的流量是？</p>
   <ul class="dopts"><li>明文，要設 STRICT 才會加密</li><li data-ok>兩邊都有代理，自動升級成 mTLS</li><li>被拒絕，要先設 PERMISSIVE</li><li>只有伺服器出示憑證的一般 TLS</li></ul>
-  <p class="dexp">官方：Istio automatically upgrades all traffic between two PEPs to mutual TLS。PERMISSIVE 只是伺服器那一側「也收明文」，兩邊都有代理時照樣走 mTLS。</p>
+  <p class="dexp">兩個代理之間的流量 Istio 會自動升級成 mTLS。PERMISSIVE 只是伺服器那一側「也收明文」，兩邊都有代理時照樣走 mTLS。</p>
 </div>
 <div class="drill">
   <p class="dq">STRICT 之後，沒有 sidecar 的 <code>legacy</code> client 打 helloworld 得到什麼？</p>
@@ -217,7 +222,7 @@ notAfter=Oct  3 20:53:43 2026 GMT</code></pre>
 <div class="drill">
   <p class="dq">要把一個大家都在呼叫的服務遷進網格，但有幾個呼叫端短期內裝不了 sidecar。PeerAuthentication 先用哪個模式？</p>
   <ul class="dopts"><li data-ok>PERMISSIVE，等呼叫端都進網格再切 STRICT</li><li>STRICT，逼還沒進網格的呼叫端趕快裝</li><li>DISABLE，全部改回明文</li><li>不必設，沒有 sidecar 的呼叫端會自動被注入</li></ul>
-  <p class="dexp">官方原文：PERMISSIVE 最適合搬遷期間，workloads are migrated with sidecar injection 之後再切 STRICT。直接 STRICT 會讓沒 sidecar 的呼叫端立刻斷線。</p>
+  <p class="dexp">PERMISSIVE 最適合搬遷期間，工作負載都注入 sidecar 之後再切 STRICT。直接 STRICT 會讓沒 sidecar 的呼叫端立刻斷線。</p>
 </div>
 <div class="drill">
   <p class="dq">憑證裡的 <code>spiffe://<wbr>cluster.<wbr>local/<wbr>ns/<wbr>bank/<wbr>sa/<wbr>default</code>，<code>sa/default</code> 指的是？</p>
@@ -233,14 +238,14 @@ notAfter=Oct  3 20:53:43 2026 GMT</code></pre>
 <div class="drill">
   <p class="dq">工作負載憑證只有約 24 小時，為什麼不會每天出事？</p>
   <ul class="dopts"><li data-ok>Istio 代理與 istiod 自動輪替</li><li>過期後連線改走明文，不影響服務</li><li>維運人員每天手動更新一次</li><li>過期的憑證 Envoy 仍然照樣接受，不會斷線</li></ul>
-  <p class="dexp">pilot-agent 的 SECRET_TTL 預設 24h0m0s；官方說代理與 istiod automate key and certificate rotation。短壽命的好處是外洩了也很快失效。</p>
+  <p class="dexp">pilot-agent 的 SECRET_TTL 預設 24h0m0s；代理與 istiod 會自動輪替金鑰與憑證。短壽命的好處是外洩了也很快失效。</p>
 </div>
 </section>
 
 <section>
 <p class="era">換版本時只放一點流量</p>
 <h3 class="head">流量切分：用 VirtualService 權重做 90/10 金絲雀</h3>
-<p>〈部署策略與探針〉的原生金絲雀（canary，先讓一小部分流量試新版）比例只能靠 Pod 數湊：要一成就要九比一的份數。網格把比例寫在規則裡。需要兩份 YAML：DestinationRule 把一個服務的 Pod 依標籤分成幾組（subset），VirtualService 寫流量怎麼分給這些組，參考文件的說法是「權重決定每個版本收到的流量比例」（Weights associated with the service version determine the proportion of traffic it receives.）。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a></p>
+<p>〈部署策略與探針〉的原生金絲雀（canary，先讓一小部分流量試新版）比例只能靠 Pod 數湊：要一成就要九比一的份數。網格把比例寫在規則裡。需要兩份 YAML：DestinationRule 把一個服務的 Pod 依標籤分成幾組（subset），VirtualService 寫流量怎麼分給這些組，權重決定每個版本收到的流量比例。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a></p>
 <pre><code>apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
@@ -282,7 +287,7 @@ $ （同一個指令）   # 第 2 輪
 $ （同一個指令）   # 第 3 輪
   89 Hello version: v1
   11 Hello version: v2</code></pre>
-<p>v2 三輪分別是 4、8、11 次，合計 300 次裡 23 次，約 7.7%。權重是長期的比例，不是排班表，不保證每 100 次剛好 10 次；要判斷新版好不好，要看夠多請求的錯誤率，不能只看幾十次。重點是兩邊<strong>都只有 1 份 Pod</strong>，比例照樣是 90/10。官方在流量切分任務裡講的就是這件事：這跟容器平台用份數調流量「非常不同」，兩個版本可以「各自擴縮，不影響兩者之間的流量分配」（you can allow the two versions of the reviews service to scale up and down independently, without affecting the traffic distribution between them）。<a class="fixsrc" href="https://istio.io/latest/docs/tasks/traffic-management/traffic-shifting/" target="_blank" rel="noopener">出處</a></p>
+<p>v2 三輪分別是 4、8、11 次，合計 300 次裡 23 次，約 7.7%。權重是長期的比例，不是排班表，不保證每 100 次剛好 10 次；要判斷新版好不好，要看夠多請求的錯誤率，不能只看幾十次。重點是兩邊<strong>都只有 1 份 Pod</strong>，比例照樣是 90/10。這跟容器平台用份數調流量非常不同：兩個版本可以各自擴縮，不影響兩者之間的流量分配。<a class="fixsrc" href="https://istio.io/latest/docs/tasks/traffic-management/traffic-shifting/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="90 比 10 流量切分：client 旁邊的 istio-proxy 讀 VirtualService 的權重，九成請求送到 subset v1、一成送到 subset v2；subset 由 DestinationRule 依 Pod 的 version 標籤定義；兩邊各只有 1 個 Pod，比例跟 Pod 數無關">
   <defs><marker id="sm-02-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -306,7 +311,7 @@ $ （同一個指令）   # 第 3 輪
 </svg>
 <figcaption>呼叫端的 istio-proxy 照 VirtualService 的權重選 subset；subset 由 DestinationRule 依 version 標籤定義。</figcaption>
 </figure>
-<p>推進的做法是一步步改權重（10、30、50、100），每步看指標再決定。這些步驟 Istio 本身不會自動推，要人或工具來改；〈部署策略與探針〉提到的 Argo Rollouts 可以接 Istio，它的文件說流量切分是「調整 Istio VirtualService 裡定義的流量權重」（Traffic splitting is accomplished in Istio by adjusting traffic weights defined in an Istio VirtualService.），也就是替你一步步改上面那兩個 <code>weight</code>。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/traffic-management/istio/" target="_blank" rel="noopener">出處</a></p>
+<p>推進的做法是一步步改權重（10、30、50、100），每步看指標再決定。這些步驟 Istio 本身不會自動推，要人或工具來改；〈部署策略與探針〉提到的 Argo Rollouts 可以接 Istio，做法是調整 VirtualService 裡定義的流量權重，也就是替你一步步改上面那兩個 <code>weight</code>。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/traffic-management/istio/" target="_blank" rel="noopener">出處</a></p>
 <div class="drill">
   <p class="dq">要把 Pod 依 <code>version</code> 標籤分成 v1、v2 兩組，寫在哪種資源裡？</p>
   <ul class="dopts"><li>VirtualService 的 hosts 欄位</li><li>Service 的 selector 寫兩組標籤</li><li>PeerAuthentication 的 selector</li><li data-ok>DestinationRule 的 subsets</li></ul>
@@ -320,12 +325,12 @@ $ （同一個指令）   # 第 3 輪
 <div class="drill">
   <p class="dq">實驗裡 v1、v2 各 1 份 Pod，結果大約九比一。跟〈部署策略與探針〉的原生金絲雀比，差在哪？</p>
   <ul class="dopts"><li data-ok>比例寫在規則裡，跟 Pod 數無關</li><li>原生做法也能做到，只要改 Service 的權重欄位</li><li>網格的比例比較準，每 100 次一定剛好 10 次</li><li>沒有差別，都是看 Pod 數</li></ul>
-  <p class="dexp">原生 Service 沒有權重欄位，比例只能用份數湊。官方：兩個版本可以 scale up and down independently, without affecting the traffic distribution。</p>
+  <p class="dexp">原生 Service 沒有權重欄位，比例只能用份數湊。網格裡兩個版本可以各自擴縮，不影響流量分配。</p>
 </div>
 <div class="drill">
   <p class="dq">新版的 Pod 被 HPA（〈K8s 上手：Minikube 與上雲〉的自動擴縮）從 1 份擴到 5 份，VirtualService 還是 90/10。新版拿到的流量比例會？</p>
   <ul class="dopts"><li>升到大約五成</li><li data-ok>還是大約一成</li><li>升到大約 36%（5 比 9）</li><li>變成 0，要重新套用規則</li></ul>
-  <p class="dexp">權重決定的是送到 subset 的比例，subset 裡有幾份 Pod 只影響那一成在 Pod 之間怎麼分。這正是官方說的「各自擴縮不影響流量分配」。</p>
+  <p class="dexp">權重決定的是送到 subset 的比例，subset 裡有幾份 Pod 只影響那一成在 Pod 之間怎麼分。這就是「各自擴縮不影響流量分配」。</p>
 </div>
 <div class="drill">
   <p class="dq">從 10% 推到 30%、50%、100%，Istio 本身會自動做嗎？</p>
@@ -337,7 +342,12 @@ $ （同一個指令）   # 第 3 輪
 <section>
 <p class="era">逾時與重試該誰管</p>
 <h3 class="head">重試與逾時：放在網格還是程式裡</h3>
-<p>先看網格的預設值：「Istio 預設關掉 Envoy 的 HTTP 逾時」（The Envoy timeout for HTTP requests is disabled in Istio by default.）；重試則是「失敗時重試兩次再回傳錯誤」（retry twice before returning the error）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/traffic-management/" target="_blank" rel="noopener">出處</a> 參考文件寫了預設重試的觸發條件：<code>connect-failure,refused-stream,unavailable,cancelled</code>，都是連線層級的失敗。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a></p>
+<p>先看網格的預設值：</p>
+<ul>
+<li>逾時：Istio 預設關掉 Envoy 的 HTTP 逾時</li>
+<li>重試：失敗時重試兩次再回傳錯誤<a class="fixsrc" href="https://istio.io/latest/docs/concepts/traffic-management/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>預設重試的觸發條件是 <code>connect-failure,refused-stream,unavailable,cancelled</code>，都是連線層級的失敗。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a></p>
 <p>實驗：在 <code>bank</code> 放一個 httpbin（測試用的 HTTP 服務，<code>/delay/3</code> 會等 3 秒才回應），用 VirtualService 替它設 1 秒逾時：</p>
 <pre><code>apiVersion: networking.istio.io/v1
 kind: VirtualService
@@ -356,19 +366,23 @@ $ kubectl apply -f timeout.yaml   # VirtualService 設 timeout: 1s
 $ （同一個 curl 指令）
 HTTP 504，花了 1.005078 秒</code></pre>
 <p>沒規則時等滿 3 秒拿到 200；套用後 1 秒就拿到 504（閘道逾時），是呼叫端旁邊的 Envoy 不等了，程式一行都沒改。</p>
-<p>這裡踩過一個坑：一開始想用 Istio 的故障注入（在同一份 VirtualService 加 <code>fault.delay</code>，讓代理故意延遲）來製造慢回應，結果等滿延遲還是 200，逾時沒有作用。參考文件寫了原因：「用戶端啟用故障注入時，逾時與重試不會啟用」（Note that timeouts or retries will not be enabled when faults are enabled on the client side.）。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a> 所以實驗改用真的會慢的 httpbin。</p>
-<p>網格能設，程式也能設（Resilience4j），兩層各設各的會怎樣？官方在「Working with your applications」一節直說：網格的失敗處理對程式是透明的，程式也設的話「兩者各自運作，可能互相衝突」（both work independently, and therefore might conflict）。它的例子：程式對某個 API 設 2 秒逾時，VirtualService 設 3 秒逾時加重試 1 次，「程式的逾時先到，Envoy 的逾時與重試都沒有作用」（the application’s timeout kicks in first, so your Envoy timeout and retry attempt has no effect）。同一節也說網格不能代替程式處理失敗：所有實體都掛了時 Envoy 回 503，「程式必須自己實作降級邏輯」（The application must implement any fallback logic needed to handle the HTTP 503 error code.）。<a class="fixsrc" href="https://istio.io/latest/docs/concepts/traffic-management/" target="_blank" rel="noopener">出處</a></p>
-<p>重試疊在一起還會相乘。網格的 <code>attempts</code> 是「重試」次數（Number of retries to be allowed for a given request）<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a>，預設 2 等於最多打 3 次；Resilience4j 的 <code>maxAttempts</code> 包含第一次，預設 3。下游連不上時，網格先在自己這層重試，最後回 503 給程式；如果程式把 503 也當成要重試的失敗，程式每試一次網格就打 3 次，最多 3 × 3 = 9 次打到一個已經有問題的下游。下面是整理：</p>
+<p>這裡踩過一個坑：一開始想用 Istio 的故障注入（在同一份 VirtualService 加 <code>fault.delay</code>，讓代理故意延遲）來製造慢回應，結果等滿延遲還是 200，逾時沒有作用。原因是用戶端啟用故障注入時，逾時與重試不會啟用。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a> 所以實驗改用真的會慢的 httpbin。</p>
+<p>網格能設，程式也能設（Resilience4j），兩層各設各的會怎樣？網格的失敗處理對程式是透明的，程式也設的話，兩者各自運作，可能互相衝突：</p>
+<ul>
+<li>例子：程式對某個 API 設 2 秒逾時，VirtualService 設 3 秒逾時加重試 1 次。程式的逾時先到，Envoy 的逾時與重試都沒有作用</li>
+<li>網格不能代替程式處理失敗：所有實體都掛了時 Envoy 回 503，程式必須自己實作降級邏輯<a class="fixsrc" href="https://istio.io/latest/docs/concepts/traffic-management/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>重試疊在一起還會相乘。網格的 <code>attempts</code> 是「重試」次數<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a>，預設 2 等於最多打 3 次；Resilience4j 的 <code>maxAttempts</code> 包含第一次，預設 3。下游連不上時，網格先在自己這層重試，最後回 503 給程式；如果程式把 503 也當成要重試的失敗，程式每試一次網格就打 3 次，最多 3 × 3 = 9 次打到一個已經有問題的下游。下面是整理：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>適合放網格</th><th>適合放程式</th></tr></thead><tbody>
 <tr><th>逾時</th><td>全服務統一的上限，各種語言一致</td><td>依業務決定等多久；要比外層短</td></tr>
 <tr><th>重試</th><td>連線層級的失敗（連不上、被拒）</td><td>要看業務判斷能不能重試（寫入要冪等）</td></tr>
 <tr><th>失敗之後</th><td>只能回 503、504</td><td>降級回呼、斷路器、給使用者的訊息</td></tr>
 </tbody></table></div>
-<p class="muted">這張表是本課依上面官方說法整理的分工建議，不是 Istio 的規定。原則是同一種重試只放一層，逾時由內往外越來越長；斷路器與降級的寫法見〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
+<p class="muted">這張表是本課依上面幾條整理的分工建議，不是 Istio 的規定。原則是同一種重試只放一層，逾時由內往外越來越長；斷路器與降級的寫法見〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
 <div class="drill">
   <p class="dq">VirtualService 什麼都沒設，Envoy 對 HTTP 請求的逾時預設是？</p>
   <ul class="dopts"><li>15 秒</li><li>1 秒</li><li data-ok>關閉，沒有逾時</li><li>跟 K8s Service 的設定一樣</li></ul>
-  <p class="dexp">官方：The Envoy timeout for HTTP requests is disabled in Istio by default。實跑沒規則時 /delay/3 等滿 3 秒拿到 200。</p>
+  <p class="dexp">Istio 預設關掉 Envoy 的 HTTP 逾時。實跑沒規則時 /delay/3 等滿 3 秒拿到 200。</p>
 </div>
 <div class="drill">
   <p class="dq">套了 <code>timeout: 1s</code> 之後打 <code>/delay/3</code>，結果是？</p>
@@ -378,12 +392,12 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <div class="drill">
   <p class="dq">同一份 VirtualService 同時設了 <code>fault.delay</code>（延遲 3 秒）和 <code>timeout: 1s</code>，結果等滿 3 秒還是 200。為什麼？</p>
   <ul class="dopts"><li>fault.delay 只對 gRPC 有效</li><li>timeout 要 2 秒以上才生效</li><li>規則還沒傳到代理</li><li data-ok>啟用故障注入時，逾時與重試不會啟用</li></ul>
-  <p class="dexp">參考文件原文：timeouts or retries will not be enabled when faults are enabled on the client side。本課的實驗因此改用真的會慢的 httpbin。</p>
+  <p class="dexp">用戶端開了故障注入時，逾時與重試不會啟用。本課的實驗因此改用真的會慢的 httpbin。</p>
 </div>
 <div class="drill">
   <p class="dq">程式對某個 API 設 2 秒逾時，VirtualService 設 3 秒逾時加重試 1 次。下游一直很慢時，實際是？</p>
   <ul class="dopts"><li>Envoy 先重試一次，總共等 6 秒</li><li data-ok>程式 2 秒就放棄，Envoy 的逾時與重試都沒作用</li><li>兩邊的逾時相加，等 5 秒</li><li>Envoy 的設定優先，程式自己設的 2 秒逾時會被忽略</li></ul>
-  <p class="dexp">這是官方自己舉的例子：the application’s timeout kicks in first, so your Envoy timeout and retry attempt has no effect。外層比內層短，內層的設定就白設了。</p>
+  <p class="dexp">程式的逾時先到，Envoy 的逾時與重試都沒有作用。外層比內層短，內層的設定就白設了。</p>
 </div>
 <div class="drill">
   <p class="dq">程式用 Resilience4j <code>maxAttempts: 3</code>，而且把 503 當成要重試的失敗；網格保留預設重試（2 次）。下游連不上時，最多會試著連幾次？</p>
@@ -393,14 +407,14 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <div class="drill">
   <p class="dq">下游所有實體都掛了，Envoy 回 503。這時誰該決定要顯示什麼給使用者？</p>
   <ul class="dopts"><li>Envoy，設 VirtualService 的降級欄位</li><li>istiod，它會自動換一個健康的叢集</li><li>不必處理，網格會一直重試到成功</li><li data-ok>應用程式自己，用降級回呼決定顯示什麼</li></ul>
-  <p class="dexp">官方：The application must implement any fallback logic needed to handle the HTTP 503 error code。網格管連線，降級與業務訊息是程式的事。</p>
+  <p class="dexp">所有實體都掛了時 Envoy 回 503，降級邏輯要程式自己實作。網格管連線，降級與業務訊息是程式的事。</p>
 </div>
 </section>
 
 <section>
 <p class="era">不想每個 Pod 都帶代理</p>
 <h3 class="head">Ambient 模式一眼</h3>
-<p>Istio 的另一種資料平面叫 ambient：「用每個節點一個的第四層代理，以及可選的、每個命名空間一個的第七層代理」（a per-node Layer 4 (L4) proxy, and optionally a per-namespace Layer 7 (L7) proxy）。<a class="fixsrc" href="https://istio.io/latest/docs/ambient/overview/" target="_blank" rel="noopener">出處</a> 第四層只看 IP 與連接埠，第七層看得懂 HTTP 內容（分層見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉）。每節點那個叫 ztunnel，負責加密與身分；第七層那個叫 waypoint，要用到 HTTP 層的功能才部署。它 2022 年推出，「自 Istio 1.22 起單叢集情境可用於生產」（As of Istio 1.22, it is production-ready for single cluster use cases）。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 本課的實驗用的是 sidecar 模式，ambient 沒有實跑。</p>
+<p>Istio 的另一種資料平面叫 ambient：每個節點一個第四層代理，再加上可選的、每個命名空間一個的第七層代理。<a class="fixsrc" href="https://istio.io/latest/docs/ambient/overview/" target="_blank" rel="noopener">出處</a> 第四層只看 IP 與連接埠，第七層看得懂 HTTP 內容（分層見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉）。每節點那個叫 ztunnel，負責加密與身分；第七層那個叫 waypoint，要用到 HTTP 層的功能才部署。它 2022 年推出，自 Istio 1.22 起單叢集情境可用於生產。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 本課的實驗用的是 sidecar 模式，ambient 沒有實跑。</p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="sidecar 模式與 ambient 模式：左邊 sidecar 模式，同一個節點上三個 Pod 各自帶一個 Envoy 代理；右邊 ambient 模式，Pod 裡沒有代理，每個節點一個 ztunnel 處理第四層的加密與身分，要第七層功能時才另外部署 waypoint 代理">
   <text x="20" y="28" font-size="14" fill="var(--gold)">sidecar 模式：每個 Pod 一個代理</text>
@@ -450,13 +464,13 @@ HTTP 504，花了 1.005078 秒</code></pre>
 </svg>
 <figcaption>sidecar 模式每個 Pod 帶一個 Envoy；ambient 模式 Pod 裡沒有代理，第四層交給每節點的 ztunnel，要第七層功能再加 waypoint。</figcaption>
 </figure>
-<p>官方的比較表摘幾列：<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a></p>
+<p>兩種模式比較（摘幾列）：<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th></th><th>sidecar</th><th>ambient</th></tr></thead><tbody>
 <tr><th>流量管理（權重、逾時、重試）</th><td>全部功能</td><td>全部功能，但要有 waypoint</td></tr>
 <tr><th>加入網格</th><td>貼標籤，重啟所有 Pod</td><td>貼標籤，不必重啟</td></tr>
 <tr><th>資源</th><td>浪費：每個 Pod 都要照最壞情況預留代理的 CPU 與記憶體</td><td>waypoint 可以像一般 Deployment 一樣自動擴縮，多份 Pod 共用</td></tr>
 </tbody></table></div>
-<p>官方也描述了常見的導入順序：很多人裝網格是先要 zero-trust 的安全，再視需要開第七層功能；ambient 讓他們「不需要第七層時完全省下處理成本」（bypass the cost of L7 processing entirely when it’s not needed）。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 換句話說：只要 mTLS 的話 ambient 很划算；前兩節的金絲雀與逾時屬於第七層，在 ambient 下要再加 waypoint。</p>
+<p>常見的導入順序：很多人裝網格是先要 zero-trust 的安全，再視需要開第七層功能；ambient 讓他們不需要第七層時完全省下處理成本。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 換句話說：只要 mTLS 的話 ambient 很划算；前兩節的金絲雀與逾時屬於第七層，在 ambient 下要再加 waypoint。</p>
 <div class="drill">
   <p class="dq">ambient 模式裡，負責 mTLS 加密與身分的是？</p>
   <ul class="dopts"><li>每個 Pod 裡的 Envoy</li><li>istiod 直接轉送流量</li><li data-ok>每個節點一個的 ztunnel</li><li>每個命名空間一個的 waypoint</li></ul>
@@ -468,39 +482,39 @@ HTTP 504，花了 1.005078 秒</code></pre>
   <p class="dexp">權重看的是 HTTP 請求，屬於第七層。比較表寫 ambient 的流量管理是 Full Istio feature set (requires using waypoint)，不必改回 sidecar。</p>
 </div>
 <div class="drill">
-  <p class="dq">ambient 從哪一版起，官方說單叢集情境可用於生產？</p>
+  <p class="dq">ambient 從哪一版起，單叢集情境可用於生產？</p>
   <ul class="dopts"><li>Istio 1.0</li><li>Istio 1.31</li><li>Istio 1.17</li><li data-ok>Istio 1.22</li></ul>
-  <p class="dexp">原文 As of Istio 1.22, it is production-ready for single cluster use cases。2022 年推出，1.22 達到單叢集可用於生產。</p>
+  <p class="dexp">2022 年推出，1.22 達到單叢集可用於生產。</p>
 </div>
 <div class="drill">
-  <p class="dq">一個團隊裝網格只為了服務間全面 mTLS，不需要 HTTP 層的路由。官方的說法比較支持哪種模式？</p>
+  <p class="dq">一個團隊裝網格只為了服務間全面 mTLS，不需要 HTTP 層的路由。比較適合哪種模式？</p>
   <ul class="dopts"><li data-ok>ambient，可以省下第七層的成本</li><li>sidecar，因為只有它有 mTLS</li><li>都不用，mTLS 要靠程式自己做</li><li>sidecar，因為 ambient 不支援加密</li></ul>
-  <p class="dexp">ambient 的 ztunnel 就有加密與第四層授權；官方說 ambient 讓只要安全的使用者 bypass the cost of L7 processing entirely when it’s not needed。</p>
+  <p class="dexp">ambient 的 ztunnel 就有加密與第四層授權；只要安全的話，ambient 能完全省下第七層的處理成本。</p>
 </div>
 </section>
 
 <section>
 <p class="era">連容器都不想管</p>
 <h3 class="head">Lambda 的模型：一個請求一個環境</h3>
-<p>Serverless 是把「開幾台、什麼時候擴縮」也交給雲端。Lambda 是 AWS 的做法：「一個無伺服器的運算服務，不必準備或管理伺服器就能執行程式」（AWS Lambda is a serverless compute service. With Lambda, you can run code without provisioning or managing servers.）。你寫一個 handler（處理函式），接上觸發來源（API Gateway、S3、SQS 等），Lambda 負責執行。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank" rel="noopener">出處</a> Lambda 跟 ECS、EKS 怎麼選，〈後端與雲端面試題庫〉答過；這一節講它的執行模型，因為適不適合都是從模型推出來的。</p>
-<p>最重要的一句：「每一個同時進行的請求，Lambda 都準備一個獨立的執行環境」（For each concurrent request, Lambda provisions a separate instance of your execution environment.）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html" target="_blank" rel="noopener">出處</a> 同時 100 個請求就是 100 個環境；帳戶的同時執行數預設上限 1,000，以區域計算，可以申請提高。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">出處</a></p>
-<p>一個環境的一生分三段：Init（啟動擴充、啟動語言執行環境、跑 handler 以外的靜態程式碼，限 10 秒）、Invoke（跑 handler）、Shutdown。跑完一次後環境被凍結，下一個請求來了再解凍重用；重用時「宣告在 handler 外面的物件保持已初始化」，官方的例子正是資料庫連線：不必重新建立，沿用原本那條。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a></p>
-<p>但同一頁也說，即使一直有請求，Lambda 每隔幾小時就會換掉環境，「不應該假設執行環境會永遠存在」（You should not assume that the execution environment will persist indefinitely.）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> 單次執行的上限是「900 秒（15 分鐘）」。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">出處</a></p>
-<p>把兩件事放在一起會推出一個常見的坑（本課的推論，不是文件原文）：每個環境各自留著自己的資料庫連線，流量一衝高，環境數跟著衝高，資料庫連線數也一起衝。用容器跑的服務有固定幾份、每份一個連線池，總數可以算；Lambda 的總數跟同時請求數綁在一起。</p>
+<p>Serverless 是把「開幾台、什麼時候擴縮」也交給雲端。Lambda 是 AWS 的做法：一個無伺服器的運算服務，不必準備或管理伺服器就能執行程式。你寫一個 handler（處理函式），接上觸發來源（API Gateway、S3、SQS 等），Lambda 負責執行。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank" rel="noopener">出處</a> Lambda 跟 ECS、EKS 怎麼選，〈後端與雲端面試題庫〉答過；這一節講它的執行模型，因為適不適合都是從模型推出來的。</p>
+<p>最重要的一句：<strong>每一個同時進行的請求，Lambda 都準備一個獨立的執行環境。</strong><a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html" target="_blank" rel="noopener">出處</a> 同時 100 個請求就是 100 個環境；帳戶的同時執行數預設上限 1,000，以區域計算，可以申請提高。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">出處</a></p>
+<p>一個環境的一生分三段：Init（啟動擴充、啟動語言執行環境、跑 handler 以外的靜態程式碼，限 10 秒）、Invoke（跑 handler）、Shutdown。跑完一次後環境被凍結，下一個請求來了再解凍重用；重用時宣告在 handler 外面的物件保持已初始化，典型的例子就是資料庫連線：不必重新建立，沿用原本那條。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a></p>
+<p>但即使一直有請求，Lambda 每隔幾小時就會換掉環境，不能假設執行環境會永遠存在。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> 單次執行的上限是 900 秒（15 分鐘）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">出處</a></p>
+<p>把兩件事放在一起會推出一個常見的坑（本課的推論，文件沒有直接寫）：每個環境各自留著自己的資料庫連線，流量一衝高，環境數跟著衝高，資料庫連線數也一起衝。用容器跑的服務有固定幾份、每份一個連線池，總數可以算；Lambda 的總數跟同時請求數綁在一起。</p>
 <div class="drill">
   <p class="dq">某個 Lambda 函式同時有 50 個請求在處理。有幾個執行環境在忙？</p>
   <ul class="dopts"><li>1 個，請求排隊</li><li data-ok>50 個，一個請求一個環境</li><li>依記憶體設定決定，通常 4 個</li><li>1,000 個，一次開到上限</li></ul>
-  <p class="dexp">官方：For each concurrent request, Lambda provisions a separate instance of your execution environment。一個環境同一時間只處理一個請求。</p>
+  <p class="dexp">每一個同時進行的請求，Lambda 都準備一個獨立的執行環境；一個環境同一時間只處理一個請求。</p>
 </div>
 <div class="drill">
   <p class="dq">Java 的 Lambda 把資料庫連線建在 static 欄位（handler 外面）。第二個請求剛好用到同一個環境時，連線會？</p>
   <ul class="dopts"><li>每次 Invoke 都重建</li><li>被 Lambda 自動關閉再開</li><li data-ok>沿用，handler 外的物件會保持</li><li>出錯，Lambda 不允許 static 欄位</li></ul>
-  <p class="dexp">官方原文 Objects declared outside of the function's handler method remain initialized，例子就是資料庫連線。建議先檢查連線還在不在再用。</p>
+  <p class="dexp">宣告在 handler 外面的物件在環境重用時保持已初始化，例子就是資料庫連線。建議先檢查連線還在不在再用。</p>
 </div>
 <div class="drill">
   <p class="dq">函式一直有請求進來，環境會一直存在嗎？</p>
   <ul class="dopts"><li>會，只要有流量就不會被回收</li><li data-ok>不會，每隔幾小時就會換掉做維護</li><li>會，除非重新部署</li><li>不會，每次 Invoke 完就銷毀</li></ul>
-  <p class="dexp">文件：Lambda 每隔幾小時會終止環境做更新與維護，即使持續被呼叫；所以不能把重要狀態只放在環境裡。</p>
+  <p class="dexp">Lambda 每隔幾小時會終止環境做更新與維護，即使持續被呼叫；所以不能把重要狀態只放在環境裡。</p>
 </div>
 <div class="drill">
   <p class="dq">一個對帳批次平均要跑 40 分鐘，想放到 Lambda 一次跑完。問題在哪？</p>
@@ -517,13 +531,13 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <section>
 <p class="era">第一個請求為什麼慢</p>
 <h3 class="head">冷啟動與 SnapStart</h3>
-<p>新環境第一次要跑完 Init 才能 Invoke，這段等待叫冷啟動；文件的數字（通常不到 1% 的呼叫、從不到 100 毫秒到超過 1 秒）〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉整理過。Java 特別吃虧，因為 JVM 啟動與框架初始化都在 Init 裡。官方的兩條路：</p>
-<p><strong>預置並行（provisioned concurrency）：</strong>事先開好、初始化完的環境，「需要可預期的啟動時間時，建議用這個」（If you need predictable function start times for your workload, provisioned concurrency is the recommended solution）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> 代價是那些環境沒請求時也在計費。</p>
-<p><strong>SnapStart：</strong>「發佈函式版本時，Lambda 就先初始化，對初始化完的環境的記憶體與磁碟狀態拍下 Firecracker 微型虛擬機的快照，加密後快取」（Firecracker 是 AWS 用來隔離每個環境的輕量虛擬機）；之後新環境「從快取的快照恢復，而不是從頭初始化」（Lambda resumes new execution environments from the cached snapshot instead of initializing them from scratch）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a></p>
+<p>新環境第一次要跑完 Init 才能 Invoke，這段等待叫冷啟動；相關數字（通常不到 1% 的呼叫、從不到 100 毫秒到超過 1 秒）〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉整理過。Java 特別吃虧，因為 JVM 啟動與框架初始化都在 Init 裡。有兩條路：</p>
+<p><strong>預置並行（provisioned concurrency）：</strong>事先開好、初始化完的環境；需要可預期的啟動時間時，建議用這個。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> 代價是那些環境沒請求時也在計費。</p>
+<p><strong>SnapStart：</strong>發佈函式版本時，Lambda 就先初始化，對初始化完的環境的記憶體與磁碟狀態拍下 Firecracker 微型虛擬機的快照，加密後快取（Firecracker 是 AWS 用來隔離每個環境的輕量虛擬機）；之後新環境從快取的快照恢復，而不是從頭初始化。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a></p>
 <p>限制寫在同一頁：</p>
 <ul class="plainlist">
 <li>支援 Java 11 以上、Python 3.12 以上、.NET 8 以上。</li>
-<li>只能用在「已發佈的版本」與指向版本的別名。</li>
+<li>只能用在已發佈的版本與指向版本的別名。</li>
 <li>不能跟預置並行一起用。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <figure>
@@ -565,7 +579,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 </svg>
 <figcaption>冷啟動要從頭 Init；熱啟動解凍同一個環境；SnapStart 把 Init 移到發佈時，新環境從快照恢復。</figcaption>
 </figure>
-<p>SnapStart 的陷阱是<strong>唯一性</strong>。快照裡的東西會被複製到每一個恢復出來的環境：「如果你的程式依賴狀態的唯一性，必須確認程式碼經得起快照操作」（If your applications depend on uniqueness of state, you must evaluate your function code and verify that it is resilient to snapshot operations.）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a> 官方的 Java 範例（本課沒有實跑）把 UUID 放在 handler 裡才產生，而不是寫在 static 初始化：</p>
+<p>SnapStart 的陷阱是<strong>唯一性</strong>。快照裡的東西會被複製到每一個恢復出來的環境，程式依賴狀態的唯一性時，必須確認程式碼經得起快照操作。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a> 下面的 Java 範例取自 AWS 文件（本課沒有實跑），把 UUID 放在 handler 裡才產生，而不是寫在 static 初始化：</p>
 <pre><code>import java.util.UUID;
 
 public class Handler implements RequestHandler&lt;String, String&gt; {
@@ -580,39 +594,39 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
         return "Hello, World!";
     }
 }</code></pre>
-<p>文件的建議是「避免在初始化時快取應該唯一的資料，例如產生記錄用的唯一 ID 或設定亂數種子」，要在 handler 裡產生，或用快照前後的執行階段掛勾（runtime hook）重新產生。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart-uniqueness.html" target="_blank" rel="noopener">出處</a> 銀行的交易序號、一次性密碼這類東西尤其要注意。</p>
+<p>避免在初始化時快取應該唯一的資料，例如產生記錄用的唯一 ID 或設定亂數種子；要在 handler 裡產生，或用快照前後的執行階段掛勾（runtime hook）重新產生。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart-uniqueness.html" target="_blank" rel="noopener">出處</a> 銀行的交易序號、一次性密碼這類東西尤其要注意。</p>
 <div class="drill">
   <p class="dq">開了 SnapStart 之後，Init 階段什麼時候跑？</p>
   <ul class="dopts"><li>每次 Invoke 之前</li><li>每個新環境建立時</li><li data-ok>發佈函式版本時，跑完拍成快照</li><li>完全不跑，SnapStart 跳過初始化</li></ul>
-  <p class="dexp">官方：Lambda initializes your function when you publish a function version，然後拍快照；之後新環境從快照恢復。初始化有做，只是移到發佈時做一次。</p>
+  <p class="dexp">發佈函式版本時 Lambda 就先初始化，然後拍快照；之後新環境從快照恢復。初始化有做，只是移到發佈時做一次。</p>
 </div>
 <div class="drill">
   <p class="dq">static 初始化時產生一個 UUID 當環境編號，開了 SnapStart。從快照恢復的多個環境會？</p>
   <ul class="dopts"><li>各自產生不同的 UUID</li><li>恢復時 Lambda 會自動重新產生</li><li>恢復失敗，SnapStart 不允許 static 欄位</li><li data-ok>拿到同一個 UUID，因為來自同一份快照</li></ul>
-  <p class="dexp">初始化結果被拍進快照，每個環境都從同一份快照恢復。官方範例因此把 UUID.randomUUID() 放在 handler 裡第一次用到時才產生。</p>
+  <p class="dexp">初始化結果被拍進快照，每個環境都從同一份快照恢復。所以範例把 UUID.randomUUID() 放在 handler 裡第一次用到時才產生。</p>
 </div>
 <div class="drill">
   <p class="dq">想同時開 SnapStart 和預置並行，可以嗎？</p>
   <ul class="dopts"><li data-ok>不行，SnapStart 不支援預置並行</li><li>可以，兩個一起開效果最好，官方也這樣建議</li><li>可以，但只限 Python</li><li>不行，預置並行只支援 Java</li></ul>
-  <p class="dexp">SnapStart 頁明列 does not support provisioned concurrency。兩者是二選一的冷啟動解法。</p>
+  <p class="dexp">SnapStart 不能跟預置並行一起用，兩者是二選一的冷啟動解法。</p>
 </div>
 <div class="drill">
   <p class="dq">函式用 <code>$LATEST</code> 直接呼叫，沒有發佈版本，SnapStart 會作用嗎？</p>
   <ul class="dopts"><li>會，所有呼叫都會用快照</li><li>會，$LATEST 每次部署都會自動拍一份快照</li><li data-ok>不會，只能用在已發佈的版本與指向版本的別名</li><li>不會，要改用容器映像檔部署</li></ul>
-  <p class="dexp">文件：You can use SnapStart only on published function versions and aliases that point to versions。快照是在發佈版本時拍的。</p>
+  <p class="dexp">SnapStart 只能用在已發佈的版本與指向版本的別名。快照是在發佈版本時拍的。</p>
 </div>
 <div class="drill">
-  <p class="dq">流量很稀疏的 Java 轉帳查詢 API，每次冷啟動都讓使用者等很久，而且要求啟動時間可預期。官方建議的是？</p>
+  <p class="dq">流量很稀疏的 Java 轉帳查詢 API，每次冷啟動都讓使用者等很久，而且要求啟動時間可預期。建議用什麼？</p>
   <ul class="dopts"><li>把記憶體調到最小，啟動比較快</li><li>把逾時調到 15 分鐘</li><li>改成在 handler 裡初始化 Spring</li><li data-ok>預置並行，事先初始化好的環境</li></ul>
-  <p class="dexp">原文 If you need predictable function start times for your workload, provisioned concurrency is the recommended solution。SnapStart 能縮短冷啟動，但要「可預期」官方指的是預置並行，代價是沒請求也計費。</p>
+  <p class="dexp">需要可預期的啟動時間時，建議用預置並行。SnapStart 能縮短冷啟動，但要「可預期」就是預置並行，代價是沒請求也計費。</p>
 </div>
 </section>
 
 <section>
 <p class="era">換一種計價單位：容器</p>
 <h3 class="head">Cloud Run 的模型：一個執行個體同時處理多個請求</h3>
-<p>Cloud Run 是 Google Cloud 的做法：「全代管的應用平台，在 Google 的基礎設施上跑你的程式、函式或容器」，只要能做成容器映像檔，什麼語言都可以。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a> 你交的是容器，所以要遵守它的容器契約：在 <code>0.0.0.0</code> 的指定連接埠上聽請求，「不應該聽在 <code>127.0.0.1</code>」，預設送到 8080，Cloud Run 會用 <code>PORT</code> 環境變數告訴你是哪個埠。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/container-contract" target="_blank" rel="noopener">出處</a></p>
-<p>跟 Lambda 最大的差別是<strong>同時處理數</strong>：一個執行個體可以同時處理多個請求，上限最高可以設到 1,000；用 gcloud 或 Terraform 新建的服務預設是 vCPU 數的 80 倍，用主控台建的預設 80。程式不能平行處理時「把並行數設成 1」。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/about-concurrency" target="_blank" rel="noopener">出處</a></p>
+<p>Cloud Run 是 Google Cloud 的做法：全代管的應用平台，在 Google 的基礎設施上跑你的程式、函式或容器，只要能做成容器映像檔，什麼語言都可以。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a> 你交的是容器，所以要遵守它的容器契約：在 <code>0.0.0.0</code> 的指定連接埠上聽請求，不應該聽在 <code>127.0.0.1</code>，預設送到 8080，Cloud Run 會用 <code>PORT</code> 環境變數告訴你是哪個埠。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/container-contract" target="_blank" rel="noopener">出處</a></p>
+<p>跟 Lambda 最大的差別是<strong>同時處理數</strong>：一個執行個體可以同時處理多個請求，上限最高可以設到 1,000；用 gcloud 或 Terraform 新建的服務預設是 vCPU 數的 80 倍，用主控台建的預設 80。程式不能平行處理時，把並行數設成 1。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/about-concurrency" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 230" role="img" aria-label="同時三個請求：Lambda 替每個同時進行的請求各準備一個執行環境，所以是三個環境；Cloud Run 一個執行個體可以同時處理多個請求，主控台建立時預設上限 80，所以三個請求可能由同一個執行個體處理">
   <defs><marker id="sm-05-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -648,15 +662,15 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 </svg>
 <figcaption>同時三個請求：Lambda 準備三個環境，Cloud Run 可能用同一個執行個體處理。</figcaption>
 </figure>
-<p>擴縮：請求進來就擴，需求下降就把閒置的容器收掉；沒有請求時連最後一個也收掉（scale to zero），下一個請求來才建新的，「可能拉長這些初始請求的回應時間」。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a></p>
+<p>擴縮：請求進來就擴，需求下降就把閒置的容器收掉；沒有請求時連最後一個也收掉（scale to zero），下一個請求來才建新的，可能拉長這些初始請求的回應時間。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a></p>
 <p>相關的設定：</p>
 <ul class="plainlist">
-<li><b>最少執行個體數</b>（min instances）：要避免冷啟動就設它，官方說可以「避免容器啟動慢、降低延遲」；計費方式選「依請求計費」時，閒置的執行個體用較低的費率計算，最少數設 0 才不必為閒置付費。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/configuring/min-instances" target="_blank" rel="noopener">出處</a></li>
+<li><b>最少執行個體數</b>（min instances）：要避免冷啟動就設它，可以避免容器啟動慢、降低延遲；計費方式選「依請求計費」時，閒置的執行個體用較低的費率計算，最少數設 0 才不必為閒置付費。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/configuring/min-instances" target="_blank" rel="noopener">出處</a></li>
 <li><b>啟動時暫時加 CPU</b>（startup CPU boost）：另一個開關，用來縮短啟動延遲。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/tips/general" target="_blank" rel="noopener">出處</a></li>
-<li><b>最多執行個體數</b>：要保護下游，也可以設上限，官方原文就說「擔心成本或壓垮下游系統時」用它。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a></li>
+<li><b>最多執行個體數</b>：擔心成本或壓垮下游系統時，就設上限。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a></li>
 <li><b>請求逾時</b>：預設 5 分鐘，最長 60 分鐘。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/configuring/request-timeout" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>重用的規則跟 Lambda 很像：「不能假設請求之間會保留狀態」，但執行個體會被重用，所以昂貴的物件可以放在全域範圍。官方的 Java 範例（本課沒有實跑）註解多了一句 Lambda 沒有的警告：</p>
+<p>重用的規則跟 Lambda 很像：不能假設請求之間會保留狀態，但執行個體會被重用，所以昂貴的物件可以放在全域範圍。下面的 Java 範例取自 Cloud Run 文件（本課沒有實跑），註解多了一句 Lambda 沒有的警告：</p>
 <pre><code>public class Scopes implements HttpFunction {
   // Global (instance-wide) scope
   // This computation runs at instance cold-start.
@@ -668,7 +682,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <div class="drill">
   <p class="dq">把一個 Spring Boot 容器部署到 Cloud Run，程式設定只聽 <code>127.0.0.1:8080</code>。會怎樣？</p>
   <ul class="dopts"><li>正常，Cloud Run 會轉發到本機位址</li><li>正常，只要埠是 8080</li><li data-ok>收不到請求，要聽在 0.0.0.0</li><li>Cloud Run 會自動改成聽 0.0.0.0</li></ul>
-  <p class="dexp">容器契約：must listen for requests on 0.0.0.0，should not listen on 127.0.0.1。埠預設 8080，以 PORT 環境變數為準。</p>
+  <p class="dexp">容器契約：要聽在 0.0.0.0，不應該聽在 127.0.0.1。埠預設 8080，以 PORT 環境變數為準。</p>
 </div>
 <div class="drill">
   <p class="dq">同時 3 個請求，Cloud Run 服務的並行上限是 80。最少需要幾個執行個體？</p>
@@ -678,15 +692,15 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <div class="drill">
   <p class="dq">某支舊程式不是執行緒安全的，同時處理兩個請求會出錯。部署到 Cloud Run 要怎麼設？</p>
   <ul class="dopts"><li>最少執行個體數設 1</li><li>請求逾時設 60 分鐘</li><li>最多執行個體數設 1</li><li data-ok>並行數設 1，一次一個</li></ul>
-  <p class="dexp">官方：if your code cannot process parallel requests, set concurrency to 1。最多執行個體數設 1 是限制總共幾個執行個體，跟每個執行個體同時處理幾個無關。</p>
+  <p class="dexp">程式不能平行處理時，把並行數設成 1。最多執行個體數設 1 是限制總共幾個執行個體，跟每個執行個體同時處理幾個無關。</p>
 </div>
 <div class="drill">
-  <p class="dq">深夜沒有流量，早上第一個使用者等特別久。Cloud Run 官方對這個情況的建議設定是？</p>
+  <p class="dq">深夜沒有流量，早上第一個使用者等特別久。Cloud Run 該設什麼？</p>
   <ul class="dopts"><li>並行數調到 1,000</li><li data-ok>設最少執行個體數</li><li>請求逾時調長</li><li>把映像檔縮小，就不會縮到 0</li></ul>
-  <p class="dexp">沒流量時縮到 0，下一個請求要等新執行個體建好。min instances 就是用來 avoid slow container start times and reduce service latency，代價是閒置時也有費用（依請求計費時費率較低）。</p>
+  <p class="dexp">沒流量時縮到 0，下一個請求要等新執行個體建好。min instances 就是用來避免容器啟動慢、降低延遲，代價是閒置時也有費用（依請求計費時費率較低）。</p>
 </div>
 <div class="drill">
-  <p class="dq">Cloud Run 官方範例在全域變數旁註明 must be thread-safe，Lambda 的同類範例沒有。為什麼？</p>
+  <p class="dq">Cloud Run 的範例在全域變數旁註明 must be thread-safe，Lambda 的同類範例沒有。為什麼？</p>
   <ul class="dopts"><li data-ok>一個執行個體會同時處理多個請求</li><li>Cloud Run 只支援多執行緒的語言</li><li>Lambda 的全域變數不會被重用</li><li>全域變數存在資料庫裡</li></ul>
   <p class="dexp">多個請求同時在一個執行個體裡跑，就會同時碰到同一個全域變數。Lambda 一個環境同一時間只處理一個請求，沒有這個問題。</p>
 </div>
@@ -701,7 +715,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <tr><th>Lambda</th><td>事件驅動、量一陣一陣、每次工作短而獨立</td><td>超過 15 分鐘的工作；穩定的高流量；大量同時請求又各自連資料庫</td></tr>
 <tr><th>Cloud Run</th><td>已經是容器的 HTTP 服務，流量起伏大，想要自動擴縮又不想管叢集</td><td>需要節點層級的控制，或已經有一套 K8s 與網格可以用</td></tr>
 </tbody></table></div>
-<p class="muted">表格是本課依前面各節官方說法推出來的整理，下面的情境也是自編的。</p>
+<p class="muted">表格是本課依前面各節推出來的整理，下面的情境也是自編的。</p>
 <p><strong>情境一：</strong>行內有幾十個服務、Java 與 Go 混用，資安要求內部連線全部加密，並且能限制哪個服務可以呼叫帳務服務。這是網格最值得的情況：先 PERMISSIVE 讓舊服務照常連，逐一注入後切 STRICT，每個服務給自己的服務帳號，再用授權規則寫「誰可以呼叫我」。只要加密與身分的話，ambient 的成本比較低。</p>
 <p><strong>情境二：</strong>每天晚上外部單位丟一個對帳檔到 S3，要解析、比對、發通知。一天一次、量不大、事件觸發，適合 Lambda；但如果比對要跑超過 15 分鐘，就要切小段，或改用批次服務。</p>
 <p><strong>情境三：</strong>核心的轉帳 API，流量穩定且大，對延遲敏感，每個請求都要連資料庫。Lambda 的冷啟動與「一個請求一個環境」帶來的連線數都不利；跑在現有的 K8s 上，或 Cloud Run 搭配最少執行個體數與最多執行個體數，比較好控制。</p>
@@ -723,7 +737,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <div class="drill">
   <p class="dq">行銷活動要把服務放到 Cloud Run，但後端資料庫最多只撐得住 20 個執行個體的連線。該設什麼？</p>
   <ul class="dopts"><li>最少執行個體數 20</li><li>並行數 20</li><li data-ok>最多執行個體數 20</li><li>請求逾時 20 分鐘</li></ul>
-  <p class="dexp">官方：擔心成本或 overloading downstream systems 時，可以限制最多執行個體數。最少執行個體數是防冷啟動用的，方向相反。</p>
+  <p class="dexp">擔心成本或壓垮下游系統時，可以限制最多執行個體數。最少執行個體數是防冷啟動用的，方向相反。</p>
 </div>
 </section>
 

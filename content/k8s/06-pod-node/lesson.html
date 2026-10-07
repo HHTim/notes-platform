@@ -150,6 +150,6 @@
       </svg>
       <figcaption>例外確實有：有些高度隔離的場景真的一台只放一個，但那是為了安全刻意放棄密度，不是常態。</figcaption>
     </figure>
-    <p class="muted">順帶一提：kubelet 自己也不會起容器，它是叫底下的容器執行環境去起。你在文件上看到「K8s 移除 dockershim」（v1.24，2022 年）講的就是這一層的事：被拿掉的是 <strong>dockershim</strong>（kubelet 裡那段專門用來接 Docker Engine 的轉接程式），之後 kubelet 一律透過 CRI 這個共同介面接容器執行環境，<strong>containerd、CRI-O 都行</strong>，不是「只能用 containerd」；想繼續用 Docker Engine 的話，官方也說明可以裝 cri-dockerd 這個替代轉接程式接上去。不影響你，因為 <code>docker build</code> 出來的映像檔照樣能跑——官方的原話是「the images produced from docker build will work with all CRI implementations」。<a class="fixsrc" href="https://kubernetes.io/blog/2022/02/17/dockershim-faq/" target="_blank" rel="noopener">出處</a></p>
+    <p class="muted">順帶一提：kubelet 自己也不會起容器，它是叫底下的容器執行環境去起。你在文件上看到「K8s 移除 dockershim」（v1.24，2022 年）講的就是這一層的事：被拿掉的是 <strong>dockershim</strong>（kubelet 裡那段專門用來接 Docker Engine 的轉接程式），之後 kubelet 一律透過 CRI 這個共同介面接容器執行環境，<strong>containerd、CRI-O 都行</strong>，不是「只能用 containerd」；想繼續用 Docker Engine 的話，可以裝 cri-dockerd 這個替代轉接程式接上去。不影響你，因為 <code>docker build</code> 出來的映像檔在所有 CRI 實作上都能跑。<a class="fixsrc" href="https://kubernetes.io/blog/2022/02/17/dockershim-faq/" target="_blank" rel="noopener">出處</a></p>
   </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>Pod 是派工單位：通常裡面就一個容器，偶爾多一個貼身小幫手（sidecar）。</li><li>一台機器＋容器執行環境（containerd）＋kubelet ＝ 一個 Node；kubelet 是聽大腦指令的聯絡窗口。</li><li>一台 Node 跑幾十個 Pod 是常態（預設上限 110 個）；一台只跑一個就白用容器了。</li><li>Pod 落在哪台不用你管，重開一次就可能換位子。</li></ul></div>

@@ -5,7 +5,13 @@
 <p class="era">先把換版本看清楚</p>
 <h3 class="head">滾動更新一步一步看，以及怎麼退回</h3>
 <p>〈Deployment：下單〉講過滾動更新的原理：分批換，一批好了才換下一批，一批幾份由 <code>maxSurge</code> 與 <code>maxUnavailable</code> 決定。以下用 kind（在 Docker 裡開 Kubernetes 節點的工具，跟〈K8s 上手：Minikube 與上雲〉的 Minikube 是同一類）建的 v1.36.4 單節點叢集實跑，程式是一支 Spring Boot 4.1 小程式 <code>teller</code>，<code>/version</code> 會回應目前的版本。</p>
-<p>官方文件對兩個旋鈕的定義：<code>maxUnavailable</code> 是「更新過程中最多可以有幾個 Pod 不可用」，百分比換算成個數時「無條件捨去」；<code>maxSurge</code> 是「最多可以比期望數多建立幾個 Pod」，換算時「無條件進位」；兩個預設都是 25%，而且不能同時是 0（The value cannot be 0 if maxUnavailable is 0.）。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a> 銀行的櫃台服務不想在換版時少任何一份，就設 <code>maxUnavailable: 0</code>、<code>maxSurge: 1</code>：</p>
+<p>兩個旋鈕：</p>
+<ul>
+<li><code>maxUnavailable</code>：更新過程中最多可以有幾個 Pod 不可用；百分比換算成個數時無條件捨去</li>
+<li><code>maxSurge</code>：最多可以比期望數多建立幾個 Pod；換算時無條件進位</li>
+<li>兩個預設都是 25%，而且不能同時是 0<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>銀行的櫃台服務不想在換版時少任何一份，就設 <code>maxUnavailable: 0</code>、<code>maxSurge: 1</code>：</p>
 <pre><code>apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -87,7 +93,7 @@ deployment "teller" successfully rolled out</code></pre>
 <figcaption>maxUnavailable 設 0 時，新版要先就緒，舊版才收掉一份；就緒探針決定「就緒」，所以探針設錯，換版就不安全。</figcaption>
 </figure>
 <p>就緒的總數依序是 4、4、4、4、4：沒有一刻少於 4。注意「就緒」是由就緒探針決定的（後面一段）；沒設探針的話，容器一啟動就算就緒，還在初始化的 Pod 也會收到流量。</p>
-<p><strong>什麼會觸發、什麼可以退。</strong>官方文件：「只有 Deployment 的 Pod 範本（<code>.spec.template</code>）改變時才會觸發滾動更新」，調整副本數不會。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a> 每個版本的設定存在對應的 ReplicaSet 裡，<code>revisionHistoryLimit</code> 決定留幾個舊的，「預設保留 10 個」；設成 0 就「無法回退」。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a> 接著故意送一個標籤打錯的映像檔 <code>teller:1.2-typo</code>：</p>
+<p><strong>什麼會觸發、什麼可以退。</strong>只有 Deployment 的 Pod 範本（<code>.spec.template</code>）改變時才會觸發滾動更新，調整副本數不會。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a> 每個版本的設定存在對應的 ReplicaSet 裡，<code>revisionHistoryLimit</code> 決定留幾個舊的，預設保留 10 個；設成 0 就無法回退。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a> 接著故意送一個標籤打錯的映像檔 <code>teller:1.2-typo</code>：</p>
 <pre><code>$ kubectl apply -f teller-v3-bad.yaml
 $ kubectl get pods -l app=teller          # 20 秒後
 teller-659bcf49c4-mjkk2 0/1 ImagePullBackOff   ← 新版拉不到映像檔
@@ -113,7 +119,7 @@ REVISION  CHANGE-CAUSE
 4         v2：換成 teller:1.1                 ← 退回 v2，它變成新的第 4 版
 $ kubectl exec deploy/teller -- curl -s localhost:8080/version
 v2</code></pre>
-<p>三件事要看懂：第一，因為 <code>maxUnavailable: 0</code>，壞掉的新版只開出 1 份，舊版四份都還在服務，使用者沒感覺；第二，卡住不會自己退，Deployment 預設等 <code>progressDeadlineSeconds</code>（「預設 600」秒）之後回報 <code>ProgressDeadlineExceeded</code>，但「會繼續重試」<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a>，要退得自己 undo；第三，kubectl 那段警告：<code>undo</code> 只改叢集上的 Deployment，用 <code>kubectl apply</code> 管的設定檔不會跟著變，它建議「改用 kubectl apply 套用之前的設定檔」。設定檔放在 Git 的團隊，回退要連 Git 一起還原，否則下次 apply 又把壞版本帶回來。</p>
+<p>三件事要看懂：第一，因為 <code>maxUnavailable: 0</code>，壞掉的新版只開出 1 份，舊版四份都還在服務，使用者沒感覺；第二，卡住不會自己退，Deployment 預設等 <code>progressDeadlineSeconds</code>（預設 600 秒）之後回報 <code>ProgressDeadlineExceeded</code>，但會繼續重試<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">出處</a>，要退得自己 undo；第三，kubectl 那段警告：<code>undo</code> 只改叢集上的 Deployment，用 <code>kubectl apply</code> 管的設定檔不會跟著變，建議改用 kubectl apply 套用之前的設定檔。設定檔放在 Git 的團隊，回退要連 Git 一起還原，否則下次 apply 又把壞版本帶回來。</p>
 <p class="formula">maxUnavailable 0：新的就緒了才收舊的；卡住不會自己退，undo 之後 Git 也要還原</p>
 
 <div class="drill">
@@ -129,7 +135,7 @@ v2</code></pre>
 <div class="drill">
   <p class="dq"><code>maxSurge: 0</code> 配 <code>maxUnavailable: 0</code> 會怎樣？</p>
   <ul class="dopts"><li data-ok>不行，兩個不能同時是 0</li><li>可以，表示一次一個慢慢換</li><li>可以，表示完全不換</li><li>可以，但要改成 Recreate</li></ul>
-  <p class="dexp">官方文件：maxUnavailable 為 0 時 maxSurge 不能是 0，反過來也一樣。兩個都是 0 就既不能多開、也不能先收，換版沒辦法開始。</p>
+  <p class="dexp">maxUnavailable 為 0 時 maxSurge 不能是 0，反過來也一樣。兩個都是 0 就既不能多開、也不能先收，換版沒辦法開始。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的實驗，第二個狀態是「舊版 4 份就緒、新版 1 份未就緒」。下一步為什麼是舊版先少 1 份？</p>
@@ -139,7 +145,7 @@ v2</code></pre>
 <div class="drill">
   <p class="dq">只把 Deployment 的 <code>replicas</code> 從 4 改成 6，會觸發滾動更新嗎？</p>
   <ul class="dopts"><li>會，Deployment 的任何修改都會觸發</li><li>會，但只對新增的 2 份做滾動更新</li><li data-ok>不會，Pod 範本沒變，這只是擴縮</li><li>不會，要先 rollout pause 才行</li></ul>
-  <p class="dexp">官方文件：只有 .spec.template 改變才觸發滾動更新、才產生新版本。改副本數是擴縮，不會換版本。</p>
+  <p class="dexp">只有 .spec.template 改變才觸發滾動更新、才產生新版本。改副本數是擴縮，不會換版本。</p>
 </div>
 <div class="drill">
   <p class="dq">新版映像檔標籤打錯、拉不下來，而 <code>maxUnavailable</code> 是 0。會發生什麼事？</p>
@@ -149,7 +155,7 @@ v2</code></pre>
 <div class="drill">
   <p class="dq">滾動更新卡住超過 <code>progressDeadlineSeconds</code>，Deployment 會怎樣？</p>
   <ul class="dopts"><li>自動退回上一個成功的版本</li><li>刪掉卡住的新 Pod，然後停止更新</li><li data-ok>標記為失敗，但控制器繼續重試</li><li>把 replicas 改成 0，等人處理</li></ul>
-  <p class="dexp">官方文件：超過期限就把 Progressing 條件設成 False、reason 是 ProgressDeadlineExceeded，而 Deployment 控制器會繼續重試；預設 600 秒。自動回退要靠外部工具，例如 Argo Rollouts。</p>
+  <p class="dexp">超過期限就把 Progressing 條件設成 False、reason 是 ProgressDeadlineExceeded，而 Deployment 控制器會繼續重試；預設 600 秒。自動回退要靠外部工具，例如 Argo Rollouts。</p>
 </div>
 <div class="drill">
   <p class="dq">實驗裡退回 v2 之後，<code>rollout history</code> 裡 v2 的版號變成多少？</p>
@@ -184,21 +190,21 @@ spec:
 $ kubectl patch service pay -p '{"spec":{"selector":{"app":"pay","version":"green"}}}'
 service/pay patched
 # 切換後：40 次全是 green；要退回，把 selector 改回 blue 就好</code></pre>
-<p><strong>金絲雀：</strong>官方文件的做法是兩個 Deployment 共用一個標籤（<code>app</code>）、用另一個標籤區分（<code>track: stable</code> 與 <code>track: canary</code>），Service 只選共用的那個，兩邊都收到流量，比例靠兩邊的副本數調。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/management/" target="_blank" rel="noopener">出處</a> 實驗把 green 縮成 1 份、Service 拿掉 <code>version</code> 只選 <code>app: pay</code>，blue 3 份、green 1 份，打 400 次：</p>
+<p><strong>金絲雀：</strong>原生做法是兩個 Deployment 共用一個標籤（<code>app</code>）、用另一個標籤區分（<code>track: stable</code> 與 <code>track: canary</code>），Service 只選共用的那個，兩邊都收到流量，比例靠兩邊的副本數調。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/management/" target="_blank" rel="noopener">出處</a> 實驗把 green 縮成 1 份、Service 拿掉 <code>version</code> 只選 <code>app: pay</code>，blue 3 份、green 1 份，打 400 次：</p>
 <pre><code>$ kubectl scale deploy/pay-green --replicas=1
 $ kubectl patch service pay --type=json -p '[{"op":"remove","path":"/spec/selector/version"}]'
 # 從叢集內連打 400 次 http://pay/version，統計：
  307 blue
   93 green          ← 約 23%，接近 1/4；每次跑會差幾次，重跑一次是 298／102</code></pre>
-<p>原生做法的限制很明顯：比例只能用 Pod 數湊（要 1% 就得開 100 份），而且看錯誤率、決定要不要繼續推、出事自動退回，全都要人來做。<strong>Argo Rollouts</strong> 是補這一塊的外部工具，它的文件自我介紹是「一個 Kubernetes 控制器與一組 CRD，提供藍綠、金絲雀、金絲雀分析、實驗與漸進式交付等進階部署能力」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a> CRD（自訂資源定義）是讓 K8s 認得新種類物件的機制，裝了它就多出一種叫 <code>Rollout</code> 的物件取代 Deployment。</p>
-<p>它列出原生滾動更新的限制：</p>
+<p>原生做法的限制很明顯：比例只能用 Pod 數湊（要 1% 就得開 100 份），而且看錯誤率、決定要不要繼續推、出事自動退回，全都要人來做。<strong>Argo Rollouts</strong> 是補這一塊的外部工具：一個 Kubernetes 控制器加一組 CRD，提供藍綠、金絲雀、金絲雀分析、實驗與漸進式交付等進階部署能力。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a> CRD（自訂資源定義）是讓 K8s 認得新種類物件的機制，裝了它就多出一種叫 <code>Rollout</code> 的物件取代 Deployment。</p>
+<p>原生滾動更新的限制：</p>
 <ul class="plainlist">
-<li>「對推進速度的控制很少」</li>
-<li>「無法控制流向新版的流量」</li>
-<li>「無法查詢外部指標來驗證更新」</li>
-<li>「可以停下推進，但無法自動中止並退回」<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a></li>
+<li>對推進速度的控制很少</li>
+<li>無法控制流向新版的流量</li>
+<li>無法查詢外部指標來驗證更新</li>
+<li>可以停下推進，但無法自動中止並退回<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>金絲雀用 <code>setWeight</code> 與 <code>pause</code> 一步一步寫：<code>setWeight</code>「指定送到金絲雀的流量百分比」，<code>pause</code> 讓推進停下來等人或等時間；沒接流量管理時，它照百分比去調兩邊的副本數，「10 份、第一步 10%，就是新版 1 份、舊版 9 份」。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/canary/" target="_blank" rel="noopener">出處</a></p>
+<p>金絲雀用 <code>setWeight</code> 與 <code>pause</code> 一步一步寫：<code>setWeight</code> 指定送到金絲雀的流量百分比，<code>pause</code> 讓推進停下來等人或等時間；沒接流量管理時，它照百分比去調兩邊的副本數，例如 10 份、第一步 10%，就是新版 1 份、舊版 9 份。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/canary/" target="_blank" rel="noopener">出處</a></p>
 <p>藍綠則用 <code>activeService</code>（正式流量）與 <code>previewService</code>（新版預覽）兩個 Service。<a class="fixsrc" href="https://argoproj.github.io/argo-rollouts/features/bluegreen/" target="_blank" rel="noopener">出處</a></p>
 <pre><code># Argo Rollouts 的金絲雀步驟長這樣（示意，本課沒有安裝它）
 strategy:
@@ -220,7 +226,7 @@ strategy:
 <div class="drill">
   <p class="dq">Deployment 的 <code>strategy.type</code> 可以設成哪幾種？</p>
   <ul class="dopts"><li>RollingUpdate、BlueGreen、Canary</li><li data-ok>RollingUpdate、Recreate</li><li>RollingUpdate、Canary</li><li>只有 RollingUpdate</li></ul>
-  <p class="dexp">官方文件只列兩種：RollingUpdate（預設）與 Recreate。藍綠、金絲雀要自己用多個 Deployment 與 Service 組，或用 Argo Rollouts 這類外部工具。</p>
+  <p class="dexp">原生只有兩種：RollingUpdate（預設）與 Recreate。藍綠、金絲雀要自己用多個 Deployment 與 Service 組，或用 Argo Rollouts 這類外部工具。</p>
 </div>
 <div class="drill">
   <p class="dq">用原生做法做藍綠：blue、green 兩個 Deployment 都已就緒，要把正式流量從藍切到綠，改什麼？</p>
@@ -238,27 +244,28 @@ strategy:
   <p class="dexp">原生做法的比例就是兩邊副本數的比例。要不受 Pod 數限制的權重，得用 Gateway API 的權重或 Argo Rollouts 配流量管理工具。</p>
 </div>
 <div class="drill">
-  <p class="dq">依 Argo Rollouts 的文件，原生滾動更新做不到下面哪一件事？</p>
+  <p class="dq">原生滾動更新做不到下面哪一件事？</p>
   <ul class="dopts"><li>分批換掉 Pod</li><li>用就緒探針判斷新 Pod 能不能收流量</li><li>停下推進（pause）</li><li data-ok>查詢外部指標，出問題自動中止並退回</li></ul>
   <p class="dexp">Argo 列的限制包括「無法查詢外部指標來驗證更新」「可以停下推進，但無法自動中止並退回」。分批換、就緒探針、暫停原生都有。</p>
 </div>
 <div class="drill">
   <p class="dq">Argo Rollouts 沒接流量管理工具時，10 份副本、第一步 <code>setWeight: 10</code>，新舊各幾份？</p>
   <ul class="dopts"><li data-ok>新 1 份、舊 9 份</li><li>新 10 份、舊 10 份</li><li>新 1 份、舊 10 份</li><li>新 0 份，要等 pause 結束</li></ul>
-  <p class="dexp">文件的例子：沒有流量管理時，它照百分比調兩邊副本數，10 份、10% 就是新版 1 份、舊版 9 份。</p>
+  <p class="dexp">沒有流量管理時，它照百分比調兩邊副本數，10 份、10% 就是新版 1 份、舊版 9 份。</p>
 </div>
 </section>
 
 <section>
 <p class="era">kubelet 怎麼知道你活著、準備好了</p>
 <h3 class="head">三種探針：啟動、存活、就緒</h3>
-<p>官方文件：探針是「kubelet 定期對容器做的診斷」，依結果「重啟不健康的容器，或停止把流量送給還沒準備好的容器」（Kubernetes can restart unhealthy containers or stop sending traffic to containers that are not ready）。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> kubelet 是每台節點上替大腦照顧容器的那個程式（〈壞掉的時候〉講過它會就地重開崩潰的容器）。〈OpenShift 部署實戰〉叫它們存活檢查、就緒檢查，是同一件事。</p>
+<p>探針是 kubelet 定期對容器做的診斷，依結果重啟不健康的容器，或停止把流量送給還沒準備好的容器。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> kubelet 是每台節點上替大腦照顧容器的那個程式（〈壞掉的時候〉講過它會就地重開崩潰的容器）。〈OpenShift 部署實戰〉叫它們存活檢查、就緒檢查，是同一件事。</p>
 <div class="tablewrap"><table><thead><tr><th>探針</th><th>回答什麼</th><th>失敗了會怎樣</th><th>什麼時候跑</th></tr></thead><tbody>
 <tr><th>啟動（startup）</th><td>程式啟動完了沒</td><td>kubelet 殺掉容器，照重啟政策處理</td><td>只在啟動時；設了它，成功之前另外兩種都不跑</td></tr>
 <tr><th>存活（liveness）</th><td>還活著嗎，需不需要重開</td><td>連續失敗超過容忍次數，kubelet 重啟這個容器</td><td>整個生命週期；不等就緒探針</td></tr>
 <tr><th>就緒（readiness）</th><td>現在能收流量嗎</td><td>不重啟；Service 不再把流量送給它</td><td>整個生命週期</td></tr>
 </tbody></table></div>
-<p>表中三欄都出自官方探針頁。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> EndpointSlice 是 Service 背後「現在有哪些 Pod 能收流量」的清單。就緒失敗那一格，文件的原句是 EndpointSlice 控制器「把 Pod 的 IP 從所有對應 Service 的 EndpointSlice 移除」（removes the Pod's IP address from the EndpointSlices of all Services that match the Pod）；實際跑起來，Pod 還留在 EndpointSlice 裡，只是被標成 <code>ready=false</code>，Service 不把流量送給它（下面實跑可以看到）。四個常用欄位的預設值：<code>initialDelaySeconds</code> 0 秒、<code>periodSeconds</code> 10 秒、<code>timeoutSeconds</code> 1 秒、<code>failureThreshold</code> 3 次。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">出處：<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">Kubernetes 探針頁</a></p>
+<p>EndpointSlice 是 Service 背後「現在有哪些 Pod 能收流量」的清單。就緒失敗那一格，文件寫的是 EndpointSlice 控制器把 Pod 的 IP 從所有對應 Service 的 EndpointSlice 移除；實際跑起來，Pod 還留在 EndpointSlice 裡，只是被標成 <code>ready=false</code>，Service 不把流量送給它（下面實跑可以看到）。四個常用欄位的預設值：<code>initialDelaySeconds</code> 0 秒、<code>periodSeconds</code> 10 秒、<code>timeoutSeconds</code> 1 秒、<code>failureThreshold</code> 3 次。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 210" role="img" aria-label="Pod 啟動後先跑啟動探針，成功之後存活探針與就緒探針才開始，兩者在整個生命週期都定期跑；存活失敗重啟容器，就緒失敗只是不再收流量">
   <defs><marker id="dp2-2-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" fill-opacity=".6"/></marker></defs>
@@ -324,13 +331,17 @@ Killing     Container teller failed liveness probe, will be restarted</code></pr
             periodSeconds: 5
             failureThreshold: 3
 # 75 秒後：重啟=0；日誌：Started TellerApp in 41.171 seconds</code></pre>
-<p>這就是官方的建議：容器的啟動常常超過「initialDelaySeconds ＋ failureThreshold × periodSeconds」時，就設一個檢查同一個端點的啟動探針，把它的 <code>failureThreshold</code> 調得夠高，「而不必改動存活探針的預設值」。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> 官方也警告存活探針要小心用：它應該只反映「真的無法自己恢復的失敗，例如死結」，「實作錯誤可能導致連鎖故障」，高負載時容器反而被重啟、剩下的 Pod 負擔更重。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a></p>
+<p>所以建議的做法是：容器的啟動常常超過 initialDelaySeconds ＋ failureThreshold × periodSeconds 時，就設一個檢查同一個端點的啟動探針，把它的 <code>failureThreshold</code> 調得夠高，不必改動存活探針的預設值。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a> 存活探針要小心用：</p>
+<ul>
+<li>它應該只反映真的無法自己恢復的失敗，例如死結</li>
+<li>實作錯誤可能導致連鎖故障：高負載時容器反而被重啟、剩下的 Pod 負擔更重<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/probes/" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p class="formula">啟動探針給慢啟動的程式時間；存活失敗重啟；就緒失敗只是先不送流量</p>
 
 <div class="drill">
   <p class="dq">就緒探針連續失敗，kubelet 會怎麼處理那個容器？</p>
   <ul class="dopts"><li data-ok>不重啟，只是不送流量</li><li>立刻重啟這個容器</li><li>刪掉整個 Pod，由 Deployment 補一份新的</li><li>把 Pod 搬到別的節點重新排</li></ul>
-  <p class="dexp">官方文件說 EndpointSlice 控制器會把 Pod 的 IP 從 EndpointSlice 移除；實際上它還留在清單裡、被標成 ready=false，Service 不再送流量給它。實驗裡被 drain 的那份 0/1、重啟=0。</p>
+  <p class="dexp">文件寫 EndpointSlice 控制器會把 Pod 的 IP 從 EndpointSlice 移除；實際上它還留在清單裡、被標成 ready=false，Service 不再送流量給它。實驗裡被 drain 的那份 0/1、重啟=0。</p>
 </div>
 <div class="drill">
   <p class="dq">存活探針連續失敗超過 failureThreshold，會怎樣？</p>
@@ -340,12 +351,12 @@ Killing     Container teller failed liveness probe, will be restarted</code></pr
 <div class="drill">
   <p class="dq">設了啟動探針，在它成功之前，存活探針與就緒探針會怎樣？</p>
   <ul class="dopts"><li>照常每 10 秒跑一次</li><li>只有存活探針跑</li><li>只有就緒探針跑</li><li data-ok>兩個都不跑</li></ul>
-  <p class="dexp">官方文件：設了啟動探針，K8s 在它成功之前不執行存活與就緒探針，讓程式有時間完成初始化。</p>
+  <p class="dexp">設了啟動探針，K8s 在它成功之前不執行存活與就緒探針，讓程式有時間完成初始化。</p>
 </div>
 <div class="drill">
   <p class="dq">探針的 <code>periodSeconds</code>、<code>timeoutSeconds</code>、<code>failureThreshold</code> 預設各是多少？</p>
   <ul class="dopts"><li>1 秒、10 秒、3 次</li><li>5 秒、5 秒、5 次</li><li data-ok>10 秒、1 秒、3 次</li><li>30 秒、1 秒、1 次</li></ul>
-  <p class="dexp">官方探針概念頁：periodSeconds 預設 10、timeoutSeconds 預設 1、failureThreshold 預設 3（initialDelaySeconds 預設 0）。</p>
+  <p class="dexp">periodSeconds 預設 10、timeoutSeconds 預設 1、failureThreshold 預設 3（initialDelaySeconds 預設 0）。</p>
 </div>
 <div class="drill">
   <p class="dq">程式啟動要 40 秒，只設了存活探針（每 5 秒、失敗 3 次、沒有延遲），實驗裡發生什麼事？</p>
@@ -360,7 +371,7 @@ Killing     Container teller failed liveness probe, will be restarted</code></pr
 <div class="drill">
   <p class="dq">為什麼建議啟動探針檢查「跟存活探針同一個端點」？</p>
   <ul class="dopts"><li>因為 K8s 規定兩者要一樣</li><li>因為這樣比較省記憶體與 CPU</li><li data-ok>接手時判準一樣，不會馬上失敗</li><li>因為就緒端點不能用在啟動探針</li></ul>
-  <p class="dexp">官方建議：設一個檢查同一個端點的啟動探針，調高它的 failureThreshold，不改存活探針的預設值。同一個端點，啟動探針一成功，存活探針接手就是同一個判準。</p>
+  <p class="dexp">建議設一個檢查同一個端點的啟動探針，調高它的 failureThreshold，不改存活探針的預設值。同一個端點，啟動探針一成功，存活探針接手就是同一個判準。</p>
 </div>
 <div class="drill">
   <p class="dq">一個 Pod 一直顯示 0/1 Running、重啟次數 0，最可能是什麼情況？</p>
@@ -370,7 +381,7 @@ Killing     Container teller failed liveness probe, will be restarted</code></pr
 <div class="drill">
   <p class="dq">存活探針的檢查邏輯寫成「呼叫資料庫，查不到就回失敗」。資料庫維護 5 分鐘，會發生什麼事？</p>
   <ul class="dopts"><li>只有一個 Pod 被重啟，其他不受影響</li><li>Pod 會自動切到備援資料庫</li><li>沒有影響，存活探針只看 CPU 用量</li><li data-ok>所有 Pod 一起被反覆重啟</li></ul>
-  <p class="dexp">官方警告存活探針實作錯誤會造成連鎖故障；它應該只反映程式自己無法恢復的失敗。外部系統掛掉不是重開自己能解決的，這點 Spring Boot 文件也強調（下一段）。</p>
+  <p class="dexp">存活探針實作錯誤會造成連鎖故障；它應該只反映程式自己無法恢復的失敗。外部系統掛掉不是重開自己能解決的，下一段 Spring Boot 的部分也會講到。</p>
 </div>
 <div class="drill">
   <p class="dq">實驗裡被呼叫 <code>/drain</code> 的那份 Pod，之後會自己恢復收流量嗎？</p>
@@ -382,14 +393,19 @@ Killing     Container teller failed liveness probe, will be restarted</code></pr
 <section>
 <p class="era">Spring Boot 那一側</p>
 <h3 class="head">Actuator 的 liveness、readiness 群組與啟動、關機時的狀態</h3>
-<p>Spring Boot Actuator 把應用程式的「存活」與「就緒」兩個狀態做成健康指標，再「用健康群組的方式各自暴露成 HTTP 探針：<code>/actuator/health/liveness</code> 與 <code>/actuator/health/readiness</code>」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 的屬性附錄寫 <code>management.<wbr>endpoint.<wbr>health.<wbr>probes.<wbr>enabled</code> 預設是 <code>true</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 群組怎麼加自訂的健康指標、外部系統要不要放進就緒群組，〈Spring Boot 自動組態與 Actuator〉講過；這裡補 K8s 會關心的部分：兩個狀態在程式生命週期的哪一刻變。</p>
-<p>Spring Boot 文件的對照表（啟動時）：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
+<p>Spring Boot Actuator 把應用程式的「存活」與「就緒」兩個狀態做成健康指標，再用健康群組的方式各自暴露成 HTTP 探針：<code>/actuator/health/liveness</code> 與 <code>/actuator/health/readiness</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 的 <code>management.<wbr>endpoint.<wbr>health.<wbr>probes.<wbr>enabled</code> 預設是 <code>true</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 群組怎麼加自訂的健康指標、外部系統要不要放進就緒群組，〈Spring Boot 自動組態與 Actuator〉講過；這裡補 K8s 會關心的部分：兩個狀態在程式生命週期的哪一刻變。</p>
+<p>啟動時各階段的狀態：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>階段</th><th>存活（LivenessState）</th><th>就緒（ReadinessState）</th><th>HTTP 伺服器</th></tr></thead><tbody>
-<tr><th>Starting</th><td>BROKEN</td><td>REFUSING_TRAFFIC</td><td>還沒啟動；文件說「K8s 檢查存活探針，太久的話就重啟應用程式」</td></tr>
+<tr><th>Starting</th><td>BROKEN</td><td>REFUSING_TRAFFIC</td><td>還沒啟動；K8s 檢查存活探針，太久的話就重啟應用程式</td></tr>
 <tr><th>Started</th><td>CORRECT</td><td>REFUSING_TRAFFIC</td><td>拒收請求；應用程式內容已重新整理，正在做啟動工作</td></tr>
 <tr><th>Ready</th><td>CORRECT</td><td>ACCEPTING_TRAFFIC</td><td>接受請求</td></tr>
 </tbody></table></div>
-<p>「Started」到「Ready」之間在做什麼？Application Availability 一節說，就緒狀態「通常在啟動期間、處理 <code>CommandLineRunner</code> 與 <code>ApplicationRunner</code> 元件時失敗」，「應用程式在 runner 都被呼叫之後才算就緒」；而且建議「啟動時要跑的工作，應該交給 CommandLineRunner 與 ApplicationRunner，而不是用 <code>@PostConstruct</code> 這類元件生命週期回呼」（Tasks expected to run during startup should be executed by CommandLineRunner and ApplicationRunner components instead of using Spring component lifecycle callbacks such as @PostConstruct.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/spring-application.html" target="_blank" rel="noopener">出處</a></p>
+<p>「Started」到「Ready」之間在做什麼？</p>
+<ul>
+<li>就緒狀態通常在啟動期間、處理 <code>CommandLineRunner</code> 與 <code>ApplicationRunner</code> 元件時失敗</li>
+<li>應用程式在 runner 都被呼叫之後才算就緒</li>
+<li>啟動時要跑的工作，應該交給 CommandLineRunner 與 ApplicationRunner，而不是用 <code>@PostConstruct</code> 這類元件生命週期回呼<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/spring-application.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>上一段那支「被重啟 4 次」的程式，40 秒的初始化正是寫在 <code>@PostConstruct</code>（刻意的錯誤示範）：那段期間還在 Starting，HTTP 伺服器沒開，存活探針只能失敗。同樣 40 秒改寫在 <code>ApplicationRunner</code> 裡：</p>
 <pre><code>@Override
 public void run(ApplicationArguments args) throws Exception {
@@ -400,8 +416,13 @@ public void run(ApplicationArguments args) throws Exception {
 // 約 35 秒：0/1 Running 重啟=0
 // 約 50 秒：1/1 Running 重啟=0      ← runner 做完，才開始收流量
 // 約 65 秒：1/1 Running 重啟=0</code></pre>
-<p>這也是 Spring Boot 文件說「一般而言不一定需要啟動探針，因為就緒探針在所有啟動工作做完之前都會失敗」的原因；但「如果應用程式要很久才啟動」，它建議設一個檢查存活端點的啟動探針，「確保 Kubernetes 不會在應用程式啟動途中把它殺掉」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 兩個探針的分工也跟上一段一致：存活狀態「不應該依據外部檢查」，否則外部系統一掛，「會觸發大量重啟與整個平台的連鎖故障」。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/spring-application.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>關機時。</strong>Pod 被刪掉時，「關機掛鉤、解除服務註冊、從負載平衡器移除」是同時進行的，所以有一小段時間流量還會送到已經開始關機的 Pod。Spring Boot 文件建議在 <code>preStop</code> 掛鉤裡睡一下，長度「至少要跟處理一個進行中請求最久的時間一樣」，而且「不要只靠 Spring Boot 的優雅關機」；Kubernetes 1.32 起可以直接寫 <code>sleep</code>：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/deployment/cloud.html" target="_blank" rel="noopener">出處</a></p>
+<p>所以 Spring Boot 應用程式一般不一定需要啟動探針，因為就緒探針在所有啟動工作做完之前都會失敗；但如果應用程式要很久才啟動，建議設一個檢查存活端點的啟動探針，確保 Kubernetes 不會在應用程式啟動途中把它殺掉。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> 兩個探針的分工也跟上一段一致：存活狀態不應該依據外部檢查，否則外部系統一掛，會觸發大量重啟與整個平台的連鎖故障。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/spring-application.html" target="_blank" rel="noopener">出處</a></p>
+<p><strong>關機時。</strong>Pod 被刪掉時，關機掛鉤、解除服務註冊、從負載平衡器移除是同時進行的，所以有一小段時間流量還會送到已經開始關機的 Pod。做法：</p>
+<ul>
+<li>在 <code>preStop</code> 掛鉤裡睡一下，長度至少要跟處理一個進行中請求最久的時間一樣</li>
+<li>不要只靠 Spring Boot 的優雅關機</li>
+</ul>
+<p>Kubernetes 1.32 起可以直接寫 <code>sleep</code>：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/how-to/deployment/cloud.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>spec:
   containers:
     - name: teller
@@ -413,7 +434,7 @@ public void run(ApplicationArguments args) throws Exception {
 <div class="drill">
   <p class="dq">Spring Boot 4.1 的 Actuator，K8s 探針該打哪兩個網址？</p>
   <ul class="dopts"><li>/health 與 /ready</li><li>/actuator/liveness 與 /actuator/readiness</li><li>/actuator/info 與 /actuator/health</li><li data-ok>/actuator/health/liveness 與 /readiness</li></ul>
-  <p class="dexp">文件：存活與就緒用健康群組的方式暴露成 /actuator/health/liveness 與 /actuator/health/readiness，4.1 預設就啟用。</p>
+  <p class="dexp">存活與就緒用健康群組的方式暴露成 /actuator/health/liveness 與 /actuator/health/readiness，4.1 預設就啟用。</p>
 </div>
 <div class="drill">
   <p class="dq">Spring Boot 程式在 ApplicationRunner 裡暖機 40 秒，這段期間兩個探針的狀態是什麼？</p>
@@ -423,27 +444,27 @@ public void run(ApplicationArguments args) throws Exception {
 <div class="drill">
   <p class="dq">為什麼同樣 40 秒的初始化，寫在 <code>@PostConstruct</code> 會被存活探針判死，寫在 <code>ApplicationRunner</code> 不會？</p>
   <ul class="dopts"><li>因為 @PostConstruct 執行得比較慢</li><li>因為 ApplicationRunner 會自動延長探針時間</li><li data-ok>@PostConstruct 時伺服器還沒開</li><li>其實兩種寫法都會被判死</li></ul>
-  <p class="dexp">Spring Boot 文件：Starting 階段存活是 BROKEN、HTTP 伺服器沒啟動；runner 在 Started 之後才跑。文件也建議啟動工作放在 runner，不要用 @PostConstruct。</p>
+  <p class="dexp">Starting 階段存活是 BROKEN、HTTP 伺服器沒啟動；runner 在 Started 之後才跑。啟動工作也建議放在 runner，不要用 @PostConstruct。</p>
 </div>
 <div class="drill">
-  <p class="dq">依 Spring Boot 文件，Spring Boot 應用程式什麼時候才算「就緒」？</p>
+  <p class="dq">Spring Boot 應用程式什麼時候才算「就緒」？</p>
   <ul class="dopts"><li>JVM 一啟動就算</li><li>所有 Bean 都建立完的時候</li><li>HTTP 伺服器一開始監聽的時候</li><li data-ok>runner 都被呼叫之後</li></ul>
   <p class="dexp">Application Availability 一節：應用程式在 application 與 command-line runner 都被呼叫之後才算就緒；就緒狀態在處理這些 runner 時是失敗的。</p>
 </div>
 <div class="drill">
-  <p class="dq">Spring Boot 文件為什麼說存活狀態不該依據外部系統的檢查？</p>
+  <p class="dq">為什麼 Spring Boot 的存活狀態不該依據外部系統的檢查？</p>
   <ul class="dopts"><li>因為外部系統的檢查太慢，探針會逾時</li><li>因為 Actuator 不支援檢查外部系統</li><li>因為 K8s 規定存活探針只能回 200</li><li data-ok>外部系統一掛，全部被重啟</li></ul>
-  <p class="dexp">文件：存活狀態壞掉時 K8s 會重啟應用程式；如果它依賴資料庫、Web API、外部快取，外部系統一掛就觸發大量重啟與整個平台的連鎖故障。</p>
+  <p class="dexp">存活狀態壞掉時 K8s 會重啟應用程式；如果它依賴資料庫、Web API、外部快取，外部系統一掛就觸發大量重啟與整個平台的連鎖故障。</p>
 </div>
 <div class="drill">
-  <p class="dq">Pod 被刪除時，為什麼 Spring Boot 文件建議在 <code>preStop</code> 先睡一下？</p>
+  <p class="dq">Pod 被刪除時，為什麼建議在 <code>preStop</code> 先睡一下？</p>
   <ul class="dopts"><li>讓 JVM 有時間把垃圾回收做完</li><li>讓相連的資料庫先關掉</li><li data-ok>先等新流量不再送進來</li><li>讓 K8s 先把映像檔刪掉</li></ul>
-  <p class="dexp">文件：刪除 Pod 時關機掛鉤、解除註冊、移出負載平衡器同時發生，有一段時間流量還會送到正在關機的 Pod；preStop 睡一下，長度至少跟最久的一個進行中請求一樣。</p>
+  <p class="dexp">刪除 Pod 時關機掛鉤、解除註冊、移出負載平衡器同時發生，有一段時間流量還會送到正在關機的 Pod；preStop 睡一下，長度至少跟最久的一個進行中請求一樣。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Kubernetes 1.32 以上，preStop 要睡 10 秒，最簡單的寫法是什麼？</p>
   <ul class="dopts"><li data-ok>lifecycle.<wbr>preStop.<wbr>sleep.<wbr>seconds: 10</li><li>在 Dockerfile 加 RUN sleep 10</li><li>把 terminationGracePeriodSeconds 設成 10</li><li>把存活探針的 periodSeconds 設成 10</li></ul>
-  <p class="dexp">Spring Boot 文件：K8s 1.32 起 preStop 可以直接用 sleep 動作；更早的版本要用 exec 去呼叫 sleep 指令。terminationGracePeriodSeconds 是整個關機最多能花多久，不是先等一下。</p>
+  <p class="dexp">K8s 1.32 起 preStop 可以直接用 sleep 動作；更早的版本要用 exec 去呼叫 sleep 指令。terminationGracePeriodSeconds 是整個關機最多能花多久，不是先等一下。</p>
 </div>
 </section>
 
@@ -451,14 +472,14 @@ public void run(ApplicationArguments args) throws Exception {
 <p class="era">吃多少、被殺的時候</p>
 <h3 class="head">requests、limits、QoS 等級與 OOMKilled</h3>
 <p>requests 與 limits 的意思見〈Deployment：下單〉，單位怎麼讀見〈K8s 上手：Minikube 與上雲〉。這一段補兩件事。</p>
-<p><strong>QoS 等級怎麼判。</strong>官方文件的條件：<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>QoS 等級怎麼判。</strong><a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>Guaranteed</strong>：Pod 裡每個容器的記憶體與 CPU 都有 request 與 limit，都大於 0，而且 limit 等於 request。</li>
 <li><strong>Burstable</strong>：不符合 Guaranteed，但至少有一個容器設了記憶體或 CPU 的 request 或 limit。</li>
 <li><strong>BestEffort</strong>：全都沒設。</li>
 </ul>
-<p>節點資源不夠時，「先驅逐 BestEffort，再來是 Burstable，最後才是 Guaranteed」，而且因資源壓力驅逐時，「只有用量超過自己 requests 的 Pod 才是候選」。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a> 這一課的 <code>teller</code> 記憶體 request 等於 limit（512Mi），但 CPU 只寫了 request、沒寫 limit，實跑 <code>kubectl get pod -o jsonpath='{.<wbr>status.<wbr>qosClass}'</code> 得到 <code>Burstable</code>；要 Guaranteed 就把 CPU 的 limit 也補上、等於 request。還有一個陷阱：只寫 limit、不寫 request，而且叢集沒有另外替它補預設的 request 時，Kubernetes「會把 limit 複製過去當作 request」（Kubernetes copies the limit you specified and uses it as the requested value for the resource），所以 CPU 與記憶體都只寫 limit 的 Pod 會是 Guaranteed。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
-<p><strong>OOMKilled。</strong>記憶體超過 limit，官方文件說「核心可能終止它」，但要等核心偵測到記憶體壓力。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a> 被終止的容器在狀態裡看得到 <code>reason: OOMKilled</code>、<code>exitCode: 137</code>。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/" target="_blank" rel="noopener">出處</a> 實驗用一個 limit 512Mi 的 Pod，讓程式每呼叫一次 <code>/hoard</code> 就多抓 64 MB 不放：</p>
+<p>節點資源不夠時，先驅逐 BestEffort，再來是 Burstable，最後才是 Guaranteed；而且因資源壓力驅逐時，只有用量超過自己 requests 的 Pod 才是候選。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a> 這一課的 <code>teller</code> 記憶體 request 等於 limit（512Mi），但 CPU 只寫了 request、沒寫 limit，實跑 <code>kubectl get pod -o jsonpath='{.<wbr>status.<wbr>qosClass}'</code> 得到 <code>Burstable</code>；要 Guaranteed 就把 CPU 的 limit 也補上、等於 request。還有一個陷阱：只寫 limit、不寫 request，而且叢集沒有另外替它補預設的 request 時，Kubernetes 會把 limit 複製過去當作 request，所以 CPU 與記憶體都只寫 limit 的 Pod 會是 Guaranteed。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a></p>
+<p><strong>OOMKilled。</strong>記憶體超過 limit，核心可能終止它，但要等核心偵測到記憶體壓力。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">出處</a> 被終止的容器在狀態裡看得到 <code>reason: OOMKilled</code>、<code>exitCode: 137</code>。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/" target="_blank" rel="noopener">出處</a> 實驗用一個 limit 512Mi 的 Pod，讓程式每呼叫一次 <code>/hoard</code> 就多抓 64 MB 不放：</p>
 <pre><code>$ kubectl exec mem-100 -- curl -s -XPOST localhost:8080/hoard
 hoarded 64 MB, maxMemory=494 MB
 ...（第 5 次）hoarded 320 MB, maxMemory=494 MB
@@ -483,7 +504,7 @@ mem-100 1/1 Running 重啟=1        ← 被核心殺掉，kubelet 照重啟政�
 <div class="drill">
   <p class="dq">節點記憶體吃緊、kubelet 要驅逐 Pod 時，哪個等級最先被考慮？</p>
   <ul class="dopts"><li>Guaranteed</li><li>Burstable</li><li data-ok>BestEffort</li><li>三種同時</li></ul>
-  <p class="dexp">官方文件：先驅逐 BestEffort，再來是 Burstable，最後才是 Guaranteed；而且只有用量超過自己 requests 的 Pod 才是候選。</p>
+  <p class="dexp">先驅逐 BestEffort，再來是 Burstable，最後才是 Guaranteed；而且只有用量超過自己 requests 的 Pod 才是候選。</p>
 </div>
 <div class="drill">
   <p class="dq">容器結束碼 137，一定是記憶體不夠被殺嗎？</p>
@@ -493,24 +514,24 @@ mem-100 1/1 Running 重啟=1        ← 被核心殺掉，kubelet 照重啟政�
 <div class="drill">
   <p class="dq">記憶體用量一超過 limit，容器會在那一瞬間被殺嗎？</p>
   <ul class="dopts"><li>會，一超過那一瞬間就被殺</li><li>不會，記憶體超過只會跑得比較慢</li><li>不會，K8s 會自動把 limit 調大</li><li data-ok>不一定，要等核心感到記憶體壓力</li></ul>
-  <p class="dexp">官方原句：When a container uses more than its memory limit, the kernel may terminate it. However, terminations only happen when the kernel detects memory pressure. CPU 超過 limit 才是被節流、變慢。</p>
+  <p class="dexp">容器用超過記憶體 limit 時，核心可能終止它，但只在核心偵測到記憶體壓力時才會發生。CPU 超過 limit 才是被節流、變慢。</p>
 </div>
 <div class="drill">
   <p class="dq">只寫 CPU 與記憶體的 limit、都不寫 request，叢集也沒有另外替它補預設值。它的 QoS 等級是什麼？</p>
   <ul class="dopts"><li>BestEffort，因為沒寫 request</li><li>Burstable，因為只寫了一半</li><li data-ok>Guaranteed，request 會複製 limit</li><li>建立失敗，request 是必填的</li></ul>
-  <p class="dexp">官方文件：只指定 limit 而沒指定 request 時，Kubernetes 會把 limit 複製成 request；兩者相等，CPU 與記憶體都有，就是 Guaranteed。</p>
+  <p class="dexp">只指定 limit 而沒指定 request 時，Kubernetes 會把 limit 複製成 request；兩者相等，CPU 與記憶體都有，就是 Guaranteed。</p>
 </div>
 </section>
 
 <section>
 <p class="era">Java 在容器裡看到多少記憶體</p>
 <h3 class="head">JVM 的容器感知、MaxRAMPercentage 與堆外記憶體</h3>
-<p>JVM 在 Linux 上會看容器的限制。java 手冊：<code>-XX:+UseContainerSupport</code>「僅限 Linux」，讓 VM「判斷 docker 容器裡的 Java 行程可用的記憶體量與處理器數」，「預設為 true」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
-<p>堆的上限怎麼算，同一份手冊：</p>
+<p>JVM 在 Linux 上會看容器的限制：<code>-XX:+UseContainerSupport</code> 只在 Linux 上有，讓 VM 判斷 docker 容器裡的 Java 行程可用的記憶體量與處理器數，預設為 true。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></p>
+<p>堆的上限怎麼算：</p>
 <ul class="plainlist">
-<li><b><code>-XX:MaxRAM</code></b>：預設是「JVM 行程可用的最大記憶體，或 128 GB，取小的」，可用記憶體是「機器的實體記憶體與環境（例如容器）限制取小的」。</li>
-<li><b><code>-XX:MaxRAMPercentage</code></b>：「預設 25%」。</li>
-<li><b><code>-XX:MinRAMPercentage</code></b>：<strong>小的堆</strong>改用它，手冊說「小的堆大約是 125 MB」，預設 50%。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
+<li><b><code>-XX:MaxRAM</code></b>：預設是 JVM 行程可用的最大記憶體與 128 GB 取小的；可用記憶體是機器的實體記憶體與環境（例如容器）限制取小的。</li>
+<li><b><code>-XX:MaxRAMPercentage</code></b>：預設 25%。</li>
+<li><b><code>-XX:MinRAMPercentage</code></b>：<strong>小的堆</strong>（大約 125 MB 以下）改用它，預設 50%。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>〈JVM 記憶體與垃圾回收〉說的「最大堆預設是實體記憶體的 1/4」，在容器裡就是「容器上限的 1/4」，記憶體很小時例外。用 Docker 的 <code>-m</code> 限制記憶體，實跑 <code>java -XX:+PrintFlagsFinal -version</code> 看 <code>MaxHeapSize</code>（eclipse-temurin:21-jre）：</p>
 <div class="tablewrap"><table><thead><tr><th>容器記憶體上限</th><th>預設最大堆</th><th>比例</th></tr></thead><tbody>
@@ -553,7 +574,7 @@ spec:
 <div class="drill">
   <p class="dq">容器 limit 只有 256Mi，Java 21 的預設最大堆大約多少？</p>
   <ul class="dopts"><li>64 MiB，照 25% 算</li><li data-ok>約 126 MiB，小的堆改用 50%</li><li>256 MiB，跟容器上限一樣</li><li>32 MiB，因為容器太小</li></ul>
-  <p class="dexp">java 手冊：小的堆（約 125 MB 以下）改用 MinRAMPercentage，預設 50%。實跑 256m 得到 126 MiB，128m 得到 64 MiB；512m 以上才回到 25%。</p>
+  <p class="dexp">小的堆（約 125 MB 以下）改用 MinRAMPercentage，預設 50%。實跑 256m 得到 126 MiB，128m 得到 64 MiB；512m 以上才回到 25%。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼不把 <code>MaxRAMPercentage</code> 設成 100？</p>
@@ -573,7 +594,7 @@ spec:
 <div class="drill">
   <p class="dq">JVM 怎麼知道自己在容器裡、能用多少記憶體？</p>
   <ul class="dopts"><li>要手動加 -XX:+UseContainerSupport</li><li>讀 Docker 映像檔裡的 Dockerfile</li><li data-ok>預設就會讀 cgroup 裡的記憶體限制</li><li>看 K8s 寫的 requests 決定</li></ul>
-  <p class="dexp">java 手冊：UseContainerSupport 僅限 Linux、預設為 true；MaxRAM 取實體記憶體與環境限制（例如容器）的小者。看的是限制（limit），不是 requests。</p>
+  <p class="dexp">UseContainerSupport 僅限 Linux、預設為 true；MaxRAM 取實體記憶體與環境限制（例如容器）的小者。看的是限制（limit），不是 requests。</p>
 </div>
 <div class="drill">
   <p class="dq">把 Java 服務的記憶體 limit 從 512Mi 調到 2Gi、其他不改，預設最大堆會怎樣？</p>
@@ -585,7 +606,12 @@ spec:
 <section>
 <p class="era">維運搬家時別一次搬走太多</p>
 <h3 class="head">PodDisruptionBudget：擋住自願中斷</h3>
-<p>Pod 消失有兩種。官方文件把硬體壞掉、虛擬機被誤刪、核心當掉、節點資源不足被驅逐這類叫<strong>非自願中斷</strong>（involuntary disruptions）；把「為了修理或升級而清空節點」「縮小叢集時清空節點」這類有人或自動化主動做的事叫<strong>自願中斷</strong>（voluntary disruptions）。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a> <strong>PodDisruptionBudget</strong>（PDB，中斷預算）「限制一個多副本應用程式因自願中斷而同時倒下的 Pod 數」（A PDB limits the number of Pods of a replicated application that are down simultaneously from voluntary disruptions.）。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a></p>
+<p>Pod 消失有兩種：</p>
+<ul>
+<li><strong>非自願中斷</strong>（involuntary disruptions）：硬體壞掉、虛擬機被誤刪、核心當掉、節點資源不足被驅逐</li>
+<li><strong>自願中斷</strong>（voluntary disruptions）：為了修理或升級而清空節點、縮小叢集時清空節點這類有人或自動化主動做的事<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p><strong>PodDisruptionBudget</strong>（PDB，中斷預算）限制一個多副本應用程式因自願中斷而同時倒下的 Pod 數。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a></p>
 <pre><code>apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -613,13 +639,19 @@ teller-845ff5cf4d-n5btc 0/1 Pending                  ← 補的那份沒地方�
 teller-845ff5cf4d-ntwhz 1/1 Running
 $ kubectl get pdb
 teller-pdb 最少可用=3 允許中斷=0        ← 剩 3 份可服務，一份都不能再搬</code></pre>
-<p><code>kubectl drain</code>（清空節點：先封鎖、再把上面的 Pod 驅逐走）透過驅逐 API 送請求，官方文件說請求「可能暫時被拒絕」，工具會「定期重試所有失敗的請求」，直到節點清空或逾時。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a> 實驗是單節點叢集，被搬走的那份沒有別的節點可去，所以 drain 永遠等不到第二份；多節點叢集裡，新的一份在別台就緒之後，預算又空出來，drain 就能繼續一份一份搬。</p>
-<p>幾個邊界都寫在同一頁：「刪除 Deployment 或 Pod 會繞過 PDB」；非自願中斷「PDB 擋不住，但會算進預算」；滾動更新時被換掉的 Pod 會算進預算，但 Deployment 做滾動更新「不受 PDB 限制」，換版的節奏由 Deployment 自己的設定決定。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a> 另外，前面被 <code>/drain</code> 弄成「不就緒」的那一份也會被算成不健康：實驗一開始建立 PDB 時那份還沒恢復，<code>ALLOWED DISRUPTIONS</code> 是 0，等全部重新就緒才變成 1。</p>
+<p><code>kubectl drain</code>（清空節點：先封鎖、再把上面的 Pod 驅逐走）透過驅逐 API 送請求，請求可能暫時被拒絕，工具會定期重試所有失敗的請求，直到節點清空或逾時。<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a> 實驗是單節點叢集，被搬走的那份沒有別的節點可去，所以 drain 永遠等不到第二份；多節點叢集裡，新的一份在別台就緒之後，預算又空出來，drain 就能繼續一份一份搬。</p>
+<p>幾個邊界：</p>
+<ul>
+<li>刪除 Deployment 或 Pod 會繞過 PDB</li>
+<li>非自願中斷 PDB 擋不住，但會算進預算</li>
+<li>滾動更新時被換掉的 Pod 會算進預算，但 Deployment 做滾動更新不受 PDB 限制，換版的節奏由 Deployment 自己的設定決定<a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/disruptions/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>另外，前面被 <code>/drain</code> 弄成「不就緒」的那一份也會被算成不健康：實驗一開始建立 PDB 時那份還沒恢復，<code>ALLOWED DISRUPTIONS</code> 是 0，等全部重新就緒才變成 1。</p>
 
 <div class="drill">
   <p class="dq">下面哪一個是「自願中斷」？</p>
   <ul class="dopts"><li>節點的硬碟壞了</li><li>核心當掉</li><li data-ok>維運人員為了升級而 drain 節點</li><li>節點記憶體不足，kubelet 驅逐 Pod</li></ul>
-  <p class="dexp">官方文件：為修理或升級清空節點是自願中斷；硬體故障、核心當掉、節點資源不足的驅逐都是非自願中斷。</p>
+  <p class="dexp">為修理或升級清空節點是自願中斷；硬體故障、核心當掉、節點資源不足的驅逐都是非自願中斷。</p>
 </div>
 <div class="drill">
   <p class="dq">replicas 4、PDB <code>minAvailable: 3</code>，4 份都就緒。drain 節點時一次最多能搬走幾份？</p>
@@ -629,12 +661,12 @@ teller-pdb 最少可用=3 允許中斷=0        ← 剩 3 份可服務，一份�
 <div class="drill">
   <p class="dq">有 PDB 保護的 Deployment，用 <code>kubectl delete deployment</code> 刪掉，PDB 擋得住嗎？</p>
   <ul class="dopts"><li>擋得住，PDB 會拒絕這個刪除</li><li>擋得住，但要加上 --force 才行</li><li data-ok>擋不住，刪除 Deployment 會繞過 PDB</li><li>擋得住一半，留下 minAvailable 份</li></ul>
-  <p class="dexp">官方文件明寫：deleting deployments or pods bypasses Pod Disruption Budgets。PDB 管的是透過驅逐 API 的自願中斷，例如 kubectl drain。</p>
+  <p class="dexp">刪除 Deployment 或 Pod 會繞過 PDB。PDB 管的是透過驅逐 API 的自願中斷，例如 kubectl drain。</p>
 </div>
 <div class="drill">
   <p class="dq">PDB 會讓 Deployment 的滾動更新變慢或卡住嗎？</p>
   <ul class="dopts"><li>會，每換一份都要經過 PDB 同意</li><li data-ok>不會，滾動更新不受 PDB 限制</li><li>會，PDB 會把 maxUnavailable 改成 0</li><li>不會，因為滾動更新會先刪掉 PDB</li></ul>
-  <p class="dexp">官方文件：滾動更新中被刪掉或不可用的 Pod 算進預算，但 Deployment 做滾動更新時不受 PDB 限制，節奏由 maxSurge、maxUnavailable 決定。</p>
+  <p class="dexp">滾動更新中被刪掉或不可用的 Pod 算進預算，但 Deployment 做滾動更新時不受 PDB 限制，節奏由 maxSurge、maxUnavailable 決定。</p>
 </div>
 <div class="drill">
   <p class="dq">4 份裡有 1 份就緒探針一直失敗，PDB <code>minAvailable: 3</code>。現在 drain 還能搬走幾份？</p>

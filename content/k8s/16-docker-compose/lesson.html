@@ -45,7 +45,7 @@ docker container run -v /主機上的絕對路徑:/app/config myapp:1.0
 
 # tmpfs
 docker container run --tmpfs /app/cache myapp:1.0</code></pre>
-<p class="muted">具名 Volume 是保存資料最推薦的方式：Docker 文件寫的是「Volumes are the preferred mechanism for persisting data」（Volume 是保存資料的首選機制）。<a class="fixsrc" href="https://docs.docker.com/engine/storage/volumes/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">具名 Volume 是保存資料的首選機制。<a class="fixsrc" href="https://docs.docker.com/engine/storage/volumes/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -59,7 +59,7 @@ docker container run --name app-a -v app-data:/app/data myapp:1.0
 docker container rm -f app-a
 docker container run --name app-b -v app-data:/app/data myapp:1.0   # 資料還在</code></pre>
 <p>只要沒把 <code>app-data</code> 刪掉，第二個容器掛上去就接回同一份資料。這就是「容器可以換、資料自己活」的做法。</p>
-<p class="q">一個容易中的坑：Dockerfile 裡寫了 <code>VOLUME ["/app"]</code>，但 <code>docker run</code> 的時候沒指定名字，Docker 每開一次容器就幫你生一個<strong>隨機名字的 Volume</strong>（正式名稱：匿名 Volume；官方文件寫「Anonymous volumes are given a random name」）。<a class="fixsrc" href="https://docs.docker.com/engine/storage/volumes/" target="_blank" rel="noopener">出處</a> 這樣很容易累積出一堆看不出用途的 Volume。解法是每次都用 <code>-v 名字:路徑</code> 明確命名。</p>
+<p class="q">一個容易中的坑：Dockerfile 裡寫了 <code>VOLUME ["/app"]</code>，但 <code>docker run</code> 的時候沒指定名字，Docker 每開一次容器就幫你生一個<strong>隨機名字的 Volume</strong>（正式名稱：匿名 Volume）。<a class="fixsrc" href="https://docs.docker.com/engine/storage/volumes/" target="_blank" rel="noopener">出處</a> 這樣很容易累積出一堆看不出用途的 Volume。解法是每次都用 <code>-v 名字:路徑</code> 明確命名。</p>
 <p class="muted"><code>docker volume inspect</code> 印出來的 Mountpoint（通常長得像 <code>/var/lib/docker/volumes/app-data/_data</code>）是<strong>那層 Linux 裡面的路徑</strong>。在 Windows 和 macOS 上你用檔案總管或 Finder 找不到它，因為它在 Docker 那層 Linux 裡面。那一層是誰開的、長什麼樣，〈Docker Desktop 與 Colima〉會拆開，那裡有出處。</p>
 <blockquote>
 <p>Volume 有自己的生命週期，但<strong>它不是備份</strong>。誤刪、磁碟壞掉、資料本身損毀，Volume 一樣救不了你。重要資料另外規畫備份和還原。</p>
@@ -113,9 +113,9 @@ docker compose up -d     # 背景把整組起起來
 docker compose ps        # 看狀態
 docker compose logs -f   # 跟著看紀錄
 docker compose down      # 收掉這個專案的容器和網路</code></pre>
-<p class="muted">你會看到兩種寫法：<code>docker-compose up</code>（中間有連字號）和 <code>docker compose up</code>。它們是兩代東西：Compose v1 用 Python 寫、指令是 <code>docker-compose</code>；v2 用 Go 重寫、變成 <code>docker</code> 的子指令 <code>docker compose</code>。<a class="fixsrc" href="https://docs.docker.com/compose/intro/history/" target="_blank" rel="noopener">出處</a> 官方文件教的是後者，打指令時用有空格的那個寫法。</p>
-<p><code>docker compose down</code> 會收掉容器和網路，<strong>但預設不會刪具名 Volume</strong>——官方文件把「刪 Volume」放在 <code>--volumes</code>（<code>-v</code>）這個旗標底下。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/compose/down/" target="_blank" rel="noopener">出處</a> 所以重新 <code>up</code> 通常接得回原本的資料；反過來說，手滑加了 <code>-v</code>，資料就可能救不回來。</p>
-<p class="q"><code>depends_on</code> 保證不了「資料庫已經可以接查詢了」。官方文件寫得很直白：「啟動時 Compose 不會等到容器『就緒』，只等到它『在跑』。」<a class="fixsrc" href="https://docs.docker.com/compose/how-tos/startup-order/" target="_blank" rel="noopener">出處</a> 要真的等，得搭配健康檢查（<code>healthcheck</code>）加上 <code>condition: service_healthy</code>；就算這樣，應用程式自己也該會重試。</p>
+<p class="muted">你會看到兩種寫法：<code>docker-compose up</code>（中間有連字號）和 <code>docker compose up</code>。它們是兩代東西：Compose v1 用 Python 寫、指令是 <code>docker-compose</code>；v2 用 Go 重寫、變成 <code>docker</code> 的子指令 <code>docker compose</code>。<a class="fixsrc" href="https://docs.docker.com/compose/intro/history/" target="_blank" rel="noopener">出處</a> 現在的文件教的是後者，打指令時用有空格的那個寫法。</p>
+<p><code>docker compose down</code> 會收掉容器和網路，<strong>但預設不會刪具名 Volume</strong>，要加 <code>--volumes</code>（<code>-v</code>）這個旗標才刪。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/compose/down/" target="_blank" rel="noopener">出處</a> 所以重新 <code>up</code> 通常接得回原本的資料；反過來說，手滑加了 <code>-v</code>，資料就可能救不回來。</p>
+<p class="q"><code>depends_on</code> 保證不了「資料庫已經可以接查詢了」。啟動時 Compose 不會等到容器「就緒」，只等到它「在跑」。<a class="fixsrc" href="https://docs.docker.com/compose/how-tos/startup-order/" target="_blank" rel="noopener">出處</a> 要真的等，得搭配健康檢查（<code>healthcheck</code>）加上 <code>condition: service_healthy</code>；就算這樣，應用程式自己也該會重試。</p>
 </section>
 
 <section>

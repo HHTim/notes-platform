@@ -16,7 +16,7 @@
   <div class="term"><b>Cgroup（控制群組）</b><span>管「能用多少」。一組程序最多吃多少 CPU、多少記憶體，優先權多高。負責的是<strong>資源管理與限制</strong>。</span></div>
 </div>
 <p>〈K8s 上手：Minikube 與上雲〉你寫的 <code>requests</code> 和 <code>limits</code>，最後落到節點上就是變成 cgroup 的設定；〈Docker 上手〉用 <code>docker container top</code> 在主機上看得到容器裡的程序，也是因為它們本來就是同一台機器上的程序，只是被關進不同的 namespace。</p>
-<p class="muted">Linux Container（LXC）是一種作業系統層的虛擬化技術，直接建在核心本來就有的那些隔離能力上。官方的自我介紹是「LXC is a userspace interface for the Linux kernel containment features.」，而它列出來自己用到的核心能力，清單裡的「Kernel namespaces」和「CGroups (control groups)」——和〈容器〉「容器就是把兩個開關打開」講的是同一件事。<a class="fixsrc" href="https://linuxcontainers.org/lxc/introduction/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">Linux Container（LXC）是一種作業系統層的虛擬化技術，直接建在核心本來就有的那些隔離能力上。它是 Linux 核心隔離功能的使用者空間介面，用到的核心能力裡有 Kernel namespaces 和 CGroups（control groups）——和〈容器〉「容器就是把兩個開關打開」講的是同一件事。<a class="fixsrc" href="https://linuxcontainers.org/lxc/introduction/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -44,15 +44,19 @@
     </tbody>
   </table>
 </div>
-<p class="muted">chroot 的起點，Linux 基金會的文章寫的是「Chroot was first introduced in 1979, during development of Seventh Edition Unix (also called Version 7), and was added to BSD in 1982.」——1979 年隨第七版 Unix 出現，1982 年加進 BSD。<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a></p>
-<p class="muted">LXC 常被說成「第一個完整的容器管理實作」，這個說法要綁在 <strong>Linux 上</strong>才成立：在 Linux 上它是第一個把隔離、資源管理和生命週期工具湊齊的一套；別的作業系統更早就有同類的東西——同一篇文章寫「In 2000, FreeBSD extended chroot to FreeBSD Jails. Then, in the early 2000s, Solaris introduced the concept of zones, which virtualized the operating system services.」<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">chroot 的起點：1979 年隨第七版 Unix（Version 7）開發時出現，1982 年加進 BSD。<a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">LXC 常被說成「第一個完整的容器管理實作」，這個說法要綁在 <strong>Linux 上</strong>才成立：在 Linux 上它是第一個把隔離、資源管理和生命週期工具湊齊的一套；別的作業系統更早就有同類的東西：</p>
+<ul>
+  <li>2000 年，FreeBSD 把 chroot 擴充成 FreeBSD Jails</li>
+  <li>2000 年代初，Solaris 推出 zones，把作業系統的服務虛擬化 <a class="fixsrc" href="https://www.linuxfoundation.org/blog/blog/a-brief-look-at-the-roots-of-linux-containers" target="_blank" rel="noopener">出處</a></li>
+</ul>
 <p>Docker 真正改變局面的地方，其實不在隔離本身——那些能力 2008 年就在核心裡了。它做的是<strong>分層映像檔、一個指令就能建、一個倉庫就能分發、一套所有人都看得懂的操作介面</strong>。把已經存在的底層能力，整理成做得出來、送得出去、跑得起來的東西。</p>
 </section>
 
 <section>
 <p class="era">標準</p>
 <h3 class="head">OCI：讓容器換得掉的那份文件</h3>
-<p>2015 年，容器圈把格式寫成了公開標準。OCI（Open Container Initiative，開放容器倡議）官方的說法是：2015 年 6 月 22 日由 Docker、CoreOS 等業界成員發起，掛在 Linux 基金會（Linux Foundation）底下。<a class="fixsrc" href="https://opencontainers.org/about/overview/" target="_blank" rel="noopener">出處</a></p>
+<p>2015 年，容器圈把格式寫成了公開標準。OCI（Open Container Initiative，開放容器倡議）在 2015 年 6 月 22 日由 Docker、CoreOS 等業界成員發起，掛在 Linux 基金會（Linux Foundation）底下。<a class="fixsrc" href="https://opencontainers.org/about/overview/" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap">
   <table>
     <thead><tr><th scope="col">規格</th><th scope="col">規定什麼</th></tr></thead>
@@ -82,7 +86,7 @@
     </tbody>
   </table>
 </div>
-<p class="q">為什麼要講這個？因為它直接回答〈Pod 與 Node〉提過的那件事：<strong>Kubernetes 從 v1.24 起，kubelet 不再內建接 Docker Engine 的那段轉接程式（dockershim），改成一律透過 CRI 這個共同介面接容器執行環境——containerd、CRI-O 都可以，不是只有 containerd；要繼續用 Docker Engine 也能裝 cri-dockerd 接上去。而你用 Docker 建出來的映像檔照樣能跑</strong>，官方的原話是「the images produced from docker build will work with all CRI implementations」。<a class="fixsrc" href="https://kubernetes.io/blog/2022/02/17/dockershim-faq/" target="_blank" rel="noopener">出處</a> 原因就在最後一列——上面幾層都可以換，映像檔的格式是共同遵守的規格。你手上那些 Dockerfile 和映像檔，不綁在 Docker 這個產品上。</p>
+<p class="q">為什麼要講這個？因為它直接回答〈Pod 與 Node〉提過的那件事：<strong>Kubernetes 從 v1.24 起，kubelet 不再內建接 Docker Engine 的那段轉接程式（dockershim），改成一律透過 CRI 這個共同介面接容器執行環境——containerd、CRI-O 都可以，不是只有 containerd；要繼續用 Docker Engine 也能裝 cri-dockerd 接上去。而你用 Docker 建出來的映像檔照樣能跑</strong>，在所有 CRI 實作上都能跑。<a class="fixsrc" href="https://kubernetes.io/blog/2022/02/17/dockershim-faq/" target="_blank" rel="noopener">出處</a> 原因就在最後一列——上面幾層都可以換，映像檔的格式是共同遵守的規格。你手上那些 Dockerfile 和映像檔，不綁在 Docker 這個產品上。</p>
 <p class="muted">所以〈要不要用 K8s〉那句「同一個映像檔在 <code>docker run</code>／託管服務／K8s 都能跑」，底下撐著它的就是這份標準。</p>
 </section>
 

@@ -22,8 +22,12 @@
 <p>現在要送一個封包到 <code>10.0.5.7</code>。兩條都對得上——第一條因為它涵蓋全部位址，第二條因為 <code>10.0.5.7</code> 正好落在那 256 個裡面。該走哪條？</p>
 <p class="formula">規則叫<b>最長前綴比對</b>（Longest Prefix Match）：挑斜線數字最大、也就是講得最精確的那一條。這裡 <code>/24</code> 比 <code>/0</code> 精確，所以走內部通道。</p>
 <p>「前綴」（prefix）就是前面那段固定不變的位元；比得越長，代表這條規則指名得越具體。這是網路設備共通的作法，不是哪一家雲端獨有的。</p>
-<p class="muted">Google Cloud 的文件描述這件事時用的措辭是「最具體的目的地」而不是「最長前綴比對」——原文是「Google Cloud determines which applicable static or dynamic routes have the most specific destination that contains the destination IP address of the packet」（Google Cloud 會判斷哪些適用的靜態或動態路由，擁有涵蓋該封包目的位址的最具體目的地）<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/routes" target="_blank" rel="noopener">出處</a>。兩種講法指的是同一個規則。查文件時要知道這件事：在上面這份「路由」（Routes）文件裡搜「longest prefix match」找不到，搜「most specific」才對得上；這個英文說法出現在「政策型路由」（Policy-based routes）那一頁，而且是用來講例外——那一頁寫「policy-based routes don't use longest-prefix matching」（政策型路由不使用最長前綴比對）<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/policy-based-routes" target="_blank" rel="noopener">出處</a>。</p>
-<p>如果兩條路由一樣精確呢？那就再比優先順序值（priority）。Google Cloud 的說明是「優先順序可以從 <code>0</code>（最高優先）到 <code>65535</code>（最低優先）」<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/using-routes" target="_blank" rel="noopener">出處</a>——數字小的贏，跟一般「第一名是 1」的直覺一樣。</p>
+<p class="muted">Google Cloud 把這件事叫「最具體的目的地」（most specific destination），不叫「最長前綴比對」，兩種講法指的是同一個規則：在適用的靜態或動態路由裡，挑涵蓋封包目的位址、而且最具體的那一條<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/routes" target="_blank" rel="noopener">出處</a>。查文件時要知道：</p>
+<ul class="muted">
+  <li>在「路由」（Routes）文件裡搜 <code>longest prefix match</code> 找不到，搜 <code>most specific</code> 才對得上</li>
+  <li>最長前綴比對這個說法出現在「政策型路由」（Policy-based routes）那一頁，而且是用來講例外：政策型路由不使用最長前綴比對<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/policy-based-routes" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<p>如果兩條路由一樣精確呢？那就再比優先順序值（priority）：從 <code>0</code>（最高優先）到 <code>65535</code>（最低優先）<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/using-routes" target="_blank" rel="noopener">出處</a>——數字小的贏，跟一般「第一名是 1」的直覺一樣。</p>
 </section>
 
 <section>
@@ -40,7 +44,12 @@
 <h3 class="head">子網路的上下限：最小 /29</h3>
 <p>知道要保留四個之後，就看得懂為什麼有最小值。Google Cloud 的規定是：「最小的主要或次要範圍大小是八個 IPv4 位址。換句話說，你能使用的最長子網路遮罩是 <code>/29</code>。」<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/subnets" target="_blank" rel="noopener">出處</a></p>
 <p><code>/29</code> 是 8 個位址，扣掉保留的四個，只剩 4 個能配給機器。再往下切一級是 <code>/30</code>、只有 4 個位址，四個保留位址就把它佔滿了，一台機器都配不到——所以下限停在 <code>/29</code> 是有道理的。</p>
-<p class="muted">另一端的上限則要注意官方的但書：同一頁寫「你能使用的最短子網路遮罩是 <code>/4</code>。然而，對於大多數 <code>/4</code> 的 IP 位址範圍，額外的驗證會阻止你建立這麼大的子網路」，並接著建議「為了把挑到無效子網路範圍的機會降到最低，我們建議你把子網路的最大尺寸限制在 <code>/8</code>」。所以實務上可以把 <code>/8</code> 當成上限來規劃，<code>/4</code> 是理論值<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/subnets" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">另一端的上限有但書：</p>
+<ul class="muted">
+  <li>能用的最短子網路遮罩是 <code>/4</code>，但大多數 <code>/4</code> 的位址範圍會被額外的驗證擋下，建不出這麼大的子網路</li>
+  <li>為了少挑到無效的子網路範圍，建議子網路最大只到 <code>/8</code></li>
+</ul>
+<p class="muted">所以實務上可以把 <code>/8</code> 當成上限來規劃，<code>/4</code> 是理論值<a class="fixsrc" href="https://docs.cloud.google.com/vpc/docs/subnets" target="_blank" rel="noopener">出處</a>。</p>
 <p class="q">規劃時的順序建議反過來想：先估這個子網路以後最多會放幾台機器，加上保留的四個，再往上找最接近的那個斜線數字。子網路建好之後要改範圍比一開始留寬一點麻煩得多。</p>
 </section>
 
@@ -48,13 +57,13 @@
 <p class="era">沒有對外位址也要連得出去</p>
 <h3 class="head">Cloud NAT 讓私有的 VM 單向連外</h3>
 <p>為了安全，很多 VM 刻意不給它外部 IP 位址，外面就完全找不到它。但這種機器還是需要主動連出去——抓系統更新、呼叫外部的 API 都要。Cloud NAT 就是補這一段的代管服務。</p>
-<p>Cloud NAT 分成兩種，這一課講的是對外連網際網路的那一種，叫 <b>Public NAT</b>；另一種 Private NAT 是做私有網路之間的位址轉換，不走網際網路。官方把 Public NAT 的用途寫成一句話：「Public NAT 讓沒有外部 IPv4 位址的 Google Cloud 資源，能夠與網際網路上的 IPv4 目的地通訊。」做法則是「為前往網際網路、虛擬私有雲（VPC）網路、地端網路與其他雲端供應商網路的<b>對外</b>流量提供網路位址轉換」<a class="fixsrc" href="https://docs.cloud.google.com/nat/docs/overview" target="_blank" rel="noopener">出處</a>。（網路位址轉換＝NAT，出去的時候把來源的私有位址換成一個對外位址，回來的時候再換回去，〈VPC 網路架構〉講 AWS 時已經出現過。）</p>
+<p>Cloud NAT 分成兩種，這一課講的是對外連網際網路的那一種，叫 <b>Public NAT</b>；另一種 Private NAT 是做私有網路之間的位址轉換，不走網際網路。Public NAT 讓沒有外部 IPv4 位址的 Google Cloud 資源，能夠與網際網路上的 IPv4 目的地通訊。Cloud NAT 的做法是替前往網際網路、虛擬私有雲（VPC）網路、地端網路與其他雲端供應商網路的<b>對外</b>流量做網路位址轉換<a class="fixsrc" href="https://docs.cloud.google.com/nat/docs/overview" target="_blank" rel="noopener">出處</a>。（網路位址轉換＝NAT，出去的時候把來源的私有位址換成一個對外位址，回來的時候再換回去，〈VPC 網路架構〉講 AWS 時已經出現過。）</p>
 <p>兩個特性值得記住，因為都跟直覺不太一樣：</p>
 <div class="terms">
-<p><b>它不是一台你要自己顧的機器。</b>官方寫「Cloud NAT 是一個分散式、軟體定義的代管服務。它並非基於代理虛擬機或設備」——意思是你不會看到一台「NAT 主機」跑在那裡，也不需要替它擴充規格或做高可用，那些是 Google 在底層處理的。</p>
-<p><b>它只放行回程，不放行主動連入。</b>官方寫「Cloud NAT 只支援已建立連線的入站回應封包的位址轉換。它不允許未經請求的入站連線」——所以裝了 Cloud NAT 不等於把 VM 對外開了一個門，外面仍然連不進來。</p>
+<p><b>它不是一台你要自己顧的機器。</b>Cloud NAT 是分散式、軟體定義的代管服務，不是靠一台代理虛擬機或設備在做。你不會看到一台「NAT 主機」跑在那裡，也不需要替它擴充規格或做高可用，那些是 Google 在底層處理的。</p>
+<p><b>它只放行回程，不放行主動連入。</b>Cloud NAT 只替已建立連線的入站回應封包做位址轉換，不允許未經請求的入站連線。所以裝了 Cloud NAT 不等於把 VM 對外開了一個門，外面仍然連不進來。</p>
 </div>
-<p class="muted">拿〈VPC 網路架構〉的 AWS 對照著看會比較好記：兩邊解決的是同一個問題，做法的分工不同。AWS 的 NAT Gateway 是你自己在某個公開子網路裡建出來的一個資源（見〈VPC 網路架構〉）；Cloud NAT 則沒有對應的實體或虛擬機可以指著看，官方明講它「並非基於代理虛擬機或設備」。共同點是兩者都只讓內部主動往外，不讓外面主動連進來。</p>
+<p class="muted">拿〈VPC 網路架構〉的 AWS 對照著看會比較好記：兩邊解決的是同一個問題，做法的分工不同。AWS 的 NAT Gateway 是你自己在某個公開子網路裡建出來的一個資源（見〈VPC 網路架構〉）；Cloud NAT 則沒有對應的實體或虛擬機可以指著看，它不是靠代理虛擬機或設備在做。共同點是兩者都只讓內部主動往外，不讓外面主動連進來。</p>
 </section>
 
 <div class="keys"><p class="lbl">重點整理</p><ul><li>CIDR 的斜線數字代表前面幾個位元固定；數字越大、範圍越小，<code>/24</code> 是 256 個位址。</li><li>子網路遮罩（<code>255.255.255.0</code>）與 CIDR（<code>/24</code>）是同一件事的兩種寫法。</li><li>路由表有多條都符合時，挑最精確的那條（最長前綴比對）；一樣精確才比優先順序值，數字小的贏。</li><li>Google Cloud 每個子網路保留四個位址：網路位址、預設閘道、倒數第二個、廣播位址；AWS 保留五個。</li><li>子網路最小 <code>/29</code>（8 個位址、只剩 4 個可配），上限實務上抓 <code>/8</code>。</li><li>Cloud NAT 讓沒有外部位址的 VM 主動連外，是分散式的代管服務，而且不允許外面主動連進來。</li></ul></div>
