@@ -29,9 +29,9 @@ Tim：「前言都太多了，你有很多都把你思考的東西寫進去，�
 
 | 範圍 | 負責 | 狀態 |
 |---|---|---|
-| 面試集 | `write-algo-b` | |
-| 演算法、Java | `write-algo-c` | |
-| Spring、資料庫 | `write-algo-d` | |
-| 網頁、K8s、雲端 | `write-java-a` | |
-| 英文、AI 工具、Angular，以及全部模組首頁 `overview_intro` | `review-algo-b` | |
-| 改完抽查（有沒有刪到知識內容、指路斷掉） | `review-algo-a` | |
+| 面試集 | `write-algo-b` | ✅ `a642bf5`（範例）、`fbd7592`（22 課，補 16 句正文指路） |
+| 演算法、Java | `write-algo-c` | ✅ `af74b4c`（22 課；舊筆記課不動） |
+| Spring、資料庫 | `write-algo-d` | ✅ `5cc9a38`、`4fabc63`（16 課） |
+| 網頁、K8s、雲端 | `write-java-a` | ✅ `a0315a4`（38 課；scan.py 加相對課序檢查） |
+| 英文、AI 工具、Angular，以及全部模組首頁 `overview_intro` | `review-algo-b` | ✅ `ca98a58`（34 課＋11 個 module.json）；主控補相對課序五處 `7550231` |
+| 改完抽查（有沒有刪到知識內容、指路斷掉） | `review-algo-a` | 抽查中 |
