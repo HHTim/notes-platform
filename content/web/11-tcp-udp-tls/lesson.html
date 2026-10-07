@@ -222,7 +222,7 @@ connect=0.057942</code></pre>
 <h3 class="head">流量控制與壅塞控制一眼</h3>
 <p>TCP 會自己調整送多快，原因有兩個，名字很像，管的對象不一樣。</p>
 <ul class="plainlist">
-<li><strong>流量控制（flow control）：接收方收不收得下。</strong>TCP 標頭有一個 Window 欄位：從確認號那個位元組算起，送這個區段的一方還願意收多少位元組。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.1" target="_blank" rel="noopener">RFC 9293 第 3.1 節</a> 這個值叫<strong>接收視窗</strong>（rwnd），通常跟這條連線目前可用的緩衝區空間有關。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.8.6" target="_blank" rel="noopener">RFC 9293 第 3.8.6 節</a> 接收方的程式讀太慢、緩衝區快滿了，就把視窗報小，送方就得慢下來。</li>
+<li><strong>流量控制（flow control）：接收方收不收得下。</strong>TCP 標頭有一個 Window 欄位：從確認號那個位元組算起，送這個區段的一方還願意收多少位元組。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.1" target="_blank" rel="noopener">RFC 9293 第 3.1 節</a> 這個值叫<strong>接收視窗</strong>（rwnd），規格預期它跟這條連線目前可用的緩衝區空間有關。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.8.6" target="_blank" rel="noopener">RFC 9293 第 3.8.6 節</a> 接收方的程式讀太慢、緩衝區快滿了，就把視窗報小，送方就得慢下來。</li>
 <li><strong>壅塞控制（congestion control）：中間的網路塞不塞。</strong>送方自己維護一個<strong>壅塞視窗</strong>（cwnd），是限制 TCP 能送多少資料的狀態變數。任何時候送出去還沒被確認的資料，不得超過 cwnd 與 rwnd 兩者中較小的那個（RFC 用 MUST NOT）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc5681.html#section-2" target="_blank" rel="noopener">RFC 5681 第 2 節</a></li>
 </ul>
 <p>壅塞控制規定一定要實作三種基本做法（RFC 用 MUST）：慢啟動、壅塞避免，以及重傳逾時的指數退避（每重傳一次，等待時間加倍）。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.8.2" target="_blank" rel="noopener">RFC 9293 第 3.8.2 節</a> 三個拆開講：</p>
