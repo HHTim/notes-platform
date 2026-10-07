@@ -268,11 +268,11 @@ toUnmodifiableList 不收 null
     <p><strong>不該用的情況：</strong></p>
     <ul class="plainlist">
     <li>資料量小</li>
-    <li>來源難切（dev.java 舉 <code>LinkedList</code>）或合併成本高</li>
-    <li>lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）</li>
-    <li>lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
+    <li><b>來源難切</b>（dev.java 舉 <code>LinkedList</code>）或合併成本高</li>
+    <li><b>阻塞的 I/O</b>：lambda 裡有阻塞的 I/O（會佔住共用池，見〈Java 並行快答：執行緒池、鎖與並行集合〉）</li>
+    <li><b>改外面的集合</b>：lambda 裡改外面的集合，套件說明說行為參數的副作用「一般是不鼓勵的」，<code>ArrayList</code> 不是執行緒安全的，「會造成錯誤的結果」。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html" target="_blank" rel="noopener">出處</a></li>
     </ul>
-    <p>這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：文件說「沒有明確 Executor 參數的非同步方法，都用 ForkJoinPool.commonPool() 執行」<span class="orig">All async methods without an explicit Executor argument are performed using the ForkJoinPool.commonPool()<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></span></p>
+    <p>這個共用池的平行度預設是處理器數減一（OpenJDK 的預設，見〈Java 並行快答：執行緒池、鎖與並行集合〉），整個 JVM 共用，一個平行流卡住，其他用到它的地方都可能跟著變慢，包括 <code>CompletableFuture</code> 沒指定執行緒池的非同步工作：文件說「沒有明確 Executor 參數的非同步方法，都用 ForkJoinPool.commonPool() 執行」<span class="orig">CompletableFuture 文件：All async methods without an explicit Executor argument are performed using the ForkJoinPool.commonPool()<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html" target="_blank" rel="noopener">出處</a></span></p>
     <p>dev.java 的守則是「不要猜，量測你的程式碼的效能」。<a class="fixsrc" href="https://dev.java/learn/api/collections-and-streams/streams/parallel-streams/" target="_blank" rel="noopener">出處</a> 結果交給終端操作產生，平行也照來源順序：</p>
     <pre><code>import java.util.List;
 import java.util.stream.IntStream;
@@ -394,9 +394,9 @@ Long</code></pre>
     <p><strong>一句話定義：</strong>JEP 361（Java 14）讓 switch 可以產生值；箭頭 <code>-&gt;</code>「只執行箭頭右邊……不會穿透」（no fall through），區塊裡用 <code>yield</code> 交出值，而且 switch 運算式「必須窮舉」。<a class="fixsrc" href="https://openjdk.org/jeps/361" target="_blank" rel="noopener">出處</a></p>
     <p>模式比對是「檢查形狀、順便取出內容」：</p>
     <ul class="plainlist">
-    <li><code>instanceof String s</code>（JEP 394，Java 16）<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></li>
-    <li>Java 21 起 case 可以寫型別模式、<code>when</code> 守衛與 <code>case null</code>（JEP 441）<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a></li>
-    <li>還能把 record 元件直接拆出來（JEP 440）<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a>。</li>
+    <li><b>Java 16</b>：<code>instanceof String s</code>（JEP 394，Java 16）<a class="fixsrc" href="https://openjdk.org/jeps/394" target="_blank" rel="noopener">出處</a></li>
+    <li><b>Java 21</b>：case 可以寫型別模式、<code>when</code> 守衛與 <code>case null</code>（JEP 441）<a class="fixsrc" href="https://openjdk.org/jeps/441" target="_blank" rel="noopener">出處</a></li>
+    <li><b>record 解構</b>：還能把 record 元件直接拆出來（JEP 440）<a class="fixsrc" href="https://openjdk.org/jeps/440" target="_blank" rel="noopener">出處</a>。</li>
     </ul>
     <pre><code>public class SwitchPattern {
     sealed interface Payment permits Card, Transfer, Cash {}

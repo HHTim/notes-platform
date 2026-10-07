@@ -468,8 +468,8 @@ try (FileWriter w = new FileWriter("/logs/audit.log", true)) {   // 換成 FileW
 // tmpfs           8.0M  8.0M     0 100% /logs</code></pre>
 <p>兩個值得在面試講的細節：</p>
 <ul class="plainlist">
-<li><b>第一</b>：<code>PrintWriter</code> 的文件寫著「這個類別的方法從不丟 I/O 例外」，要呼叫 <code>checkError()</code> 才知道有沒有出錯。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/PrintWriter.html" target="_blank" rel="noopener">出處</a> 程式如果沒檢查，磁碟滿了之後稽核紀錄會靜靜地掉，服務看起來一切正常；對銀行來說，稽核紀錄掉了比服務停了更麻煩。</li>
-<li><b>第二</b>：預防靠日誌輪替：Spring Boot 預設「只輸出到主控台、不寫日誌檔」，設了 <code>logging.file.name</code> 才寫檔；寫檔時用 <code>logging.<wbr>logback.<wbr>rollingpolicy.<wbr>max-<wbr>file-<wbr>size</code>（單檔多大就封存）與 <code>total-size-cap</code>（封存檔總共最多多大，超過就刪）設上限。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/logging.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>PrintWriter 不丟例外</b>：<code>PrintWriter</code> 的文件寫著「這個類別的方法從不丟 I/O 例外」，要呼叫 <code>checkError()</code> 才知道有沒有出錯。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/io/PrintWriter.html" target="_blank" rel="noopener">出處</a> 程式如果沒檢查，磁碟滿了之後稽核紀錄會靜靜地掉，服務看起來一切正常；對銀行來說，稽核紀錄掉了比服務停了更麻煩。</li>
+<li><b>日誌輪替</b>：預防靠日誌輪替，Spring Boot 預設「只輸出到主控台、不寫日誌檔」，設了 <code>logging.file.name</code> 才寫檔；寫檔時用 <code>logging.<wbr>logback.<wbr>rollingpolicy.<wbr>max-<wbr>file-<wbr>size</code>（單檔多大就封存）與 <code>total-size-cap</code>（封存檔總共最多多大，超過就刪）設上限。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/features/logging.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>再加上前一段的 heap dump，磁碟告警建議設在還有時間處理的位置（例如 80%），不要等到 100%。</p>
 
