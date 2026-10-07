@@ -28,9 +28,9 @@ Tim（附〈詞性與句子骨架〉「表格每一格的根據」截圖）：�
 | 範圍 | 負責 | 狀態 |
 |---|---|---|
 | 範例＋樣式 `.orig` | 主控 | ✅ |
-| 面試集 01〜12 | `write-algo-b` | |
-| 面試集 13〜23 | `write-algo-c` | |
-| 英文、Java | `write-algo-d` | |
-| Spring、資料庫 | `write-java-a` | |
-| 演算法、網頁、K8s、雲端 | `review-algo-b` | |
-| 改完抽查 | `review-algo-a` | |
+| 面試集 01〜12 | `write-algo-b` | ✅ `18b046c`（46 段；誤含 13〜22 六課完整版）、`c4bb0ab` |
+| 面試集 13〜23 | `write-algo-c` | ✅ 28 段（多數在 `18b046c`）、`d1fc5b1`、`7d2c3bd` |
+| 英文、Java | `write-algo-d` | ✅ `d307f11`（44 段）、`6e705c3` |
+| Spring、資料庫 | `write-java-a` | ✅ `04d2e7e`（32 段）、`1bf0477` |
+| 演算法、網頁、K8s、雲端 | `review-algo-b` | ✅ `283107b`（28 段）、`cba5b5f` |
+| 改完抽查 | `review-algo-a` | ✅ 無刪字、無撐寬；8 條體例已修，清單 `.superpowers/audit/bullets/findings.md` |
