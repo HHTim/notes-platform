@@ -55,9 +55,11 @@ Tim 的交代：「我認為我的英文不夠，我需要一份文法書，能�
 <div class="drill">
   <p class="dq">The shipment ______ yesterday afternoon.</p>
   <ul class="dopts"><li>arrive</li><li data-ok>arrived</li><li>has arrived</li><li>is arriving</li></ul>
-  <p class="dexp">yesterday afternoon 是過去的時間點，用過去簡單式。</p>
+  <p class="dexp"><span class="dtr">整句：貨昨天下午到了。</span>yesterday afternoon 是過去的時間點，用過去簡單式。</p>
 </div>
 ```
+
+- 題目有英文句子時，解析最前面放整句中譯 `<span class="dtr">整句：…</span>`（空格填正解再翻，答完才看得到）。2026-10-08 起全部文法課都有，起因是 Tim 朋友的多益站有這個功能。
 
 ## 分批
 
