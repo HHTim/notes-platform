@@ -108,6 +108,13 @@ class TestBuild(unittest.TestCase):
         for page in ('index.html', 'english/index.html'):
             self.assertNotIn('Chivo', (self.out / page).read_text(encoding='utf-8'), page)
 
+    def test_formula_wraps_readably(self):
+        """公式／流程那一行很多課都很長（最長三百多字），等寬字太寬會在句子中間斷行，要用一般字、靠左"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        rule = re.search(r'p\.formula\{[^}]*\}', css).group(0)
+        self.assertNotIn('var(--mono)', rule)
+        self.assertIn('text-align:left', rule)
+
     def test_hidden_attribute_wins_over_display(self):
         """成績卡、按鈕列這些用 display:flex 的元素，加了 hidden 也要真的消失"""
         css = (self.out / 'style.css').read_text(encoding='utf-8')
