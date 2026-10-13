@@ -59,4 +59,17 @@ assert.deepStrictEqual(NotesSync.merge({_wrong:{k1:{}}}, {})._wrong.k1, {streak:
 // 沒有錯題、沒有最後看的課，就不多長保留鍵（舊格式進新版不變形）
 assert.deepStrictEqual(NotesSync.merge({a:{best:1,total:5,done:false}}, {}), {a:{best:1,total:5,done:false}});
 
+// ── 推上雲端前先跟雲端合併（審查發現：舊分頁整份推上去會把別台裝置已移除的錯題蓋回來）──
+// mergeDoc(本機要推的 {模組: 進度}, 雲端整份文件) → 要寫上去的 {模組: 合併後的進度}
+var doc = NotesSync.mergeDoc(
+  {english: {a:{best:2,total:5,done:false}, _wrong:{k1:{streak:0,removed:0,at:1}}, _last:{slug:'a',at:1}}},
+  {english: {a:{best:5,total:5,done:true},  _wrong:{k1:{streak:0,removed:9,at:9}}, _last:{slug:'b',at:7}},
+   java: {x:{best:1,total:5,done:false}}});
+assert.deepStrictEqual(doc.english.a, {best:5,total:5,done:true});       // 舊分頁不能把已完成蓋回未完成
+assert.deepStrictEqual(doc.english._wrong.k1, {streak:0,removed:9,at:9}); // 已移除的錯題不能復活
+assert.deepStrictEqual(doc.english._last, {slug:'b',at:7});              // 最後看的課取新的
+assert.strictEqual(doc.java, undefined);                                 // 沒推的模組不碰
+// 雲端還沒有這個模組：照本機寫
+assert.deepStrictEqual(NotesSync.mergeDoc({k8s:{a:{best:1,total:5,done:false}}}, {}).k8s, {a:{best:1,total:5,done:false}});
+
 console.log('merge 規則測試全部通過');

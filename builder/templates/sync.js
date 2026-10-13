@@ -42,6 +42,16 @@ var NotesSync = {
     });
     if (Object.keys(wrong).length) out._wrong = wrong;
     return out;
+  },
+  /* 推上雲端前先跟雲端合併：patch 是 {模組id: 本機進度}，cloudDoc 是雲端整份文件。
+     只回傳 patch 裡有的模組，每個都用上面的 merge 跟雲端那份合過。
+     不這樣做，一個開很久的舊分頁隨便點一課，就會把別台裝置已移除的錯題、已完成的課蓋回去。 */
+  mergeDoc: function (patch, cloudDoc) {
+    var out = {};
+    Object.keys(patch || {}).forEach(function (mid) {
+      out[mid] = NotesSync.merge(patch[mid], (cloudDoc || {})[mid] || {});
+    });
+    return out;
   }
 };
 if (typeof module !== 'undefined' && module.exports) { module.exports = NotesSync; }
@@ -108,12 +118,24 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     if (a) a.addEventListener('click', function (e) { e.preventDefault(); loadAndMerge(user); });
   }
 
-  /* patch 的形狀是 { 模組id: 該模組的進度 }，可以一次帶多個模組；merge:true 不會蓋掉其他模組。
-     模組的進度物件裡除了每課的 {best,total,done}，還有 _last（最後看的課）與 _wrong（錯題），
-     一起寫上去；錯題的鍵只會新增或更新，不會刪，所以 merge:true 不會漏掉任何一筆。 */
+  /* patch 的形狀是 { 模組id: 該模組的進度 }，可以一次帶多個模組。
+     用交易（transaction，讀和寫綁在一起、中間不會被別人插隊）：先讀雲端那份，跟 patch 合併，再寫回去。
+     不先合併就直接寫，一個開很久的舊分頁隨便點一課，就會把別台裝置已移除的錯題、已完成的課蓋回去。
+     合併結果也寫回本機（直接寫 localStorage，不走 saveDone，免得又觸發事件再推一次）。 */
   function pushCloud(patch) {
     if (!synced || !uid) return;
-    db.collection('progress').doc(uid).set(patch, { merge: true })['catch'](function () {});
+    var ref = db.collection('progress').doc(uid);
+    db.runTransaction(function (t) {
+      return t.get(ref).then(function (snap) {
+        var out = NotesSync.mergeDoc(patch, (snap.exists && snap.data()) || {});
+        t.set(ref, out, { merge: true });
+        return out;
+      });
+    }).then(function (out) {
+      Object.keys(out).forEach(function (mid) { saveLocal(mid, out[mid]); });
+      if (course) course.refreshTicks();
+      else if (home) home.refresh();
+    })['catch'](function () {});
   }
 
   /* 把雲端文件與本機合併、寫回本機；回傳要推上雲端的 patch。

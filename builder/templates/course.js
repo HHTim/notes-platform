@@ -204,7 +204,7 @@ function renderQuiz(host,items,mode,slug){
     score.innerHTML='<div class="big">'+rightCount+'<small> / '+items.length+'</small></div>'
       +'<div class="t"><span class="mono">'+note+'</span><div class="tr"><i style="width:'+Math.round(rightCount*100/items.length)+'%"></i></div></div>';
     act.innerHTML='';act.hidden=false;act2.hidden=true;
-    if(wrongIdx.length){
+    if(wrongIdx.length&&mode==='lesson'){   // 規格 5.3：錯題練習對完只有「回錯題區」，不給重做（重做會讓連對變得太容易）
       var b1=document.createElement('button');b1.type='button';b1.className='qbtn';b1.textContent='只重做錯的 '+wrongIdx.length+' 題';
       b1.addEventListener('click',function(){
         graded=false;
