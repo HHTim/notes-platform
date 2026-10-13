@@ -634,7 +634,7 @@ System.out.println("普通欄位：設成 true 兩秒後，迴圈還在跑嗎？
 <p>而且它可以遞移：hb(x, y) 且 hb(y, z) 就有 hb(x, z)。所以「先寫一般資料、再寫 volatile 旗標」，讀到旗標的執行緒也看得到那些一般資料。<code>java.util.concurrent</code> 把這些保證延伸到高階工具：放進並行集合之前的動作 happens-before 另一條執行緒取出之後的動作；送進執行器之前的動作 happens-before 任務開始執行；非同步計算的動作 happens-before 另一條執行緒用 <code>Future.get()</code> 拿到結果之後的動作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/package-summary.html" target="_blank" rel="noopener">出處</a> volatile 不保證 <code>count++</code> 的原子性，這點見〈執行緒與並行〉。</p>
 
 <div class="drill">
-  <p class="dq">執行緒 A 把普通欄位 <code>done</code> 設成 true，執行緒 B 在迴圈裡一直讀 <code>done</code>。依 Java 語言規格，B 一定會看到 true 嗎？</p>
+  <p class="dq">執行緒 A 把普通欄位 <code>done</code> 設成 true，執行緒 B 在迴圈裡一直讀 <code>done</code>。B 一定會看到 true 嗎？</p>
   <ul class="dopts"><li>一定會，只是會晚一點才看到</li><li data-ok>不保證，沒有 happens-before 就可能一直讀到舊值</li><li>一定不會，普通欄位只有自己看得到</li><li>只有在單核心機器上才保證看得到</li></ul>
   <p class="dexp">編譯器可以只讀一次、之後重用快取的值，迴圈可能永遠不結束。實跑四次都沒結束。宣告成 volatile 就有寫入 happens-before 讀取的保證。</p>
 </div>

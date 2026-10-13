@@ -91,12 +91,12 @@ System.out.println("平台執行緒都結束之後 Threads: " + status("Threads:
 <div class="drill">
   <p class="dq">同一個行程裡的兩條執行緒，下面哪一樣是各自一份、<strong>不</strong>共用的？</p>
   <ul class="dopts"><li>堆裡那些大家都拿得到參考的物件</li><li>開啟的檔案描述子（檔案、socket）</li><li data-ok>堆疊（方法裡的區域變數）</li><li>行程 ID 與父行程 ID</li></ul>
-  <p class="dexp">pthreads(7)：執行緒共用全域記憶體（資料區與堆），但每條有自己的堆疊；檔案描述子與行程 ID 也是整個行程共用。所以 Java 方法裡的區域變數天生不會被別的執行緒看到。</p>
+  <p class="dexp">執行緒共用全域記憶體（資料區與堆），但每條有自己的堆疊；檔案描述子與行程 ID 也是整個行程共用。所以 Java 方法裡的區域變數天生不會被別的執行緒看到。</p>
 </div>
 <div class="drill">
   <p class="dq">父行程 <code>fork()</code> 出子行程之後，子行程把某個全域變數從 0 改成 1。父行程讀那個變數會看到什麼？</p>
   <ul class="dopts"><li>1，因為父子行程共用同一份記憶體</li><li>不一定，要看父子誰先被排程執行</li><li>讀取會失敗，因為變數已被子行程鎖住</li><li data-ok>0，父子各有自己的記憶體</li></ul>
-  <p class="dexp">fork(2)：父子行程在各自的記憶體空間執行，一方的寫入不影響另一方。要共用記憶體的是執行緒（clone 帶 <code>CLONE_VM</code>）。</p>
+  <p class="dexp">fork 出來的父子行程在各自的記憶體空間執行，一方的寫入不影響另一方。要共用記憶體的是執行緒（clone 帶 <code>CLONE_VM</code>）。</p>
 </div>
 <div class="drill">
   <p class="dq">Linux 的 clone(2) 帶上 <code>CLONE_VM</code> 旗標，產生的東西跟呼叫者是什麼關係？</p>
@@ -345,7 +345,7 @@ try (FileChannel ch = FileChannel.open(file, StandardOpenOption.READ, StandardOp
 <div class="drill">
   <p class="dq">Linux 的 <code>majflt</code> 與 <code>minflt</code> 差在哪？</p>
   <ul class="dopts"><li>majflt 是錯誤的存取，minflt 是正常的存取</li><li>majflt 發生在核心態，minflt 發生在使用者態</li><li data-ok>majflt 要從磁碟載入分頁，minflt 不用</li><li>majflt 只會發生在 Java 程式，minflt 是其他程式</li></ul>
-  <p class="dexp">proc_pid_stat(5)：minflt 是「不需要從磁碟載入分頁」的分頁錯誤次數，majflt 是「需要從磁碟載入」的。majflt 多，表示一直在讀磁碟，程式會明顯變慢。</p>
+  <p class="dexp">minflt 是「不需要從磁碟載入分頁」的分頁錯誤次數，majflt 是「需要從磁碟載入」的。majflt 多，表示一直在讀磁碟，程式會明顯變慢。</p>
 </div>
 <div class="drill">
   <p class="dq">一台伺服器上所有行程要的記憶體遠超過實體記憶體，系統一直在把頁換進換出，這叫什麼？</p>
@@ -355,7 +355,7 @@ try (FileChannel ch = FileChannel.open(file, StandardOpenOption.READ, StandardOp
 <div class="drill">
   <p class="dq">Linux 的 <code>fork()</code> 為什麼不會一開始就把父行程的記憶體全部複製一份？</p>
   <ul class="dopts"><li>因為子行程跟父行程共用同一份記憶體，所以不必複製</li><li data-ok>用寫入時複製，有人寫入那頁才真的複製</li><li>因為子行程最多只能用 1 MB 記憶體</li><li>因為複製會在背景執行緒裡慢慢做完</li></ul>
-  <p class="dexp">fork(2)：Linux 用 copy-on-write 分頁實作 fork，一開始只要複製頁表；父子之後各自寫入時，那頁才複製。邏輯上父子的記憶體仍是各自獨立的。</p>
+  <p class="dexp">Linux 用 copy-on-write 分頁實作 fork，一開始只要複製頁表；父子之後各自寫入時，那頁才複製。邏輯上父子的記憶體仍是各自獨立的。</p>
 </div>
 </section>
 
@@ -395,12 +395,12 @@ System.out.println("關掉之後：" + openFds());
 <div class="drill">
   <p class="dq">檔案描述子是什麼？</p>
   <ul class="dopts"><li data-ok>行程開啟檔案表裡的小整數索引</li><li>檔案在磁碟上的實體位置</li><li>檔案的完整路徑，例如 /tmp/a.txt</li><li>檔案內容算出來的雜湊值</li></ul>
-  <p class="dexp">open(2)：檔案描述子是一個小的非負整數，是行程開啟檔案描述子表裡某一筆的索引，之後的 read、write 都用它指稱那個檔案。</p>
+  <p class="dexp">檔案描述子是一個小的非負整數，是行程開啟檔案描述子表裡某一筆的索引，之後的 read、write 都用它指稱那個檔案。</p>
 </div>
 <div class="drill">
   <p class="dq">一個行程開著 0、1、2、3、5 號檔案描述子，再 <code>open()</code> 一個檔案，拿到幾號？</p>
   <ul class="dopts"><li>6</li><li data-ok>4</li><li>0</li><li>隨機一個號碼</li></ul>
-  <p class="dexp">open(2)：成功時回傳「目前沒在用的最小號碼」。0〜3 都在用，4 空著，所以拿到 4。</p>
+  <p class="dexp">open 成功時回傳「目前沒在用的最小號碼」。0〜3 都在用，4 空著，所以拿到 4。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Linux 上，下面哪一樣<strong>不是</strong>用檔案描述子表示的？</p>
@@ -410,12 +410,12 @@ System.out.println("關掉之後：" + openFds());
 <div class="drill">
   <p class="dq">服務跑了幾天後開始出現 <code>Too many open files</code>，最可能的原因是什麼？</p>
   <ul class="dopts"><li>磁碟空間滿了，寫不進任何東西</li><li>伺服器的 CPU 核心數不夠用</li><li data-ok>描述子漏關，達到上限</li><li>JVM 的堆記憶體設得太小</li></ul>
-  <p class="dexp">open(2) 的 EMFILE：達到每個行程開啟檔案描述子的上限。漏關的檔案、連線、串流會一直占著描述子，用 try-with-resources 確保關閉。</p>
+  <p class="dexp">EMFILE 表示達到每個行程開啟檔案描述子的上限。漏關的檔案、連線、串流會一直占著描述子，用 try-with-resources 確保關閉。</p>
 </div>
 <div class="drill">
   <p class="dq">同一個 Java 程式裡，執行緒 A 打開了一個檔案，執行緒 B 能用同一個檔案描述子讀它嗎？</p>
   <ul class="dopts"><li>不能，每條執行緒有自己的一張檔案描述子表</li><li data-ok>能，描述子整個行程共用</li><li>只有等執行緒 A 結束之後才能</li><li>要先用一個系統呼叫複製一份給 B</li></ul>
-  <p class="dexp">pthreads(7) 列的共用屬性裡就有「開啟的檔案描述子」。共用也代表同時讀寫要自己協調。</p>
+  <p class="dexp">開啟的檔案描述子是同一行程的執行緒共用的屬性。共用也代表同時讀寫要自己協調。</p>
 </div>
 </section>
 
@@ -493,7 +493,7 @@ try (Selector sel = Selector.open();
 <div class="drill">
   <p class="dq">Linux 上，對設了 <code>O_NONBLOCK</code> 的 socket 呼叫 <code>read</code>，而目前沒有資料，會怎樣？</p>
   <ul class="dopts"><li>一直等到有資料進來為止</li><li>回傳 0，表示連線已經關閉</li><li>核心會自動把它改回阻塞模式再等</li><li data-ok>回傳錯誤 EAGAIN</li></ul>
-  <p class="dexp">read(2)：socket 被設成非阻塞、讀取會阻塞時，回傳 EAGAIN 或 EWOULDBLOCK。在 Linux 的 read 裡，回傳 0 的意思是讀到檔案結尾或連線已關閉，兩者不同。</p>
+  <p class="dexp">socket 被設成非阻塞、讀取會阻塞時，回傳 EAGAIN 或 EWOULDBLOCK。在 Linux 的 read 裡，回傳 0 的意思是讀到檔案結尾或連線已關閉，兩者不同。</p>
 </div>
 <div class="drill">
   <p class="dq">上面的實驗，Java 的非阻塞 <code>SocketChannel.read</code> 在沒有資料時回傳什麼？</p>
@@ -508,7 +508,7 @@ try (Selector sel = Selector.open();
 <div class="drill">
   <p class="dq">epoll 實體裡的「就緒清單」是誰填的？</p>
   <ul class="dopts"><li>應用程式每次自己掃一遍所有描述子再填進去</li><li data-ok>核心依那些描述子上的 I/O 活動填入</li><li>JVM 的垃圾回收器定期整理</li><li>網路卡的驅動程式直接把資料交給應用程式</li></ul>
-  <p class="dexp">epoll(7)：就緒清單是關注清單的子集，由核心依 I/O 活動動態填入。應用程式呼叫 epoll_wait 拿到的就是已經準備好的那些。</p>
+  <p class="dexp">就緒清單是關注清單的子集，由核心依 I/O 活動動態填入。應用程式呼叫 epoll_wait 拿到的就是已經準備好的那些。</p>
 </div>
 <div class="drill">
   <p class="dq">Java 21 在 Linux 上呼叫 <code>Selector.open()</code>，預設用的是哪個機制？</p>
@@ -585,7 +585,7 @@ long m = in.transferTo(0, in.size(), accepted);   // accepted 是一條 socket �
 <div class="drill">
   <p class="dq">為什麼 sendfile 比「read 到緩衝區再 write 到 socket」有效率？</p>
   <ul class="dopts"><li>因為 sendfile 會先把資料壓縮</li><li>因為 sendfile 完全不經過核心</li><li>因為 sendfile 會開比較多執行緒一起搬</li><li data-ok>複製在核心裡完成，不必進出使用者空間</li></ul>
-  <p class="dexp">sendfile(2)：複製在核心裡完成，read 加 write 則要把資料搬進使用者空間再搬出去。它照樣是系統呼叫，照樣經過核心。</p>
+  <p class="dexp">sendfile 的複製在核心裡完成，read 加 write 則要把資料搬進使用者空間再搬出去。它照樣是系統呼叫，照樣經過核心。</p>
 </div>
 <div class="drill">
   <p class="dq">在 Linux 上用 Java 21 把檔案 <code>transferTo</code> 到一條 socket，strace 看到最後實際搬資料的系統呼叫是哪一個？</p>
@@ -612,12 +612,12 @@ long m = in.transferTo(0, in.size(), accepted);   // accepted 是一條 socket �
 <div class="drill">
   <p class="dq">在容器裡印 <code>ProcessHandle.<wbr>current().<wbr>pid()</code> 得到 30，在主機上看同一個 JVM 卻是一個大得多的號碼。是哪個機制造成的？</p>
   <ul class="dopts"><li>cgroup</li><li>虛擬記憶體</li><li data-ok>PID 命名空間</li><li>檔案描述子表</li></ul>
-  <p class="dexp">namespaces(7)：命名空間讓裡面的行程以為自己擁有一份隔離的全域資源，PID 命名空間隔離的就是行程編號。cgroup 管的是資源用量。</p>
+  <p class="dexp">命名空間讓裡面的行程以為自己擁有一份隔離的全域資源，PID 命名空間隔離的就是行程編號。cgroup 管的是資源用量。</p>
 </div>
 <div class="drill">
   <p class="dq">K8s 替容器設了記憶體 <code>limits</code>，這個限制最後是靠 Linux 的哪個機制執行？</p>
   <ul class="dopts"><li>namespace</li><li data-ok>cgroup</li><li>頁表</li><li>epoll</li></ul>
-  <p class="dexp">cgroups(7)：控制群組可以限制與監看一組行程的資源用量，記憶體、CPU 各有子系統。namespace 只管看得到什麼，不管能用多少。</p>
+  <p class="dexp">控制群組可以限制與監看一組行程的資源用量，記憶體、CPU 各有子系統。namespace 只管看得到什麼，不管能用多少。</p>
 </div>
 </section>
 
