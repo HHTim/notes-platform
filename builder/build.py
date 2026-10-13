@@ -130,6 +130,14 @@ def icon_html(name, cls='ic'):
 
 
 HEAD_RE = re.compile(r'<h3 class="head">(.*?)</h3>', re.S)
+
+
+def title_html(t):
+    """標題在全形冒號後面標一個換行點（<wbr>）；樣式讓標題其他地方盡量不斷（word-break:keep-all），
+    所以要換行時會斷在冒號後面，不會斷在詞中間。標題裡有標籤（例如 <code>）就不動。"""
+    if '：' not in t or '<' in t:
+        return t
+    return t.replace('：', '：<wbr>')
 TAG_RE = re.compile(r'<[^>]+>')
 
 
@@ -140,7 +148,10 @@ def section_titles(html, slug):
 
     def rep(m):
         titles.append(re.sub(r'\s+', ' ', TAG_RE.sub('', m.group(1))).strip())
-        return '<h3 class="head" id="%s-sec-%d">%s</h3>' % (slug, len(titles), m.group(1))
+        # h3.head 是 flex（前面有小方塊）：文字包成一塊，<wbr> 才不會把字拆成兩個項目、中間多出間距；
+        # 這一塊配 min-width:0，長標題在手機上才縮得下
+        inner = '<span>%s</span>' % title_html(m.group(1))
+        return '<h3 class="head" id="%s-sec-%d">%s</h3>' % (slug, len(titles), inner)
     return HEAD_RE.sub(rep, html), titles
 
 
@@ -270,7 +281,7 @@ def article_html(mod, i, L):
     N = len(mod['lessons'])
     a = ['<article id="pg-%s" hidden>\n' % L['slug']]
     a.append('<p class="crumb"><a href="#/">課綱總覽</a> › 第 %d 課 / 共 %d 課</p>\n' % (i + 1, N))
-    a.append('<h1 class="lt">%s</h1>\n' % L['title'])
+    a.append('<h1 class="lt">%s</h1>\n' % title_html(L['title']))
     a.append('<div class="meta"><span class="chip g">第 %d 課 / 共 %d 課</span>'
              '<span class="chip">約 %d 分鐘</span></div>\n' % (i + 1, N, L['mins']))
     a.append('<p class="sub">%s</p>\n' % L['desc'])

@@ -179,7 +179,7 @@ class TestSections(unittest.TestCase):
         html, titles = builder.section_titles(
             '<h3 class="head">甲 <code>x</code></h3><p>a</p><h3 class="head">乙\n丙</h3>', 'l1')
         self.assertEqual(titles, ['甲 x', '乙 丙'])
-        self.assertIn('<h3 class="head" id="l1-sec-1">甲 <code>x</code></h3>', html)
+        self.assertIn('<h3 class="head" id="l1-sec-1"><span>甲 <code>x</code></span></h3>', html)
         self.assertIn('<h3 class="head" id="l1-sec-2">', html)
 
     def test_toc_entries(self):
@@ -195,7 +195,7 @@ class TestSections(unittest.TestCase):
         builder.build(content_dir=content, out_dir=out)
         html = (out / 'demo' / 'index.html').read_text(encoding='utf-8')
         # 課文裡的小節 id、課中練習 id、測驗 id
-        self.assertIn('<h3 class="head" id="one-sec-1">標題</h3>', html)
+        self.assertIn('<h3 class="head" id="one-sec-1"><span>標題</span></h3>', html)
         self.assertIn('<div class="drill" id="one-drill"', html)
         self.assertNotIn('id="two-drill"', html)
         self.assertIn('<div class="quiz" id="one-quiz" data-quiz="one">', html)
@@ -214,3 +214,28 @@ class TestSections(unittest.TestCase):
         self.assertIn('<article id="pg-wrong" hidden>', html)
         self.assertIn('id="wrongBody"', html)
         self.assertIn('var TITLES={"one": "第 01-one 課", "two": "第 02-two 課"}', html)
+
+
+class TestTitleSegments(unittest.TestCase):
+    """標題在全形冒號後面分段，換行只發生在段與段之間（Tim：「五大句／型」這種斷行好醜）"""
+
+    def test_split_after_colon(self):
+        self.assertEqual(builder.title_html('詞性與句子骨架：五大句型'), '詞性與句子骨架：<wbr>五大句型')
+
+    def test_no_colon_unchanged(self):
+        self.assertEqual(builder.title_html('容器'), '容器')
+
+    def test_markup_inside_left_alone(self):
+        self.assertEqual(builder.title_html('<code>a</code>：b'), '<code>a</code>：b')
+
+    def test_built_page_segments_lesson_and_section_titles(self):
+        lesson = LESSON_OK.replace('<h3 class="head">標題</h3>', '<h3 class="head">甲：乙</h3>')
+        content, out = fake_site([('01-one', 'one', lesson)])
+        mj = content / 'demo' / 'module.json'
+        mj.write_text(mj.read_text(encoding='utf-8').replace('"第 01-one 課"', '"前半：後半"'), encoding='utf-8')
+        builder.build(content_dir=content, out_dir=out)
+        html = (out / 'demo' / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('<h1 class="lt">前半：<wbr>後半</h1>', html)
+        # 小節標題是 flex 排版（前面有小方塊）：文字一律包成一塊，換行記號才不會拆出間距，長標題在手機上也縮得下
+        self.assertIn('<h3 class="head" id="one-sec-1"><span>甲：<wbr>乙</span></h3>', html)
+        self.assertIn('data-goto="one-sec-1">甲：乙</a>', html)   # 目錄裡不用分段
