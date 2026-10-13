@@ -45,7 +45,7 @@
       <li>主動關閉的一方送 FIN（帶 ACK），進 FIN-WAIT-1。</li>
       <li>對方回 ACK 進 CLOSE-WAIT，主動方進 FIN-WAIT-2。</li>
       <li>對方應用程式也關閉後，送出自己的 FIN，進 LAST-ACK。</li>
-      <li>主動方回最後一個 ACK 進 TIME_WAIT，等 2 MSL 後才 CLOSED。（RFC 寫 TIME-WAIT，作業系統 netstat／ss 指令的輸出寫 TIME_WAIT，本課用後者。）</li>
+      <li>主動方回最後一個 ACK 進 TIME_WAIT，等 2 MSL 後才 CLOSED。（RFC 寫成 TIME-WAIT，netstat／ss 指令的輸出寫成 TIME_WAIT。）</li>
     </ul>
     <p><strong>為什麼是四段不是三段：</strong>因為 TCP 的關閉是單向的：收到 FIN 的一端先回 ACK，要等自己的使用者也 CLOSE 之後才送自己的 FIN<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.6" target="_blank" rel="noopener">RFC 9293 第 3.6 節</a>，中間那段對方可能還有資料要送完，所以 ACK 與 FIN 通常分開。</p>
     <p><strong>TIME_WAIT 在等什麼：</strong>等夠久，確定對方收到了對它關閉請求的確認，並避免新連線被前一條連線延遲到達的區段影響。<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9293.html#section-3.3.2" target="_blank" rel="noopener">RFC 9293 第 3.3.2 節</a></p>
@@ -90,7 +90,7 @@
 <li><b>工作階段恢復改成 PSK</b>（預先共用金鑰）機制。</li>
 <li><b>ChangeCipherSpec 這類多餘訊息移除</b><a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-1.2" target="_blank" rel="noopener">RFC 8446 第 1.2 節</a>。</li>
 </ul>
-    <p><strong>0-RTT 的風險（必被追問）：</strong>0-RTT 是用上次的 PSK 在第一趟就夾帶應用資料，安全性較弱（RFC 特別用大寫 IMPORTANT NOTE 標出）：<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-2.3" target="_blank" rel="noopener">RFC 8446 第 2.3 節</a></p>
+    <p><strong>0-RTT 的風險（必被追問）：</strong>0-RTT 是用上次的 PSK 在第一趟就夾帶應用資料，安全性較弱：<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc8446.html#section-2.3" target="_blank" rel="noopener">RFC 8446 第 2.3 節</a></p>
     <ul>
       <li>不是前向保密的，因為只用 PSK 推導的金鑰加密。</li>
       <li>不保證跨連線不會被重放。</li>

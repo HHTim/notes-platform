@@ -240,7 +240,7 @@ GROUP BY num, grp;
 INSERT INTO fx VALUES
   (1, '2026-09-01', 30.100), (2, '2026-09-02', 30.250), (3, '2026-09-03', 30.200),
   (5, '2026-09-04', 30.180), (4, '2026-09-07', 30.300), (6, '2026-09-08', 30.420);</code></pre>
-<p>兩個刻意的細節：9/5、9/6 是週末沒有牌告；id 不照日期順序（補登過）。照日曆的「前一天」，用日期自我連接：</p>
+<p>這份資料有兩個細節：9/5、9/6 是週末沒有牌告；id 不照日期順序（補登過）。照日曆的「前一天」，用日期自我連接：</p>
 <pre><code>SELECT today.rate_date, today.usd_rate
 FROM fx today
 JOIN fx yest ON yest.rate_date = today.rate_date - INTERVAL 1 DAY
@@ -439,7 +439,7 @@ INSERT INTO monthly_deposit VALUES
   ('2025-09-01', 580), ('2025-10-01', 600), ('2025-11-01', 590), ('2025-12-01', 640),
   ('2026-01-01', 600), ('2026-03-01', 650), ('2026-04-01', 660), ('2026-05-01', 630),
   ('2026-06-01', 700);</code></pre>
-<p>兩個刻意的細節：2025 年 6 月這項產品暫停，新增為 0；2026 年 2 月資料還沒進來，整列不存在。最穩的寫法是用日期找「上個月」與「去年同月」：</p>
+<p>這份資料有兩個細節：2025 年 6 月這項產品暫停，新增為 0；2026 年 2 月資料還沒進來，整列不存在。最穩的寫法是用日期找「上個月」與「去年同月」：</p>
 <pre><code>SELECT cur.ym, cur.amount,
        prev_m.amount AS last_month,
        ROUND((cur.amount - prev_m.amount) / NULLIF(prev_m.amount, 0) * 100, 1) AS mom_pct,
@@ -459,7 +459,7 @@ ORDER BY cur.ym;
 | 2026-05-01 |    630 |        660 |    -4.5 |       530 |    18.9 |
 | 2026-06-01 |    700 |        630 |    11.1 |         0 |    NULL |
 +------------+--------+------------+---------+-----------+---------+</code></pre>
-<p>自己驗算一列：2026 年 4 月月增率 (660 − 650) ÷ 650 ≈ 1.54%，年增率 (660 − 510) ÷ 510 ≈ 29.41%。3 月沒有上個月，月增率是 NULL，而不是拿 1 月硬比。用 LEFT JOIN 是為了缺比較期時本期照樣列出。</p>
+<p>拿 2026 年 4 月算一次：月增率 (660 − 650) ÷ 650 ≈ 1.54%，年增率 (660 − 510) ÷ 510 ≈ 29.41%。3 月沒有上個月，月增率是 NULL，而不是拿 1 月硬比。用 LEFT JOIN 是為了缺比較期時本期照樣列出。</p>
 <p>常見的寫錯是用 <code>LAG(amount, 12)</code> 當去年同月。LAG 數的是列，2 月缺了一列，實跑 2026 年 6 月的 <code>LAG(ym, 12)</code> 指到的是 2025-05-01，年增率就比錯月份了；<code>LAG(amount, 1)</code> 在 3 月拿到的也是 1 月。月份齊全時 LAG 可以用，但答題時要講出這個前提。</p>
 <p>分母是 0 時（2025 年 6 月），<code>NULLIF(prev_y.amount, 0)</code> 把 0 換成 NULL，除出來就是 NULL。不加的話，SELECT 裡除以零也回傳 NULL，預設開著的 <code>ERROR_FOR_DIVISION_BY_ZERO</code> 還會多一個警告；實跑 <code>SELECT 700 / 0</code> 是 NULL 加 <code>Warning 1365 Division by 0</code>。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html" target="_blank" rel="noopener">出處</a> 結果一樣是 NULL，但用 NULLIF 寫明意圖，也不會在報表程式裡留下一堆警告。</p>
 
@@ -541,7 +541,7 @@ ORDER BY total DESC;
 <p class="era">第九題</p>
 <h3 class="head">兩個集合的差：EXCEPT、NOT EXISTS、LEFT JOIN</h3>
 <p class="q">面試官：找出八月有交易、九月沒有交易的帳戶。</p>
-<p>這題跟〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉的「從沒當過轉帳對象」同一類（差集），那課已經講清楚 NOT IN 遇到 NULL 為什麼一列都不回；這裡補兩件事：MySQL 8.4 可以直接寫 EXCEPT，以及 NOT EXISTS 在執行計畫裡長什麼樣。交易表：</p>
+<p>這題跟〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉的「從沒當過轉帳對象」同一類（差集），NOT IN 遇到 NULL 為什麼一列都不回也見那課。MySQL 8.4 可以直接寫 EXCEPT。交易表：</p>
 <pre><code>CREATE TABLE txn (
   tx_id      INT PRIMARY KEY,
   account_id INT NOT NULL,
@@ -677,7 +677,7 @@ ORDER BY a.account_id, days.d;
 |        202 | 2026-09-03 |    4000 |
 |        202 | 2026-09-04 |    4200 |
 +------------+------------+---------+</code></pre>
-<p>驗算 202：期初 5000，9/1 轉入 1000 是 6000，9/2 沒交易照舊，9/3 提款 2000 剩 4000，9/4 兩筆 +300、−100 是 4200。遞迴 CTE 產生日期序列的寫法與停止條件見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉。</p>
+<p>以 202 為例：期初 5000，9/1 轉入 1000 是 6000，9/2 沒交易照舊，9/3 提款 2000 剩 4000，9/4 兩筆 +300、−100 是 4200。遞迴 CTE 產生日期序列的寫法與停止條件見〈SQL 進階：JOIN、子查詢、GROUP BY 與視窗函式〉。</p>
 <p><strong>追問：資料量大怎麼辦。</strong>每天從頭加一年份的交易太慢。常見做法是在日終批次把每個帳戶的餘額存成一張「日終餘額表」，查詢時直接讀；要補算某段期間，也只需要從上一個日終快照往後加。</p>
 
 <div class="drill">

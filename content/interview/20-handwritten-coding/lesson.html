@@ -262,7 +262,7 @@ public class LockBuffer&lt;E&gt; {
 ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p><strong>為什麼 while 不能寫成 if：</strong>醒來不代表條件成立，有兩個原因。</p>
     <ul class="plainlist">
-      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，生產者各放 20,000 個、消費者各取 20,000 次，跑 10 次都壞：每次有 1〜29 次 <code>take</code> 丟 <code>NoSuchElementException</code>；生產者也不再檢查容量，容量 1 的佇列曾經塞到幾千到五萬多個（這次 10 次裡最少 13,594、最多 52,061；數字隨機器不同，另一台跑出 4,261〜45,648）。</li>
+      <li><b>被別人搶先（實跑重現）。</b><code>notifyAll</code> 會叫醒所有等著的消費者，第一個拿走唯一的元素，其他的拿到鎖時佇列又空了。把版本一的兩個 <code>while</code> 改成 <code>if</code>，容量 1、4 個生產者、4 個消費者，生產者各放 20,000 個、消費者各取 20,000 次，跑 10 次都壞：每次有 1〜29 次 <code>take</code> 丟 <code>NoSuchElementException</code>；生產者也不再檢查容量，容量 1 的佇列曾經塞到幾千到五萬多個（數字隨機器不同，這次 10 次裡最少 13,594、最多 52,061）。</li>
       <li><b>虛假喚醒（規格允許，沒有重現）。</b>執行緒可能沒被叫醒、沒被中斷、也沒逾時就醒來，這叫 spurious wakeup。實務上很少發生，但程式必須檢查讓它醒來的條件，不成立就繼續等。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#wait(long,int)" target="_blank" rel="noopener">出處</a> Java 規格因此要求 <code>wait</code> 只寫在迴圈裡。<a class="fixsrc" href="https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html#jls-17.2.1" target="_blank" rel="noopener">出處</a> 這種情況沒辦法刻意製造，本機也沒跑出來。</li>
     </ul>
     <p><strong>另一個常見寫錯：版本一用 notify。</strong>把 <code>notifyAll</code> 換成 <code>notify</code>，同一個等待集合裡有生產者也有消費者，只叫醒一個，可能叫到同一種角色，大家就一起睡著。容量 1、4 對 4、各 100,000 個，跑五次全部卡住：3 秒後只取走 3〜9 個，8 條執行緒都停在 WAITING。版本二可以用 <code>signal</code>，因為兩種角色分開等，叫醒的一定是對的那種。</p>
@@ -283,8 +283,8 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
   <p class="dexp">notifyAll 叫醒好幾個消費者，搶輸的那個醒來不再檢查，從空佇列拿就丟 NoSuchElementException；生產者也一樣不再檢查容量。</p>
 </div>
 <div class="drill">
-  <p class="dq">「虛假喚醒」這個理由，本課怎麼處理？</p>
-  <ul class="dopts"><li data-ok>規格允許，沒重現，照規格寫迴圈</li><li>只有 Condition 會，wait 不會</li><li>實跑重現了，每次都會發生</li><li>Java 21 起已經不會發生</li></ul>
+  <p class="dq">關於「虛假喚醒」，哪個說法對？</p>
+  <ul class="dopts"><li data-ok>規格允許、無法刻意製造，照規格寫迴圈</li><li>只有 Condition 會，wait 不會</li><li>每次 wait 醒來都一定會發生</li><li>Java 21 起已經不會發生</li></ul>
   <p class="dexp">Java 規格允許執行緒沒被叫醒就醒來；沒辦法刻意製造，所以照規格一律用 while。</p>
 </div>
 <div class="drill">
@@ -315,7 +315,7 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
 <div class="drill">
   <p class="dq">有界緩衝用兩個 Condition（notFull、notEmpty），好處是？</p>
   <ul class="dopts"><li>完全不需要拿鎖也能運作</li><li data-ok>一次只叫醒一條就夠</li><li>保證這個佇列永遠不會死結</li><li>讓等待的執行緒公平排隊</li></ul>
-  <p class="dexp">原文：keep waiting put threads and take threads in separate wait-sets so that we can use the optimization of only notifying a single thread at a time。</p>
+  <p class="dexp">等著 put 與等著 take 的執行緒放在不同的等待集合，有東西或有空位時就能只叫醒一條。</p>
 </div>
     <p class="muted">指路：〈Java 並行快答：執行緒池、鎖與並行集合〉（synchronized 對 ReentrantLock、Condition）、〈執行緒與並行〉。</p>
 </section>
@@ -323,7 +323,7 @@ ReentrantLock 版：總和 5000100000，應該是 5000100000</code></pre>
     <p class="era">第三題</p>
     <h3 class="head">執行緒安全的單例</h3>
     <p><strong>題目：</strong>寫一個延遲建立、多執行緒下也只有一個實體的單例。</p>
-    <p><strong>面試官要看：</strong>雙重檢查的 <code>volatile</code> 說得出理由，並知道有不必寫同步的寫法。三種寫法與單例的代價在〈設計模式〉講過，這裡寫出來並實跑。</p>
+    <p><strong>面試官要看：</strong>雙重檢查的 <code>volatile</code> 說得出理由，並知道有不必寫同步的寫法。三種寫法與單例的代價見〈設計模式〉。</p>
     <p><strong>寫法一：雙重檢查加 volatile。</strong></p>
     <pre><code>public final class DclConfig {
     private static volatile DclConfig instance;      // volatile 不能省
@@ -556,7 +556,7 @@ public class TokenBucket {
     <ul class="plainlist">
       <li><b>tryAcquire 沒加 synchronized。</b>「檢查還有沒有、再減一」是兩步，8 條執行緒同時搶 100 個代幣，跑 80 輪：73 輪剛好 100，7 輪超發（101〜210）。不加鎖不保證每次出錯，但一出錯就是放行超過代幣數，而且測試不一定抓得到。</li>
       <li><b>改用固定視窗卻沒講邊界問題。</b>同樣用假時鐘寫一個「每分鐘 100 個」的固定視窗，第 59.9 秒打 100 個、第 60.0 秒再打 100 個，0.1 秒內放進 200 個。</li>
-      <li><b>直接呼叫 System.nanoTime()、不能換時鐘。</b>正確性沒問題，但測試只能真的等時間過去，跑得慢，結果也容易受機器快慢影響；本課的建議是時鐘做成可以換的。</li>
+      <li><b>直接呼叫 System.nanoTime()、不能換時鐘。</b>正確性沒問題，但測試只能真的等時間過去，跑得慢，結果也容易受機器快慢影響；建議把時鐘做成可以換的。</li>
     </ul>
     <p><strong>追問：</strong>多台伺服器怎麼辦？狀態搬到 Redis。令牌桶要存「還剩幾個代幣、上次補的時間」，用一支 Lua 腳本把讀出、補代幣、扣一個、寫回一次做完；「加一、設過期、判斷」是固定視窗的做法，固定視窗的 Lua 寫法見〈系統設計：秒殺與限流〉；令牌桶的現成做法可以看 Spring Cloud Gateway 的 Redis 限流腳本，它就是存剩餘代幣與時間戳兩個值。<a class="fixsrc" href="https://github.com/spring-cloud/spring-cloud-gateway/blob/main/spring-cloud-gateway-server-webflux/src/main/resources/META-INF/scripts/request_rate_limiter.lua" target="_blank" rel="noopener">出處</a></p>
 <div class="drill">

@@ -58,7 +58,7 @@ void update(String pair, Rate r) {
   下一位：未命中 → 查到 31.7 → 回填</code></pre>
     <p>這兩條時間線用兩個 Map 模擬、照順序交錯執行的程式與輸出，實跑見〈快取放哪裡、怎麼失效〉。對的順序也只是縮短讀到舊值的時間：Cache-Aside 模式本身不保證資料庫與快取一致。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener">出處</a></p>
     <p class="q">面試官：延遲雙刪解決什麼、沒解決什麼？</p>
-    <p><strong>一句話定義：</strong>延遲雙刪（先刪快取、更新資料庫、隔幾百毫秒再刪一次快取）是業界慣用的補救，各家官方文件都沒有這個名字，靠推理答。第二次刪是要清掉「第一次刪與更新資料庫之間被別人回填的舊值」；「幾百毫秒」是估一次讀取回填要多久，還要蓋過主從資料庫的複寫延遲。</p>
+    <p><strong>一句話定義：</strong>延遲雙刪（先刪快取、更新資料庫、隔幾百毫秒再刪一次快取）是業界慣用的補救。第二次刪是要清掉「第一次刪與更新資料庫之間被別人回填的舊值」；「幾百毫秒」是估一次讀取回填要多久，還要蓋過主從資料庫的複寫延遲。</p>
     <ul class="plainlist">
       <li><strong>解決了：</strong>「先刪快取」順序留下的舊值，以及讀寫分離時從庫還沒同步就被讀走回填的舊值。</li>
       <li><strong>沒解決：</strong>延遲是猜的，讀取比猜的更慢就漏掉；第二次刪也可能失敗，要進訊息佇列重試；兩次刪之間仍讀得到舊值，它是最終一致，不是強一致。</li>
@@ -85,7 +85,7 @@ void update(String pair, Rate r) {
       <li>Redis 本身也怕同秒到期：很多 key 在同一刻到期，會成為延遲的來源。<a class="fixsrc" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/" target="_blank" rel="noopener">出處</a></li>
     </ul>
     <p>Redis 8.10.2 實測：<code>SET rate:usd 31.5 EX 348</code>（300 加隨機 48），<code>TTL</code> 回 348；空結果快取、<code>BF.RESERVE</code>、<code>SET NX</code> 搶鎖的完整輸出，實跑見〈快取放哪裡、怎麼失效〉。</p>
-    <p><strong>Bloom Filter 怎麼答：</strong>原理與名單怎麼建，〈系統設計：短網址的高併發〉講完了。這裡補一點：Bloom Filter 能保證某個元素「不在」集合裡，對「在」只能給出估計；Redis 建立時要給預期元素數與誤判率。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">出處</a></p>
+    <p><strong>Bloom Filter 怎麼答：</strong>原理與名單怎麼建見〈系統設計：短網址的高併發〉。Bloom Filter 能保證某個元素「不在」集合裡，對「在」只能給出估計；Redis 建立時要給預期元素數與誤判率。<a class="fixsrc" href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/" target="_blank" rel="noopener">出處</a></p>
     <p><strong>互斥重建：</strong>Spring 的快取抽象預設不鎖任何東西，同一個值可能被算好幾次。解法是 <code>sync</code> 屬性：鎖住那筆快取項目，只有一條執行緒在算，其他的等到項目更新。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html" target="_blank" rel="noopener">出處</a> 跨機器的版本是用 <code>SET 鍵 值 NX EX 秒數</code> 搶一把短鎖，搶到的查資料庫回填、沒搶到的等一下重讀快取；Redis 8.10.2 實測，第二個搶的回空值。鎖的三個不能省的地方見〈分散式鎖與 Redis〉。</p>
     <pre><code>@Cacheable(cacheNames = "rates", key = "#pair", sync = true)   // 同一把 key 只讓一條執行緒去查
 public Rate findRate(String pair) { return db.findRate(pair); }
@@ -204,7 +204,7 @@ maxmemory-samples 5              # 抽樣近似，預設抽 5 把，10 更準但
         <tr><th>登入後的餘額、明細</th><td>只在應用層，或不快取</td><td><code>Cache-Control: private, no-store</code>；<code>private</code>：共用快取不得儲存<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc9111#section-5.2.2.7" target="_blank" rel="noopener">出處</a></td></tr>
       </tbody>
     </table></div>
-    <p class="muted">新鮮度、<code>no-cache</code> 對 <code>no-store</code>、ETag 與 304，〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉講完了。個人資料被 CDN 存起來給別人看，多半是漏了 <code>private</code>。</p>
+    <p class="muted">新鮮度、<code>no-cache</code> 對 <code>no-store</code>、ETag 與 304，見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉。個人資料被 CDN 存起來給別人看，多半是漏了 <code>private</code>。</p>
     <p class="formula">快取的每一題都在問：舊值能被看到多久、被誰看到；先講這份資料能容忍多舊，再選模式與 TTL</p>
 </section>
 <div class="keys"><p class="lbl">重點整理</p><ul><li>Cache-Aside 應用程式自己回填、寫完刪快取；Write-Through 兩邊同步寫、寫不會變快；Write-Behind 先寫快取、延後寫回資料庫，餘額不能用。</li><li>先更新資料庫、再刪快取；延遲雙刪補舊值但延遲是猜的、仍是最終一致；TTL 是最後一道保險，要強一致改 Write-Through。</li><li>雪崩用隨機 TTL；穿透用 Bloom Filter 加快取空結果；擊穿用互斥重建（Spring sync=true、SET NX）或邏輯過期（Caffeine refreshAfterWrite）。</li><li>熱 key 一把只住一個槽、加節點沒用：--hotkeys（要 LFU）找，本地快取或複製多份拆。大 key 卡住單執行緒：--bigkeys 找，UNLINK 背景回收，拆小。</li><li>Redis 快在記憶體、單執行緒執行指令加 I/O 多工；6.0 起 io-threads 可多執行緒讀寫網路，預設關。RDB 快照可能丟幾分鐘；AOF 預設每秒 fsync、最多丟一秒；純快取可不開，當鎖或庫存至少 AOF。淘汰策略預設 noeviction、快取要改 allkeys-lru。</li><li>兩層失效三招：本地短 TTL、Pub/Sub 廣播、Redis 6 起的 client tracking。HTTP 快取存整個回應：靜態檔與匿名頁交給 CDN 用 max-age 與 s-maxage，個人資料加 private。</li></ul></div>
