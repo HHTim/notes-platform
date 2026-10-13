@@ -38,7 +38,7 @@ Route
 <pre><code>oc project            # 現在在哪個專案
 oc get resourcequota  # 這個專案還剩多少額度
 oc get storageclass   # 有哪些儲存類別可以用</code></pre>
-<p class="q">但要講清楚一件事：<strong>套用 YAML 的先後順序，不等於應用程式的啟動順序。</strong>Kubernetes 是非同步調和的（〈為什麼需要 Kubernetes〉那個迴圈），你先建資料庫不代表網站起來時資料庫已經能接查詢。真正的保證來自就緒檢查（readiness probe）和應用程式自己的重試——這和〈資料與 Compose〉講的 Compose <code>depends_on</code> 是同一個道理。</p>
+<p class="q"><strong>套用 YAML 的先後順序，不等於應用程式的啟動順序。</strong>Kubernetes 是非同步調和的（〈為什麼需要 Kubernetes〉那個迴圈），你先建資料庫不代表網站起來時資料庫已經能接查詢。真正的保證來自就緒檢查（readiness probe）和應用程式自己的重試——這和〈資料與 Compose〉講的 Compose <code>depends_on</code> 是同一個道理。</p>
 </section>
 
 <section>
@@ -87,7 +87,7 @@ spec:
 <section>
 <p class="era">工作負載</p>
 <h3 class="head">把資料庫的位置注入網站</h3>
-<p class="muted">先講一個抄之前要知道的前提：<strong>下面這份 YAML 的環境變數名稱（<code>WORDPRESS_DATABASE_*</code>）和 8080 這個埠，是照 Bitnami 版 WordPress 映像的規格寫的。</strong>換成 Docker Hub 上的官方 <code>wordpress</code> 映像就不通——它吃的是 <code>WORDPRESS_DB_HOST</code>、<code>WORDPRESS_DB_USER</code>、<code>WORDPRESS_DB_PASSWORD</code>、<code>WORDPRESS_DB_NAME</code>，而且它聽的是 <strong>80</strong>（官方範例寫 <code>-p 8080:80</code>）。<a class="fixsrc" href="https://hub.docker.com/_/wordpress" target="_blank" rel="noopener">出處</a> 80 落在 1024 以下的特權埠，正好踩到下一段講的那一條，在 OpenShift 上起不來。<strong>換映像檔就要去讀那個映像檔自己的文件，把變數名和埠號對過一遍。</strong></p>
+<p class="muted"><strong>下面這份 YAML 的環境變數名稱（<code>WORDPRESS_DATABASE_*</code>）和 8080 這個埠，是照 Bitnami 版 WordPress 映像的規格寫的。</strong>換成 Docker Hub 上的官方 <code>wordpress</code> 映像就不通——它吃的是 <code>WORDPRESS_DB_HOST</code>、<code>WORDPRESS_DB_USER</code>、<code>WORDPRESS_DB_PASSWORD</code>、<code>WORDPRESS_DB_NAME</code>，而且它聽的是 <strong>80</strong>（官方範例寫 <code>-p 8080:80</code>）。<a class="fixsrc" href="https://hub.docker.com/_/wordpress" target="_blank" rel="noopener">出處</a> 80 落在 1024 以下的特權埠，正好踩到下一段講的那一條，在 OpenShift 上起不來。<strong>換映像檔就要去讀那個映像檔自己的文件，把變數名和埠號對過一遍。</strong></p>
 <pre><code>apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -174,7 +174,7 @@ spec:
 oc get services
 oc get endpointslices     # 這個 Service 到底有沒有後端
 oc describe service blog</code></pre>
-<p class="muted">Service 沒有後端時，一樣先比對 selector 和 Pod 的 labels，再確認 Pod 真的 Ready——沒 Ready 的 Pod 不會被算進去。順帶一提，舊教學常寫 <code>oc get endpoints</code>；Kubernetes 從 v1.33 起把 Endpoints 標為過時，改用 EndpointSlice。<a class="fixsrc" href="https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">Service 沒有後端時，一樣先比對 selector 和 Pod 的 labels，再確認 Pod 真的 Ready——沒 Ready 的 Pod 不會被算進去。以前用 <code>oc get endpoints</code> 看後端；Kubernetes 從 v1.33 起把 Endpoints 標為過時，改用 EndpointSlice。<a class="fixsrc" href="https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -203,7 +203,7 @@ spec:
     </tbody>
   </table>
 </div>
-<p class="muted">Red Hat 的文件把這三種和各自的憑證需求寫得很清楚。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/ingress_and_load_balancing/routes" target="_blank" rel="noopener">出處</a> 有一點要講明白：<strong>寫了 <code>tls</code> 區塊就一定要填 <code>termination</code></strong>，而且只吃 edge、reencrypt、passthrough 三個值（API 欄位的說明把 edge 註記為預設）；但 <strong>整個 <code>tls</code> 區塊不寫的 Route，走的是純 HTTP，不是 edge</strong>。<span class="muted">（出處是 API 的原始定義，在那頁搜 <code>TLSConfig</code>。<a class="fixsrc" href="https://github.com/openshift/api/blob/master/route/v1/types.go" target="_blank" rel="noopener">出處</a>）</span> 組織要求「一路加密到 Pod」時，<code>edge</code> 就不夠。</p>
+<p class="muted">三種寫法的憑證需求各不相同。<a class="fixsrc" href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/ingress_and_load_balancing/routes" target="_blank" rel="noopener">出處</a> <strong>寫了 <code>tls</code> 區塊就一定要填 <code>termination</code></strong>，而且只吃 edge、reencrypt、passthrough 三個值（API 欄位的說明把 edge 註記為預設）；但 <strong>整個 <code>tls</code> 區塊不寫的 Route，走的是純 HTTP，不是 edge</strong>。<a class="fixsrc" href="https://github.com/openshift/api/blob/master/route/v1/types.go" target="_blank" rel="noopener">出處</a> 組織要求「一路加密到 Pod」時，<code>edge</code> 就不夠。</p>
 <pre><code>oc apply -f manifests/
 oc rollout status deployment/database
 oc rollout status deployment/blog

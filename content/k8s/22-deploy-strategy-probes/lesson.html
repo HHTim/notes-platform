@@ -41,7 +41,7 @@ spec:
             - name: APP_VERSION
               value: v1
           # 探針與資源設定省略，後面幾段會逐一講</code></pre>
-<p>把映像檔改成 <code>teller:1.1</code>、版本改成 v2，<code>kubectl apply</code> 之後每 1.5 秒看一次兩個 ReplicaSet（Deployment 底下管份數的那一層，見〈Deployment：下單〉）。本課貼的 <code>kubectl get</code> 輸出都用 <code>--no-headers</code> 加 <code>awk</code> 整理過，好在手機上看：拿掉表頭和 AGE 這類欄位，「期望／目前／就緒」是 DESIRED／CURRENT／READY 三欄，「重啟=」是 RESTARTS 欄，「最少可用／允許中斷」是 MIN AVAILABLE／ALLOWED DISRUPTIONS 兩欄；數字都是實跑原樣：</p>
+<p>把映像檔改成 <code>teller:1.1</code>、版本改成 v2，<code>kubectl apply</code> 之後每 1.5 秒看一次兩個 ReplicaSet（Deployment 底下管份數的那一層，見〈Deployment：下單〉）。本課貼的 <code>kubectl get</code> 輸出都用 <code>--no-headers</code> 加 <code>awk</code> 整理過：拿掉表頭和 AGE 這類欄位，「期望／目前／就緒」是 DESIRED／CURRENT／READY 三欄，「重啟=」是 RESTARTS 欄，「最少可用／允許中斷」是 MIN AVAILABLE／ALLOWED DISRUPTIONS 兩欄；數字都是實跑原樣：</p>
 <pre><code>$ kubectl apply -f teller-v2.yaml
 deployment.apps/teller configured
 $ kubectl get rs -l app=teller      # 每 1.5 秒看一次，節錄每一個不同的狀態
@@ -246,7 +246,7 @@ strategy:
 <div class="drill">
   <p class="dq">原生滾動更新做不到下面哪一件事？</p>
   <ul class="dopts"><li>分批換掉 Pod</li><li>用就緒探針判斷新 Pod 能不能收流量</li><li>停下推進（pause）</li><li data-ok>查詢外部指標，出問題自動中止並退回</li></ul>
-  <p class="dexp">Argo 列的限制包括「無法查詢外部指標來驗證更新」「可以停下推進，但無法自動中止並退回」。分批換、就緒探針、暫停原生都有。</p>
+  <p class="dexp">原生滾動更新無法查詢外部指標來驗證更新，可以停下推進但無法自動中止並退回。分批換、就緒探針、暫停原生都有。</p>
 </div>
 <div class="drill">
   <p class="dq">Argo Rollouts 沒接流量管理工具時，10 份副本、第一步 <code>setWeight: 10</code>，新舊各幾份？</p>
@@ -393,7 +393,7 @@ Killing     Container teller failed liveness probe, will be restarted</code></pr
 <section>
 <p class="era">Spring Boot 那一側</p>
 <h3 class="head">Actuator 的 liveness、readiness 群組與啟動、關機時的狀態</h3>
-<p>Spring Boot Actuator 把應用程式的「存活」與「就緒」兩個狀態做成健康指標，再用健康群組的方式各自暴露成 HTTP 探針：<code>/actuator/health/liveness</code> 與 <code>/actuator/health/readiness</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 的 <code>management.<wbr>endpoint.<wbr>health.<wbr>probes.<wbr>enabled</code> 預設是 <code>true</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 群組怎麼加自訂的健康指標、外部系統要不要放進就緒群組，〈Spring Boot 自動組態與 Actuator〉講過；這裡補 K8s 會關心的部分：兩個狀態在程式生命週期的哪一刻變。</p>
+<p>Spring Boot Actuator 把應用程式的「存活」與「就緒」兩個狀態做成健康指標，再用健康群組的方式各自暴露成 HTTP 探針：<code>/actuator/health/liveness</code> 與 <code>/actuator/health/readiness</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a> Spring Boot 4.1 的 <code>management.<wbr>endpoint.<wbr>health.<wbr>probes.<wbr>enabled</code> 預設是 <code>true</code>。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a> 群組怎麼加自訂的健康指標、外部系統要不要放進就緒群組，見〈Spring Boot 自動組態與 Actuator〉。</p>
 <p>啟動時各階段的狀態：<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th>階段</th><th>存活（LivenessState）</th><th>就緒（ReadinessState）</th><th>HTTP 伺服器</th></tr></thead><tbody>
 <tr><th>Starting</th><td>BROKEN</td><td>REFUSING_TRAFFIC</td><td>還沒啟動；K8s 檢查存活探針，太久的話就重啟應用程式</td></tr>
@@ -449,7 +449,7 @@ public void run(ApplicationArguments args) throws Exception {
 <div class="drill">
   <p class="dq">Spring Boot 應用程式什麼時候才算「就緒」？</p>
   <ul class="dopts"><li>JVM 一啟動就算</li><li>所有 Bean 都建立完的時候</li><li>HTTP 伺服器一開始監聽的時候</li><li data-ok>runner 都被呼叫之後</li></ul>
-  <p class="dexp">Application Availability 一節：應用程式在 application 與 command-line runner 都被呼叫之後才算就緒；就緒狀態在處理這些 runner 時是失敗的。</p>
+  <p class="dexp">應用程式在 application 與 command-line runner 都被呼叫之後才算就緒；就緒狀態在處理這些 runner 時是失敗的。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼 Spring Boot 的存活狀態不該依據外部系統的檢查？</p>
@@ -471,7 +471,7 @@ public void run(ApplicationArguments args) throws Exception {
 <section>
 <p class="era">吃多少、被殺的時候</p>
 <h3 class="head">requests、limits、QoS 等級與 OOMKilled</h3>
-<p>requests 與 limits 的意思見〈Deployment：下單〉，單位怎麼讀見〈K8s 上手：Minikube 與上雲〉。這一段補兩件事。</p>
+<p>requests 與 limits 的意思見〈Deployment：下單〉，單位怎麼讀見〈K8s 上手：Minikube 與上雲〉。</p>
 <p><strong>QoS 等級怎麼判。</strong><a class="fixsrc" href="https://v1-36.docs.kubernetes.io/docs/concepts/workloads/pods/pod-qos/" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>Guaranteed</strong>：Pod 裡每個容器的記憶體與 CPU 都有 request 與 limit，都大於 0，而且 limit 等於 request。</li>
@@ -489,7 +489,7 @@ $ kubectl get pod mem-100 -o jsonpath='{.status.containerStatuses[0].lastState.t
 {"containerID":"containerd://de1e…","exitCode":137,"finishedAt":"2026-10-02T11:29:36Z","reason":"OOMKilled","startedAt":"2026-10-02T11:29:29Z"}
 $ kubectl get pod mem-100
 mem-100 1/1 Running 重啟=1        ← 被核心殺掉，kubelet 照重啟政策重開</code></pre>
-<p>結束碼 137 本身不說明原因（〈容器與部署面試題：映像分層、K8s 部署策略與探針〉提醒它只代表被 KILL 訊號結束），要看 <code>reason</code> 是不是 <code>OOMKilled</code> 才確定是記憶體。這個 Pod 為什麼會被殺、怎麼設才不會，是下一段的主題。</p>
+<p>結束碼 137 本身不說明原因（〈容器與部署面試題：映像分層、K8s 部署策略與探針〉提醒它只代表被 KILL 訊號結束），要看 <code>reason</code> 是不是 <code>OOMKilled</code> 才確定是記憶體。</p>
 
 <div class="drill">
   <p class="dq">一個 Pod 只有一個容器，requests 是 cpu 500m、memory 1Gi，limits 是 cpu 500m、memory 1Gi。它的 QoS 等級是什麼？</p>

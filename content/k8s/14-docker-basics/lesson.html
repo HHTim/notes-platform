@@ -3,9 +3,9 @@
 
 <section>
 <p class="era">實作篇・開場</p>
-<h3 class="head">前面講的是道理，這一課開始動手</h3>
+<h3 class="head">Docker 的三個零件</h3>
 <p>Dockerfile 是食譜、映像檔（image）是成品、容器是跑起來的那一份（見〈Docker〉）。</p>
-<p>動手前先記住一句話：<strong>容器是一種技術，Docker 只是這個技術的其中一個實作品。</strong>常常把兩個字當同義詞用，是因為 Docker 是最成功、用得最廣的那一個。這件事背後有一整套標準在撐著，那是〈容器不等於 Docker〉的內容。</p>
+<p><strong>容器是一種技術，Docker 只是這個技術的其中一個實作品。</strong>常常把兩個字當同義詞用，是因為 Docker 是最成功、用得最廣的那一個。這件事背後有一整套標準在撐著，那是〈容器不等於 Docker〉的內容。</p>
 <div class="terms">
   <div class="term"><b>Docker Engine</b><span>真正在做事的那一支程式（正式名稱：容器引擎）。它負責建映像檔、開容器、管網路。</span></div>
   <div class="term"><b>Docker CLI</b><span>你在終端機打 <code>docker</code> 時用的那個介面。它自己不做事，只把你的要求送給 Engine。</span></div>
@@ -29,7 +29,7 @@
     </tbody>
   </table>
 </div>
-<p class="muted">安裝步驟會隨版本改，這裡不抄步驟；要裝的時候以你選的那套工具的官方安裝文件為準。</p>
+<p class="muted">安裝步驟會隨版本改，以你選的那套工具的官方安裝文件為準。</p>
 </section>
 
 <section>
@@ -104,13 +104,13 @@ docker container exec -it web sh</code></pre>
 <p><code>-i</code> 是保持標準輸入（STDIN，也就是「你打的字送得進去」）開著；<code>-t</code> 是配一個偽終端機（TTY，讓你有提示符號、能按 Tab 補字、能按 Ctrl + C）。兩個一起用才有像在本機終端機操作的感覺。只給 <code>-i</code> 會沒有提示符號，只給 <code>-t</code> 則可能打不進字。</p>
 <p class="q">run 和 exec 差在哪？<strong>run 是開一個新容器；exec 是在已經在跑的容器裡再起一支程式。</strong>所以從 exec 開出來的 shell 打 <code>exit</code> 離開，容器還是 Up；但如果你離開的是容器的主程式，容器就跟著結束。</p>
 <p class="muted">不是每個映像檔裡都有 <code>bash</code>。精簡的映像檔（例如 Alpine 那一類）通常只有 <code>sh</code>，所以 <code>sh</code> 是比較保險的第一次嘗試。</p>
-<p class="muted">上面兩個鍵要補一個前提：<code>--sig-proxy</code> 預設開著時，Ctrl + C 會把 SIGINT 送進容器；而 Ctrl + P 接 Ctrl + Q 這個脫離鍵，只有容器是用 <code>-i</code> 和 <code>-t</code> 啟動時才有用。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/attach/" target="_blank" rel="noopener">出處</a> 而且<strong>訊號送進去不保證停得掉</strong>：容器裡的主程式是編號 1 的程序，Linux 對它有特殊待遇：預設動作的訊號一律忽略。所以<strong>除非那支程式自己有寫處理，否則它會直接忽略 SIGINT 和 SIGTERM</strong>。停不掉的時候用 <code>docker container stop</code>（逾時後會改送 SIGKILL）。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/run/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">這兩個鍵有前提：<code>--sig-proxy</code> 預設開著時，Ctrl + C 會把 SIGINT 送進容器；而 Ctrl + P 接 Ctrl + Q 這個脫離鍵，只有容器是用 <code>-i</code> 和 <code>-t</code> 啟動時才有用。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/attach/" target="_blank" rel="noopener">出處</a> 而且<strong>訊號送進去不保證停得掉</strong>：容器裡的主程式是編號 1 的程序，Linux 對它有特殊待遇：預設動作的訊號一律忽略。所以<strong>除非那支程式自己有寫處理，否則它會直接忽略 SIGINT 和 SIGTERM</strong>。停不掉的時候用 <code>docker container stop</code>（逾時後會改送 SIGKILL）。<a class="fixsrc" href="https://docs.docker.com/reference/cli/docker/container/run/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
 <p class="era">容器是什麼東西</p>
 <h3 class="head">它不是縮小版的虛擬機，它就是一支程式</h3>
-<p>〈容器〉從「共用作業系統」的角度講過差別，這裡補上一個從外面看得到的證據：<strong>在主機上用 <code>ps</code> 看，容器裡的程式就實實在在出現在主機的程序清單裡</strong>，只是被關進自己的房間、被限制了能吃多少 CPU 和記憶體。程式、行程（程序）、執行緒三者的關係見〈執行緒與並行〉。</p>
+<p>除了〈容器〉講的「共用作業系統」，從外面也看得到證據：<strong>在主機上用 <code>ps</code> 看，容器裡的程式就實實在在出現在主機的程序清單裡</strong>，只是被關進自己的房間、被限制了能吃多少 CPU 和記憶體。程式、行程（程序）、執行緒三者的關係見〈執行緒與並行〉。</p>
 <pre><code>docker container top web    # 看這個容器裡有哪些程序</code></pre>
 <p>所以會有這個後果：<strong>主程式停了，容器就退出了。</strong>容器沒有「開機、待機、關機」那一套，它的命跟那支主程式綁在一起。</p>
 </section>

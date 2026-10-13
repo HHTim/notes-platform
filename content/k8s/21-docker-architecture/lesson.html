@@ -4,7 +4,7 @@
 <section>
   <p class="era">架構</p>
   <h3 class="head">你打的 <code>docker</code> 自己不做事，它只是去下單</h3>
-  <p>Docker 是<strong>用戶端－伺服器架構</strong>（client-server，白話：一邊負責下單、另一邊負責做事，兩邊是分開的兩支程式）：用戶端跟背景服務講話，建置、執行、分發容器這些粗重的活都是背景服務在做。指令怎麼打見〈Docker 上手〉，這裡講的是指令送出去之後誰在做事。<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a></p>
+  <p>Docker 是<strong>用戶端－伺服器架構</strong>（client-server，白話：一邊負責下單、另一邊負責做事，兩邊是分開的兩支程式）：用戶端跟背景服務講話，建置、執行、分發容器這些粗重的活都是背景服務在做。指令怎麼打見〈Docker 上手〉。<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a></p>
   <div class="tablewrap">
     <table>
       <thead><tr><th scope="col">角色</th><th scope="col">白話</th><th scope="col">做什麼</th></tr></thead>
@@ -40,7 +40,7 @@
         <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="currentColor" fill-opacity=".6"/></marker>
       </defs>
     </svg>
-    <figcaption>三個角色分得很開，所以它們<strong>不一定在同一台機器上</strong>——這件事等一下講權限時就是重點。</figcaption>
+    <figcaption>三個角色分得很開，所以它們<strong>不一定在同一台機器上</strong>。</figcaption>
   </figure>
   <p>兩邊用 <strong>REST API</strong> 講話（白話：一套講好的呼叫格式，像網頁瀏覽器連網站那樣，一邊送要求、一邊回結果），走的管道則是本機的一個通訊用檔案（UNIX socket），或直接走網路。<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a></p>
   <p class="muted">Docker Desktop 不是第四個角色，它是把上面這些包成一個好裝的桌面軟體，Mac、Windows、Linux 都有，用來建置與分享容器化的應用程式和微服務。<a class="fixsrc" href="https://docs.docker.com/get-started/docker-overview/" target="_blank" rel="noopener">出處</a>Mac 和 Windows 上它底下還墊了一層 Linux，那層是〈Docker Desktop 與 Colima〉的內容。</p>
@@ -56,7 +56,7 @@
 # srw-rw----. 1 root docker 0 ...
 #  ↑         ↑    ↑
 #  s＝這是 socket 檔   擁有者是 root   群組是 docker</code></pre>
-  <p>讀到這裡就看得出，要碰得到那個 socket 有兩條路：用 <code>sudo</code> 借一下 root 的身分（<code>sudo</code> ＝ superuser do，以系統管理員身分執行這一行），或者把自己放進 <code>docker</code> 這個群組。後者方便得多，也正是下面要特別講的那一段。</p>
+  <p>要碰得到那個 socket 有兩條路：用 <code>sudo</code> 借一下 root 的身分（<code>sudo</code> ＝ superuser do，以系統管理員身分執行這一行），或者把自己放進 <code>docker</code> 這個群組。後者方便得多。</p>
 </section>
 
 <section>
@@ -90,7 +90,7 @@ which dnf apt zypper    # 哪個印得出路徑，就有哪個</code></pre>
   </ul>
   <pre><code>sudo systemctl enable --now docker   # 現在啟動，而且以後開機自動啟動
 docker --version                     # 確認裝了哪一版</code></pre>
-  <p class="muted">有些教學用的是 <code>sudo service docker start</code> 與 <code>sudo service docker status</code>，照著做在今天的機器上也會動——<code>service</code> 在有 systemd 的系統（systemd 是現在多數 Linux 用來管開機與背景服務的那一套；<code>systemctl</code> 就是操作它的指令）上會被轉給 <code>systemctl</code>：對 systemd 管的服務，start、stop、status、reload 都會轉成對應的 systemctl 指令。<a class="fixsrc" href="https://manpages.debian.org/bookworm/init-system-helpers/service.8.en.html" target="_blank" rel="noopener">出處</a> 差別只在上面那行多做了一件事：<code>enable</code> 會讓它以後開機自動啟動，<code>start</code> 只管這一次——這一句在 Docker 的 RHEL 安裝頁上。<a class="fixsrc" href="https://docs.docker.com/engine/install/rhel/" target="_blank" rel="noopener">出處</a></p>
+  <p class="muted"><code>sudo service docker start</code> 與 <code>sudo service docker status</code> 這種寫法在今天的機器上也會動——<code>service</code> 在有 systemd 的系統（systemd 是現在多數 Linux 用來管開機與背景服務的那一套；<code>systemctl</code> 就是操作它的指令）上會被轉給 <code>systemctl</code>：對 systemd 管的服務，start、stop、status、reload 都會轉成對應的 systemctl 指令。<a class="fixsrc" href="https://manpages.debian.org/bookworm/init-system-helpers/service.8.en.html" target="_blank" rel="noopener">出處</a> 差別只在上面那行多做了一件事：<code>enable</code> 會讓它以後開機自動啟動，<code>start</code> 只管這一次。<a class="fixsrc" href="https://docs.docker.com/engine/install/rhel/" target="_blank" rel="noopener">出處</a></p>
 </section>
 
 <section>
@@ -101,7 +101,6 @@ docker --version                     # 確認裝了哪一版</code></pre>
 newgrp docker</code></pre>
   <p class="muted"><code>-a</code> 是附加、不覆蓋原有群組，<code>-G</code> 指定群組，<code>$USER</code> 是目前的使用者。加完要登出再登入，群組才會重新生效；<code>newgrp docker</code> 是不想登出時的替代做法，虛擬機使用者可能要整台重開才生效。<a class="fixsrc" href="https://docs.docker.com/engine/install/linux-postinstall/" target="_blank" rel="noopener">出處</a></p>
   <blockquote>
-    <p>這兩行旁邊有一則很容易被跳過的警告：</p>
     <p><strong><code>docker</code> 群組等於給使用者 root 等級的權限。</strong><a class="fixsrc" href="https://docs.docker.com/engine/install/linux-postinstall/" target="_blank" rel="noopener">出處</a></p>
   </blockquote>
   <p class="q">為什麼加一個群組就等於給了系統管理員權限？因為 <code>dockerd</code> 本身是以 root 在跑，而任何能使喚它的人都能叫它做 root 才做得到的事：</p>

@@ -366,7 +366,7 @@ $ kubectl apply -f timeout.yaml   # VirtualService 設 timeout: 1s
 $ （同一個 curl 指令）
 HTTP 504，花了 1.005078 秒</code></pre>
 <p>沒規則時等滿 3 秒拿到 200；套用後 1 秒就拿到 504（閘道逾時），是呼叫端旁邊的 Envoy 不等了，程式一行都沒改。</p>
-<p>這裡踩過一個坑：一開始想用 Istio 的故障注入（在同一份 VirtualService 加 <code>fault.delay</code>，讓代理故意延遲）來製造慢回應，結果等滿延遲還是 200，逾時沒有作用。原因是用戶端啟用故障注入時，逾時與重試不會啟用。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a> 所以實驗改用真的會慢的 httpbin。</p>
+<p>用 Istio 的故障注入（在同一份 VirtualService 加 <code>fault.delay</code>，讓代理故意延遲）製造慢回應，測不出逾時：用戶端啟用故障注入時，逾時與重試不會啟用，等滿延遲還是拿到 200。<a class="fixsrc" href="https://istio.io/latest/docs/reference/config/networking/virtual-service/" target="_blank" rel="noopener">出處</a> 所以上面的實驗用的是真的會慢的 httpbin。</p>
 <p>網格能設，程式也能設（Resilience4j），兩層各設各的會怎樣？網格的失敗處理對程式是透明的，程式也設的話，兩者各自運作，可能互相衝突：</p>
 <ul>
 <li>例子：程式對某個 API 設 2 秒逾時，VirtualService 設 3 秒逾時加重試 1 次。程式的逾時先到，Envoy 的逾時與重試都沒有作用</li>
@@ -378,7 +378,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <tr><th>重試</th><td>連線層級的失敗（連不上、被拒）</td><td>要看業務判斷能不能重試（寫入要冪等）</td></tr>
 <tr><th>失敗之後</th><td>只能回 503、504</td><td>降級回呼、斷路器、給使用者的訊息</td></tr>
 </tbody></table></div>
-<p class="muted">這張表是本課依上面幾條整理的分工建議，不是 Istio 的規定。原則是同一種重試只放一層，逾時由內往外越來越長；斷路器與降級的寫法見〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
+<p class="muted">這張表是依上面幾條整理的分工建議，不是 Istio 的規定。原則是同一種重試只放一層，逾時由內往外越來越長；斷路器與降級的寫法見〈韌性模式：Resilience4j 的斷路器、重試與限流〉。</p>
 <div class="drill">
   <p class="dq">VirtualService 什麼都沒設，Envoy 對 HTTP 請求的逾時預設是？</p>
   <ul class="dopts"><li>15 秒</li><li>1 秒</li><li data-ok>關閉，沒有逾時</li><li>跟 K8s Service 的設定一樣</li></ul>
@@ -392,7 +392,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <div class="drill">
   <p class="dq">同一份 VirtualService 同時設了 <code>fault.delay</code>（延遲 3 秒）和 <code>timeout: 1s</code>，結果等滿 3 秒還是 200。為什麼？</p>
   <ul class="dopts"><li>fault.delay 只對 gRPC 有效</li><li>timeout 要 2 秒以上才生效</li><li>規則還沒傳到代理</li><li data-ok>啟用故障注入時，逾時與重試不會啟用</li></ul>
-  <p class="dexp">用戶端開了故障注入時，逾時與重試不會啟用。本課的實驗因此改用真的會慢的 httpbin。</p>
+  <p class="dexp">用戶端開了故障注入時，逾時與重試不會啟用。所以本課的逾時實驗用的是真的會慢的 httpbin。</p>
 </div>
 <div class="drill">
   <p class="dq">程式對某個 API 設 2 秒逾時，VirtualService 設 3 秒逾時加重試 1 次。下游一直很慢時，實際是？</p>
@@ -414,7 +414,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <section>
 <p class="era">不想每個 Pod 都帶代理</p>
 <h3 class="head">Ambient 模式一眼</h3>
-<p>Istio 的另一種資料平面叫 ambient：每個節點一個第四層代理，再加上可選的、每個命名空間一個的第七層代理。<a class="fixsrc" href="https://istio.io/latest/docs/ambient/overview/" target="_blank" rel="noopener">出處</a> 第四層只看 IP 與連接埠，第七層看得懂 HTTP 內容（分層見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉）。每節點那個叫 ztunnel，負責加密與身分；第七層那個叫 waypoint，要用到 HTTP 層的功能才部署。它 2022 年推出，自 Istio 1.22 起單叢集情境可用於生產。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a> 本課的實驗用的是 sidecar 模式，ambient 沒有實跑。</p>
+<p>Istio 的另一種資料平面叫 ambient：每個節點一個第四層代理，再加上可選的、每個命名空間一個的第七層代理。<a class="fixsrc" href="https://istio.io/latest/docs/ambient/overview/" target="_blank" rel="noopener">出處</a> 第四層只看 IP 與連接埠，第七層看得懂 HTTP 內容（分層見〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉）。每節點那個叫 ztunnel，負責加密與身分；第七層那個叫 waypoint，要用到 HTTP 層的功能才部署。它 2022 年推出，自 Istio 1.22 起單叢集情境可用於生產。<a class="fixsrc" href="https://istio.io/latest/docs/overview/dataplane-modes/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="sidecar 模式與 ambient 模式：左邊 sidecar 模式，同一個節點上三個 Pod 各自帶一個 Envoy 代理；右邊 ambient 模式，Pod 裡沒有代理，每個節點一個 ztunnel 處理第四層的加密與身分，要第七層功能時才另外部署 waypoint 代理">
   <text x="20" y="28" font-size="14" fill="var(--gold)">sidecar 模式：每個 Pod 一個代理</text>
@@ -479,7 +479,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <div class="drill">
   <p class="dq">ambient 模式下想做 90/10 的權重切分，需要什麼？</p>
   <ul class="dopts"><li>什麼都不用，ztunnel 就會做</li><li>改回在每個 Pod 注入 sidecar</li><li>只有 sidecar 模式能做權重</li><li data-ok>部署 waypoint 代理處理第七層</li></ul>
-  <p class="dexp">權重看的是 HTTP 請求，屬於第七層。比較表寫 ambient 的流量管理是 Full Istio feature set (requires using waypoint)，不必改回 sidecar。</p>
+  <p class="dexp">權重看的是 HTTP 請求，屬於第七層。ambient 一樣有完整的流量管理功能，只是要有 waypoint，不必改回 sidecar。</p>
 </div>
 <div class="drill">
   <p class="dq">ambient 從哪一版起，單叢集情境可用於生產？</p>
@@ -496,7 +496,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <section>
 <p class="era">連容器都不想管</p>
 <h3 class="head">Lambda 的模型：一個請求一個環境</h3>
-<p>Serverless 是把「開幾台、什麼時候擴縮」也交給雲端。Lambda 是 AWS 的做法：一個無伺服器的運算服務，不必準備或管理伺服器就能執行程式。你寫一個 handler（處理函式），接上觸發來源（API Gateway、S3、SQS 等），Lambda 負責執行。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank" rel="noopener">出處</a> Lambda 跟 ECS、EKS 怎麼選，〈後端與雲端面試題庫〉答過；這一節講它的執行模型，因為適不適合都是從模型推出來的。</p>
+<p>Serverless 是把「開幾台、什麼時候擴縮」也交給雲端。Lambda 是 AWS 的做法：一個無伺服器的運算服務，不必準備或管理伺服器就能執行程式。你寫一個 handler（處理函式），接上觸發來源（API Gateway、S3、SQS 等），Lambda 負責執行。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank" rel="noopener">出處</a> Lambda 跟 ECS、EKS 怎麼選見〈後端與雲端面試題庫〉；適不適合用，都是從下面這個執行模型推出來的。</p>
 <p>最重要的一句：<strong>每一個同時進行的請求，Lambda 都準備一個獨立的執行環境。</strong><a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html" target="_blank" rel="noopener">出處</a> 同時 100 個請求就是 100 個環境；帳戶的同時執行數預設上限 1,000，以區域計算，可以申請提高。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">出處</a></p>
 <p>一個環境的一生分三段：Init（啟動擴充、啟動語言執行環境、跑 handler 以外的靜態程式碼，限 10 秒）、Invoke（跑 handler）、Shutdown。跑完一次後環境被凍結，下一個請求來了再解凍重用；重用時宣告在 handler 外面的物件保持已初始化，典型的例子就是資料庫連線：不必重新建立，沿用原本那條。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a></p>
 <p>但即使一直有請求，Lambda 每隔幾小時就會換掉環境，不能假設執行環境會永遠存在。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> 單次執行的上限是 900 秒（15 分鐘）。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">出處</a></p>
@@ -519,7 +519,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <div class="drill">
   <p class="dq">一個對帳批次平均要跑 40 分鐘，想放到 Lambda 一次跑完。問題在哪？</p>
   <ul class="dopts"><li data-ok>單次執行最長 900 秒（15 分鐘）</li><li>沒問題，Lambda 沒有時間上限</li><li>Init 階段只有 10 秒</li><li>要先申請提高帳戶的同時執行數，否則排不進去</li></ul>
-  <p class="dexp">配額表：Function timeout 900 seconds (15 minutes)。Init 的 10 秒限的是初始化，不是整次執行。要用 Lambda 就得切成小段。</p>
+  <p class="dexp">單次執行上限是 900 秒（15 分鐘）。Init 的 10 秒限的是初始化，不是整次執行。要用 Lambda 就得切成小段。</p>
 </div>
 <div class="drill">
   <p class="dq">行銷活動讓同時請求從 10 衝到 800，每個環境開一個 5 條連線的連線池。最可能先出事的是？</p>
@@ -534,7 +534,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 <p>新環境第一次要跑完 Init 才能 Invoke，這段等待叫冷啟動；相關數字（通常不到 1% 的呼叫、從不到 100 毫秒到超過 1 秒）〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉整理過。Java 特別吃虧，因為 JVM 啟動與框架初始化都在 Init 裡。有兩條路：</p>
 <p><strong>預置並行（provisioned concurrency）：</strong>事先開好、初始化完的環境；需要可預期的啟動時間時，建議用這個。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank" rel="noopener">出處</a> 代價是那些環境沒請求時也在計費。</p>
 <p><strong>SnapStart：</strong>發佈函式版本時，Lambda 就先初始化，對初始化完的環境的記憶體與磁碟狀態拍下 Firecracker 微型虛擬機的快照，加密後快取（Firecracker 是 AWS 用來隔離每個環境的輕量虛擬機）；之後新環境從快取的快照恢復，而不是從頭初始化。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a></p>
-<p>限制寫在同一頁：</p>
+<p>SnapStart 的限制：</p>
 <ul class="plainlist">
 <li>支援 Java 11 以上、Python 3.12 以上、.NET 8 以上。</li>
 <li>只能用在已發佈的版本與指向版本的別名。</li>
@@ -579,7 +579,7 @@ HTTP 504，花了 1.005078 秒</code></pre>
 </svg>
 <figcaption>冷啟動要從頭 Init；熱啟動解凍同一個環境；SnapStart 把 Init 移到發佈時，新環境從快照恢復。</figcaption>
 </figure>
-<p>SnapStart 的陷阱是<strong>唯一性</strong>。快照裡的東西會被複製到每一個恢復出來的環境，程式依賴狀態的唯一性時，必須確認程式碼經得起快照操作。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a> 下面的 Java 範例取自 AWS 文件（本課沒有實跑），把 UUID 放在 handler 裡才產生，而不是寫在 static 初始化：</p>
+<p>SnapStart 的陷阱是<strong>唯一性</strong>。快照裡的東西會被複製到每一個恢復出來的環境，程式依賴狀態的唯一性時，必須確認程式碼經得起快照操作。<a class="fixsrc" href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html" target="_blank" rel="noopener">出處</a> 下面的 Java 範例取自 AWS 文件，把 UUID 放在 handler 裡才產生，而不是寫在 static 初始化：</p>
 <pre><code>import java.util.UUID;
 
 public class Handler implements RequestHandler&lt;String, String&gt; {
@@ -670,7 +670,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <li><b>最多執行個體數</b>：擔心成本或壓垮下游系統時，就設上限。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run" target="_blank" rel="noopener">出處</a></li>
 <li><b>請求逾時</b>：預設 5 分鐘，最長 60 分鐘。<a class="fixsrc" href="https://docs.cloud.google.com/run/docs/configuring/request-timeout" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>重用的規則跟 Lambda 很像：不能假設請求之間會保留狀態，但執行個體會被重用，所以昂貴的物件可以放在全域範圍。下面的 Java 範例取自 Cloud Run 文件（本課沒有實跑），註解多了一句 Lambda 沒有的警告：</p>
+<p>重用的規則跟 Lambda 很像：不能假設請求之間會保留狀態，但執行個體會被重用，所以昂貴的物件可以放在全域範圍。下面的 Java 範例取自 Cloud Run 文件，註解多了一句 Lambda 沒有的警告：</p>
 <pre><code>public class Scopes implements HttpFunction {
   // Global (instance-wide) scope
   // This computation runs at instance cold-start.
@@ -715,7 +715,7 @@ public class Handler implements RequestHandler&lt;String, String&gt; {
 <tr><th>Lambda</th><td>事件驅動、量一陣一陣、每次工作短而獨立</td><td>超過 15 分鐘的工作；穩定的高流量；大量同時請求又各自連資料庫</td></tr>
 <tr><th>Cloud Run</th><td>已經是容器的 HTTP 服務，流量起伏大，想要自動擴縮又不想管叢集</td><td>需要節點層級的控制，或已經有一套 K8s 與網格可以用</td></tr>
 </tbody></table></div>
-<p class="muted">表格是本課依前面各節推出來的整理，下面的情境也是自編的。</p>
+<p class="muted">表格是依前面各節的模型推出來的整理。</p>
 <p><strong>情境一：</strong>行內有幾十個服務、Java 與 Go 混用，資安要求內部連線全部加密，並且能限制哪個服務可以呼叫帳務服務。這是網格最值得的情況：先 PERMISSIVE 讓舊服務照常連，逐一注入後切 STRICT，每個服務給自己的服務帳號，再用授權規則寫「誰可以呼叫我」。只要加密與身分的話，ambient 的成本比較低。</p>
 <p><strong>情境二：</strong>每天晚上外部單位丟一個對帳檔到 S3，要解析、比對、發通知。一天一次、量不大、事件觸發，適合 Lambda；但如果比對要跑超過 15 分鐘，就要切小段，或改用批次服務。</p>
 <p><strong>情境三：</strong>核心的轉帳 API，流量穩定且大，對延遲敏感，每個請求都要連資料庫。Lambda 的冷啟動與「一個請求一個環境」帶來的連線數都不利；跑在現有的 K8s 上，或 Cloud Run 搭配最少執行個體數與最多執行個體數，比較好控制。</p>
