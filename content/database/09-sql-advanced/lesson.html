@@ -75,7 +75,7 @@ INSERT INTO phone_updates VALUES
   (3, 102, '0922-000-001', '2026-09-05 09:00'),
   (4, 103, '0933-000-002', '2026-08-01 08:00'), (5, 103, '0933-000-001', '2026-09-10 12:00'),
   (6, 103, '0933-000-009', '2026-09-10 12:00');</code></pre>
-<p>幾個刻意放進去的細節，後面都會用到：李志明（105）還沒指派分行，<code>branch_id</code> 是 NULL；黃小華（106）一筆交易都沒有；「信義簡易分行」（7）底下沒有任何帳戶；存提款沒有對方帳號，<code>counterparty_id</code> 是 NULL；王小明 10 月 3 日登入了兩次；林大同的兩筆手機異動時間一模一樣。所有輸出都是在 Docker 的 MySQL 8.4.11 實跑的結果，預設的 <code>sql_mode</code> 是：</p>
+<p>這組資料有幾個細節，後面都會用到：李志明（105）還沒指派分行，<code>branch_id</code> 是 NULL；黃小華（106）一筆交易都沒有；「信義簡易分行」（7）底下沒有任何帳戶；存提款沒有對方帳號，<code>counterparty_id</code> 是 NULL；王小明 10 月 3 日登入了兩次；林大同的兩筆手機異動時間一模一樣。所有輸出都是在 Docker 的 MySQL 8.4.11 實跑的結果，預設的 <code>sql_mode</code> 是：</p>
 <pre><code>ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,
 ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION</code></pre>
 </section>
@@ -681,7 +681,7 @@ GROUP BY branch_id;</code></pre>
 <div class="drill">
   <p class="dq"><code>… GROUP BY account_id HAVING deposits &gt;= 5000</code>（<code>deposits</code> 是 SELECT 裡 <code>SUM(amount)</code> 的別名），在 MySQL 8.4 與 PostgreSQL 18 各會怎樣？</p>
   <ul class="dopts"><li>兩邊都能跑，別名在 HAVING 是標準 SQL</li><li>兩邊都報錯</li><li data-ok>MySQL 能跑，PostgreSQL 報錯</li><li>MySQL 報錯，PostgreSQL 能跑</li></ul>
-  <p class="dexp">HAVING 用別名是 MySQL 對標準 SQL 的延伸。兩邊都實跑過：MySQL 回 101、104；PostgreSQL 18 回 ERROR: column "deposits" does not exist。</p>
+  <p class="dexp">HAVING 用別名是 MySQL 對標準 SQL 的延伸。實跑結果：MySQL 回 101、104；PostgreSQL 18 回 ERROR: column "deposits" does not exist。</p>
 </div>
 <div class="drill">
   <p class="dq">下面這段，王小明（101）那列的 <code>COUNT(DISTINCT DATE(login_at))</code> 是多少？</p>
@@ -1035,7 +1035,7 @@ SELECT update_id, account_id, phone FROM phone_updates ORDER BY account_id;</cod
 3 rows in set (0.00 sec)</code></pre>
 <p>PostgreSQL 沒有 <code>DELETE p FROM … JOIN</code> 這種寫法，要用 <code>DELETE FROM phone_updates p USING (子查詢) x WHERE …</code>，PostgreSQL 18 實跑一樣留下 2、3、6 三列。刪資料前先用同樣的子查詢 SELECT 一次，確認要刪的是哪幾列，這跟〈SQL 三種子語言：DDL、DML、DQL〉講的「先 SELECT 看範圍」是同一個原則。</p>
 <h4>第二高：三種寫法，以及「沒有第二名」時要回什麼</h4>
-<p>原題通常是「第二高的薪水」，這裡換成「第二大的存款金額」，技巧完全一樣。三種寫法：</p>
+<p>「第二大的存款金額」跟常見的「第二高的薪水」是同一種題目。三種寫法：</p>
 <pre><code>SELECT MAX(amount) AS second_max
 FROM transactions
 WHERE tx_type = 'DEPOSIT'
@@ -1125,7 +1125,7 @@ LIMIT 1 OFFSET 1;</code></pre>
 <div class="drill">
   <p class="dq">只看李志明的存款，<code>SELECT DISTINCT amount … ORDER BY amount DESC LIMIT 1 OFFSET 1</code> 回傳什麼？把它包成 <code>SELECT (這段) AS second_max</code> 又回傳什麼？</p>
   <ul class="dopts"><li>都是 NULL，沒有第二名就回 NULL</li><li>前者 500，後者 NULL</li><li data-ok>前者空結果，後者一列 NULL</li><li>都是空結果，一列都沒有</li></ul>
-  <p class="dexp">李志明只有一筆 500，跳過一列後什麼都沒有：直接查是 Empty set；包成純量子查詢時，子查詢沒有列，值就是 NULL，外層照樣回一列。實跑兩種都驗證過。</p>
+  <p class="dexp">李志明只有一筆 500，跳過一列後什麼都沒有：直接查是 Empty set；包成純量子查詢時，子查詢沒有列，值就是 NULL，外層照樣回一列。</p>
 </div>
 <div class="drill">
   <p class="dq">下面這段回傳幾列？</p>

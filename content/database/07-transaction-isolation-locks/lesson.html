@@ -729,7 +729,7 @@ UPDATE account SET balance = 7000,                  DO SLEEP(2);
   <p class="dexp">衝突少時，樂觀鎖不必持鎖、幾乎不會重試。衝突很多時一直重試失敗，悲觀鎖或直接在 UPDATE 裡算反而省。</p>
 </div>
 <div class="drill">
-  <p class="dq">名詞表說悲觀策略「犧牲效能或並行度換取安全」。下面哪一個是悲觀鎖的寫法？</p>
+  <p class="dq">悲觀策略是犧牲效能或並行度換取安全。下面哪一個是悲觀鎖的寫法？</p>
   <ul class="dopts"><li data-ok><code>SELECT … FOR UPDATE</code> 先鎖住再改</li><li>UPDATE 時帶上 version 條件</li><li>先改，失敗了再重試</li><li>把隔離層級調成 READ UNCOMMITTED</li></ul>
   <p class="dexp">悲觀：假設一定有人搶，先鎖。版本號、失敗重試是樂觀的做法；調低隔離層級跟鎖無關，只會讀到更多怪東西。</p>
 </div>
@@ -843,7 +843,7 @@ RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X
 <div class="drill">
   <p class="dq">ERROR 1213（死結）和 ERROR 1205（等鎖逾時）被還原的範圍有什麼不同？</p>
   <ul class="dopts"><li>兩種都只還原正在執行的那一條語句</li><li>兩種都會把整筆交易還原</li><li data-ok>死結還原整筆；逾時只還原那一句</li><li>死結只還原一句；逾時才還原整筆</li></ul>
-  <p class="dexp">死結的受害交易整筆被還原；逾時則 the current statement is rolled back (not the entire transaction)。兩者都要應用程式重試，但收到 1205 時要記得自己 ROLLBACK。</p>
+  <p class="dexp">死結的受害交易整筆被還原；逾時只還原目前那一條語句，不是整筆交易。兩者都要應用程式重試，但收到 1205 時要記得自己 ROLLBACK。</p>
 </div>
 <div class="drill">
   <p class="dq">InnoDB 偵測到死結時，挑哪一筆交易來還原？</p>
@@ -864,7 +864,7 @@ RECORD LOCKS ... index PRIMARY of table `bank`.`account` trx id 2614 lock_mode X
 
 <section>
 <p class="era">改結構時，表還能用嗎</p>
-<h3 class="head">點到為止：Online DDL</h3>
+<h3 class="head">Online DDL：線上改結構</h3>
 <p>正式環境替大表加欄位、加索引，最怕把表鎖住、交易全部卡住。Online DDL 讓多數 <code>ALTER TABLE</code> 用「即時」（INSTANT，只改中繼資料）或「就地」（INPLACE，不複製整張表）的方式做，同時允許其他連線讀寫；明寫 <code>LOCK=NONE</code> 時，要求的並行程度做不到，語句會立刻停止，不會默默鎖表。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl.html" target="_blank" rel="noopener">出處</a></p>
 <p>下面四行實跑：加欄位 INSTANT、加二級索引 INPLACE 都成功；改欄位型別兩種都被拒，要複製整張表、至少 LOCK=SHARED（期間不能寫）。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html" target="_blank" rel="noopener">出處</a></p>
 <p>就算線上做，提交新的表定義時仍要短暫拿排他中繼資料鎖，線上 DDL 可能要等持有這張表中繼資料鎖的並行交易提交或還原。<a class="fixsrc" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-performance.html" target="_blank" rel="noopener">出處</a> 前面有長交易沒結束時，ALTER 會一直等，見〈資料庫面試題：索引、交易隔離與鎖〉那題。（錯誤訊息裡的腳本行號已省略。）</p>
