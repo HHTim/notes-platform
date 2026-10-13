@@ -86,7 +86,7 @@ function refreshTicks(){
     var k=el.getAttribute('data-ovtick');el.hidden=!(d[k]&&d[k].done);
   });
   var p=document.getElementById('ovProgress');
-  if(p) p.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課'+(n===SLUGS.length?'——全部打勾了 🎉':'');
+  if(p) p.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課'+(n===SLUGS.length?'，全部打勾了':'');
   var sp=document.getElementById('sideProg');
   if(sp) sp.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課';
 }

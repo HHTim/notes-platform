@@ -84,6 +84,36 @@ class TestBuild(unittest.TestCase):
         self.assertIn('<link rel="icon" type="image/svg+xml" href="favicon.svg">', html)
         self.assertIn('viewport', html)
 
+    EMOJI = re.compile('[\U0001F300-\U0001FAFF\u2600-\u27BF\U0001F1E6-\U0001F1FF]')
+
+    def test_no_emoji_in_templates_and_chrome(self):
+        """樣板、建置工具、首頁、模組頁的外殼（去掉課文）都不能有 emoji 或 ✓ ✗ ☰ 這類符號"""
+        for f in (ROOT / 'builder' / 'templates').iterdir():
+            self.assertIsNone(self.EMOJI.search(f.read_text(encoding='utf-8')), f.name)
+        self.assertIsNone(self.EMOJI.search((ROOT / 'builder' / 'build.py').read_text(encoding='utf-8')))
+        self.assertIsNone(self.EMOJI.search((self.out / 'index.html').read_text(encoding='utf-8')))
+        shell = re.sub(r'<article id="pg-[a-z0-9-]+".*?</article>', '',
+                       (self.out / 'english' / 'index.html').read_text(encoding='utf-8'), flags=re.S)
+        self.assertIsNone(self.EMOJI.search(shell))
+
+    def test_new_palette_only(self):
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        for old in ('#F7F0E3', '#B5730F', '#5E7A9B', 'Chivo'):
+            self.assertNotIn(old, css, old)
+        for new in ('#233831', '#DEE5DD', '#A9D9C7', '#C5E0D7', '#F29F80', '#F2CEAE', '#FBC580'):
+            self.assertIn(new, css, new)
+        for page in ('index.html', 'english/index.html'):
+            self.assertNotIn('Chivo', (self.out / page).read_text(encoding='utf-8'), page)
+
+    def test_home_resume_and_cards(self):
+        html = (self.out / 'index.html').read_text(encoding='utf-8')
+        for i in ('id="resume"', 'id="resumeIcon"', 'id="resumeMod"', 'id="resumeLesson"'):
+            self.assertIn(i, html, i)
+        for mod in self.mods:
+            self.assertIn('data-card="%s"' % mod['id'], html)
+            self.assertIn('data-bar="%s"' % mod['id'], html)
+        self.assertNotIn(self.site['site_intro'], html)   # 長介紹不再放首頁
+
     def test_fixnote_styles(self):
         css = (self.out / 'style.css').read_text(encoding='utf-8')
         self.assertIn('mark.fixnote', css)

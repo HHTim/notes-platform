@@ -6,7 +6,7 @@
 <title>__SITE_TITLE__</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;900&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.svg">
 <link rel="stylesheet" href="style.css">
@@ -14,7 +14,7 @@
 <body>
 __ICONS__
 <header class="topbar">
-  <button class="burger" id="burger" aria-label="開關模組選單">☰</button>
+  <button class="burger" id="burger" aria-label="開關模組選單"><svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg></button>
   <a class="brand" href="./">Tim 的<b>筆記平台</b></a>
   <p class="synchint" id="syncHint"><span class="st">進度只存在這台裝置</span></p>
 </header>
@@ -23,12 +23,16 @@ __ICONS__
   <div class="group">模組</div>
 __SIDEBAR__
 </nav>
-<main class="main">
+<main class="main" id="main">
   <div class="ov-hero">
-    <p class="kick">NOTES · 個人筆記平台</p>
     <h1>__SITE_TITLE__</h1>
-    <p>__SITE_INTRO__</p>
+    <p>每個模組是一個課程站：側欄選課、課末測驗、全對打勾。</p>
   </div>
+  <a class="resume" id="resume" href="./" hidden>
+    <svg class="ic big" id="resumeIcon" aria-hidden="true"></svg>
+    <span class="rt"><b id="resumeMod"></b><span id="resumeLesson"></span></span>
+    <span class="go">接著讀</span>
+  </a>
   <div class="mod-cards">
 __CARDS__
   </div>
@@ -42,19 +46,33 @@ document.getElementById('burger').addEventListener('click',function(){
   sidebar.classList.toggle('open');scrim.classList.toggle('show');
 });
 scrim.addEventListener('click',function(){sidebar.classList.remove('open');scrim.classList.remove('show');});
+function load(mid){try{return JSON.parse(localStorage.getItem('notes-progress:'+mid))||{};}catch(e){return {};}}
 function refresh(){
+  var latest=null;
   MODS.forEach(function(m){
-    var done=0;
-    try{
-      var d=JSON.parse(localStorage.getItem('notes-progress:'+m.id))||{};
-      Object.keys(d).forEach(function(k){if(d[k]&&d[k].done)done++;});
-    }catch(e){}
-    var el=document.querySelector('[data-stat="'+m.id+'"]');
-    if(el)el.innerHTML='完成 <b>'+done+'</b> / '+m.count+' 課';
+    var d=load(m.id),done=0;
+    Object.keys(d).forEach(function(k){if(k.charAt(0)!=='_'&&d[k]&&d[k].done)done++;});
+    var st=document.querySelector('[data-stat="'+m.id+'"]');
+    if(st)st.textContent='完成 '+done+' / '+m.count+' 課';
+    var bar=document.querySelector('[data-bar="'+m.id+'"]');
+    if(bar)bar.style.width=Math.round(done*100/m.count)+'%';
+    var card=document.querySelector('[data-card="'+m.id+'"]');
+    if(card)card.classList.toggle('done',done===m.count);
+    var l=d._last;
+    if(l&&l.slug&&m.lessons[l.slug]&&(!latest||(l.at||0)>latest.at))latest={at:l.at||0,mod:m,slug:l.slug};
   });
+  /* 繼續上次：各模組「最後看的課」裡時間最新的一筆；一筆都沒有就不顯示這張卡 */
+  var r=document.getElementById('resume');
+  r.hidden=!latest;
+  if(latest){
+    r.href=latest.mod.id+'/#/lesson/'+latest.slug;
+    document.getElementById('resumeMod').textContent='繼續上次：'+latest.mod.title;
+    document.getElementById('resumeLesson').textContent=latest.mod.lessons[latest.slug];
+    document.getElementById('resumeIcon').innerHTML='<use href="#ic-'+latest.mod.icon+'"/>';
+  }
 }
 refresh();
-/* 同步程式開的掛勾：登入後雲端進度合併回本機，卡片上的完成數要重算 */
+/* 同步程式開的掛勾：登入後雲端進度合併回本機，卡片與「繼續上次」要重算 */
 window.NotesHome={modules:MODS.map(function(m){return m.id;}),refresh:refresh};
 })();
 </script>
