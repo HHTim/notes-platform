@@ -66,17 +66,17 @@ $ redis-cli GET rate:USD
   <p class="dexp">EX 300 是存活 300 秒，TTL 回傳剩下的秒數，剛設好時就是 300（實跑結果）。實測沒設存活時間的 key 回 -1，不存在的 key 回 -2。</p>
 </div>
 <div class="drill">
-  <p class="dq">三台應用程式各自在記憶體裡放一份本地快取。AWS 白皮書點出的主要缺點是？</p>
+  <p class="dq">三台應用程式各自在記憶體裡放一份本地快取。主要缺點是？</p>
   <ul class="dopts"><li data-ok>各台各一份、彼此不相連，很難一致</li><li>本地快取比 Redis 慢</li><li>本地快取不能設 TTL，只能手動清</li><li>本地快取只能存字串，不能存物件</li></ul>
   <p class="dexp">本地快取省掉網路往返所以最快，代價是各節點各管各的；機器越多，越難讓每一台同時看到新值。</p>
 </div>
 <div class="drill">
   <p class="dq">匯率每天只更新幾次、讀到幾分鐘前的值也能接受；帳戶餘額每筆交易都會變、讀錯會出事。TTL 該怎麼設？</p>
   <ul class="dopts"><li data-ok>匯率長一點，餘額很短或不快取</li><li>兩個都設一樣長，比較好管理</li><li>餘額設長一點，因為它讀得比較多</li><li>兩個都不要設 TTL，靠手動刪</li></ul>
-  <p class="dexp">AWS 的兩個原則：看資料多常變，以及讀到舊值的風險。匯率變得慢、風險低；餘額變得快、讀錯就是帳務問題。</p>
+  <p class="dexp">TTL 看兩件事：資料多常變，以及讀到舊值的風險。匯率變得慢、風險低；餘額變得快、讀錯就是帳務問題。</p>
 </div>
 <div class="drill">
-  <p class="dq">白皮書對「本地快取＋遠端快取」兩層合用的態度是？</p>
+  <p class="dq">「本地快取＋遠端快取」兩層合用，該怎麼看？</p>
   <ul class="dopts"><li>所有系統一開始就該做兩層</li><li data-ok>會增加複雜度，需要時才用</li><li>兩層一定比只用一層還慢</li><li>只有資料庫內建的快取才能做兩層</li></ul>
   <p class="dexp">它會增加複雜度，所以通常只在需要時才用。多一層就多一個要失效的地方。</p>
 </div>
@@ -115,7 +115,7 @@ $ redis-cli GET rate:USD
 <div class="drill">
   <p class="dq">Cache-Aside 的一個缺點是？</p>
   <ul class="dopts"><li>快取裡會放進很多沒人讀的資料</li><li>寫入一定比其他模式慢很多</li><li data-ok>未命中的第一次讀要多跑一趟</li><li>不能替 key 設定 TTL</li></ul>
-  <p class="dexp">AWS 說資料只在未命中後才載入，第一次的回應時間會多一點。「放進很多沒人讀的資料」是 Write-Through 的缺點。</p>
+  <p class="dexp">資料只在未命中後才載入，第一次的回應時間會多一點。「放進很多沒人讀的資料」是 Write-Through 的缺點。</p>
 </div>
 <div class="drill">
   <p class="dq">換成 Write-Through 之後，寫入速度會？</p>
@@ -133,7 +133,7 @@ $ redis-cli GET rate:USD
   <p class="dexp">這是 Write-Behind 的典型用途：寫得快、合併成批次，代價是快取掛掉會少算幾筆，計數可以接受。</p>
 </div>
 <div class="drill">
-  <p class="dq">AWS 說 Write-Through「幾乎總是」跟另一種模式一起用，是哪一種？</p>
+  <p class="dq">Write-Through 幾乎總是跟哪一種模式一起用？</p>
   <ul class="dopts"><li>Write-Behind</li><li>Read-Through</li><li>不用快取</li><li data-ok>Lazy loading</li></ul>
   <p class="dexp">資料過期或從沒放進去時，還是要靠 lazy loading 在未命中時回填，所以兩者常常一起出現。</p>
 </div>
@@ -234,9 +234,9 @@ public class OrderRace {
   <p class="dexp">TTL 是最後一道保險：到期就刪、下次讀取回資料庫拿新的。所以快取的 key 一定要有 TTL。</p>
 </div>
 <div class="drill">
-  <p class="dq">某個頁面「使用者改完設定，下一秒重新整理一定要看到新的」。Azure 的建議是？</p>
+  <p class="dq">某個頁面「使用者改完設定，下一秒重新整理一定要看到新的」。比較合適的做法是？</p>
   <ul class="dopts"><li>把 TTL 設成 1 小時</li><li>做三次刪快取</li><li data-ok>考慮改用 Write-Through</li><li>關掉資料庫</li></ul>
-  <p class="dexp">Cache-Aside 不保證一致；需要寫後即讀的新鮮度時，Azure 建議改用寫入時同步更新快取的 Write-Through。</p>
+  <p class="dexp">Cache-Aside 不保證一致；需要寫後即讀的新鮮度時，可以考慮改用寫入時同步更新快取的 Write-Through。</p>
 </div>
 </section>
 
@@ -295,7 +295,7 @@ $ redis-cli BF.EXISTS bf:accounts Z999
 <div class="drill">
   <p class="dq">早上 9:00 整批匯率一起寫進快取，全部 TTL 都是 3600 秒。10:00 資料庫 CPU 突然飆高。這是哪一種、怎麼防？</p>
   <ul class="dopts"><li>穿透；在前面加 Bloom Filter</li><li>擊穿；用互斥鎖只讓一個重建</li><li>大 key；用 UNLINK 刪掉</li><li data-ok>雪崩；TTL 加隨機秒數，錯開到期</li></ul>
-  <p class="dexp">同一批同一刻到期就是雪崩。AWS 的做法是 TTL 加抖動：原本的秒數再加一個隨機值。</p>
+  <p class="dexp">同一批同一刻到期就是雪崩。做法是 TTL 加抖動：原本的秒數再加一個隨機值。</p>
 </div>
 <div class="drill">
   <p class="dq">有人用腳本狂查 <code>acct:Z0001</code>、<code>acct:Z0002</code>……這些根本不存在的帳號。這是哪一種？</p>
