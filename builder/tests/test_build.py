@@ -70,6 +70,9 @@ class TestBuild(unittest.TestCase):
         self.assertIn('window.NotesCourse', js)
         self.assertIn('notes:progress-saved', js)
         self.assertIn('sideProg', js)
+        for s in ('NotesQuiz.afterQuiz', 'NotesQuiz.afterPractice', 'NotesQuiz.remove', 'NotesQuiz.active',
+                  "'#/wrong'", 'data-goto', 'IntersectionObserver', '_last'):
+            self.assertIn(s, js, s)
 
     def test_home_page(self):
         html = (self.out / 'index.html').read_text(encoding='utf-8')

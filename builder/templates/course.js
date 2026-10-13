@@ -70,126 +70,223 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = NotesQui
 /* ── 以下是頁面行為，只在瀏覽器裡跑 ── */
 if (typeof document !== 'undefined') (function(){
 var KEY='notes-progress:'+MODULE;
+function now(){return Math.floor(Date.now()/1000);}
 function loadDone(){try{return JSON.parse(localStorage.getItem(KEY))||{};}catch(e){return {};}}
 function saveDone(d){
   try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){}
   try{document.dispatchEvent(new CustomEvent('notes:progress-saved',{detail:{module:MODULE,data:d}}));}catch(e){}
 }
+function icon(name,cls){return '<svg class="'+(cls||'ic')+'" aria-hidden="true"><use href="#ic-'+name+'"/></svg>';}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function lessonLabel(slug){return '第 '+(SLUGS.indexOf(slug)+1)+' 課';}
+function wrongActive(d){return NotesQuiz.active(d._wrong||{},QUIZ,SLUGS);}
+
+/* 側欄與總覽的成績、錯題數；錯題區清單頁開著時一併重畫 */
 function refreshTicks(){
   var d=loadDone(),n=0;
   SLUGS.forEach(function(s){ if(d[s]&&d[s].done)n++; });
-  document.querySelectorAll('[data-tick]').forEach(function(el){
-    var slug=el.closest('a').getAttribute('data-nav');
-    el.hidden=!(d[slug]&&d[slug].done);
+  document.querySelectorAll('[data-st]').forEach(function(el){
+    var r=d[el.getAttribute('data-st')];
+    if(r&&r.done)el.innerHTML=icon('check','ic ok');
+    else if(r&&r.best>0)el.textContent=r.best+'/'+r.total;
+    else el.textContent='–';
   });
   document.querySelectorAll('[data-ovtick]').forEach(function(el){
     var k=el.getAttribute('data-ovtick');el.hidden=!(d[k]&&d[k].done);
   });
+  var cnt=wrongActive(d).length;
+  document.querySelectorAll('[data-wrongcnt]').forEach(function(el){el.hidden=!cnt;el.textContent=cnt;});
+  var wc=document.getElementById('wrongCount');
+  if(wc){wc.hidden=!cnt;wc.textContent=cnt+' 題';}
   var p=document.getElementById('ovProgress');
   if(p) p.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課'+(n===SLUGS.length?'，全部打勾了':'');
   var sp=document.getElementById('sideProg');
   if(sp) sp.innerHTML='已完成 <b>'+n+'</b> / '+SLUGS.length+' 課';
+  var pw=document.getElementById('pg-wrong');
+  if(pw&&!pw.hidden&&!document.getElementById('wrongQuiz'))renderWrongList();
 }
 function shuffle(a){
   for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}
   return a;
 }
-function renderQuiz(slug){
-  var host=document.querySelector('[data-quiz="'+slug+'"]');
-  if(!host||!QUIZ[slug])return;
-  var qs=QUIZ[slug];
+
+/* 題組畫面：隨堂測驗與錯題練習共用（改版規格第 4 節）。
+   items：[{slug, qi, q:{q,opts,exp}, title?}]；q.opts[0] 永遠是正解（內容檔的慣例）。
+   mode 'lesson'：記成績、答錯進錯題區；'practice'：只記錯題的連對。
+   流程：全部選好 → 對答案 → 成績卡＋每題圈叉 → 「只重做錯的」把錯的清空重選、對的鎖住。 */
+function renderQuiz(host,items,mode,slug){
   host.innerHTML='';
-  var head=document.createElement('div');
-  head.innerHTML='<div class="qhead"><span class="qtag">QUIZ · 隨堂測驗</span><span class="qtitle">檢查你學會了沒</span></div>'
-    +'<p class="qnote">共 '+qs.length+' 題，選項順序每次都會重排。全部選好後按「對答案」；全對就在側邊欄打勾。</p>';
-  host.appendChild(head);
-  var picks=qs.map(function(){return null;});
+  var picks=items.map(function(){return null;});
+  var locked=items.map(function(){return false;});   // 已答對、重做時不能動
   var graded=false;
-  qs.forEach(function(q,qi){
-    var wrap=document.createElement('div');wrap.className='qq';
-    var qt=document.createElement('p');qt.className='qt';
-    qt.innerHTML='<span class="qn">Q'+(qi+1)+'</span>'+q.q;
-    wrap.appendChild(qt);
+  var head=document.createElement('div');head.className='qhead';
+  head.innerHTML='<span class="qtitle">'+(mode==='lesson'?'隨堂測驗':'練習中')+'</span>'
+    +'<span class="qnote">共 '+items.length+' 題，全部選好後按「對答案」'+(mode==='lesson'?'；全對這課才算完成':'')+'。</span>';
+  host.appendChild(head);
+  var score=document.createElement('div');score.className='score';score.hidden=true;host.appendChild(score);
+  var act=document.createElement('div');act.className='qact';act.hidden=true;host.appendChild(act);
+  var body=document.createElement('div');host.appendChild(body);
+  var act2=document.createElement('div');act2.className='qact bottom';host.appendChild(act2);
+  var btn=document.createElement('button');btn.type='button';btn.className='qbtn';btn.textContent='對答案';btn.disabled=true;
+  var msg=document.createElement('span');msg.className='qmsg';
+  act2.appendChild(btn);act2.appendChild(msg);
+
+  function pending(){return picks.filter(function(p,i){return p===null&&!locked[i];}).length;}
+  function updateBtn(){var n=pending();btn.disabled=n>0;msg.textContent=n>0?'還有 '+n+' 題沒選':'都選好了，按「對答案」';}
+
+  function renderCard(i){
+    var it=items[i],q=it.q;
+    var wrap=document.createElement('div');wrap.className='qq';wrap.setAttribute('data-qi',i);
+    var top=document.createElement('div');top.className='qtop';
+    top.innerHTML='<span class="qn">Q'+(i+1)+'</span>'+(it.title?'<span class="src">'+esc(it.title)+'</span>':'')+'<span class="mk"></span>';
+    wrap.appendChild(top);
+    var qt=document.createElement('p');qt.className='qt';qt.innerHTML=q.q;wrap.appendChild(qt);
     var opts=document.createElement('div');opts.className='opts';
     var order=shuffle(q.opts.map(function(_,k){return k;}));
-    order.forEach(function(oi){
-      var b=document.createElement('button');b.type='button';b.className='opt';
-      b.setAttribute('data-oi',oi);
-      b.innerHTML='<span class="dot"></span><span>'+q.opts[oi]+'</span>';
+    order.forEach(function(oi,pos){
+      var b=document.createElement('button');b.type='button';b.className='opt';b.setAttribute('data-oi',oi);
+      b.innerHTML='<span class="l">'+String.fromCharCode(65+pos)+'</span><span class="tx">'+q.opts[oi]+'</span><span class="mk"></span>';
       b.addEventListener('click',function(){
-        if(graded)return;
-        picks[qi]=oi;
+        if(graded||locked[i])return;
+        picks[i]=oi;
         opts.querySelectorAll('.opt').forEach(function(x){x.classList.remove('sel');});
         b.classList.add('sel');
-        btn.disabled=picks.some(function(p){return p===null;});
-        msg.textContent=btn.disabled?'請先回答全部 '+qs.length+' 題':'都選好了，按「對答案」';
-        msg.className='qmsg';
+        updateBtn();
       });
       opts.appendChild(b);
     });
     wrap.appendChild(opts);
-    var exp=document.createElement('p');exp.className='exp';exp.hidden=true;
-    exp.setAttribute('data-exp',qi);
-    wrap.appendChild(exp);
-    host.appendChild(wrap);
-  });
-  var act=document.createElement('div');act.className='qact';
-  var btn=document.createElement('button');btn.className='qbtn';btn.textContent='對答案';btn.disabled=true;
-  var msg=document.createElement('span');msg.className='qmsg';msg.textContent='請先回答全部 '+qs.length+' 題';
-  act.appendChild(btn);act.appendChild(msg);host.appendChild(act);
-  btn.addEventListener('click',function(){
-    if(graded){renderQuiz(slug);return;}
-    graded=true;var allRight=true;
-    qs.forEach(function(q,qi){
-      var opts=host.querySelectorAll('.qq')[qi].querySelectorAll('.opt');
-      opts.forEach(function(b){
-        b.disabled=true;
-        var oi=+b.getAttribute('data-oi');
-        if(oi===0)b.classList.add('right');
-        else if(picks[qi]===oi)b.classList.add('wrongpick');
-      });
-      var exp=host.querySelector('[data-exp="'+qi+'"]');
-      var right=picks[qi]===0;
-      if(!right)allRight=false;
-      exp.hidden=false;
-      exp.className='exp'+(right?'':' bad');
-      exp.innerHTML=(right?'✓ 答對。':'✗ 正確答案是打勾那一個。')+' '+q.exp;
+    var exp=document.createElement('p');exp.className='exp';exp.hidden=true;wrap.appendChild(exp);
+    return wrap;
+  }
+  items.forEach(function(_,i){body.appendChild(renderCard(i));});
+  updateBtn();
+
+  /* 批改一題：題目卡標圈叉、正解薄荷底、選錯桃底、顯示解說 */
+  function markCard(i){
+    var wrap=body.querySelector('[data-qi="'+i+'"]');
+    var right=picks[i]===0;
+    wrap.querySelector('.qtop .mk').innerHTML=icon(right?'ok':'no','ic '+(right?'ok':'no'));
+    wrap.querySelectorAll('.opt').forEach(function(b){
+      b.disabled=true;
+      var oi=+b.getAttribute('data-oi');
+      if(oi===0){b.classList.add('right');b.querySelector('.mk').innerHTML=icon('ok','ic ok');}
+      else if(picks[i]===oi){b.classList.add('wrongpick');b.querySelector('.mk').innerHTML=icon('no','ic no');}
     });
-    btn.textContent='再測一次';btn.disabled=false;
-    var rightCount=0;
-    qs.forEach(function(q,qi){if(picks[qi]===0)rightCount++;});
-    var d=loadDone();
-    var rec=d[slug]||{best:0,total:qs.length,done:false};
-    rec.total=qs.length;
-    if(rightCount>rec.best)rec.best=rightCount;
-    if(allRight)rec.done=true;
-    d[slug]=rec;saveDone(d);refreshTicks();
-    if(allRight){
-      msg.textContent='✓ 全對！已在側邊欄打勾';msg.className='qmsg pass';
+    var exp=wrap.querySelector('.exp');exp.hidden=false;exp.innerHTML=items[i].q.exp;
+    wrap.classList.add(right?'ok':'ng');
+  }
+
+  function grade(){
+    graded=true;
+    var results=[],rightCount=0,wrongIdx=[];
+    items.forEach(function(it,i){
+      var fresh=!locked[i];
+      var right=picks[i]===0;
+      if(fresh){markCard(i);results.push({slug:it.slug,qi:it.qi,q:it.q.q,right:right});}
+      if(right){rightCount++;locked[i]=true;}else wrongIdx.push(i);
+    });
+    var d=loadDone(),best=null;
+    if(mode==='lesson'){
+      var rec=d[slug]||{best:0,total:items.length,done:false};
+      rec.total=items.length;
+      if(rightCount>rec.best)rec.best=rightCount;
+      if(!wrongIdx.length)rec.done=true;
+      d[slug]=rec;best=rec.best;
+      d._wrong=NotesQuiz.afterQuiz(d._wrong||{},results,now());
     }else{
-      msg.textContent='有幾題再想想——看完解析可以「再測一次」';msg.className='qmsg fail';
+      d._wrong=NotesQuiz.afterPractice(d._wrong||{},results,now());
     }
+    saveDone(d);refreshTicks();
+
+    var note=best!==null?'最佳 '+best+'/'+items.length:(wrongIdx.length?'錯的題目留在錯題區':'這批全對');
+    score.hidden=false;
+    score.innerHTML='<div class="big">'+rightCount+'<small> / '+items.length+'</small></div>'
+      +'<div class="t"><span class="mono">'+note+'</span><div class="tr"><i style="width:'+Math.round(rightCount*100/items.length)+'%"></i></div></div>';
+    act.innerHTML='';act.hidden=false;act2.hidden=true;
+    if(wrongIdx.length){
+      var b1=document.createElement('button');b1.type='button';b1.className='qbtn';b1.textContent='只重做錯的 '+wrongIdx.length+' 題';
+      b1.addEventListener('click',function(){
+        graded=false;
+        wrongIdx.forEach(function(i){
+          picks[i]=null;
+          var old=body.querySelector('[data-qi="'+i+'"]');
+          body.replaceChild(renderCard(i),old);
+        });
+        score.querySelector('.mono').textContent=note+' · 重做 '+wrongIdx.length+' 題中';
+        act.hidden=true;act2.hidden=false;updateBtn();
+      });
+      act.appendChild(b1);
+    }
+    var b2=document.createElement('button');b2.type='button';b2.className='qbtn sec';
+    b2.textContent=mode==='lesson'?'全部重做':'回錯題區';
+    b2.addEventListener('click',function(){
+      if(mode==='lesson')renderQuiz(host,items,mode,slug);else renderWrongList();
+    });
+    act.appendChild(b2);
+    host.scrollIntoView({block:'start'});
+  }
+  btn.addEventListener('click',grade);
+}
+
+function renderLessonQuiz(slug){
+  var host=document.querySelector('[data-quiz="'+slug+'"]');
+  if(!host||!QUIZ[slug])return;
+  renderQuiz(host,QUIZ[slug].map(function(q,qi){return {slug:slug,qi:qi,q:q};}),'lesson',slug);
+}
+
+/* 錯題區清單（改版規格第 5.2 節） */
+function renderWrongList(){
+  var body=document.getElementById('wrongBody');
+  if(!body)return;
+  var act=wrongActive(loadDone());
+  if(!act.length){body.innerHTML='<p class="sub">目前沒有錯題。</p>';return;}
+  var html='<p class="sub">課末測驗答錯的題目會收在這裡。連續答對兩次自動移除，也可以手動移除。</p>'
+    +'<div class="legend"><span>'+icon('empty')+' 還沒對過</span><span>'+icon('half')+' 對過一次</span></div>'
+    +'<div class="qact"><button type="button" class="qbtn" id="wrongStart">開始練習（'+act.length+' 題）</button></div>';
+  var cur=null;
+  act.forEach(function(x){
+    if(x.slug!==cur){cur=x.slug;html+='<h4 class="wgroup">'+lessonLabel(cur)+' '+esc(TITLES[cur]||cur)+'</h4>';}
+    html+='<div class="witem">'+icon(x.streak?'half':'empty')+'<div class="wq">'+x.q.q+'</div>'
+      +'<button type="button" class="wrm" data-rm="'+esc(x.key)+'">移除</button></div>';
+  });
+  body.innerHTML=html;
+  document.getElementById('wrongStart').addEventListener('click',function(){renderPractice(act);});
+  body.querySelectorAll('[data-rm]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var d=loadDone();
+      d._wrong=NotesQuiz.remove(d._wrong||{},b.getAttribute('data-rm'),now());
+      saveDone(d);refreshTicks();
+    });
   });
 }
+/* 錯題區練習（改版規格第 5.3 節）：一次列出全部錯題，作答與對完畫面同隨堂測驗 */
+function renderPractice(act){
+  var body=document.getElementById('wrongBody');
+  body.innerHTML='<div class="quiz" id="wrongQuiz"></div>';
+  renderQuiz(document.getElementById('wrongQuiz'),
+    act.map(function(x){return {slug:x.slug,qi:x.qi,q:x.q,title:lessonLabel(x.slug)};}),'practice',null);
+}
+
 /* 課中練習：點一個選項就公布對錯與解析，不計分、不記錄 */
 function initDrills(){
   document.querySelectorAll('.drill').forEach(function(d){
     var exp=d.querySelector('.dexp');if(exp)exp.hidden=true;
     var lis=d.querySelectorAll('.dopts li');
-    lis.forEach(function(li){
+    lis.forEach(function(li,pos){
       li.setAttribute('role','button');li.setAttribute('tabindex','0');
-      li.insertAdjacentHTML('afterbegin','<span class="dot"></span>');
+      li.insertAdjacentHTML('afterbegin','<span class="l">'+String.fromCharCode(65+pos)+'</span>');
+      li.insertAdjacentHTML('beforeend','<span class="mk"></span>');
       function pick(){
         if(d.classList.contains('answered'))return;
         d.classList.add('answered');
         var ok=li.hasAttribute('data-ok');
         lis.forEach(function(x){
           x.setAttribute('aria-disabled','true');x.removeAttribute('tabindex');
-          if(x.hasAttribute('data-ok'))x.classList.add('right');
+          if(x.hasAttribute('data-ok')){x.classList.add('right');x.querySelector('.mk').innerHTML=icon('ok','ic ok');}
         });
-        if(!ok)li.classList.add('wrongpick');
-        if(exp){exp.hidden=false;exp.className='dexp'+(ok?'':' bad');
-          exp.insertAdjacentHTML('afterbegin',ok?'✓ 答對。':'✗ 正確答案是綠色那個。');}
+        if(!ok){li.classList.add('wrongpick');li.querySelector('.mk').innerHTML=icon('no','ic no');}
+        if(exp)exp.hidden=false;
       }
       li.addEventListener('click',pick);
       li.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}});
@@ -197,27 +294,62 @@ function initDrills(){
   });
 }
 initDrills();
-/* 路由 */
+
+/* 本課小節：目錄連結捲到該節（不走網址，免得被路由當成換頁）；側欄小節隨捲動標目前位置 */
 var sidebar=document.getElementById('sidebar'),scrim=document.getElementById('scrim');
+function closeSidebar(){sidebar.classList.remove('open');scrim.classList.remove('show');}
+document.addEventListener('click',function(e){
+  var a=e.target.closest('[data-goto]');if(!a)return;
+  e.preventDefault();
+  var el=document.getElementById(a.getAttribute('data-goto'));
+  if(el)el.scrollIntoView({block:'start'});
+  closeSidebar();
+});
+var spy=null;
+function watchSections(slug){
+  if(spy){spy.disconnect();spy=null;}
+  if(!('IntersectionObserver' in window))return;
+  var heads=document.querySelectorAll('#pg-'+slug+' h3.head[id]');
+  if(!heads.length)return;
+  spy=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(!en.isIntersecting)return;
+      var id=en.target.id;
+      document.querySelectorAll('.subs[data-subs="'+slug+'"] a').forEach(function(a){
+        a.classList.toggle('on',a.getAttribute('data-goto')===id);
+      });
+    });
+  },{rootMargin:'-60px 0px -70% 0px'});
+  heads.forEach(function(h){spy.observe(h);});
+}
+
+/* 路由：#/ 總覽、#/wrong 錯題區、#/lesson/<slug> 某課 */
 document.getElementById('burger').addEventListener('click',function(){
   sidebar.classList.toggle('open');scrim.classList.toggle('show');
 });
-scrim.addEventListener('click',function(){sidebar.classList.remove('open');scrim.classList.remove('show');});
+scrim.addEventListener('click',closeSidebar);
 sidebar.addEventListener('click',function(e){
-  if(e.target.closest('a')){sidebar.classList.remove('open');scrim.classList.remove('show');}
+  if(e.target.closest('a[data-nav]'))closeSidebar();
 });
 function route(){
   var h=location.hash||'#/';
   var m=h.match(/^#\/lesson\/([a-z0-9-]+)$/);
   var slug=m&&SLUGS.indexOf(m[1])>=0?m[1]:null;
+  var nav=slug||(h==='#/wrong'?'wrong':'ov');
   document.querySelectorAll('main > article').forEach(function(a){a.hidden=true;});
-  var pg=document.getElementById(slug?('pg-'+slug):'pg-ov');
-  if(!pg){pg=document.getElementById('pg-ov');slug=null;}
+  var pg=document.getElementById(slug?'pg-'+slug:(nav==='wrong'?'pg-wrong':'pg-ov'));
+  if(!pg){pg=document.getElementById('pg-ov');slug=null;nav='ov';}
   pg.hidden=false;
-  document.querySelectorAll('.sidebar a').forEach(function(a){
-    a.classList.toggle('active',a.getAttribute('data-nav')===(slug||'ov'));
+  document.querySelectorAll('.sidebar a[data-nav]').forEach(function(a){
+    a.classList.toggle('active',a.getAttribute('data-nav')===nav);
   });
-  if(slug)renderQuiz(slug);
+  document.querySelectorAll('.sidebar .subs').forEach(function(s){s.hidden=s.getAttribute('data-subs')!==slug;});
+  if(slug){
+    renderLessonQuiz(slug);
+    watchSections(slug);
+    var d=loadDone();d._last={slug:slug,at:now()};saveDone(d);   // 首頁「繼續上次」用
+  }
+  if(nav==='wrong')renderWrongList();
   refreshTicks();
   window.scrollTo(0,0);
   try{localStorage.setItem('notes-last:'+MODULE,h);}catch(e){}
