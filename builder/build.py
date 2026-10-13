@@ -119,7 +119,8 @@ def icon_names(icons_svg):
 
 def check_icons(mods, names):
     """modules.json 的 icon 要是 icons.svg 裡有的名稱；對不到就中止建置並說是哪個模組"""
-    bad = ['%s 的 icon「%s」' % (m['id'], m['icon']) for m in mods if m['icon'] not in names]
+    bad = ['%s 沒有填 icon' % m['id'] if not m['icon'] else '%s 的 icon「%s」' % (m['id'], m['icon'])
+           for m in mods if not m['icon'] or m['icon'] not in names]
     if bad:
         raise SystemExit('建置中止：modules.json 的圖示名稱對不到 builder/templates/icons.svg\n  ' + '\n  '.join(bad))
 
@@ -199,7 +200,7 @@ def load_site(content_dir):
     for entry in site['modules']:
         mdir = content_dir / entry['id']
         mod = json.loads((mdir / 'module.json').read_text(encoding='utf-8'))
-        mod['id'], mod['icon'] = entry['id'], entry['icon']
+        mod['id'], mod['icon'] = entry['id'], entry.get('icon')
         for L in mod['lessons']:
             ldir = mdir / L['dir']
             L['html'] = (ldir / 'lesson.html').read_text(encoding='utf-8')

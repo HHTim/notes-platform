@@ -153,6 +153,16 @@ class TestIcons(unittest.TestCase):
         self.assertIn('demo', msg)
         self.assertIn('javaa', msg)
 
+    def test_missing_icon_stops_build_naming_module(self):
+        content, out = fake_site([('01-one', 'one', LESSON_OK)])
+        mj = content / 'modules.json'
+        mj.write_text(mj.read_text(encoding='utf-8').replace(', "icon": "java"', ''), encoding='utf-8')
+        with self.assertRaises(SystemExit) as cm:
+            builder.build(content_dir=content, out_dir=out)
+        msg = str(cm.exception)
+        self.assertIn('demo', msg)
+        self.assertIn('沒有填 icon', msg)
+
     def test_icons_inlined_once_per_page(self):
         content, out = fake_site([('01-one', 'one', LESSON_OK)])
         builder.build(content_dir=content, out_dir=out)

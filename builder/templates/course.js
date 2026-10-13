@@ -309,7 +309,7 @@ var spy=null;
 function watchSections(slug){
   if(spy){spy.disconnect();spy=null;}
   if(!('IntersectionObserver' in window))return;
-  var heads=document.querySelectorAll('#pg-'+slug+' h3.head[id]');
+  var heads=document.querySelectorAll('#pg-'+slug+' h3.head[id], #'+slug+'-drill, #'+slug+'-quiz');   // 小節、課中練習、隨堂測驗都標
   if(!heads.length)return;
   spy=new IntersectionObserver(function(entries){
     entries.forEach(function(en){
@@ -349,18 +349,16 @@ function route(){
     watchSections(slug);
     var d=loadDone();d._last={slug:slug,at:now()};saveDone(d);   // 首頁「繼續上次」用
   }
-  if(nav==='wrong')renderWrongList();
+  if(nav==='wrong')document.getElementById('wrongBody').innerHTML='';   // 清掉上次的練習畫面，底下 refreshTicks 會重畫清單
   refreshTicks();
   window.scrollTo(0,0);
   try{localStorage.setItem('notes-last:'+MODULE,h);}catch(e){}
 }
 window.addEventListener('hashchange',route);
-/* 回到上次看的課 */
-if(!location.hash){
-  var last=null;try{last=localStorage.getItem('notes-last:'+MODULE);}catch(e){}
-  if(last&&last!=='#/')location.hash=last;
-}
-route();
+/* 回到上次看的課：改網址會觸發 hashchange、由它跑一次 route，這裡就不再跑，免得跑兩次 */
+var last=null;
+if(!location.hash){try{last=localStorage.getItem('notes-last:'+MODULE);}catch(e){}}
+if(last&&last!=='#/')location.hash=last;else route();
 var modsel=document.getElementById('modsel');
 if(modsel)modsel.addEventListener('change',function(){location.href='../'+this.value+'/';});
 window.NotesCourse={module:MODULE,slugs:SLUGS,loadDone:loadDone,saveDone:saveDone,refreshTicks:refreshTicks};
