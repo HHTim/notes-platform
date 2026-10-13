@@ -27,7 +27,7 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 
 - **沒有框架**：網站是 `builder/build.py`（Python 3）產出的靜態 HTML，維護點只有 `builder/` 與 `content/`。
 - **內容與外觀分開**：`content/` 只放不含樣式的內容檔；版型、配色、測驗互動集中在 `builder/templates/`。
-- 色系定稿：白底配色塊（白底、深綠灰墨色 #233831、薄荷與桃橘六個淡色只當記號；色號表在 `docs/superpowers/specs/2026-10-13-redesign-and-wrong-bank-design.md` 第 2 節），**刻意不做深色模式**。圖示全部是 `builder/templates/icons.svg` 裡自己畫的 SVG，不用 emoji。
+- 色系定稿：白底配色塊（白底、深綠灰墨色 #233831、薄荷與桃橘六個淡色只當記號；色號表在 `docs/superpowers/specs/2026-10-13-redesign-and-wrong-bank-design.md` 第 2 節）。2026-10-13 起有暗色模式：頂欄右上的開關切換，沒按過就跟系統設定，選擇只存在該裝置（`builder/templates/theme.js`）；暗色變數在 `style.css` 的 `[data-theme="dark"]` 段，新增顏色變數時亮暗兩段都要加（測試會擋）。圖示全部是 `builder/templates/icons.svg` 裡自己畫的 SVG，不用 emoji。
 - 建置=整站重建，`dist/` 不進 git；push 到 `main` 即發佈（GitHub Actions → GitHub Pages）。
 - 網站網址：https://hhtim.github.io/notes-platform/
 

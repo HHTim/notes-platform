@@ -104,7 +104,7 @@ def drill_errors(html):
 
 
 def load_templates(tpl_dir):
-    names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html', 'favicon.svg', 'icons.svg')
+    names = ('style.css', 'course.js', 'sync.js', 'theme.js', 'module.html', 'home.html', 'favicon.svg', 'icons.svg')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
 
 
@@ -359,6 +359,7 @@ def build(content_dir=None, tpl_dir=None, out_dir=None):
     out_dir.mkdir(parents=True)
     (out_dir / 'style.css').write_text(tpl['style.css'], encoding='utf-8')
     (out_dir / 'course.js').write_text(tpl['course.js'], encoding='utf-8')
+    (out_dir / 'theme.js').write_text(tpl['theme.js'], encoding='utf-8')   # 亮色／暗色切換，每頁的 <head> 都載入
     (out_dir / 'favicon.svg').write_text(tpl['favicon.svg'], encoding='utf-8')   # 網站圖示：分頁、書籤、手機主畫面都用它
     if site['firebase']:
         (out_dir / 'sync.js').write_text(tpl['sync.js'], encoding='utf-8')

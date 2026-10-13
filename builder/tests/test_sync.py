@@ -25,3 +25,8 @@ class TestSyncJs(unittest.TestCase):
         r = subprocess.run(['node', str(ROOT / 'builder' / 'tests' / 'test_quiz.js')],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_theme_rules(self):
+        r = subprocess.run(['node', str(ROOT / 'builder' / 'tests' / 'test_theme.js')],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)

@@ -101,6 +101,7 @@ class TestBuild(unittest.TestCase):
 
     def test_new_palette_only(self):
         css = (self.out / 'style.css').read_text(encoding='utf-8')
+        css = re.sub(r'\[(?:fill|stroke)="#[0-9A-Fa-f]{6}"\]', '', css)   # 示意圖對應規則的選擇器要寫出舊色號才抓得到，不算使用
         for old in ('#F7F0E3', '#B5730F', '#5E7A9B', 'Chivo'):
             self.assertNotIn(old, css, old)
         for new in ('#233831', '#DEE5DD', '#A9D9C7', '#C5E0D7', '#F29F80', '#F2CEAE', '#FBC580'):
@@ -124,6 +125,40 @@ class TestBuild(unittest.TestCase):
             html = re.sub(r'<pre.*?</pre>|<code>.*?</code>', '', f.read_text(encoding='utf-8'), flags=re.S)   # 程式碼範例裡的字不算
             used |= set(re.findall(r'var\((--[a-z0-9-]+)', html))
         self.assertEqual(sorted(used - defined), [])
+
+    def test_dark_theme_overrides_every_color(self):
+        """暗色要把亮色定義的每個顏色變數都換掉，漏一個就會出現亮底白字這種看不到的組合"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        light = re.search(r':root\{(.*?)\}', css, re.S).group(1)
+        colors = set(re.findall(r'(--[a-z0-9-]+):#', light))
+        dark = re.search(r':root\[data-theme="dark"\]\{(.*?)\}', css, re.S)
+        self.assertIsNotNone(dark)
+        self.assertEqual(sorted(colors - set(re.findall(r'(--[a-z0-9-]+):', dark.group(1)))), [])
+        # 規則裡不能再寫死白字，要用 --on-ink（深色按鈕上的字）
+        rules = css[css.index('}') + 1:]
+        # 答對、答錯選項的字母圓點底色是亮的薄荷、桃橘，字要用深色
+        self.assertIn('.opt.right .l,.dopts li.right .l{background:var(--mint);color:var(--on-ink)}', css)
+        self.assertNotIn('color:#FFFFFF', rules)
+
+    def test_figures_hardcoded_old_colors_are_remapped(self):
+        """課文示意圖裡寫死的舊配色（白底、古銅、灰藍、舊墨色），樣式要逐一改成新色系的變數"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        found = set()
+        for f in (ROOT / 'content').rglob('lesson.html'):
+            found |= set(re.findall(r'((?:fill|stroke)="#[0-9A-Fa-f]{6}")', f.read_text(encoding='utf-8')))
+        for attr in found:
+            self.assertIn('figure svg [%s]' % attr, css, attr)
+
+    def test_theme_toggle_on_every_page(self):
+        self.assertTrue((self.out / 'theme.js').exists())
+        for page, src in (('index.html', 'theme.js'), ('english/index.html', '../theme.js')):
+            html = (self.out / page).read_text(encoding='utf-8')
+            head = html[:html.index('</head>')]
+            self.assertIn('<script src="%s"></script>' % src, head, page)   # 放在 head，開頁不會先閃一下亮色
+            self.assertIn('id="themeBtn"', html, page)
+        icons = (ROOT / 'builder' / 'templates' / 'icons.svg').read_text(encoding='utf-8')
+        for name in ('ic-moon', 'ic-sun'):
+            self.assertIn('<symbol id="%s"' % name, icons)
 
     def test_hidden_attribute_wins_over_display(self):
         """成績卡、按鈕列這些用 display:flex 的元素，加了 hidden 也要真的消失"""

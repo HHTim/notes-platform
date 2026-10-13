@@ -1,5 +1,6 @@
 /* 改版規格 docs/superpowers/specs/2026-10-13-redesign-and-wrong-bank-design.md 第 2 節：
-   白底配色塊。顏色只當記號，內容區永遠白底；不做深色模式。 */
+   白底配色塊。顏色只當記號。2026-10-13 Tim 要求加上暗色模式：頂欄右上的開關切換，
+   沒按過就跟系統設定（theme.js），暗色的變數在下面 [data-theme="dark"] 那段。 */
 :root{
   --paper:#FFFFFF; --surface:#FFFFFF; --sunk:#F7F9F6;
   --ink:#233831; --ink2:#5A6B65; --mut:#8A9792; --line:#DEE5DD;
@@ -14,7 +15,36 @@
   --gold:#E0805C; --gold-deep:#A9492A; --gold-soft:#F2CEAE;
   --slate:#5FA58B; --slate-deep:#2F6B57; --slate-soft:#C5E0D7;
   --danger:#D9603A; --ok-soft:#C5E0D7; --mut-deep:#5A6B65;
+  --on-ink:#FFFFFF;   /* 深色按鈕（底色是墨色）上的字 */
+  color-scheme:light;
 }
+/* 暗色：很深的墨綠底、米白字；六個色號照樣當記號，淡底色塊調深一階 */
+:root[data-theme="dark"]{
+  --paper:#16201C; --surface:#1D2A25; --sunk:#22312B;
+  --ink:#E3EAE4; --ink2:#A9B8B1; --mut:#7D8D86; --line:#2E3F38;
+  --mint:#A9D9C7; --mint-soft:#2A4A3F;
+  --peach:#F29F80; --peach-soft:#4D3329;
+  --amber:#FBC580;
+  --ok:#7FD1AE; --no:#F29F80;
+  --code:#26362F; --code-ink:#0F1714; --code-text:#DEE5DD;
+  --gold:#F29F80; --gold-deep:#F5B396; --gold-soft:#4D3329;
+  --slate:#7FC4AB; --slate-deep:#A9D9C7; --slate-soft:#2A4A3F;
+  --danger:#F29F80; --ok-soft:#2A4A3F; --mut-deep:#A9B8B1;
+  --on-ink:#16201C;
+  color-scheme:dark;
+}
+/* 課文示意圖裡有些顏色直接寫死成舊配色（白底、古銅、灰藍、舊墨色），統一換成新色系的變數，亮暗都跟著走 */
+figure svg [fill="#FFFFFF"]{fill:var(--surface)}
+figure svg [fill="#F6E9D2"]{fill:var(--gold-soft)}
+figure svg [fill="#B5730F"]{fill:var(--gold)}
+figure svg [fill="#8A5809"]{fill:var(--gold-deep)}
+figure svg [fill="#22242A"]{fill:var(--ink)}
+figure svg [fill="#55575E"]{fill:var(--ink2)}
+figure svg [fill="#8B8D94"]{fill:var(--mut)}
+figure svg [stroke="#B5730F"]{stroke:var(--gold)}
+figure svg [stroke="#8A5809"]{stroke:var(--gold-deep)}
+figure svg [stroke="#5E7A9B"]{stroke:var(--slate)}
+figure svg [stroke="#8B8D94"]{stroke:var(--mut)}
 *{box-sizing:border-box}
 html{scroll-padding-top:calc(var(--top) + 14px)}
 body{margin:0;background:var(--paper);color:var(--ink);
@@ -40,6 +70,13 @@ button{font-family:inherit}
 .topbar .brand b{color:var(--ink);border-bottom:3px solid var(--amber)}
 .topbar .home{display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);font-weight:700;font-size:14.5px;white-space:nowrap}
 .topbar .sep{color:var(--mut)}
+.themebtn{flex:none;background:none;border:1.5px solid var(--line);border-radius:8px;width:40px;height:40px;
+  color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:18px}
+.themebtn:hover{border-color:var(--ink2)}
+.topbar .modsel~.themebtn{margin-left:auto}
+.themebtn .sun{display:none}
+:root[data-theme="dark"] .themebtn .sun{display:inline-block}
+:root[data-theme="dark"] .themebtn .moon{display:none}
 .topbar .modsel{font-family:inherit;font-size:14px;font-weight:700;color:var(--ink);
   background:var(--surface);border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;
   max-width:min(52vw,320px)}
@@ -167,7 +204,7 @@ tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
 mark.fixnote{background:var(--line);color:inherit;padding:1px 4px;border-radius:3px;border-bottom:2px solid var(--mint);cursor:help;position:relative}
 mark.fixnote:hover::after,mark.fixnote:focus::after{
   content:attr(data-note);position:absolute;left:0;top:calc(100% + 6px);z-index:20;
-  background:var(--ink);color:#FFFFFF;font-size:12.5px;line-height:1.6;font-weight:400;
+  background:var(--ink);color:var(--on-ink);font-size:12.5px;line-height:1.6;font-weight:400;
   padding:8px 12px;border-radius:8px;width:max-content;max-width:min(320px,72vw);white-space:normal}
 mark.fixnote:focus{outline:2px solid var(--mint);outline-offset:1px}
 a.fixsrc{font-size:11.5px;font-family:var(--mono);color:var(--ink2);text-decoration:none;vertical-align:super;margin-left:2px}
@@ -190,13 +227,13 @@ blockquote p+p{margin-top:10px}
 .opt .tx{flex:1;min-width:0}
 .opt .mk,.dopts li .mk{margin-left:auto;flex:none;display:inline-flex}
 .opt.sel{border-color:var(--ink);border-width:2px}
-.opt.sel .l{background:var(--ink);color:#FFFFFF}
+.opt.sel .l{background:var(--ink);color:var(--on-ink)}
 .opt:disabled,.drill.answered .dopts li{cursor:default}
 .drill.answered .dopts li:hover{border-color:var(--line)}
 .opt.right,.dopts li.right{background:var(--mint-soft);border-color:var(--mint)}
-.opt.right .l,.dopts li.right .l{background:var(--mint)}
+.opt.right .l,.dopts li.right .l{background:var(--mint);color:var(--on-ink)}
 .opt.wrongpick,.dopts li.wrongpick{background:var(--peach-soft);border-color:var(--peach)}
-.opt.wrongpick .l,.dopts li.wrongpick .l{background:var(--peach)}
+.opt.wrongpick .l,.dopts li.wrongpick .l{background:var(--peach);color:var(--on-ink)}
 .exp,.dexp{font-size:13.5px;color:var(--ink);background:var(--sunk);border-left:3px solid var(--amber);
   padding:7px 12px;margin:8px 0 0;border-radius:0 8px 8px 0}
 .dexp .dtr{display:block;color:var(--mut);margin-bottom:4px}
@@ -222,7 +259,7 @@ article{counter-reset:drill}
 .tr i{display:block;height:100%;border-radius:99px;background:var(--mint);transition:width .3s ease}
 .qact{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
 .qact.bottom{margin:8px 0 0}
-.qbtn{font-size:14.5px;font-weight:700;padding:9px 20px;min-height:40px;border-radius:99px;border:1.5px solid var(--ink);background:var(--ink);color:#FFFFFF;cursor:pointer;flex:1 1 auto}
+.qbtn{font-size:14.5px;font-weight:700;padding:9px 20px;min-height:40px;border-radius:99px;border:1.5px solid var(--ink);background:var(--ink);color:var(--on-ink);cursor:pointer;flex:1 1 auto}
 .qbtn:hover{filter:brightness(1.15)}
 .qbtn:disabled{background:var(--line);border-color:var(--line);color:var(--ink2);cursor:not-allowed}
 .qbtn.sec{background:var(--surface);color:var(--ink)}
@@ -280,7 +317,7 @@ footer.site{margin-top:36px;border-top:1.5px solid var(--line);padding-top:15px;
 .resume .rt{display:flex;flex-direction:column;min-width:0;flex:1}
 .resume .rt b{font-size:15px}
 .resume .rt span{font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.resume .go{flex:none;background:var(--ink);color:#FFFFFF;border-radius:99px;padding:6px 14px;font-size:13px;font-weight:700}
+.resume .go{flex:none;background:var(--ink);color:var(--on-ink);border-radius:99px;padding:6px 14px;font-size:13px;font-weight:700}
 .mod-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
 .mod-card{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:16px 18px;text-decoration:none;color:var(--ink)}
 .mod-card:hover{border-color:var(--ink2)}
@@ -295,3 +332,5 @@ footer.site{margin-top:36px;border-top:1.5px solid var(--line);padding-top:15px;
 .topbar .synchint{margin:0 0 0 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .synchint .sh{display:none}
 @media (max-width:640px){.topbar .synchint .st{display:none}.topbar .synchint .sh{display:inline}}
+/* 手機上課程頁頂欄塞不下：首頁連結只留圖示、模組選單可以縮，暗色開關才不會被擠出畫面 */
+@media (max-width:640px){.topbar{gap:8px;padding:0 10px}.topbar .home span{display:none}.topbar .modsel{min-width:0;flex:0 1 auto;max-width:calc(100vw - 180px)}}
