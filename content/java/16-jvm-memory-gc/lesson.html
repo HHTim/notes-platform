@@ -320,7 +320,7 @@
 <section>
 <p class="era">訊息文字告訴你哪一塊爆了</p>
 <h3 class="head">OutOfMemoryError 的種類，以及 StackOverflowError</h3>
-<p><code>OutOfMemoryError</code> 不是一種錯，而是一組；後面的訊息文字決定是哪一塊記憶體不夠。下面幾種都在 Java 21 的 Linux 容器裡實際重現過。</p>
+<p><code>OutOfMemoryError</code> 不是一種錯，而是一組；後面的訊息文字決定是哪一塊記憶體不夠。</p>
 <p><strong>Java heap space。</strong>這個訊息表示物件無法在 Java 堆配置：<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></p>
 <ul>
 <li>不一定代表記憶體洩漏，可能只是堆設太小</li>
@@ -405,7 +405,7 @@ try {
 // Linux/Aarch64 容器，預設 -Xss（2048 KB），實跑六次：遞迴 45102〜94549 層後丟 java.lang.StackOverflowError
 // java -Xss256k Deep，實跑六次：                遞迴 1629〜2793 層後丟 java.lang.StackOverflowError</code></pre>
 <p>層數每次都不一樣，因為即時編譯（後面 JIT 一段）把 <code>down()</code> 編成機器碼的時機不同，每一框占的堆疊大小也跟著變；要看的是量級：預設是幾萬層，256 KB 只剩兩千層上下。</p>
-<p>還有兩種沒在這裡重現：</p>
+<p>另外兩種：</p>
 <ul>
 <li><code>GC overhead limit exceeded</code>：回收器幾乎一直在跑，一次回收後花超過大約 98% 的時間在回收，卻收回很少<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshooting-memory-leaks.html" target="_blank" rel="noopener">出處</a></li>
 <li><code>unable to create native thread</code>：開太多執行緒時，沒有足夠記憶體替新執行緒建立初始的 JVM 堆疊，丟 <code>OutOfMemoryError</code><a class="fixsrc" href="https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-2.html#jvms-2.5.2" target="_blank" rel="noopener">出處</a></li>
@@ -624,7 +624,7 @@ public class Init {
 // 23  126 %     4       Churn::main @ 13 (81 bytes)
 // 28  124 %     3       Churn::main @ 13 (81 bytes)   made not entrant
 // 52  126 %     4       Churn::main @ 13 (81 bytes)   made not entrant</code></pre>
-<p>不必背每一欄的意思，只要看出一件事：同一個 <code>Churn::main</code> 在幾十毫秒內出現了好幾行，也就是被編譯了不只一個版本，越後面的越晚才出現。這就是分層編譯在「先快速編一版、側寫夠了再編更好的一版」。所以壓測要先跑一段「暖機」再計時，剛部署的服務前幾分鐘延遲偏高也是正常的。</p>
+<p>同一個 <code>Churn::main</code> 在幾十毫秒內出現了好幾行，也就是被編譯了不只一個版本，越後面的越晚才出現。這就是分層編譯在「先快速編一版、側寫夠了再編更好的一版」。所以壓測要先跑一段「暖機」再計時，剛部署的服務前幾分鐘延遲偏高也是正常的。</p>
 
 <div class="drill">
   <p class="dq">HotSpot 剛啟動時，Java 程式碼是怎麼執行的？</p>

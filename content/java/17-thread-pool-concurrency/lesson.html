@@ -209,7 +209,7 @@ for (int i = 0; i &lt; 100; i++) {
 <p>所以一般的做法（這是通則、不是官方規定）：</p>
 <ul class="plainlist">
 <li><strong>CPU 密集</strong>（解析檔案、算利息）：執行緒數接近核心數。多開也不會多出算力，只會多切換。</li>
-<li><strong>I/O 密集</strong>（寫資料庫、呼叫核心系統）：執行緒大部分時間在等，可以開比核心數多很多，常見的估算式是「核心數 ×（1＋等待時間 ÷ 計算時間）」，這是業界常用的估算式，沒有官方出處，只是起點，要靠壓測與監控修正。</li>
+<li><strong>I/O 密集</strong>（寫資料庫、呼叫核心系統）：執行緒大部分時間在等，可以開比核心數多很多，常見的估算式是「核心數 ×（1＋等待時間 ÷ 計算時間）」，它不是官方規定，只是起點，要靠壓測與監控修正。</li>
 <li><strong>下游的上限才是真正的上限</strong>：資料庫連線池只有 20 條，對帳池開 200 條也只有 20 條在做事，其餘在等連線。</li>
 </ul>
 <p><strong>銀行情境：批次對帳。</strong>4 核心的機器上，對帳分兩段：讀檔與比對是 CPU 密集，開 4 條；每筆寫回資料庫平均等 40 毫秒、自己只算 10 毫秒，照估算式是 4 ×（1＋40÷10）＝ 20 條，再跟資料庫連線池的大小取小的。佇列給上限（例如 500），拒絕策略用 CallerRunsPolicy，讀檔的執行緒被拖慢就自動減速。這些數字都是起點，跑一次壓測、看 CPU 使用率與資料庫連線等待時間再調。</p>
@@ -243,7 +243,7 @@ for (int i = 0; i &lt; 100; i++) {
 <div class="drill">
   <p class="dq">每筆工作平均等 I/O 40 毫秒、計算 10 毫秒，機器 4 核心。用「核心數 ×（1＋等待÷計算）」估，起點是幾條？</p>
   <ul class="dopts"><li data-ok>20</li><li>4</li><li>8</li><li>40</li></ul>
-  <p class="dexp">4 ×（1＋40÷10）＝ 4 × 5 ＝ 20。這個式子出自教材、不是官方規定，只是起點，還要跟下游上限取小的、再用壓測修正。</p>
+  <p class="dexp">4 ×（1＋40÷10）＝ 4 × 5 ＝ 20。這個式子不是官方規定，只是起點，還要跟下游上限取小的、再用壓測修正。</p>
 </div>
 </section>
 
@@ -407,7 +407,7 @@ System.out.println("computeIfAbsent 計數：" + new TreeMap&lt;&gt;(freq));
 <div class="drill">
   <p class="dq">在 OpenJDK 21 的實作裡，往一個空的桶放進第一個節點，ConcurrentHashMap 用什麼完成？</p>
   <ul class="dopts"><li>鎖住整張表</li><li data-ok>CAS</li><li>每個桶一個 ReentrantLock</li><li>先複製一份新表</li></ul>
-  <p class="dexp">註解：空桶插入第一個節點只靠 CAS，這是最常見的情況；其他更新才鎖住桶的第一個節點（用內建的 synchronized）。</p>
+  <p class="dexp">OpenJDK 21 的實作：空桶插入第一個節點只靠 CAS，這是最常見的情況；其他更新才鎖住桶的第一個節點（用內建的 synchronized）。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>concurrentMap.<wbr>put(<wbr>"中正", null)</code> 會怎樣？</p>
