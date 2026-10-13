@@ -5,7 +5,7 @@
 <p class="era">尋寶紙條，一張指向下一張</p>
 <h3 class="head">節點與指標：鏈結串列長什麼樣</h3>
 <p>想像一場尋寶遊戲：第一張紙條寫著一個數字，還寫著「下一張藏在冰箱上」；冰箱上那張又寫著數字和下一張的位置……一直到某張寫著「沒有下一張了」。這就是<strong>鏈結串列</strong>（linked list）：每一筆資料放在一個<strong>節點</strong>（node）裡，節點除了資料，還記著下一個節點在哪，這個欄位通常叫 <code>next</code>。最後一個節點的 <code>next</code> 是 <code>null</code>，表示到底了。</p>
-<p>鏈結串列可以用遞迴來定義：它要嘛是空的（null），要嘛是一個指向節點的參考，這個節點有一筆資料，以及一個指向另一條鏈結串列的參考。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> Java 沒有 C 語言那種可以做加減的指標，<code>next</code> 其實是一個<strong>參考</strong>（reference，記著物件在哪裡的變數）；演算法書與面試習慣把它叫「指標」，這課也這樣叫。</p>
+<p>鏈結串列可以用遞迴來定義：它要嘛是空的（null），要嘛是一個指向節點的參考，這個節點有一筆資料，以及一個指向另一條鏈結串列的參考。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> Java 沒有 C 語言那種可以做加減的指標，<code>next</code> 其實是一個<strong>參考</strong>（reference，記著物件在哪裡的變數）；演算法書與面試習慣把它叫「指標」。</p>
 <p>手上只有第一個節點的參考，叫 <code>head</code>（頭）。要拿索引 3 的節點（跟陣列一樣從 0 數，也就是第 4 個），就得從 <code>head</code> 沿著 <code>next</code> 走 3 步，沒辦法像陣列那樣用「起點＋3 格」直接算出位置：</p>
 <figure>
 <svg viewBox="0 0 760 290" role="img" aria-label="陣列與鏈結串列的比較：陣列是連續的五個格子，用索引直接算出位置；鏈結串列的五個節點散在不同位置，每個節點用 next 指向下一個，最後指向 null">
@@ -55,7 +55,7 @@
 </tbody></table></div>
 <p>第三列要特別注意前提：鏈結串列的插入刪除快，是在<strong>已經站在那個位置</strong>的時候；如果要先從頭找到第 i 個再插入，找的那段還是 O(n)。〈Java 基礎快答〉講的 <code>LinkedList</code> 插入刪除只要改動前後節點的接法，指的就是改接這一步。陣列那一欄：<code>ArrayList</code> 除了取值、設值與尾端加入，其他操作大致都是線性時間，插在最前面就屬於這一類<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html" target="_blank" rel="noopener">出處</a>；細節見〈陣列與字串〉。</p>
 <h4>單向與雙向</h4>
-<p>只有 <code>next</code> 的叫<strong>單向鏈結串列</strong>（singly linked list），只能往後走。每個節點再多一個指向前一個節點的 <code>prev</code>，就是<strong>雙向鏈結串列</strong>（doubly linked list），可以往回走；拿到某個節點時，要刪掉它自己也是 O(1)（單向的得先找到它的前一個）。代價是每個節點多一個欄位、每次插入刪除要多改幾條箭頭。Java 的 <code>java.util.LinkedList</code> 就是 <code>List</code> 與 <code>Deque</code> 介面的雙向鏈結串列實作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a> 面試題常給自己定義的單向串列（像 LeetCode 的 <code>ListNode</code>），所以這課主要寫單向。</p>
+<p>只有 <code>next</code> 的叫<strong>單向鏈結串列</strong>（singly linked list），只能往後走。每個節點再多一個指向前一個節點的 <code>prev</code>，就是<strong>雙向鏈結串列</strong>（doubly linked list），可以往回走；拿到某個節點時，要刪掉它自己也是 O(1)（單向的得先找到它的前一個）。代價是每個節點多一個欄位、每次插入刪除要多改幾條箭頭。Java 的 <code>java.util.LinkedList</code> 就是 <code>List</code> 與 <code>Deque</code> 介面的雙向鏈結串列實作。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedList.html" target="_blank" rel="noopener">出處</a> 面試題常給自己定義的單向串列（像 LeetCode 的 <code>ListNode</code>）。</p>
 
 <div class="drill">
   <p class="dq">單向鏈結串列有 n 個節點，手上只有 <code>head</code>。要取第 1,000 個節點的值，要多久？</p>
@@ -119,7 +119,7 @@
         return sb.append("null").toString();
     }
 }</code></pre>
-<p><code>show</code> 裡的那個 <code>for</code> 迴圈就是走訪的標準寫法，普林斯頓列的寫法一模一樣：<code>for (Node x = first; x != null; x = x.next)</code>。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 用一個變數 <code>cur</code>（current，目前這個）從頭開始，每處理完一個就跳到 <code>cur.next</code>，<code>cur</code> 變成 <code>null</code> 就停。<code>build</code> 裡的 <code>dummy</code> 是一個「假的頭」，第三段會講它的用處。</p>
+<p><code>show</code> 裡的那個 <code>for</code> 迴圈就是走訪的標準寫法：<code>for (Node x = first; x != null; x = x.next)</code>。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 用一個變數 <code>cur</code>（current，目前這個）從頭開始，每處理完一個就跳到 <code>cur.next</code>，<code>cur</code> 變成 <code>null</code> 就停。<code>build</code> 裡的 <code>dummy</code> 是一個「假的頭」，第三段會講它的用處。</p>
 <pre><code>public class Basics {
     static int length(ListNode head) {
         int n = 0;
@@ -204,7 +204,7 @@ while (cur.next != null) {
 <section>
 <p class="era">先接後面，再接前面</p>
 <h3 class="head">插入、刪除與虛擬頭節點</h3>
-<p>串列的插入與刪除，都只是「改幾條箭頭」。普林斯頓列的基本動作：在開頭插入、刪掉開頭都很容易；要在尾端插入，就另外記著最後一個節點。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 下面四個方法涵蓋所有基本情況：</p>
+<p>串列的插入與刪除，都只是「改幾條箭頭」。基本動作：在開頭插入、刪掉開頭都很容易；要在尾端插入，就另外記著最後一個節點。<a class="fixsrc" href="https://algs4.cs.princeton.edu/13stacks/" target="_blank" rel="noopener">出處</a> 下面四個方法涵蓋所有基本情況：</p>
 <pre><code>import static java.lang.System.out;
 
 public class InsertDelete {
@@ -433,7 +433,7 @@ null / 5 -&gt; null</code></pre>
 </svg>
 <figcaption>反轉的過程：灰藍的節點已經掉頭，古銅是正在處理的 cur。每一輪只改一條箭頭，迴圈跑 n 次，時間 O(n)、額外空間 O(1)。</figcaption>
 </figure>
-<p>空串列與一個節點的情況，迴圈分別跑零次、一次，結果都對，不用特別處理。遞迴版只要點到：它先把「後面那段」反轉好，再把自己接到尾巴。遞迴版程式短，但每一層呼叫都占一格呼叫堆疊，額外空間是 O(n)，串列很長時可能 <code>StackOverflowError</code>；面試先寫迴圈版。遞迴本身怎麼想，見〈遞迴與回溯〉。</p>
+<p>空串列與一個節點的情況，迴圈分別跑零次、一次，結果都對，不用特別處理。遞迴版的做法是：先把「後面那段」反轉好，再把自己接到尾巴。遞迴版程式短，但每一層呼叫都占一格呼叫堆疊，額外空間是 O(n)，串列很長時可能 <code>StackOverflowError</code>；面試先寫迴圈版。遞迴本身怎麼想，見〈遞迴與回溯〉。</p>
 
 <div class="drill">
   <p class="dq">對 <code>1 -&gt; 2 -&gt; 3 -&gt; null</code> 執行迴圈版 <code>reverse</code>，第一輪跑完時，各變數是什麼？</p>

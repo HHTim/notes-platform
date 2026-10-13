@@ -140,7 +140,7 @@ System.out.println((n - 1) &amp; h);</code></pre>
   <text x="380" y="190" font-size="13" fill="var(--gold-deep)">Aa 與 BB 雜湊碼完全相同（2112）</text>
   <text x="380" y="214" font-size="13" fill="var(--gold-deep)">只能靠 equals 分辨</text>
 </svg>
-<figcaption>鏈結法：同一個桶的鍵串成一條串列。這張圖是用 <code>new HashMap&lt;&gt;(8)</code> 依序放這六個鍵、再讀內部陣列實測出來的排列；每個節點實際上存著雜湊值、鍵、值與指向下一個節點的 <code>next</code>。</figcaption>
+<figcaption>鏈結法：同一個桶的鍵串成一條串列。這張圖是 <code>new HashMap&lt;&gt;(8)</code> 依序放進這六個鍵之後，內部陣列的排列；每個節點實際上存著雜湊值、鍵、值與指向下一個節點的 <code>next</code>。</figcaption>
 </figure>
 <h4>開放定址：被佔了就往下一格找</h4>
 <p><strong>開放定址</strong>（open addressing）不掛串列，所有鍵都放在陣列本身。最簡單的一種叫<strong>線性探測</strong>（linear probing）：碰撞時就檢查表裡的下一格（把索引加一）。找的時候一路往下看，會遇到三種結果：鍵相同（找到）、空格（確定不在）、別的鍵（繼續看下一格）。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a> 因為每格只能放一筆，鍵的數量一定要少於格子數。</p>
@@ -350,7 +350,7 @@ grape  16 桶時在 11，32 桶時在 11（留在原位）</code></pre>
   <text x="320" y="218" font-size="12" opacity=".8">同一條串列拆成兩條，相對順序不變</text>
   <text x="320" y="244" font-size="12" opacity=".8">不必重新呼叫 hashCode()</text>
 </svg>
-<figcaption>擴容把每個桶拆成兩半：灰藍的留在原位，古銅的搬到「原位＋舊容量」。這是用 <code>HashMap</code> 預設容量放進這五個鍵、再塞到第 13 筆觸發擴容後，讀內部陣列實測的結果。</figcaption>
+<figcaption>擴容把每個桶拆成兩半：灰藍的留在原位，古銅的搬到「原位＋舊容量」。這是 <code>HashMap</code> 用預設容量放進這五個鍵、再放到第 13 筆觸發擴容後，內部陣列的排列。</figcaption>
 </figure>
 
 <div class="drill">
@@ -409,8 +409,8 @@ grape  16 桶時在 11，32 桶時在 11（留在原位）</code></pre>
 </ul>
 <p>大部分的桶是空的或只有一筆，找一次只要比一兩下，這就是「平均 O(1)」的意思。</p>
 <h4>最壞情況與 Java 8 的補救</h4>
-<p>反過來，如果所有鍵的雜湊碼都一樣，全部擠進同一個桶，那個桶就是一條長串列，找一次要從頭比到尾，O(n)。這可能是意外（<code>hashCode()</code> 寫得太偷懶），也可能是惡意（攻擊者故意送一大堆雜湊碼相同的字串）。普林斯頓的習題就問過 <code>hashCode()</code> 永遠回傳 17 合不合法，答案是：合法，但所有鍵都會落在同一個位置，效能很差。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
-<p>Java 8 起加了補救：桶裡的項目超過門檻時，把串列換成平衡樹，在高碰撞的情況下，最壞效能從 O(n) 改善到 O(log n)。<a class="fixsrc" href="https://openjdk.org/jeps/180" target="_blank" rel="noopener">出處</a> 這棵樹是紅黑樹（一種會自己保持平衡的二元搜尋樹，〈樹與二元搜尋樹〉會講平衡為什麼重要）。這個動作叫<strong>樹化</strong>（把桶裡的串列換成紅黑樹，原始碼叫 treeify）。原始碼裡的三個門檻，跟〈Java 進階快答：JVM 記憶體、垃圾回收與類別載入〉講的一致：</p>
+<p>反過來，如果所有鍵的雜湊碼都一樣，全部擠進同一個桶，那個桶就是一條長串列，找一次要從頭比到尾，O(n)。這可能是意外（<code>hashCode()</code> 寫得太偷懶），也可能是惡意（攻擊者故意送一大堆雜湊碼相同的字串）。<code>hashCode()</code> 永遠回傳 17 是合法的，但所有鍵都會落在同一個位置，效能很差。<a class="fixsrc" href="https://algs4.cs.princeton.edu/34hash/" target="_blank" rel="noopener">出處</a></p>
+<p>Java 8 起加了補救：桶裡的項目超過門檻時，把串列換成平衡樹，在高碰撞的情況下，最壞效能從 O(n) 改善到 O(log n)。<a class="fixsrc" href="https://openjdk.org/jeps/180" target="_blank" rel="noopener">出處</a> 這棵樹是紅黑樹（一種會自己保持平衡的二元搜尋樹，〈樹與二元搜尋樹〉會講平衡為什麼重要）。這個動作叫<strong>樹化</strong>（把桶裡的串列換成紅黑樹，原始碼叫 treeify）。原始碼裡的三個門檻：</p>
 <div class="tablewrap"><table><thead><tr><th>常數</th><th>值</th><th>意思</th></tr></thead><tbody>
 <tr><th><code>TREEIFY_THRESHOLD</code></th><td>8</td><td>往一個已經至少有這麼多節點的桶再加一筆時，桶就轉成樹</td></tr>
 <tr><th><code>MIN_TREEIFY_CAPACITY</code></th><td>64</td><td>桶陣列至少要這麼大才會樹化；不到的話，桶太擠時改成擴容</td></tr>
@@ -507,7 +507,7 @@ public int hashCode() {
 <section>
 <p class="era">契約，雜湊型集合的地基</p>
 <h3 class="head">equals 與 hashCode：自訂類別當鍵</h3>
-<p>前面看到，<code>HashMap</code> 先用雜湊碼決定桶、再用 <code>equals</code> 確認是不是同一個鍵。這兩步要配合得上，所以 <code>Object</code> 的文件訂了契約（〈套件與 Object 類別〉有完整說明，這裡從雜湊表的角度再看一次）：</p>
+<p>前面看到，<code>HashMap</code> 先用雜湊碼決定桶、再用 <code>equals</code> 確認是不是同一個鍵。這兩步要配合得上，所以 <code>Object</code> 的文件訂了契約（完整說明見〈套件與 Object 類別〉）：</p>
 <ul class="plainlist">
 <li>同一個物件在一次執行中多次呼叫 <code>hashCode()</code>，「只要 equals 比較用到的資訊沒被修改」，就要回傳同一個整數（provided no information used in equals comparisons on the object is modified）。</li>
 <li>依 <code>equals</code> 相等的兩個物件，<code>hashCode()</code> 一定要相同（If two objects are equal according to the equals method, then calling the hashCode method on each of the two objects must produce the same integer result）。</li>
@@ -864,7 +864,7 @@ public class TwoSum {
 </tbody></table></div>
 <p>暴力法最多比 n(n−1)/2 對；雜湊表版每個元素只查一次、放一次，平均 O(n) 時間、O(n) 額外空間。</p>
 <h4>分組：computeIfAbsent</h4>
-<p>把東西依某個特徵分組，例如「字母相同、順序不同的字」（anagram，重組字）放同一組。<code>Map</code> 文件對 <code>computeIfAbsent</code> 舉的例子就是這種「一個鍵對多個值」的用法：<code>map.computeIfAbsent(key, k -&gt; new HashSet&lt;V&gt;()).add(v);</code>，鍵還沒有值時才建立新的集合。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#computeIfAbsent(K,java.util.function.Function)" target="_blank" rel="noopener">出處</a></p>
+<p>把東西依某個特徵分組，例如「字母相同、順序不同的字」（anagram，重組字）放同一組。<code>computeIfAbsent</code> 適合這種「一個鍵對多個值」的用法：<code>map.computeIfAbsent(key, k -&gt; new HashSet&lt;V&gt;()).add(v);</code>，鍵還沒有值時才建立新的集合。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#computeIfAbsent(K,java.util.function.Function)" target="_blank" rel="noopener">出處</a></p>
 <pre><code>import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
