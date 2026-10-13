@@ -48,17 +48,17 @@
     "直接刪掉 Pod，讓 Deployment 補一個新的",
     "把它移到別的節點重新排程"
    ],
-   "exp": "就緒只管「要不要送流量給它」。文件說會把 Pod 的 IP 從 EndpointSlice 移除；本課實跑呼叫 /drain 後 Pod 變 0/1、重啟次數 0，它還留在 EndpointSlice 裡，只是 ready 變 false。"
+   "exp": "就緒只管「要不要送流量給它」。本課實跑呼叫 /drain 後 Pod 變 0/1、重啟次數 0；它還留在 EndpointSlice 裡，只是 ready 變 false，Service 不再送流量給它。"
   },
   {
-   "q": "Spring Boot 程式在 ApplicationRunner 裡做暖機。依官方文件，暖機跑完之前 /actuator/health/readiness 回什麼？",
+   "q": "Spring Boot 程式在 ApplicationRunner 裡做暖機。暖機跑完之前 /actuator/health/readiness 回什麼？",
    "opts": [
     "REFUSING_TRAFFIC，所以 K8s 不會送流量過來",
     "ACCEPTING_TRAFFIC，因為 Spring 容器已經建好",
     "BROKEN，所以存活探針會讓它重啟",
     "沒有回應，要等程式完全起來才會開這個端點"
    ],
-   "exp": "runner 都跑完才進入 ACCEPTING_TRAFFIC。這也是 Spring 建議把啟動工作放進 runner、不要放在 @PostConstruct 的原因。"
+   "exp": "runner 都跑完才進入 ACCEPTING_TRAFFIC。這也是啟動工作要放進 runner、不要放在 @PostConstruct 的原因。"
   },
   {
    "q": "一個容器只寫了 memory limit 512Mi、CPU limit 500m，沒寫任何 requests。這個 Pod 的 QoS 等級是什麼？",
