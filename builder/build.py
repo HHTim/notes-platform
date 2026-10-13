@@ -104,11 +104,28 @@ def drill_errors(html):
 
 
 def load_templates(tpl_dir):
-    names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html', 'favicon.svg')
+    names = ('style.css', 'course.js', 'sync.js', 'module.html', 'home.html', 'favicon.svg', 'icons.svg')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
 
 
 SLUG_RE = re.compile(r'^[a-z0-9-]+$')   # 要跟 course.js 的路由 /^#\/lesson\/([a-z0-9-]+)$/ 一致
+ICON_ID_RE = re.compile(r'<symbol id="ic-([a-z0-9-]+)"')
+
+
+def icon_names(icons_svg):
+    """icons.svg 裡所有 <symbol id="ic-名稱"> 的名稱集合"""
+    return set(ICON_ID_RE.findall(icons_svg))
+
+
+def check_icons(mods, names):
+    """modules.json 的 icon 要是 icons.svg 裡有的名稱；對不到就中止建置並說是哪個模組"""
+    bad = ['%s 的 icon「%s」' % (m['id'], m['icon']) for m in mods if m['icon'] not in names]
+    if bad:
+        raise SystemExit('建置中止：modules.json 的圖示名稱對不到 builder/templates/icons.svg\n  ' + '\n  '.join(bad))
+
+
+def icon_html(name, cls='ic'):
+    return '<svg class="%s" aria-hidden="true"><use href="#ic-%s"/></svg>' % (cls, name)
 
 
 def check_slugs(mods):
@@ -220,8 +237,8 @@ def article_html(mod, i, L):
 
 
 def modsel_html(mods, current_id):
-    return ''.join('<option value="%s"%s>%s %s</option>'
-                   % (m['id'], ' selected' if m['id'] == current_id else '', m['icon'], m['title'])
+    return ''.join('<option value="%s"%s>%s</option>'
+                   % (m['id'], ' selected' if m['id'] == current_id else '', m['title'])
                    for m in mods)
 
 
@@ -248,25 +265,27 @@ def render_module_page(mod, mods, tpl, firebase=None):
     page = tpl['module.html']
     for key, val in (('__TITLE__', mod['title']), ('__MODSEL__', modsel_html(mods, mod['id'])),
                      ('__SIDEBAR__', sidebar_html(mod)), ('__ARTICLES__', ''.join(arts)),
-                     ('__DATA__', data), ('__SYNC__', sync)):
+                     ('__DATA__', data), ('__SYNC__', sync), ('__ICONS__', tpl['icons.svg'])):
         page = page.replace(key, val)
     return page
 
 
 def render_home_page(site, mods, tpl, firebase=None):
-    side = ''.join('  <a href="%s/"><span class="n">%s</span><span>%s</span></a>\n'
-                   % (m['id'], m['icon'], m['title']) for m in mods)
+    side = ''.join('  <a href="%s/">%s<span>%s</span></a>\n'
+                   % (m['id'], icon_html(m['icon']), m['title']) for m in mods)
     cards = ''.join(
-        '<a class="mod-card" href="%s/"><span class="icon">%s</span><b>%s</b>'
-        '<span>%s</span><span class="stats"><span data-stat="%s"></span> · 共 %d 課</span></a>\n'
-        % (m['id'], m['icon'], m['title'], m['intro'], m['id'], len(m['lessons']))
+        '<a class="mod-card" href="%s/" data-card="%s">%s<b>%s</b>'
+        '<span class="bar"><i data-bar="%s"></i></span>'
+        '<span class="stats" data-stat="%s">共 %d 課</span></a>\n'
+        % (m['id'], m['id'], icon_html(m['icon'], 'ic big'), m['title'], m['id'], m['id'], len(m['lessons']))
         for m in mods)
-    mods_js = json.dumps([{'id': m['id'], 'count': len(m['lessons'])} for m in mods],
-                         ensure_ascii=False)
+    mods_js = json.dumps([{'id': m['id'], 'title': m['title'], 'icon': m['icon'], 'count': len(m['lessons']),
+                           'lessons': {L['slug']: L['title'] for L in m['lessons']}} for m in mods],
+                         ensure_ascii=False).replace('</', '<\\/')
     page = tpl['home.html']
     for key, val in (('__SITE_TITLE__', site['site_title']), ('__SITE_INTRO__', site['site_intro']),
                      ('__SIDEBAR__', side), ('__CARDS__', cards), ('__MODS__', mods_js),
-                     ('__SYNC__', sync_html(firebase, ''))):
+                     ('__SYNC__', sync_html(firebase, '')), ('__ICONS__', tpl['icons.svg'])):
         page = page.replace(key, val)
     return page
 
@@ -277,6 +296,7 @@ def build(content_dir=None, tpl_dir=None, out_dir=None):
     out_dir = out_dir or ROOT / 'dist'
     site, mods = load_site(content_dir)
     tpl = load_templates(tpl_dir)
+    check_icons(mods, icon_names(tpl['icons.svg']))
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)

@@ -71,7 +71,7 @@ class TestBuild(unittest.TestCase):
         self.assertIn(self.site['site_title'], html)
         for mod in self.mods:
             self.assertIn('href="%s/"' % mod['id'], html)
-            self.assertIn(mod['icon'], html)
+            self.assertIn('<use href="#ic-%s"/>' % mod['icon'], html)
             self.assertIn(mod['title'], html)
             self.assertIn('data-stat="%s"' % mod['id'], html)
             self.assertIn('共 %d 課' % len(mod['lessons']), html)

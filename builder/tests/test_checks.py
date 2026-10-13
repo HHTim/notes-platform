@@ -20,7 +20,7 @@ def fake_site(lessons):
     mdir = content / 'demo'
     mdir.mkdir(parents=True)
     (content / 'modules.json').write_text(json.dumps(
-        {'site_title': '測試站', 'site_intro': '介紹', 'modules': [{'id': 'demo', 'icon': '🧪'}]},
+        {'site_title': '測試站', 'site_intro': '介紹', 'modules': [{'id': 'demo', 'icon': 'java'}]},
         ensure_ascii=False), encoding='utf-8')
     (mdir / 'module.json').write_text(json.dumps({
         'title': '示範模組', 'intro': '介紹', 'kick': 'DEMO', 'overview_intro': '總覽', 'footer_note': '註',
@@ -129,3 +129,34 @@ class TestDrills(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm:
             builder.build(content_dir=content, out_dir=out)
         self.assertIn('demo/01-one', str(cm.exception))
+
+
+class TestIcons(unittest.TestCase):
+    """圖示名稱要對得到 icons.svg 的 <symbol id="ic-名稱">；對不到建置要停，並講是哪個模組"""
+
+    def test_icon_names_from_svg(self):
+        names = builder.icon_names('<svg><symbol id="ic-java"></symbol><symbol id="ic-ai-tools"></symbol></svg>')
+        self.assertEqual(names, {'java', 'ai-tools'})
+
+    def test_icon_html(self):
+        self.assertEqual(builder.icon_html('java'),
+                         '<svg class="ic" aria-hidden="true"><use href="#ic-java"/></svg>')
+        self.assertIn('class="ic big"', builder.icon_html('java', 'ic big'))
+
+    def test_unknown_icon_stops_build(self):
+        content, out = fake_site([('01-one', 'one', LESSON_OK)])
+        mj = content / 'modules.json'
+        mj.write_text(mj.read_text(encoding='utf-8').replace('"icon": "java"', '"icon": "javaa"'), encoding='utf-8')
+        with self.assertRaises(SystemExit) as cm:
+            builder.build(content_dir=content, out_dir=out)
+        msg = str(cm.exception)
+        self.assertIn('demo', msg)
+        self.assertIn('javaa', msg)
+
+    def test_icons_inlined_once_per_page(self):
+        content, out = fake_site([('01-one', 'one', LESSON_OK)])
+        builder.build(content_dir=content, out_dir=out)
+        for page in ('index.html', 'demo/index.html'):
+            html = (out / page).read_text(encoding='utf-8')
+            self.assertEqual(html.count('<symbol id="ic-java"'), 1, page)
+            self.assertNotIn('__ICONS__', html, page)
