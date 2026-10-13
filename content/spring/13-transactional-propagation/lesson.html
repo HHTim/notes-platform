@@ -115,12 +115,12 @@ NEVER          外層沒有：沒有交易｜外層有：丟出 IllegalTransacti
 <div class="drill">
   <p class="dq">一個標 <code>MANDATORY</code> 的方法，被一個<strong>沒有交易</strong>的地方呼叫，會怎樣？</p>
   <ul class="dopts"><li data-ok>丟出 IllegalTransactionStateException</li><li>自己開一筆交易</li><li>不用交易照常執行</li><li>先不執行，排進佇列，等呼叫端之後開了交易才補做</li></ul>
-  <p class="dexp">MANDATORY：throw an exception if none exists。適合「一定要被包在別人交易裡才能呼叫」的方法，用它在一開始就擋掉誤用。</p>
+  <p class="dexp">MANDATORY 在沒有交易時丟例外。適合「一定要被包在別人交易裡才能呼叫」的方法，用它在一開始就擋掉誤用。</p>
 </div>
 <div class="drill">
   <p class="dq">一個標 <code>NEVER</code> 的方法，被一個<strong>有交易</strong>的方法呼叫，會怎樣？</p>
   <ul class="dopts"><li>加入外層交易</li><li>暫停外層，不用交易執行，跑完再讓外層恢復</li><li>另開一筆交易</li><li data-ok>丟出 IllegalTransactionStateException</li></ul>
-  <p class="dexp">NEVER：throw an exception if a transaction exists。暫停外層、不用交易的是 NOT_SUPPORTED。</p>
+  <p class="dexp">NEVER 在已經有交易時丟例外。暫停外層、不用交易的是 NOT_SUPPORTED。</p>
 </div>
 <div class="drill">
   <p class="dq">哪兩種傳播行為在「外層有交易」時，都會<strong>暫停</strong>外層？</p>
@@ -166,7 +166,7 @@ NEVER          外層沒有：沒有交易｜外層有：丟出 IllegalTransacti
 </figure>
 <ul class="plainlist">
 <li><strong>REQUIRED</strong>：每個方法各有一個邏輯範圍，但這些範圍全部對應到同一筆實體交易，所以內層設的還原標記會影響外層能不能真正提交。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>REQUIRES_NEW</strong>：「對每個受影響的交易範圍都用獨立的實體交易，絕不參與外層既有的交易」，所以「可以各自獨立提交或還原」，內層的鎖「在它完成後馬上釋放」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>REQUIRES_NEW</strong>：每個受影響的交易範圍都用獨立的實體交易，絕不參與外層既有的交易，所以可以各自獨立提交或還原，內層的鎖在它完成後馬上釋放。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>NESTED</strong>：用單一實體交易，帶著好幾個可以退回去的儲存點，內層可以只還原自己那一段，外層繼續。它通常對應到 JDBC 儲存點，所以只對 JDBC 資源交易有效。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 儲存點（savepoint）是交易中途做的記號，可以只退回到記號那裡，不用整筆還原。</li>
 </ul>
 <p>實驗用一個稽核服務，三個方法只差傳播行為；<code>fail</code> 為 true 時寫完稽核再丟例外：</p>
@@ -415,7 +415,7 @@ public void d12() {
 <ul class="plainlist">
 <li><code>rollbackFor</code>／<code>noRollbackFor</code>：用例外型別指定，丟出的例外「等於這個型別或是它的子類別」就算符合。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
 <li><code>rollbackForClassName</code>：用類別名稱的字串比對，而且是「名稱包含」的比對，寫 <code>"Exception"</code> 幾乎什麼都符合，可能誤中名字相似的例外，所以優先用型別。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
-<li>整個應用程式改預設：「從 6.2 起，可以全域改變預設的還原行為，例如 <code>@EnableTransactionManagement(rollbackOn = ALL_EXCEPTIONS)</code>，讓交易內丟出的所有例外都還原，包含受檢例外」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li>
+<li>整個應用程式改預設：6.2 起可以全域改變預設的還原行為，例如 <code>@EnableTransactionManagement(rollbackOn = ALL_EXCEPTIONS)</code>，讓交易內丟出的所有例外都還原，包含受檢例外。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li>
 <li>不丟例外也要還原：用 <code>TransactionAspectSupport</code> 拿到目前交易的狀態（<code>currentTransactionStatus()</code>），再呼叫 <code>setRollbackOnly()</code>。這做法侵入性很高，能用宣告式就用宣告式。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/rolling-back.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 
@@ -508,7 +508,7 @@ readOnly = true：隔離層級 REPEATABLE_READ，唯讀 true
     資料庫回應：Connection is read-only. Queries leading to data modification are not allowed
     例外：TransientDataAccessResourceException；transfer_record 0 筆 []、audit_log 0 筆</code></pre>
 <ul class="plainlist">
-<li><strong>預設的 <code>Isolation.DEFAULT</code> 是「用底層資料庫的預設」</strong>（Use the default isolation level of the underlying data store）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Isolation.html" target="_blank" rel="noopener">出處</a> 所以同一支程式，MySQL 跑出來是 REPEATABLE_READ，換 H2 實跑是 READ_COMMITTED。換資料庫時這個差別要留意。</li>
+<li><strong>預設的 <code>Isolation.DEFAULT</code> 是「用底層資料庫的預設」</strong>。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Isolation.html" target="_blank" rel="noopener">出處</a> 所以同一支程式，MySQL 跑出來是 REPEATABLE_READ，換 H2 實跑是 READ_COMMITTED。換資料庫時這個差別要留意。</li>
 <li><strong>隔離層級只在開新交易時生效。</strong>isolation 只適用於 REQUIRED 或 REQUIRES_NEW 傳播；加入既有交易時，預設沿用外層範圍的特性，自己的隔離層級、逾時與唯讀設定會被默默忽略。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html" target="_blank" rel="noopener">出處</a> 想讓這種不一致直接報錯，可以把交易管理器的 <code>validateExistingTransaction</code> 設成 true。</li>
 <li><strong>唯讀只是提示。</strong><code>readOnly</code> 只是給實際交易子系統的提示，不一定會讓寫入失敗；看不懂這個提示的交易管理器會直接忽略它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html" target="_blank" rel="noopener">出處</a> 實跑結果正好示範：連線確實被設成唯讀（唯讀 true），MySQL 的驅動拒絕寫入；同一段程式換成 H2，寫入照樣成功、留下 1 筆。唯讀交易的價值是讓資料庫與 ORM 做最佳化，不是拿來當權限控管。</li>
 </ul>
@@ -546,7 +546,7 @@ readOnly = true：隔離層級 REPEATABLE_READ，唯讀 true
 <p>失效分兩類：<strong>代理攔不到</strong>（根本沒開交易），或<strong>攔到了但還原條件不成立</strong>（開了卻不還原）。</p>
 <ul class="plainlist">
 <li><strong>自我呼叫</strong>：在代理模式（預設）下，只有從外面經過代理進來的方法呼叫會被攔截。所以自我呼叫時，即使被呼叫的方法標了 <code>@Transactional</code>，執行期也不會產生實際的交易。另外，代理要完全初始化才會有預期的行為，不要在 <code>@PostConstruct</code> 這類初始化程式裡依賴它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a></li>
-<li><strong>方法可見度</strong>：「從 6.0 起，類別式代理預設也可以讓 protected 或套件可見的方法有交易」；介面式代理的交易方法「永遠必須是 public，而且定義在被代理的介面裡」。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a> private 方法別的 Bean 呼叫不到，只能從自己內部呼叫，那就是自我呼叫。6.0 之前只有 public 方法有效。</li>
+<li><strong>方法可見度</strong>：6.0 起，類別式代理預設也可以讓 protected 或套件可見的方法有交易；介面式代理的交易方法永遠必須是 public，而且定義在被代理的介面裡。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">出處</a> private 方法別的 Bean 呼叫不到，只能從自己內部呼叫，那就是自我呼叫。6.0 之前只有 public 方法有效。</li>
 <li><strong>例外被吞掉</strong>：還原的判斷是在例外「往上冒出呼叫堆疊時」做的；方法自己 catch 住、只寫日誌，攔截器看不到例外，就提交。</li>
 <li><strong>另開執行緒</strong>：交易綁在執行緒上，新執行緒拿不到這筆交易的連線，它的寫入自己自動提交。</li>
 <li><strong>不是 Spring 管理的物件</strong>：自己 <code>new</code> 出來的物件沒有代理包著，上面的註解沒人處理。</li>

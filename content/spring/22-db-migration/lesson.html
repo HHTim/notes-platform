@@ -309,7 +309,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <div class="drill">
   <p class="dq">執行 repair 時沒給跟 migrate 一樣的 locations，預設位置只有舊的 V1、V2，沒有後來的 V3〜V6，也沒有那支可重複腳本。實跑結果是？</p>
   <ul class="dopts"><li data-ok>那支可重複腳本被標成已刪除</li><li>報錯並停止，什麼都不改</li><li>V3〜V6 全部被標成已刪除</li><li>自動在整台機器上搜尋正確的資料夾</li></ul>
-  <p class="dexp">repair 會把找不到檔案的腳本標成已刪除（Mark all missing migrations as deleted），實跑多了一筆 type 為 DELETE 的紀錄，就是那支可重複腳本。V3〜V6 比本機最高的 V2 還新，被當成 future（未來版本），預設忽略、不處理。結果看起來沒事，其實歷史表已經被改了，所以 repair 必須給跟 migrate 一樣的 locations。</p>
+  <p class="dexp">repair 會把找不到檔案的腳本標成已刪除，實跑多了一筆 type 為 DELETE 的紀錄，就是那支可重複腳本。V3〜V6 比本機最高的 V2 還新，被當成 future（未來版本），預設忽略、不處理。結果看起來沒事，其實歷史表已經被改了，所以 repair 必須給跟 migrate 一樣的 locations。</p>
 </div>
 <div class="drill">
   <p class="dq">在 MySQL 上，為什麼建議一支遷移腳本只放一件 DDL？</p>
@@ -325,7 +325,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <ul class="plainlist">
 <li><strong>先備份再上線。</strong>刪欄位、刪表這種資料會消失的改動，undo 腳本也救不回資料；能救的是上線前的備份。</li>
 <li><strong>不要在正式環境開 clean。</strong>Flyway 的 clean 會清空整個 schema。Spring Boot 的 <code>spring.<wbr>flyway.<wbr>clean-<wbr>disabled</code>（停用 clean）預設是 true<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a>，不要把它關掉。</li>
-<li><strong>既有資料庫第一次導入 Flyway</strong>：已經有表的 schema 不是空的，要先 baseline，標記「現在這個狀態是起點」。Spring Boot 有 <code>spring.<wbr>flyway.<wbr>baseline-<wbr>on-<wbr>migrate</code>（預設 false，Whether to automatically call baseline when migrating a non-empty schema.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></li>
+<li><strong>既有資料庫第一次導入 Flyway</strong>：已經有表的 schema 不是空的，要先 baseline，標記「現在這個狀態是起點」。Spring Boot 有 <code>spring.<wbr>flyway.<wbr>baseline-<wbr>on-<wbr>migrate</code>（預設 false，設成 true 時遇到非空的 schema 會自動先 baseline）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/appendix/application-properties/index.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p class="formula">社群版沒有 undo：改錯就加一支新的 V 往前修；刪資料的改動靠備份；clean 永遠關著</p>
 

@@ -30,19 +30,19 @@
 </figure>
 <p class="formula">低層的單元測試最多、中間的 API 層測試次之、透過畫面的端對端測試最少；高層測試抓到 bug，先補一個低層測試重現它</p>
 <div class="drill">
-  <p class="dq">照 Fowler 的測試金字塔，哪一種測試的數量應該最多？</p>
+  <p class="dq">照測試金字塔，哪一種測試的數量應該最多？</p>
   <ul class="dopts"><li>透過畫面、跑完整個系統的端對端測試</li><li>從 API 層打進去的整合測試</li><li data-ok>低層、一次只測一小塊的單元測試</li><li>三種各占三分之一最平衡</li></ul>
-  <p class="dexp">Fowler 的重點就是低層的單元測試要比透過畫面跑的高層測試多很多；越往上越慢、越貴、越容易壞。</p>
+  <p class="dexp">測試金字塔的重點就是低層的單元測試要比透過畫面跑的高層測試多很多；越往上越慢、越貴、越容易壞。</p>
 </div>
 <div class="drill">
-  <p class="dq">高層的整合測試抓到一個 bug。照 Fowler 的建議，修之前先做什麼？</p>
+  <p class="dq">高層的整合測試抓到一個 bug。修之前最好先做什麼？</p>
   <ul class="dopts"><li>把那個整合測試先標成停用，等修好再重新打開</li><li data-ok>先寫一個能重現這個 bug 的單元測試</li><li>再多寫幾個端對端測試把周邊都包起來</li><li>直接修，整合測試轉綠就代表修好了</li></ul>
-  <p class="dexp">Fowler 認為高層測試是第二道防線：它抓到 bug，代表某個單元測試漏了或寫錯。先用單元測試重現，修好之後那個單元測試會確保 bug 不再回來。</p>
+  <p class="dexp">高層測試是第二道防線：它抓到 bug，代表某個單元測試漏了或寫錯。先用單元測試重現，修好之後那個單元測試會確保 bug 不再回來。</p>
 </div>
 <div class="drill">
   <p class="dq">同事說「這個功能有整合測試」。你最該先問清楚什麼？</p>
   <ul class="dopts"><li>測試類別名稱是不是以 IT 結尾</li><li>測試是用 JUnit 4 還是 JUnit 5 寫的</li><li>覆蓋率報告上是不是已經超過八成</li><li data-ok>它接了哪些真的元件、哪些換成替身</li></ul>
-  <p class="dexp">Vocke 說「整合測試」這個詞比「單元測試」還模糊：有人指整套系統接起來，有人指一次只測一個整合點。先問接了什麼，才知道它測到什麼、漏了什麼。</p>
+  <p class="dexp">「整合測試」這個詞比「單元測試」還模糊：有人指整套系統接起來，有人指一次只測一個整合點。先問接了什麼，才知道它測到什麼、漏了什麼。</p>
 </div>
 
 </section>
@@ -56,7 +56,7 @@
 <li><code>@DataJpaTest</code>：掃描 <code>@Entity</code>、設定 Spring Data JPA 的 repository，一般的 <code>@Component</code> 一樣不掃描；而且預設是交易性的，每個測試結束時還原。</li>
 <li><code>@SpringBootTest</code>：透過 <code>SpringApplication</code> 建立測試用的 ApplicationContext，等於把整個應用程式照正式啟動的方式載入。預設的 <code>webEnvironment</code> 是 <code>MOCK</code>：載入 web 用的 ApplicationContext、提供模擬的 web 環境，不會啟動內嵌伺服器。</li>
 </ul>
-<p>還有一條限制：「在一個測試裡用好幾個 <code>@…Test</code> 註解來組合多個切片，不支援」，需要時挑一個，另一個切片的 <code>@AutoConfigure…</code> 註解自己加上。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
+<p>還有一條限制：在一個測試裡用好幾個 <code>@…Test</code> 註解來組合多個切片，不支援；需要時挑一個，另一個切片的 <code>@AutoConfigure…</code> 註解自己加上。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
 <p><strong>版本註記（Spring Boot 4）：</strong>Spring Boot 4.0 把原本幾個大 jar 拆成按技術分的小模組，測試也跟著拆：每個 starter 都有一個配套的測試 starter，所有 Spring Boot 的測試模組都命名為 <code>spring-boot-&lt;技術&gt;-test</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 所以本課的測試依賴不是一個 <code>spring-boot-starter-test</code>，而是要哪一層就加哪一層的測試 starter；註解的套件名稱也跟著換，例如 <code>@WebMvcTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>webmvc.<wbr>test.<wbr>autoconfigure</code>、<code>@DataJpaTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>data.<wbr>jpa.<wbr>test.<wbr>autoconfigure</code>（Boot 3 的 <code>org.<wbr>springframework.<wbr>boot.<wbr>test.<wbr>autoconfigure…</code> 在 4.1 已經沒有）。用到的測試依賴：</p>
 <pre><code>&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-webmvc-test&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
 &lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-data-jpa-test&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
@@ -211,7 +211,7 @@ class AccountControllerTest {
 }</code></pre>
 <pre><code>[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.955 s -- in demo.bank.AccountControllerTest</code></pre>
 <p>第三個測試送出 <code>amount: -5</code>，<code>@Positive</code> 驗證失敗回 400；接著 <code>verify(…, never())</code> 確認被擋下來之後，服務從來沒被呼叫。這跟〈Spring Boot 單元測試〉「錯誤路徑也要驗證沒有發生什麼」是同一個想法。</p>
-<p>少了 <code>@AutoConfigureMockMvc</code> 會怎樣？實測把它從 <code>@SpringBootTest</code> 的測試拿掉，注入失敗：<code>No qualifying bean of type 'org.<wbr>springframework.<wbr>test.<wbr>web.<wbr>servlet.<wbr>MockMvc' available</code>。另外，Spring Framework 6.2 起也可以改用 <code>MockMvcTester</code>，用 AssertJ 的寫法串斷言（MockMvc can be used on its own to perform requests and verify responses using Hamcrest or through MockMvcTester which provides a fluent API using AssertJ）。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/mockmvc.html" target="_blank" rel="noopener">出處</a></p>
+<p>少了 <code>@AutoConfigureMockMvc</code> 會怎樣？實測把它從 <code>@SpringBootTest</code> 的測試拿掉，注入失敗：<code>No qualifying bean of type 'org.<wbr>springframework.<wbr>test.<wbr>web.<wbr>servlet.<wbr>MockMvc' available</code>。另外，Spring Framework 6.2 起也可以改用 <code>MockMvcTester</code>，用 AssertJ 的寫法串斷言；原本的 MockMvc 則搭配 Hamcrest。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/mockmvc.html" target="_blank" rel="noopener">出處</a></p>
 <h4>@MockitoBean：把 Spring 容器裡的一個 Bean 換成替身</h4>
 <p>〈Spring Boot 單元測試〉的 <code>@Mock</code> 只是建一個替身物件，跟 Spring 無關。在 Spring 測試裡要換的是<strong>容器裡的 Bean</strong>：<code>@MockitoBean</code> 用在測試類別上，用 Mockito 的替身覆蓋測試 ApplicationContext 裡的一個 Bean；預設依型別找，容器裡有就替換、沒有就新建一個。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/annotations/integration-spring/annotation-mockitobean.html" target="_blank" rel="noopener">出處</a></p>
 <p>預設每個測試方法執行之後，替身會自動重設。這個註解是 Spring Framework 6.2 新增的。<a class="fixsrc" href="https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/test/context/bean/override/mockito/MockitoBean.html" target="_blank" rel="noopener">出處</a></p>
@@ -522,8 +522,8 @@ class RandomPortTest {
 <p>啟動 Spring 容器很花時間，連資料庫的還要等 MySQL 容器。所以 TestContext 框架（Spring 負責替測試建立與管理容器的那一套機制）的做法是：為某個測試載入 ApplicationContext 之後就快取起來，同一個測試套件裡，之後宣告相同設定的測試都重用它。<a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>什麼叫「相同設定」</strong>：快取的鍵由載入容器用的設定組合而成，包括設定類別、設定檔、啟用的 profile、測試屬性，以及 contextCustomizers；contextCustomizers 包括 <code>@DynamicPropertySource</code> 方法、Bean 覆蓋（例如 <code>@TestBean</code>、<code>@MockitoBean</code>、<code>@MockitoSpyBean</code> 等），以及 Spring Boot 測試支援的各種功能。換句話說，多一個或少一個 <code>@MockitoBean</code>，就是另一個容器。</li>
-<li><strong>什麼叫「同一個測試套件」</strong>：快取存在一個 static 變數裡，所以「測試若在不同的行程裡跑，每次執行之間靜態快取就被清掉，等於關掉快取機制」；用 Maven 或 Gradle 跑時要確認建置工具沒有在測試之間另開行程。</li>
-<li><strong>上限</strong>：「預設最多 32 個」，滿了用 LRU（最久沒用的先淘汰）關掉舊的容器，可以用 JVM 系統屬性 <code>spring.<wbr>test.<wbr>context.<wbr>cache.<wbr>maxSize</code> 調整。</li>
+<li><strong>什麼叫「同一個測試套件」</strong>：快取存在一個 static 變數裡，所以測試若在不同的行程裡跑，每次執行之間靜態快取就被清掉，等於關掉快取機制；用 Maven 或 Gradle 跑時要確認建置工具沒有在測試之間另開行程。</li>
+<li><strong>上限</strong>：預設最多 32 個，滿了用 LRU（最久沒用的先淘汰）關掉舊的容器，可以用 JVM 系統屬性 <code>spring.<wbr>test.<wbr>context.<wbr>cache.<wbr>maxSize</code> 調整。</li>
 <li><strong>看統計</strong>：把 <code>org.<wbr>springframework.<wbr>test.<wbr>context.<wbr>cache</code> 的日誌層級設成 DEBUG，就會印出快取統計。</li>
 </ul>
 <p><a class="fixsrc" href="https://docs.spring.io/spring-framework/reference/7.0/testing/testcontext-framework/ctx-management/caching.html" target="_blank" rel="noopener">出處</a> 本課的 6 個測試類別一起跑（<code>mvn test</code>，依類別名稱排序），只留下關鍵的幾行（中間三個類別的輸出略過，耗時見下圖）、去掉每行開頭的時間與執行緒欄位：</p>
@@ -605,7 +605,7 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <li>它確認應用程式之間的訊息，符合一份寫在契約裡的共同認知。</li>
 <li>Pact（做契約測試工具的公司）主張：沒有契約測試，確認應用程式能一起運作的唯一方法，就是昂貴又容易壞的整合測試。<a class="fixsrc" href="https://docs.pact.io/" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>常見做法是<strong>消費者驅動契約</strong>（consumer-driven contract：呼叫 API 的一方寫下期望，提供 API 的一方在自己的建置裡持續跑）<a class="fixsrc" href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">出處</a>，Spring 生態的工具是 Spring Cloud Contract（It lets you perform consumer-driven and producer-driven contract testing）。<a class="fixsrc" href="https://docs.spring.io/spring-cloud-contract/reference/4.3/index.html" target="_blank" rel="noopener">出處</a> 這課不實作，微服務的整體取捨見〈Maven、微服務與全域例外〉與〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。</p>
+<p>常見做法是<strong>消費者驅動契約</strong>（consumer-driven contract：呼叫 API 的一方寫下期望，提供 API 的一方在自己的建置裡持續跑）<a class="fixsrc" href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">出處</a>，Spring 生態的工具是 Spring Cloud Contract，消費者驅動與提供者驅動兩種契約測試都能做。<a class="fixsrc" href="https://docs.spring.io/spring-cloud-contract/reference/4.3/index.html" target="_blank" rel="noopener">出處</a> 這課不實作，微服務的整體取捨見〈Maven、微服務與全域例外〉與〈微服務與架構面試題：服務發現、韌性、可觀測性與十二要素〉。</p>
 <p class="formula">整合測試守住一個服務內部；契約測試守住服務之間的訊息格式：消費端寫下期望，提供端持續跑</p>
 <div class="drill">
   <p class="dq">帳戶服務把回應欄位 <code>balance</code> 改名成 <code>amount</code>。帳戶服務自己的測試、呼叫它的轉帳服務（用替身測）都綠燈。哪種測試最能在上線前抓到這個問題？</p>
@@ -615,7 +615,7 @@ Spring test ApplicationContext cache statistics: [DefaultContextCache@11170228 s
 <div class="drill">
   <p class="dq">消費者驅動契約（CDC）裡，契約測試由誰寫、誰持續跑？</p>
   <ul class="dopts"><li>提供端寫契約，消費端照著跑</li><li data-ok>消費端寫期望，提供端持續跑</li><li>兩邊都不寫，交給獨立的測試團隊</li><li>由 API 閘道器依流量自動產生</li></ul>
-  <p class="dexp">Vocke 描述的流程：消費端團隊把期望寫成自動化測試交給提供端，提供端持續跑、保持綠燈，壞了兩隊再談。所以叫「消費者驅動」。</p>
+  <p class="dexp">流程是：消費端團隊把期望寫成自動化測試交給提供端，提供端持續跑、保持綠燈，壞了兩隊再談。所以叫「消費者驅動」。</p>
 </div>
 <div class="drill">
   <p class="dq">帳戶服務想在每次改 API 時，提早知道會不會弄壞呼叫它的三個服務，又不想每次把四個服務一起部署起來測。最適合的做法是？</p>

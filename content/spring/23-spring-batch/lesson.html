@@ -399,8 +399,8 @@ INFO 7426 --- [           main] o.s.b.c.l.s.TaskExecutorJobLauncher      : Job: 
 <p class="formula">格式錯、讀不懂的才跳過，而且設上限；暫時性錯誤（斷線、死結）才重試；資料本身有問題的，讓 Step 失敗、修好再重啟</p>
 
 <div class="drill">
-  <p class="dq">照 Spring Batch 的建議，金融資料能不能設成可跳過？</p>
-  <ul class="dopts"><li>金融資料一律可以跳過</li><li data-ok>可能不能跳過</li><li>文件裡沒有提到</li><li>只能跳過一筆</li></ul>
+  <p class="dq">金融資料能不能設成可跳過？</p>
+  <ul class="dopts"><li>金融資料一律可以跳過</li><li data-ok>可能不能跳過</li><li>看資料量決定，量大就可以跳過</li><li>只能跳過一筆</li></ul>
   <p class="dexp">金融資料可能不能跳過，因為它會導致錢被轉移，必須完全正確。要不要跳過，該由懂資料意義的人決定。</p>
 </div>
 <div class="drill">
@@ -468,7 +468,7 @@ mysql&gt; SELECT STEP_EXECUTION_ID, STATUS, READ_COUNT, FILTER_COUNT, WRITE_COUN
 </svg>
 <figcaption>提交過的 chunk 不會重做；重啟從最後一次提交的斷點接著讀。</figcaption>
 </figure>
-<p>斷點存在哪裡？<strong>執行情境</strong>（ExecutionContext）是「由框架保存與控制的一組鍵值，讓開發者有地方存放屬於某次 StepExecution 或 JobExecution 的持久狀態」。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/domain.html" target="_blank" rel="noopener">出處</a> 它存在 <code>BATCH_<wbr>STEP_<wbr>EXECUTION_<wbr>CONTEXT</code> 表，是序列化後的字串；用 Spring Batch 自己的序列化器解開來看，工具是下面這十幾行：</p>
+<p>斷點存在哪裡？<strong>執行情境</strong>（ExecutionContext）是由框架保存與控制的一組鍵值，讓開發者有地方存放屬於某次 StepExecution 或 JobExecution 的持久狀態。<a class="fixsrc" href="https://docs.spring.io/spring-batch/reference/6.0/domain.html" target="_blank" rel="noopener">出處</a> 它存在 <code>BATCH_<wbr>STEP_<wbr>EXECUTION_<wbr>CONTEXT</code> 表，是序列化後的字串；用 Spring Batch 自己的序列化器解開來看，工具是下面這十幾行：</p>
 <pre><code>import java.io.ByteArrayInputStream;
 import java.util.Map;
 import java.util.TreeMap;

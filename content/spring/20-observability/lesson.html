@@ -36,7 +36,7 @@
   <p class="dexp">日誌寫下那一段發生的事。實跑時 account 那行日誌寫著「核心帳務逾時 account=X999」，靠的是它跟追蹤帶著同一個 traceId。</p>
 </div>
 <div class="drill">
-  <p class="dq">OpenTelemetry 對「追蹤」的定義是？</p>
+  <p class="dq">可觀測性的三種訊號裡，「追蹤」指的是什麼？</p>
   <ul class="dopts"><li>執行期擷取的量測</li><li>一件事情的紀錄</li><li data-ok>請求穿過應用程式的路徑</li><li>每秒的請求數</li></ul>
   <p class="dexp">追蹤是請求的路徑；執行期的量測是指標，一件事情的紀錄是日誌。</p>
 </div>
@@ -51,7 +51,7 @@
 <p class="era">先決定量什麼，再決定什麼時候叫人</p>
 <h3 class="head">四個黃金訊號，與「看症狀不看原因」的告警</h3>
 <p>監控的四個黃金訊號是延遲、流量、錯誤與飽和。面向使用者的系統如果只能量四個指標，就量這四個。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
-<div class="tablewrap"><table><thead><tr><th>訊號</th><th>SRE 書的定義（節譯）</th><th>本課實跑怎麼量</th></tr></thead><tbody>
+<div class="tablewrap"><table><thead><tr><th>訊號</th><th>定義</th><th>本課實跑怎麼量</th></tr></thead><tbody>
 <tr><th>延遲 latency</th><td>服務一個請求要多久；要分開看成功與失敗的延遲，「慢的錯誤比快的錯誤更糟」</td><td><code>histogram_quantile(0.95, …)</code> 算出 p95 約 0.134 秒</td></tr>
 <tr><th>流量 traffic</th><td>系統承受多少需求，網路服務通常是每秒 HTTP 請求數</td><td><code>rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m])</code> 約每秒 10.9 個</td></tr>
 <tr><th>錯誤 errors</th><td>失敗請求的比例：明確失敗（HTTP 500）、隱性失敗（回 200 但內容錯）、違反政策的</td><td>5xx 次數除以全部次數，約 1.2%</td></tr>
@@ -60,7 +60,7 @@
 <p>實跑的例子：失敗的 X999 請求每個要等 300 毫秒逾時，比成功的請求還慢。如果把錯誤從延遲裡濾掉，平均延遲反而變好看，所以成功與失敗的延遲要分開看。</p>
 <h4>告警看症狀，不看原因</h4>
 <p>監控系統要回答兩個問題：「什麼壞了、為什麼壞」，「什麼壞了」是<strong>症狀</strong>（symptom），「為什麼」是<strong>原因</strong>（cause）；例如「回應變慢」是症狀，「CPU 被一支爛排序程式吃滿」是原因。<a class="fixsrc" href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">出處</a></p>
-<p>Prometheus 的告警建議：</p>
+<p>告警的原則：</p>
 <ul>
 <li>告警保持簡單、盡量少</li>
 <li>對症狀告警：只告跟使用者痛苦相關的症狀，不要想抓住每一種可能造成痛苦的原因</li>
@@ -99,24 +99,24 @@ Checking rules.yml
 <p class="formula">量延遲、流量、錯誤、飽和；告警只對使用者感受得到的症狀，原因放在儀表板上查</p>
 
 <div class="drill">
-  <p class="dq">SRE 書的四個黃金訊號是哪四個？</p>
+  <p class="dq">監控的四個黃金訊號是哪四個？</p>
   <ul class="dopts"><li>CPU、記憶體、磁碟、網路</li><li data-ok>延遲、流量、錯誤、飽和</li><li>指標、日誌、追蹤、告警</li><li>可用性、一致性、分區容錯、延遲</li></ul>
-  <p class="dexp">原文：latency, traffic, errors, and saturation。CPU、記憶體是資源，可以拿來量飽和，但不是四個訊號本身。</p>
+  <p class="dexp">四個黃金訊號是延遲、流量、錯誤、飽和。CPU、記憶體是資源，可以拿來量飽和，但不是四個訊號本身。</p>
 </div>
 <div class="drill">
   <p class="dq">網銀轉帳 API 的「流量」最適合用什麼量？</p>
   <ul class="dopts"><li data-ok>每秒的 HTTP 請求數</li><li>CPU 使用率的百分比</li><li>JVM 堆積的用量</li><li>日誌檔每天長多大</li></ul>
-  <p class="dexp">SRE 書說網路服務的流量通常是每秒 HTTP 請求數。實跑用 rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m]) 算出約每秒 10.9 個。</p>
+  <p class="dexp">網路服務的流量通常是每秒 HTTP 請求數。實跑用 rate(<wbr>http_<wbr>server_<wbr>requests_<wbr>seconds_<wbr>count[1m]) 算出約每秒 10.9 個。</p>
 </div>
 <div class="drill">
-  <p class="dq">某 API 都回 HTTP 200，但回傳的餘額是錯的。依 SRE 書，這算不算錯誤？</p>
+  <p class="dq">某 API 都回 HTTP 200，但回傳的餘額是錯的。這算不算錯誤？</p>
   <ul class="dopts"><li>不算，狀態碼是 200 就是成功</li><li data-ok>算，這是隱性失敗</li><li>不算，那是延遲的問題</li><li>超過 1% 的請求出錯才算</li></ul>
-  <p class="dexp">SRE 書把錯誤分成明確失敗（HTTP 500）、隱性失敗（200 但內容錯）與違反政策的。所以只數 5xx 會漏掉這種，需要端到端的檢查才抓得到。</p>
+  <p class="dexp">錯誤分成明確失敗（HTTP 500）、隱性失敗（200 但內容錯）與違反政策的。所以只數 5xx 會漏掉這種，需要端到端的檢查才抓得到。</p>
 </div>
 <div class="drill">
   <p class="dq">計算延遲時，為什麼不該直接把失敗的請求濾掉？</p>
   <ul class="dopts"><li>失敗的請求一定比較快</li><li>Prometheus 不允許過濾狀態碼</li><li data-ok>失敗的可能更慢，濾掉會失真</li><li>濾掉會讓流量的數字變少</li></ul>
-  <p class="dexp">SRE 書說慢的錯誤比快的錯誤更糟。實跑的 X999 每個等 300 毫秒才失敗，比成功的請求還慢。</p>
+  <p class="dexp">慢的錯誤比快的錯誤更糟。實跑的 X999 每個等 300 毫秒才失敗，比成功的請求還慢。</p>
 </div>
 <div class="drill">
   <p class="dq">下面哪一個比較適合當「半夜叫醒值班人員」的告警？</p>
@@ -131,12 +131,12 @@ Checking rules.yml
 <div class="drill">
   <p class="dq">「每一次呼叫都應該要能採取行動」這句話，用來篩掉哪一種告警？</p>
   <ul class="dopts"><li>錯誤率太高時發出的告警</li><li>延遲太高時發出的告警</li><li data-ok>收到了也沒事可做的告警</li><li>寫在 rules.yml 裡的所有告警</li></ul>
-  <p class="dexp">SRE 書：Every page should be actionable。收到後只會「再觀察看看」的，不該是半夜叫人的告警。</p>
+  <p class="dexp">每一次呼叫都要能採取行動。收到後只會「再觀察看看」的，不該是半夜叫人的告警。</p>
 </div>
 <div class="drill">
   <p class="dq">網銀 API 的「飽和」最該量什麼？</p>
   <ul class="dopts"><li data-ok>最受限的資源</li><li>每秒的請求數</li><li>失敗請求的比例</li><li>首頁的載入時間</li></ul>
-  <p class="dexp">SRE 書說飽和要強調最受限的資源。如果瓶頸是連到核心帳務的連線數，CPU 再低也沒用。</p>
+  <p class="dexp">飽和要強調最受限的資源。如果瓶頸是連到核心帳務的連線數，CPU 再低也沒用。</p>
 </div>
 </section>
 
@@ -459,13 +459,13 @@ public String balance(@PathVariable String id,
     return "{\"account\":\"" + id + "\",\"balance\":12000}";
 }</code></pre>
 <h4><code>traceparent</code> 標頭長什麼樣</h4>
-<p>W3C Trace Context 推薦標準：「traceparent 標頭識別追蹤系統裡傳入的請求，有四個欄位：version、trace-id、parent-id、trace-flags」。trace-id「是整個追蹤森林的 ID」，16 個位元組；parent-id「是呼叫端所知的這個請求的 ID（有些追蹤系統叫 span-id）」，8 個位元組；全部為零都是無效值。trace-flags 的最低位元是 sampled，表示「呼叫端可能已經記錄了追蹤資料」。<a class="fixsrc" href="https://www.w3.org/TR/2021/REC-trace-context-1-20211123/" target="_blank" rel="noopener">出處</a> 實跑時 account 收到的是：</p>
+<p>traceparent 標頭用來識別追蹤系統裡傳入的請求，有四個欄位：version、trace-id、parent-id、trace-flags。trace-id 是整個追蹤森林的 ID，16 個位元組；parent-id 是呼叫端所知的這個請求的 ID（有些追蹤系統叫 span-id），8 個位元組；全部為零都是無效值。trace-flags 的最低位元是 sampled，表示呼叫端可能已經記錄了追蹤資料。<a class="fixsrc" href="https://www.w3.org/TR/2021/REC-trace-context-1-20211123/" target="_blank" rel="noopener">出處</a> 實跑時 account 收到的是：</p>
 <pre><code>traceparent=00-67e70a401431e867dab5b5ae6729fde2-ceae3b4330fd56b3-03
              │  │                                │                └ trace-flags：03＝sampled（01）加 random（02）
              │  │                                └ parent-id：transfer 發出呼叫那一段 span 的 ID
              │  └ trace-id：整條追蹤的 ID，兩個服務都是這一個
              └ version：00</code></pre>
-<p>flags 是 <code>03</code> 而不是常見範例的 <code>01</code>：多出來的 <code>02</code> 是 Level 2 草案新增的 random-trace-id 旗標，「trace-flags 的第二個最低位元」，表示 trace-id 至少右邊 7 個位元組是隨機產生的。<a class="fixsrc" href="https://www.w3.org/TR/2024/CRD-trace-context-2-20240328/" target="_blank" rel="noopener">出處</a> Level 2 目前是候選推薦草案；本課實跑的 OpenTelemetry 1.62（Spring Boot 4.1.1 管理的版本）有設這個旗標。</p>
+<p>flags 是 <code>03</code> 而不是常見範例的 <code>01</code>：多出來的 <code>02</code> 是 Level 2 草案新增的 random-trace-id 旗標，在 trace-flags 的第二個最低位元，表示 trace-id 至少右邊 7 個位元組是隨機產生的。<a class="fixsrc" href="https://www.w3.org/TR/2024/CRD-trace-context-2-20240328/" target="_blank" rel="noopener">出處</a> Level 2 目前是候選推薦草案；本課實跑的 OpenTelemetry 1.62（Spring Boot 4.1.1 管理的版本）有設這個旗標。</p>
 <h4>到 Jaeger 查這條追蹤</h4>
 <p>用上面那個 trace ID 去 Jaeger 的查詢 API 拿資料，三段 span 依開始時間排好：</p>
 <pre><code>$ curl -s localhost:16686/api/traces/67e70a401431e867dab5b5ae6729fde2 | jq -c '.data[0] as $t | $t.spans | sort_by(.startTime)[] | {service: $t.processes[.processID].serviceName, name: .operationName, id: .spanID, parent: (.references[0].spanID // null), ms: (.duration / 1000 | floor)}'
@@ -493,7 +493,7 @@ public String balance(@PathVariable String id,
   <p class="dexp">四個欄位依序是 version、trace-id、parent-id、trace-flags。parent-id 是呼叫端所知的這個請求的 ID，也就是 transfer 發出呼叫那段的 span ID。</p>
 </div>
 <div class="drill">
-  <p class="dq">W3C 規格裡，trace-id 有多長？</p>
+  <p class="dq">traceparent 裡的 trace-id 有多長？</p>
   <ul class="dopts"><li>8 個位元組（16 個十六進位字元）</li><li data-ok>16 個位元組（32 個十六進位字元）</li><li>4 個位元組</li><li>沒有規定長度</li></ul>
   <p class="dexp">trace-id 是 16 位元組的陣列，寫成 32 個十六進位字元；parent-id 是 8 位元組。實跑的 67e70a401431e867dab5b5ae6729fde2 正好 32 個字元。</p>
 </div>

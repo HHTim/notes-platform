@@ -87,12 +87,12 @@ docker run -d --name mq17-rabbit --hostname mq17-rabbit \
 <p>把 Kafka 想成銀行櫃檯的流水帳本：每發生一件事就往最後一行寫，寫上去就不改，誰想看都可以從某一行開始往下讀。Kafka 裡這本帳叫<strong>日誌</strong>（log），四個名詞都從這裡長出來：</p>
 <ul class="plainlist">
 <li><strong>主題</strong>（topic）：一類事件放一個主題，例如 <code>transfers</code>。跟傳統的訊息系統不同，事件被消費之後不會刪除，保留多久由主題的設定決定。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
-<li><strong>分區</strong>（partition）：一個主題切成好幾本帳，放在不同的 broker 上，才能很多人同時讀寫。同一個 key 的事件寫進同一個分區，讀一個分區的順序跟寫入時相同（Events with the same event key… are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition’s events in exactly the same order as they were written.）。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>分區</strong>（partition）：一個主題切成好幾本帳，放在不同的 broker 上，才能很多人同時讀寫。同一個 key 的事件寫進同一個分區，讀一個分區的順序跟寫入時相同。<a class="fixsrc" href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>位移</strong>（offset）：每本帳的行號，從 0 開始。消費者讀到哪裡，就只是記一個數字：它在每個分區的位置只是一個整數，也就是下一則要讀的訊息的位移。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
-<li><strong>消費者群組</strong>（consumer group）：用同一個群組名稱、一起分工的消費者。規則只有一條：每個分區在任一時刻，只歸群組裡的一個消費者（each of which is consumed by exactly one consumer within each subscribing consumer group at any given time）。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
+<li><strong>消費者群組</strong>（consumer group）：用同一個群組名稱、一起分工的消費者。規則只有一條：每個分區在任一時刻，只歸群組裡的一個消費者。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>從這條規則可以推出兩件事。第一，同一個群組裡的消費者比分區多，多出來的分不到分區，只能閒著；想加人加速，分區數要先估夠。第二，<strong>不同群組各讀各的</strong>，每個群組都有自己的位移，帳務群組讀完了，稽核群組照樣從頭讀到尾。訊息不會讀完就刪，所以消費者也能倒回舊的位移重讀（A consumer can deliberately rewind back to an old offset and re-consume data.），例如修好 bug 後重跑。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
-<p>用 Spring 實際跑一次。主題 <code>transfers</code> 切 3 個分區，送 6 筆轉帳事件，key 是帳號；群組 <code>ledger</code> 開兩個消費者，<code>audit</code> 只開一個。Spring Boot 啟動時會建立 <code>NewTopic</code> Bean 描述的主題（To create a topic on startup, add a bean of type NewTopic.）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/kafka.html" target="_blank" rel="noopener">出處</a></p>
+<p>從這條規則可以推出兩件事。第一，同一個群組裡的消費者比分區多，多出來的分不到分區，只能閒著；想加人加速，分區數要先估夠。第二，<strong>不同群組各讀各的</strong>，每個群組都有自己的位移，帳務群組讀完了，稽核群組照樣從頭讀到尾。訊息不會讀完就刪，所以消費者也能倒回舊的位移重讀，例如修好 bug 後重跑。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
+<p>用 Spring 實際跑一次。主題 <code>transfers</code> 切 3 個分區，送 6 筆轉帳事件，key 是帳號；群組 <code>ledger</code> 開兩個消費者，<code>audit</code> 只開一個。Spring Boot 啟動時會建立 <code>NewTopic</code> Bean 描述的主題。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/kafka.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>@Bean
 NewTopic transfers() {                                  // 主題 transfers，切成 3 個分區
     return TopicBuilder.name("transfers").partitions(3).replicas(1).build();
@@ -214,7 +214,7 @@ void ledger(@Payload String value, @Header(KafkaHeaders.RECEIVED_PARTITION) int 
 <section>
 <p class="era">郵局依地址分信，讀完就拿走</p>
 <h3 class="head">RabbitMQ 的模型：交換器、佇列、綁定</h3>
-<p>RabbitMQ 像郵局。生產者不直接把信塞進信箱，而是交給郵局，郵局照規則分到各個信箱（messages are published to exchanges, which are often compared to post offices or mailboxes. Exchanges then distribute message copies to queues using rules called bindings.）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
+<p>RabbitMQ 像郵局。生產者不直接把信塞進信箱，而是交給郵局，郵局照規則分到各個信箱。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
 <ul class="plainlist">
 <li><strong>交換器</strong>（exchange）：收訊息、決定送去哪些佇列，本身不存訊息。</li>
 <li><strong>佇列</strong>（queue）：真正存訊息的地方，消費者從這裡拿。</li>
@@ -222,13 +222,13 @@ void ledger(@Payload String value, @Header(KafkaHeaders.RECEIVED_PARTITION) int 
 </ul>
 <p>交換器有幾種，差在怎麼比路由鍵<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a>：</p>
 <div class="tablewrap"><table><thead><tr><th>交換器</th><th>怎麼分</th></tr></thead><tbody>
-<tr><th>direct</th><td>路由鍵跟綁定鍵完全相同才送（the exchange routes it to the queue if K = R）</td></tr>
-<tr><th>fanout</th><td>綁定的佇列全部都送，不看路由鍵（the routing key is ignored）</td></tr>
-<tr><th>topic</th><td>路由鍵用點分成好幾個字，跟綁定的樣式比對（matching between a message routing key and the pattern）</td></tr>
+<tr><th>direct</th><td>路由鍵跟綁定鍵完全相同才送</td></tr>
+<tr><th>fanout</th><td>綁定的佇列全部都送，不看路由鍵</td></tr>
+<tr><th>topic</th><td>路由鍵用點分成好幾個字，跟綁定的樣式比對</td></tr>
 </tbody></table></div>
-<p>topic 交換器的樣式有兩個萬用字元：「* 剛好代表一個字，# 代表零個或多個字」（* (star) can substitute for exactly one word. # (hash) can substitute for zero or more words.）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/tutorial-five-java" target="_blank" rel="noopener">出處</a></p>
-<p>另外有一個沒有名字的<strong>預設交換器</strong>，每條佇列都自動用佇列名稱當路由鍵綁上去（a routing key which is the same as the queue name），所以看起來像直接送進佇列，其實還是經過交換器。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
-<p>實跑一個 topic 交換器 <code>bank.events</code>，三條佇列各綁一個樣式。Spring 裡把交換器、佇列、綁定宣告成 Bean，Spring Boot 自動建立的 <code>RabbitAdmin</code> 會在連上 broker 時建好它們（any Queue that is defined as a bean is automatically used to declare a corresponding queue on the RabbitMQ instance）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a></p>
+<p>topic 交換器的樣式有兩個萬用字元：* 剛好代表一個字，# 代表零個或多個字。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/tutorial-five-java" target="_blank" rel="noopener">出處</a></p>
+<p>另外有一個沒有名字的<strong>預設交換器</strong>，每條佇列都自動用佇列名稱當路由鍵綁上去，所以看起來像直接送進佇列，其實還是經過交換器。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
+<p>實跑一個 topic 交換器 <code>bank.events</code>，三條佇列各綁一個樣式。Spring 裡把交換器、佇列、綁定宣告成 Bean，Spring Boot 自動建立的 <code>RabbitAdmin</code> 會在連上 broker 時建好它們。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>@Bean
 Declarables topology() {
     TopicExchange events = new TopicExchange("bank.events");
@@ -290,7 +290,7 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 </figure>
 <p><strong>讀完就刪。</strong>這是跟 Kafka 最大的不同：RabbitMQ 收到消費者的確認（ack）之後，才會把訊息從佇列裡完全移除。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
 <p>所以同一條佇列有好幾個消費者時，一則只給一個人，通常是輪流分；<a class="fixsrc" href="https://www.rabbitmq.com/docs/consumers" target="_blank" rel="noopener">出處</a> 要讓好幾個服務都收到，就像上面那樣給每個服務一條自己的佇列。</p>
-<p>還有一種情況要小心：沒有任何綁定符合的訊息，在生產者的 mandatory 屬性是預設的 false 時會被丟掉（或轉給另外設定的備用交換器）（the publisher set the mandatory message property to false (this is the default), the message is discarded or republished to an alternate exchange, if any）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/publishers" target="_blank" rel="noopener">出處</a></p>
+<p>還有一種情況要小心：沒有任何綁定符合的訊息，在生產者的 mandatory 屬性是預設的 false 時會被丟掉（或轉給另外設定的備用交換器）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/publishers" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">在 RabbitMQ，生產者的訊息<strong>第一站</strong>送到哪裡？</p>
@@ -646,7 +646,7 @@ void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt
 第 2 次收到「p-9 扣款」，redelivered=true
 第 3 次收到「p-9 扣款」，redelivered=true
 死信佇列收到「p-9 扣款」：來自 payments.q，原因 rejected，次數 1</code></pre>
-<p>前兩次丟一般例外，訊息被重新排入、馬上又送來（<code>redelivered=true</code> 是 broker 標的「這則送過了」）；第三次不再排入，轉到 <code>payments.dlx</code>、再進 <code>payments.dead</code>，<code>x-death</code> 標頭記著來源佇列、原因與次數。示範把死信設定寫在宣告佇列的參數裡；RabbitMQ 文件強烈建議改用 policy（伺服器端的規則，不用重新部署就能改）（Hardcoded x-arguments are strongly recommended against）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a></p>
+<p>前兩次丟一般例外，訊息被重新排入、馬上又送來（<code>redelivered=true</code> 是 broker 標的「這則送過了」）；第三次不再排入，轉到 <code>payments.dlx</code>、再進 <code>payments.dead</code>，<code>x-death</code> 標頭記著來源佇列、原因與次數。示範把死信設定寫在宣告佇列的參數裡；正式環境強烈建議改用 policy（伺服器端的規則，不用重新部署就能改），不要寫死在宣告參數裡。<a class="fixsrc" href="https://www.rabbitmq.com/docs/dlx" target="_blank" rel="noopener">出處</a></p>
 <div class="tablewrap"><table><thead><tr><th></th><th>Spring for Apache Kafka</th><th>Spring AMQP（RabbitMQ）</th></tr></thead><tbody>
 <tr><th>監聽器丟例外的預設</th><td>DefaultErrorHandler 共試 10 次，用完寫日誌、跳過</td><td>拒絕並重新排入，無限次重送</td></tr>
 <tr><th>失敗的去處</th><td>DeadLetterPublishingRecoverer 送到「原主題-dlt」</td><td>拒絕且不重新排入時，送到佇列設定的死信交換器</td></tr>
@@ -695,7 +695,7 @@ void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt
 <section>
 <p class="era">先寫進自己的資料庫，再慢慢寄出去</p>
 <h3 class="head">交易式 Outbox 的實作骨架</h3>
-<p>最後一個問題：扣款寫資料庫、發事件寫 broker，是對兩個系統各寫一次（這叫雙重寫入）。先寫資料庫、再送訊息，中間當機，下游就永遠不知道這筆扣款；先送訊息、交易卻回復了，下游收到一件沒發生的事。用兩階段提交（2PC，先問兩邊能不能做、都說能才一起提交）也不實際（The database and/or the message broker might not support 2PC.）。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 用 <code>@TransactionalEventListener</code>（預設在 AFTER_COMMIT，交易提交後才執行）去送訊息，擋得住「交易還原了、訊息卻送出」，擋不住「提交之後、送出之前當機」，那則訊息就丟了；這正是 Outbox 要解決的。這個監聽器的用法見〈@Transactional 的傳播、隔離與失效情境〉。</p>
+<p>最後一個問題：扣款寫資料庫、發事件寫 broker，是對兩個系統各寫一次（這叫雙重寫入）。先寫資料庫、再送訊息，中間當機，下游就永遠不知道這筆扣款；先送訊息、交易卻回復了，下游收到一件沒發生的事。用兩階段提交（2PC，先問兩邊能不能做、都說能才一起提交）也不實際：資料庫或 broker 可能不支援 2PC。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 用 <code>@TransactionalEventListener</code>（預設在 AFTER_COMMIT，交易提交後才執行）去送訊息，擋得住「交易還原了、訊息卻送出」，擋不住「提交之後、送出之前當機」，那則訊息就丟了；這正是 Outbox 要解決的。這個監聽器的用法見〈@Transactional 的傳播、隔離與失效情境〉。</p>
 <p>解法是<strong>交易式 Outbox</strong>（transactional outbox）：先把訊息當作更新業務資料那筆交易的一部分存進資料庫，再由另一個程序把訊息送到 broker。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 存訊息的表叫寄件匣（outbox），另一個程序叫訊息轉送器（message relay）。骨架三塊：</p>
 <figure>
 <svg viewBox="0 0 760 250" role="img" aria-label="交易式 Outbox：左邊虛線框是同一筆資料庫交易，裡面有更新 account 與插入 outbox 兩步；中間的轉送器每 0.5 秒撈 outbox 裡還沒送的，送到 Kafka 主題 transfer-events，送成功再標記已送；右邊下游服務從 Kafka 讀">
@@ -762,7 +762,7 @@ outbox 共 1 筆，A 的餘額 7000
 下游收到事件 t-2001:A:3000</code></pre>
 <p>t-2002 的 INSERT 其實執行了，但跟扣款一起回復，所以寄件匣只有 1 筆，下游也只收到 t-2001，不會收到一件沒發生的扣款。這套骨架還有三個要注意的地方：</p>
 <ul class="plainlist">
-<li><strong>轉送是至少一次。</strong>轉送器可能在送出之後、記下已送之前當機，重啟後再送一次（It might, for example, crash after publishing a message but before recording the fact that it has done so.），所以消費者必須冪等。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 上一段的去重表在這裡派上用場。</li>
+<li><strong>轉送是至少一次。</strong>轉送器可能在送出之後、記下已送之前當機，重啟後再送一次，所以消費者必須冪等。<a class="fixsrc" href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">出處</a> 上一段的去重表在這裡派上用場。</li>
 <li><strong>等 broker 確認才標記。</strong><code>.get(5, TimeUnit.SECONDS)</code> 等到 Kafka 回應才往下；沒等就標記，送失敗的那筆就再也不會重送。</li>
 <li><strong>同時跑好幾台轉送器，會撈到同一批。</strong>要嘛只讓一台跑，要嘛撈的時候把那幾列鎖住。</li>
 </ul>

@@ -359,7 +359,7 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
   <p class="dexp">授權請求經過瀏覽器與網址列；換權杖是用戶端直接打 token 端點，verifier 只出現在後者，S256 又是單向的。</p>
 </div>
 <div class="drill">
-  <p class="dq">同一個授權碼成功換過權杖後，又被拿來換第二次。照 RFC 6749 與這課實跑，會怎樣？</p>
+  <p class="dq">同一個授權碼成功換過權杖後，又被拿來換第二次。會怎樣？</p>
   <ul class="dopts"><li>第二次也成功，拿到另一組新權杖</li><li>第二次失敗，第一次的權杖不受影響</li><li>授權伺服器鎖住這個用戶端一小時</li><li data-ok>第二次失敗，第一次的權杖也被撤銷</li></ul>
   <p class="dexp">必須拒絕，並應撤銷之前用它簽發的權杖。實跑：introspect 從 active=true 變 active=false。</p>
 </div>
@@ -374,9 +374,9 @@ id_token 的聲明：{"sub":"alice","aud":"mobile-app","azp":"mobile-app","auth_
   <p class="dexp">state 要原封不動回來；對不上代表這次導回不是自己發起的（可能是 CSRF）。Spring 的 oauth2Login 會自動產生並比對。</p>
 </div>
 <div class="drill">
-  <p class="dq">照 RFC 6749 的建議，授權碼最長應該多久內過期？</p>
+  <p class="dq">授權碼的有效期建議最長多久？</p>
   <ul class="dopts"><li>1 小時</li><li data-ok>10 分鐘</li><li>8 小時</li><li>沒有建議</li></ul>
-  <p class="dexp">授權碼的有效期建議最長 10 分鐘（RFC 6749 第 4.1.2 節）。授權碼要走瀏覽器、可能外洩，所以短效又只能用一次。</p>
+  <p class="dexp">授權碼的有效期建議最長 10 分鐘。授權碼要走瀏覽器、可能外洩，所以短效又只能用一次。</p>
 </div>
 </section>
 
@@ -470,12 +470,12 @@ GET /oauth2/authorization/bank → 302
   <p class="dexp">只有一個登記時直接走那一個；/login/oauth2/code/bank 是授權伺服器導回來的地方。</p>
 </div>
 <div class="drill">
-  <p class="dq">ID Token 的 <code>nonce</code> 跟前台當初送出的不同。照 OIDC Core，前台該怎麼做？</p>
+  <p class="dq">ID Token 的 <code>nonce</code> 跟前台當初送出的不同。前台該怎麼做？</p>
   <ul class="dopts"><li>只要簽章正確就照樣接受</li><li>改用 ID Token 裡的 nonce 重新登入</li><li data-ok>拒絕這張 ID Token</li><li>忽略，nonce 只是除錯用的參考值</li></ul>
   <p class="dexp">送了 nonce，ID Token 就必須有 nonce 而且值相同，用來擋重放。oauth2Login 會自動檢查。</p>
 </div>
 <div class="drill">
-  <p class="dq">前台（client_id 是 <code>web-portal</code>）收到一張 ID Token，<code>aud</code> 只有 <code>mobile-app</code>。照 OIDC Core 該怎麼處理？</p>
+  <p class="dq">前台（client_id 是 <code>web-portal</code>）收到一張 ID Token，<code>aud</code> 只有 <code>mobile-app</code>。該怎麼處理？</p>
   <ul class="dopts"><li>接受，同一台發的</li><li>接受，只取 sub</li><li>改用 mobile-app 登入</li><li data-ok>拒絕這張 ID Token</li></ul>
   <p class="dexp">用戶端必須確認 aud 包含自己的 client_id，沒有就拒絕。發給別的用戶端的 ID Token 不能拿來登入自己。</p>
 </div>
