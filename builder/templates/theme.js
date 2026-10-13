@@ -15,15 +15,23 @@ if (typeof document !== 'undefined') (function () {
   var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   function saved() { try { return localStorage.getItem(NotesTheme.KEY); } catch (e) { return null; } }
   function apply() { root.setAttribute('data-theme', NotesTheme.pick(saved(), !!(mq && mq.matches))); }
+  /* 切換時讓顏色漸變（只在切換那一下加上 theme-fade，開頁時不漸變，免得每次開頁都閃一下） */
+  var fadeTimer = null;
+  function fade() {
+    root.classList.add('theme-fade');
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(function () { root.classList.remove('theme-fade'); }, 450);
+  }
   apply();
   /* 沒按過開關時，系統切換深淺色要跟著變 */
-  if (mq && mq.addEventListener) mq.addEventListener('change', apply);
+  if (mq && mq.addEventListener) mq.addEventListener('change', function () { fade(); apply(); });
   document.addEventListener('DOMContentLoaded', function () {
     var btn = document.getElementById('themeBtn');
     if (!btn) return;
     btn.addEventListener('click', function () {
       var t = NotesTheme.next(root.getAttribute('data-theme'));
       try { localStorage.setItem(NotesTheme.KEY, t); } catch (e) {}
+      fade();
       root.setAttribute('data-theme', t);
     });
   });

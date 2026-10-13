@@ -149,6 +149,18 @@ class TestBuild(unittest.TestCase):
         for attr in found:
             self.assertIn('figure svg [%s]' % attr, css, attr)
 
+    def test_theme_switch_fades(self):
+        """按開關時顏色要漸變（Tim：不然眼睛不舒服）；只在切換那一下，開頁不漸變；系統要求減少動態效果時不漸變"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        rule = re.search(r'\.theme-fade[^{]*\{[^}]*\}', css)
+        self.assertIsNotNone(rule)
+        for prop in ('background-color', 'color', 'border-color', 'fill', 'stroke'):
+            self.assertIn(prop, rule.group(0))
+        self.assertRegex(css, r'prefers-reduced-motion:reduce\)\{[^}]*\.theme-fade')
+        js = (self.out / 'theme.js').read_text(encoding='utf-8')
+        self.assertIn("classList.add('theme-fade')", js)
+        self.assertIn("classList.remove('theme-fade')", js)
+
     def test_theme_toggle_on_every_page(self):
         self.assertTrue((self.out / 'theme.js').exists())
         for page, src in (('index.html', 'theme.js'), ('english/index.html', '../theme.js')):
