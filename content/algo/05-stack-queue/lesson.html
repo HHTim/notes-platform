@@ -148,7 +148,7 @@ System.out.println(queue);</code></pre>
 <h3 class="head">Java 怎麼寫：用 <code>ArrayDeque</code>，不要用 <code>Stack</code></h3>
 <p>Java 有一個介面叫 <code>Deque</code>，是 double ended queue 的縮寫，通常念作 deck，中文叫<strong>雙端佇列</strong>：兩頭都能進、兩頭都能出。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Deque.html" target="_blank" rel="noopener">出處</a></p>
 <p>兩頭都能進出，只用一頭就是堆疊，一頭進另一頭出就是佇列，所以一個 <code>Deque</code> 兩種都能當。要堆疊時，Java 建議優先用 <code>Deque</code>，不要用舊的 <code>Stack</code> 類別。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Deque.html" target="_blank" rel="noopener">出處</a></p>
-<p><code>Deque</code> 介面與它的實作提供的後進先出操作比 <code>Stack</code> 更完整、更一致，<code>Stack</code> 的文件自己也建議改用，寫法是 <code>Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;();</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a></p>
+<p><code>Deque</code> 介面與它的實作提供的後進先出操作比 <code>Stack</code> 更完整、更一致，應該優先用它，寫法是 <code>Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;();</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Stack.html" target="_blank" rel="noopener">出處</a></p>
 <p>最常用的實作是 <code>ArrayDeque</code>：當堆疊用時可能比 <code>Stack</code> 快，當佇列用時可能比 <code>LinkedList</code> 快。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html" target="_blank" rel="noopener">出處</a></p>
 <pre><code>import java.util.ArrayDeque;
 import java.util.Deque;
@@ -307,14 +307,14 @@ System.out.println(d);</code></pre>
   <p class="dexp">pop 等於 removeFirst，空的時候丟 NoSuchElementException。poll 與 peek 空的時候回傳 null，isEmpty 回傳 true。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>Deque</code> 文件強烈建議不要把 <code>null</code> 放進 deque，理由是？</p>
+  <p class="dq">為什麼不該把 <code>null</code> 放進 deque？</p>
   <ul class="dopts"><li>放進 null 會讓 deque 的容量直接變成 0，之後再也放不進東西</li><li data-ok>poll、peek 用 null 表示「空了」，放了 null 就分不清是拿到 null 還是空了</li><li>null 放進去會被自動轉成 0，取出來時值就變了</li><li>放 null 會讓 deque 從堆疊的用法變成佇列的用法</li></ul>
   <p class="dexp">null 被許多方法當成特殊回傳值，表示 deque 是空的。ArrayDeque 乾脆禁止，放 null 直接丟 NullPointerException。</p>
 </div>
 <div class="drill">
-  <p class="dq">新寫的 Java 程式需要一個堆疊，照 Java 文件的建議該怎麼宣告？</p>
+  <p class="dq">新寫的 Java 程式需要一個堆疊，建議怎麼宣告？</p>
   <ul class="dopts"><li><code>Stack&lt;Integer&gt; s = new Stack&lt;&gt;();</code></li><li><code>Vector&lt;Integer&gt; s = new Vector&lt;&gt;();</code></li><li><code>List&lt;Integer&gt; s = new ArrayList&lt;&gt;();</code></li><li data-ok><code>Deque&lt;Integer&gt; s = new ArrayDeque&lt;&gt;();</code></li></ul>
-  <p class="dexp">應優先用 Deque 介面與它的實作，寫法就是 Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;()，連 Stack 的文件自己都這樣建議。</p>
+  <p class="dexp">應優先用 Deque 介面與它的實作，寫法就是 Deque&lt;Integer&gt; stack = new ArrayDeque&lt;Integer&gt;()，不用舊的 Stack。</p>
 </div>
 <div class="drill">
   <p class="dq">下面這段印出什麼？</p>
@@ -788,4 +788,4 @@ public class MinStack {
 <tr><td><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank" rel="noopener">239. Sliding Window Maximum</a></td><td>雙端佇列兩頭進出（搭配〈雙指標、滑動視窗與前綴和〉）</td><td>Hard</td></tr>
 </tbody></table></div>
 </section>
-<div class="keys"><p class="lbl">重點整理</p><ul><li>堆疊後進先出、佇列先進先出；所有動作都只碰端點：peek 是 O(1)，用 <code>ArrayDeque</code> 進出是攤銷 O(1)。</li><li>Java 用 <code>ArrayDeque</code>：當堆疊用 <code>push</code>／<code>pop</code>／<code>peek</code>，當佇列用 <code>offer</code>／<code>poll</code>／<code>peek</code>，一個 deque 只選一種用法。<code>Deque</code> 與 <code>Stack</code> 的文件都建議用 <code>Deque</code> 取代 <code>Stack</code>。</li><li>空的時候 <code>poll</code>／<code>peek</code> 回傳 <code>null</code>、<code>pop</code>／<code>remove</code> 丟例外；所以 <code>ArrayDeque</code> 不收 <code>null</code>。</li><li><code>ArrayDeque</code> 是環狀陣列：兩頭進出攤銷 O(1)，<code>contains</code> 與刪中間的指定元素是 O(n)。</li><li>括號配對：右括號配頂端，三種不合法（配錯、堆疊空、最後有剩）。逆波蘭式：先彈出的是右邊的數。</li><li>單調堆疊：還沒找到答案的進堆疊等，每個元素進出各一次，O(n)；堆疊放索引。</li><li>兩個堆疊做佇列：out 空了才倒，單次最壞 O(n)、攤銷 O(1)。佇列是 BFS 的骨架，方法呼叫本身就是堆疊。</li></ul></div>
+<div class="keys"><p class="lbl">重點整理</p><ul><li>堆疊後進先出、佇列先進先出；所有動作都只碰端點：peek 是 O(1)，用 <code>ArrayDeque</code> 進出是攤銷 O(1)。</li><li>Java 用 <code>ArrayDeque</code>：當堆疊用 <code>push</code>／<code>pop</code>／<code>peek</code>，當佇列用 <code>offer</code>／<code>poll</code>／<code>peek</code>，一個 deque 只選一種用法。堆疊建議用 <code>Deque</code>，不用 <code>Stack</code>。</li><li>空的時候 <code>poll</code>／<code>peek</code> 回傳 <code>null</code>、<code>pop</code>／<code>remove</code> 丟例外；所以 <code>ArrayDeque</code> 不收 <code>null</code>。</li><li><code>ArrayDeque</code> 是環狀陣列：兩頭進出攤銷 O(1)，<code>contains</code> 與刪中間的指定元素是 O(n)。</li><li>括號配對：右括號配頂端，三種不合法（配錯、堆疊空、最後有剩）。逆波蘭式：先彈出的是右邊的數。</li><li>單調堆疊：還沒找到答案的進堆疊等，每個元素進出各一次，O(n)；堆疊放索引。</li><li>兩個堆疊做佇列：out 空了才倒，單次最壞 O(n)、攤銷 O(1)。佇列是 BFS 的骨架，方法呼叫本身就是堆疊。</li></ul></div>

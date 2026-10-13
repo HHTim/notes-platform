@@ -486,7 +486,7 @@ public class WorstCase {
 <div class="drill">
   <p class="dq">某個桶已經樹化。後來擴容把它拆成兩半，其中一半只剩 5 個節點，那一半會怎樣？</p>
   <ul class="dopts"><li data-ok>退回普通的串列</li><li>繼續維持紅黑樹</li><li>跟隔壁的桶合併</li><li>觸發下一次擴容</li></ul>
-  <p class="dexp">拆完剩的節點數小於等於 UNTREEIFY_THRESHOLD（6）就退回串列。原始碼註解要求它比 TREEIFY_THRESHOLD 小、而且最多是 6（Should be less than TREEIFY_THRESHOLD, and at most 6 to mesh with shrinkage detection under removal）。</p>
+  <p class="dexp">拆完剩的節點數小於等於 UNTREEIFY_THRESHOLD（6）就退回串列。這個門檻要比 TREEIFY_THRESHOLD 小、最多是 6，才能配合刪除時的縮小偵測。</p>
 </div>
 <div class="drill">
   <p class="dq">HashMap 為什麼不一開始就把每個桶都做成樹？</p>
@@ -509,8 +509,8 @@ public int hashCode() {
 <h3 class="head">equals 與 hashCode：自訂類別當鍵</h3>
 <p>前面看到，<code>HashMap</code> 先用雜湊碼決定桶、再用 <code>equals</code> 確認是不是同一個鍵。這兩步要配合得上，所以 <code>Object</code> 的文件訂了契約（完整說明見〈套件與 Object 類別〉）：</p>
 <ul class="plainlist">
-<li>同一個物件在一次執行中多次呼叫 <code>hashCode()</code>，「只要 equals 比較用到的資訊沒被修改」，就要回傳同一個整數（provided no information used in equals comparisons on the object is modified）。</li>
-<li>依 <code>equals</code> 相等的兩個物件，<code>hashCode()</code> 一定要相同（If two objects are equal according to the equals method, then calling the hashCode method on each of the two objects must produce the same integer result）。</li>
+<li>同一個物件在一次執行中多次呼叫 <code>hashCode()</code>，「只要 equals 比較用到的資訊沒被修改」，就要回傳同一個整數。</li>
+<li>依 <code>equals</code> 相等的兩個物件，<code>hashCode()</code> 一定要相同。</li>
 <li>反過來<strong>不</strong>要求：<code>equals</code> 不相等的物件，雜湊碼可以一樣；只是給不同的值可能提升雜湊表的效能。</li>
 </ul>
 <p><a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()" target="_blank" rel="noopener">出處</a> 覆寫 <code>equals</code> 時，通常必須一起覆寫 <code>hashCode</code>。<a class="fixsrc" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#equals(java.lang.Object)" target="_blank" rel="noopener">出處</a></p>

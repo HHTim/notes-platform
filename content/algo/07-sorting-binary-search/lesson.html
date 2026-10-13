@@ -548,7 +548,7 @@ compare：[-2147483648, -1, 1]
 </div>
 <div class="drill">
   <p class="dq">一份 <code>List&lt;Transaction&gt;</code> 已經照時間排好，再呼叫 <code>list.<wbr>sort(<wbr>Comparator.<wbr>comparingLong(<wbr>Transaction::amount))</code>。同金額的兩筆會怎樣？</p>
-  <ul class="dopts"><li>順序不保證，要再加 thenComparing 才行</li><li>會依物件的記憶體位置排</li><li data-ok>保持原本的時間順序，因為 List.sort 文件保證穩定</li><li>會被當成重複，只留一筆</li></ul>
+  <ul class="dopts"><li>順序不保證，要再加 thenComparing 才行</li><li>會依物件的記憶體位置排</li><li data-ok>保持原本的時間順序，因為 List.sort 保證穩定</li><li>會被當成重複，只留一筆</li></ul>
   <p class="dexp">List.sort 是穩定的，不可以重排相等的元素。原本照時間排好，同金額的就維持時間順序。排序不會刪除元素。</p>
 </div>
 <div class="drill">
@@ -563,8 +563,8 @@ compare：[-2147483648, -1, 1]
   <p class="dexp">比較器只看正負號，不必剛好是 ±1。問題是相減會溢位：實跑 1 − MIN_VALUE 得到 −2147483647，正負號反了。改用 Integer.compare(x, y)。</p>
 </div>
 <div class="drill">
-  <p class="dq">教科書的快速排序最壞是 O(n²)。<code>Arrays.sort(int[])</code> 的文件怎麼描述它的效能？</p>
-  <ul class="dopts"><li data-ok>在所有資料上都提供 O(n log(n)) 的效能</li><li>平均 O(n log n)，最壞 O(n²)</li><li>永遠 O(n)</li><li>文件沒有寫</li></ul>
+  <p class="dq">教科書的快速排序最壞是 O(n²)。<code>Arrays.sort(int[])</code> 的效能保證是什麼？</p>
+  <ul class="dopts"><li data-ok>在所有資料上都提供 O(n log(n)) 的效能</li><li>平均 O(n log n)，最壞 O(n²)</li><li>永遠 O(n)</li><li>沒有任何保證</li></ul>
   <p class="dexp">它在所有資料上都是 O(n log(n))。原始碼在遞迴太深、時間開始變成平方等級時改用堆積排序，所以不會落到 O(n²)。</p>
 </div>
 <div class="drill">
@@ -694,7 +694,7 @@ public class BinarySearch {
 
 <h4>三個細節</h4>
 <ul class="plainlist">
-<li><strong>中間值寫 <code>lo + (hi - lo) / 2</code>。</strong>寫 <code>(lo + hi) / 2</code> 的話，lo 和 hi 都很大時相加會超過 <code>int</code> 上限、變成負數。寫 JDK 二分搜尋的 Joshua Bloch 在 Google 的部落格自承：他寫進 <code>java.util.Arrays</code> 的版本就有這個錯，「lo 與 hi 的和大於 int 的最大正值（2³¹ − 1）時就會出錯，和溢位成負數，除以二之後還是負數」，在 Java 會丟 <code>ArrayIndexOutOfBoundsException</code>，陣列長度到 2³⁰（約十億）以上就可能發生；修法之一就是 <code>int mid = low + (<wbr>(<wbr>high - low) / 2);</code>。<a class="fixsrc" href="https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/" target="_blank" rel="noopener">出處</a> 現在的 JDK 原始碼用的是另一個修法 <code>(low + high) &gt;&gt;&gt; 1</code>（無號右移，把溢位的那一位當正數看）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/Arrays.java" target="_blank" rel="noopener">出處</a> 面試時寫第一種最不會被追問。</li>
+<li><strong>中間值寫 <code>lo + (hi - lo) / 2</code>。</strong>寫 <code>(lo + hi) / 2</code> 的話，lo 和 hi 都很大時相加會超過 <code>int</code> 上限、變成負數。<code>java.util.Arrays</code> 的二分搜尋當年就有這個錯（寫它的 Joshua Bloch 後來公開承認）：lo 與 hi 的和大於 int 的最大正值（2³¹ − 1）時溢位成負數，除以二之後還是負數，在 Java 會丟 <code>ArrayIndexOutOfBoundsException</code>，陣列長度到 2³⁰（約十億）以上就可能發生；修法之一就是 <code>int mid = low + (<wbr>(<wbr>high - low) / 2);</code>。<a class="fixsrc" href="https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/" target="_blank" rel="noopener">出處</a> 現在的 JDK 原始碼用的是另一個修法 <code>(low + high) &gt;&gt;&gt; 1</code>（無號右移，把溢位的那一位當正數看）。<a class="fixsrc" href="https://github.com/openjdk/jdk/blob/jdk-25-ga/src/java.base/share/classes/java/util/Arrays.java" target="_blank" rel="noopener">出處</a> 面試時寫第一種最不會被追問。</li>
 <li><strong>迴圈條件跟著範圍的定義走。</strong>上面的 <code>search</code> 把範圍定成 <code>[lo, hi]</code>，兩端<strong>都包含</strong>，所以 <code>lo == hi</code> 時範圍裡還有一格要看，條件是 <code>lo &lt;= hi</code>；寫成 <code>lo &lt; hi</code> 會漏掉最後一格。</li>
 <li><strong>移動時要跳過 mid。</strong>mid 已經比過了，不是答案，所以寫 <code>lo = mid + 1</code>、<code>hi = mid - 1</code>。寫成 <code>lo = mid</code> 的話，lo 和 hi 相鄰時 mid 永遠等於 lo，範圍縮不下去，變成無窮迴圈。</li>
 </ul>
@@ -787,12 +787,12 @@ public class BinarySearch {
   <p class="dexp">−1 = −(0) − 1，插入點是 0，表示該插在最前面；插入點是 1 的話會回傳 −2。回傳值有沒有意義，前提是陣列已經排好。比所有元素都大時，插入點是 a.length，回傳 −(a.length) − 1。</p>
 </div>
 <div class="drill">
-  <p class="dq"><code>Arrays.<wbr>binarySearch(<wbr>new int[] {3, 3, 3}, 3)</code>，文件保證回傳哪個索引？</p>
-  <ul class="dopts"><li>0，文件保證回傳第一個</li><li>2，最後一個</li><li>1，二分搜尋先比中間那個</li><li data-ok>不保證是哪一個</li></ul>
+  <p class="dq"><code>Arrays.<wbr>binarySearch(<wbr>new int[] {3, 3, 3}, 3)</code>，會回傳哪個索引？</p>
+  <ul class="dopts"><li>0，保證回傳第一個</li><li>2，最後一個</li><li>1，二分搜尋先比中間那個</li><li data-ok>不保證是哪一個</li></ul>
   <p class="dexp">有多個相同值時，不保證找到的是哪一個。要「第一個」就自己寫 lowerBound。</p>
 </div>
 <div class="drill">
-  <p class="dq">對一個<strong>沒排好</strong>的陣列呼叫 <code>Arrays.binarySearch</code>，文件怎麼說？</p>
+  <p class="dq">對一個<strong>沒排好</strong>的陣列呼叫 <code>Arrays.binarySearch</code>，會怎樣？</p>
   <ul class="dopts"><li>會自動先排序再找</li><li>會丟出 IllegalArgumentException</li><li data-ok>結果沒有定義，可能找不到明明存在的值</li><li>會退回一個一個找，結果一樣正確</li></ul>
   <p class="dexp">沒排好的話，結果沒有定義。二分搜尋不檢查有沒有排好（檢查就要 O(n)），丟掉一半的判斷也就沒有根據。</p>
 </div>
