@@ -20,3 +20,8 @@ class TestSyncJs(unittest.TestCase):
     def test_course_js_syntax(self):
         subprocess.run(['node', '--check', str(ROOT / 'builder' / 'templates' / 'course.js')],
                        check=True)
+
+    def test_quiz_rules(self):
+        r = subprocess.run(['node', str(ROOT / 'builder' / 'tests' / 'test_quiz.js')],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
