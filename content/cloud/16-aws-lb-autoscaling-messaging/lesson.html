@@ -51,7 +51,7 @@
 </svg>
 <figcaption>前半段（ALB＋Auto Scaling）處理「現在就要回應」的請求；後半段（SNS＋SQS）處理「晚一點做也可以」的工作。</figcaption>
 </figure>
-<p>SQS、SNS 的指令在 <strong>LocalStack</strong>（在 Docker 裡模擬 AWS API 的工具，社群版 4.14）上實際執行，輸出是真的；ALB、NLB、Auto Scaling 不在 LocalStack 社群版裡，只寫概念與 AWS 的設定方式，<strong>沒有輸出</strong>。</p>
+<p>SQS、SNS 的範例輸出來自 <strong>LocalStack</strong>（在 Docker 裡模擬 AWS API 的工具，社群版 4.14）；ALB、NLB、Auto Scaling 不在 LocalStack 社群版裡，那幾段的指令<strong>沒有附輸出</strong>。</p>
 
 <div class="drill">
   <p class="dq">網路銀行的登入 API 突然湧進三倍流量，要「多開幾台、讓流量平均分過去」，用到的是哪兩個服務？</p>
@@ -68,7 +68,7 @@
 <section>
 <p class="era">看得懂網址的櫃台，對上只看門牌的分機</p>
 <h3 class="head">ALB 對 NLB：第 7 層與第 4 層</h3>
-<p>OSI 模型把網路分成七層，這裡只看兩層：第 4 層傳輸層（TCP、UDP，只看 IP 與連接埠）、第 7 層應用層（HTTP，看得到網址、主機名稱、標頭）。</p>
+<p>OSI 模型把網路分成七層，負載平衡器相關的是兩層：第 4 層傳輸層（TCP、UDP，只看 IP 與連接埠）、第 7 層應用層（HTTP，看得到網址、主機名稱、標頭）。</p>
 <ul class="plainlist">
 <li><strong>ALB</strong> 在第七層（應用層），收到請求後依優先順序評估監聽器（listener；AWS 中文文件叫「接聽程式」）規則，再從那條規則的目標群組選一台。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">出處</a></li>
 <li><strong>NLB</strong> 在第四層，每秒可以處理數百萬個請求。它不看 HTTP 內容，TCP 流量用來源與目的 IP、連接埠、序號算出的流雜湊（flow hash）選目標，同一條連線會一直送到同一台。<a class="fixsrc" href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">出處</a></li>
@@ -252,7 +252,7 @@ aws autoscaling put-scheduled-update-group-action --scheduled-action-name weekda
     "PredefinedMetricType": "ASGAverageCPUUtilization"
   }
 }</code></pre>
-<p>JSON 照 AWS 文件的目標追蹤範例。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/policy_creating.html" target="_blank" rel="noopener">出處</a> 這些指令沒有在 AWS 上執行，只確認過 AWS CLI 2.37.8 接受這些參數。</p>
+<p>JSON 格式照 AWS 文件的目標追蹤範例。<a class="fixsrc" href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/policy_creating.html" target="_blank" rel="noopener">出處</a> 這些指令沒有在 AWS 上執行，沒有附輸出。</p>
 
 <p><strong>冷卻與暖機：兩種「先別急」。</strong></p>
 <ul class="plainlist">
@@ -527,7 +527,7 @@ $ aws sqs receive-message --queue-url $QL --max-number-of-messages 10 --wait-tim
 # 從 $QA 收
 $ aws sqs receive-message --queue-url $QA --max-number-of-messages 10 --wait-time-seconds 2 --query 'Messages[].Body' --output json | python3 body.py
 JSON 信封：Type=Notification、Message=t-5002 A轉出250000、MessageAttributes={"amount": "250000"}（另有 TopicArn、Signature 等 7 個欄位）</code></pre>
-<p>notify 收到 JSON 信封，要先解開才拿得到 <code>Message</code>（這次兩則剛好照發布順序出來，但標準佇列不保證順序）；ledger 直接是內容；risk-large 只收到 250,000 那則。另外試了不設佇列政策，LocalStack 照樣送進佇列（它沒有檢查這條政策）；真的 AWS 少了這條就收不到，所以 LocalStack 跑得通不代表權限設對了。</p>
+<p>notify 收到 JSON 信封，要先解開才拿得到 <code>Message</code>（這次兩則剛好照發布順序出來，但標準佇列不保證順序）；ledger 直接是內容；risk-large 只收到 250,000 那則。在 LocalStack 上不設佇列政策，訊息照樣送進佇列（它沒有檢查這條政策）；真的 AWS 少了這條就收不到，所以 LocalStack 跑得通不代表權限設對了。</p>
 <p>SNS 扇出到多條 SQS，效果像 Kafka 的「每個服務一個消費者群組」或 RabbitMQ 的 fanout 交換器；差別是 SQS 處理完就刪，不能倒回重讀，見〈訊息佇列：Spring 接 Kafka 與 RabbitMQ〉。</p>
 <p class="formula">SNS 推、SQS 拉：主題扇出給每條訂閱的佇列各一份；佇列要允許主題 sqs:SendMessage；預設收 JSON 信封、可開原始傳遞；預設全收、可設篩選政策</p>
 

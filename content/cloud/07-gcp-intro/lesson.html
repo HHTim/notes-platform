@@ -31,8 +31,8 @@
 <h3 class="head">Region 是地理區域，Zone 是裡面的部署與故障隔離位置</h3>
 <p>Region 是 Google Cloud 的獨立地理區域；Zone 是 Region 內的部署位置，也是故障隔離單位。一般的 Compute Engine VM 屬於 Zonal Resource，所以建立時要選 Zone。</p>
 <p class="muted">一個 Region 有幾個 Zone？一個 Region 由三個或以上的 Zone 組成<a class="fixsrc" href="https://docs.cloud.google.com/docs/geography-and-regions" target="_blank" rel="noopener">出處</a>。通則是這些 Zone 分布在三座以上的實體資料中心，但有例外：斯德哥爾摩、墨西哥、大阪、蒙特婁這四個 Region，三個 Zone 只落在一或兩座實體資料中心。所以「一個 Zone 對應一棟資料中心」不能當定律，別把 Zone 記成固定的實體資料中心階層。</p>
-<p class="muted">另外兩個常被引用的延遲數字要小心：「同一 Region 內的 Zone 之間小於 5 毫秒」「Zone 內小於 1 毫秒」這類說法很常見，但 Google 只寫到同一 Region 內的 Zone 之間是高頻寬、低延遲的網路連線<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>，沒有把這兩個毫秒數寫成承諾。</p>
-<p>講清楚一點：這不代表實測跑不出那種數字。Google 在選區域指南裡給了一條估算法則——「每 100 公里約 1 毫秒來回延遲」，而且同一段還提醒：網路不會走理想路徑，實際距離通常是地圖直線距離的 1.5 到 2 倍，估的時候要把這個倍數算進去<a class="fixsrc" href="https://docs.cloud.google.com/solutions/best-practices-compute-engine-region-selection" target="_blank" rel="noopener">出處</a>。同一 Region 的 Zone 通常只隔幾公里到幾十公里，所以實際延遲很低是合理的。</p>
+<p class="muted">常被引用的「同一 Region 內的 Zone 之間小於 5 毫秒」「Zone 內小於 1 毫秒」不是 Google 的承諾：同一 Region 內 Zone 之間的連線規格是高頻寬、低延遲<a class="fixsrc" href="https://docs.cloud.google.com/compute/docs/regions-zones" target="_blank" rel="noopener">出處</a>，沒有寫成毫秒數。</p>
+<p>這不代表實測跑不出那種數字。估算法則是每 100 公里約 1 毫秒來回延遲；網路不會走理想路徑，實際距離通常是地圖直線距離的 1.5 到 2 倍，估的時候要把這個倍數算進去<a class="fixsrc" href="https://docs.cloud.google.com/solutions/best-practices-compute-engine-region-selection" target="_blank" rel="noopener">出處</a>。同一 Region 的 Zone 通常只隔幾公里到幾十公里，所以實際延遲很低是合理的。</p>
 <p>差別在於：那是估算，不是可以拿來當設計保證的規格。要規劃對延遲敏感的架構，就實測自己那組 Region 與 Zone——Google 的 Network Intelligence Center 也有區域配對的實測延遲可看——別把記憶中的數字當承諾。</p>
 <p>選位置時通常要一起考慮使用者延遲、資料落地、災難復原、那裡有沒有你要的服務或硬體，以及資料傳輸成本。把 VM 分散到不同 Zone 能降低單一 Zone 故障的影響，但要自動導流還是得搭配負載平衡、健康檢查或其他故障切換設計。</p>
 </section>
@@ -102,13 +102,13 @@
   <li>自訂角色：你自己建立的 IAM 角色<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>基本角色包含跨所有 Google Cloud 服務的數千項權限，正式環境除非別無選擇，不要授予基本角色。配合前面講的權限聯集，在高層級隨手給一個基本角色，底下所有專案都會跟著吃到。</p>
-<p class="muted">名稱換過，查資料時要對得上（以下是 2026 年 9 月的狀態）：</p>
+<p class="muted">角色名稱換過（以下是 2026 年 9 月的狀態）：</p>
 <ul class="muted">
   <li>Owner、Editor、Viewer 這三個老面孔現在歸類為<b>舊版基本角色</b>（legacy basic roles）。它們在 IAM 推出之前就已存在，原本叫 <i>primitive roles</i>（原始角色）</li>
   <li>另外還有一組較新的基本角色 Admin、Writer、Reader，但這組在 2026 年 9 月仍掛著預覽版（Preview）標示、受「Pre-GA 條款」規範：預覽版功能照現狀提供，支援可能有限</li>
   <li>而且 Reader、Writer、Admin 還不能從主控台授予，要改用 API 或 gcloud CLI<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/roles-overview" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p class="muted">所以「Primitive／Predefined／Custom 三種角色」這個講法沒有講錯東西，只是用的是舊名字——Owner、Editor、Viewer 本身還在，照樣能用。</p>
+<p class="muted">所以「Primitive／Predefined／Custom 三種角色」的分法照樣成立，Primitive 是基本角色的舊名；Owner、Editor、Viewer 本身還在，照樣能用。</p>
 </section>
 
 <section>
@@ -121,16 +121,16 @@
   <li>服務帳戶同時也是<b>資源</b>：你可以讓其他主體取得存取這個服務帳戶的權限<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/service-account-overview" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p class="formula">「這個服務帳戶能做什麼」和「誰可以使用這個服務帳戶」是兩件要分開設定的事。</p>
-<p class="muted">講到「程式怎麼拿到這個身分」時要補一個前提：用<b>服務帳戶金鑰</b>（service account key，一個下載下來的憑證檔）確實做得到，也還能用，但 Google 現在建議盡可能避免使用服務帳戶金鑰。理由有三個：</p>
+<p class="muted">程式要拿到這個身分，用<b>服務帳戶金鑰</b>（service account key，一個下載下來的憑證檔）確實做得到，也還能用，但 Google 現在建議盡可能避免使用服務帳戶金鑰。理由有三個：</p>
 <ul class="muted">
   <li>金鑰是誰拿去用的查不出來（稽核紀錄只看得到服務帳戶動過資源，看不出是誰用了那把金鑰）</li>
   <li>有建立金鑰權限的人可以藉此取得比自己更大的權限</li>
   <li>任何持有服務帳戶金鑰的人都能使用它</li>
 </ul>
 <p class="muted">建議的替代做法是把服務帳戶直接附加到資源上（VM、GKE 的 Pod）、用身分模擬，或對外部工作負載用 Workload Identity 聯合<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/best-practices-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">這裡要先把兩件事分開，不然容易誤會。<b>第一件：把 A 專案的服務帳戶授權去存取 B 專案的資源</b>（例如讓它讀 B 專案的 Cloud SQL），只要在 B 專案那邊把角色授予這個服務帳戶就成立，預設就能做。<b>第二件：把 A 專案的服務帳戶「附加」到 B 專案的一台 VM 上</b>，讓那台機器直接以這個身分執行，才是下面要過兩關的那件事。前者是給權限，後者是把身分綁到別的專案的機器上。</p>
+<p class="muted">跨專案有兩件不同的事。<b>第一件：把 A 專案的服務帳戶授權去存取 B 專案的資源</b>（例如讓它讀 B 專案的 Cloud SQL），只要在 B 專案那邊把角色授予這個服務帳戶就成立，預設就能做。<b>第二件：把 A 專案的服務帳戶「附加」到 B 專案的一台 VM 上</b>，讓那台機器直接以這個身分執行，才是下面要過兩關的那件事。前者是給權限，後者是把身分綁到別的專案的機器上。</p>
 <p>跨專案的第二件事就卡在後面那一半。把 A 專案建立的服務帳戶，掛到 B 專案的一台 VM 上，並不是預設就能做的事，要先過兩關。第一關是放行一條機構政策的限制條件（機構政策＝organization policy，一套可以套用在組織、資料夾或專案上的規則）：那條限制條件叫 <code>iam.<wbr>disable<wbr>CrossProject<wbr>ServiceAccount<wbr>Usage</code>，只有開和關兩種值，要確保它<i>未被強制執行</i>。這一條要注意設定的位置：它預設就是強制執行的，而且只能設定在專案層級，不能設在資料夾或組織層級，所以去組織那一層找會找不到。第二關是要讓目標服務的服務代理（service agent，Google 代表某個服務去做事的內建帳號），在那個服務帳戶上取得「服務帳戶權杖建立者」角色（<code>roles/<wbr>iam.<wbr>serviceAccount<wbr>TokenCreator</code>）——權杖（token）就是那張有時效的臨時通行證，有了這個角色才能替那個服務帳戶簽發通行證<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">開通之後會多一個副作用值得先知道：IAM 會自動替放服務帳戶的那個專案加上一道「專案鎖」（project lien），用途是防止該專案被刪除，來源標記是 <code>iam.googleapis.com/cross-project-service-accounts</code>。所以那個專案之後想刪會刪不掉，要先處理這道鎖<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">開通之後會多一個副作用：IAM 會自動替放服務帳戶的那個專案加上一道「專案鎖」（project lien），用途是防止該專案被刪除，來源標記是 <code>iam.googleapis.com/cross-project-service-accounts</code>。所以那個專案之後想刪會刪不掉，要先處理這道鎖<a class="fixsrc" href="https://docs.cloud.google.com/iam/docs/attach-service-accounts" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <section>

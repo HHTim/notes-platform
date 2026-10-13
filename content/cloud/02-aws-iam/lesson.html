@@ -29,7 +29,7 @@
 <p class="era">IAM 骨架</p>
 <h3 class="head">先回答三件事：誰、對哪個資源、做什麼</h3>
 <p>AWS Identity and Access Management（IAM）管兩件事：身分驗證（authentication）確認「你是誰」，授權（authorization）決定「你能做什麼」。</p>
-<p>IAM 是<b>全球服務</b>：你建立的 User、Group、Role 與 Policy 不隸屬於任何一個 Region，切到哪個 Region 看到的都是同一份。這跟這一課開頭講的「區域性資源不會自動跟著你換 Region」正好相反，所以值得單獨記一筆。資源不屬於特定 Region 的服務，通常就叫全球（global）服務。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/global-services.html" target="_blank" rel="noopener">出處</a></p>
+<p>IAM 是<b>全球服務</b>：你建立的 User、Group、Role 與 Policy 不隸屬於任何一個 Region，切到哪個 Region 看到的都是同一份。這跟這一課開頭講的「區域性資源不會自動跟著你換 Region」正好相反。資源不屬於特定 Region 的服務，通常就叫全球（global）服務。<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/global-services.html" target="_blank" rel="noopener">出處</a></p>
 <p class="muted">「全球」講的是資源的適用範圍，不是說整個 IAM 跑在同一個地方。IAM 分成兩半：</p>
 <ul class="muted">
   <li>控制平面（control plane）：負責「改設定」，也就是建立與修改使用者、角色、政策那些操作。在 aws 分區只設在 us-east-1 一個 Region</li>
@@ -38,7 +38,7 @@
 <p class="muted">（分區＝partition，AWS 把全球切成幾塊彼此獨立的大區塊，一般商用 Region 都在名為 aws 的那一塊。）這個差別在災難演練時會咬人：復原路徑不要依賴分區型服務的控制平面，也就是別等到故障切換的當下才去建角色、改政策<a class="fixsrc" href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/global-services.html" target="_blank" rel="noopener">出處</a>。</p>
 <div class="terms"><p><b>IAM User：</b>長期存在於 AWS 帳號中的身分，可以搭配主控台密碼或程式用的憑證。</p><p><b>User Group：</b>IAM User 的集合，方便把共同權限集中管理；群組本身不是一個可以登入的身分。</p><p><b>IAM Role：</b>可以被人員、應用程式或 AWS 服務「承接」的身分，通常搭配短期憑證。</p><p><b>Policy：</b>一份政策文件，寫清楚允許或拒絕哪些動作、作用在哪些資源、有什麼條件。</p></div>
 <p>Role 搭配的短期憑證由 AWS Security Token Service（STS）發出。<mark class="fixnote" tabindex="0" data-note="原筆記寫「STS (Security Token Service) 每 15 分鐘有效，配合 IAM role，分發給 IAM user、AWS service」，查證後更正：15 分鐘是可以要求的最短效期下限，不是固定效期。承接角色時可要求的範圍是 15 分鐘到該角色的「最長工作階段時間」設定（可設 1 到 12 小時），沒特別指定的預設是 1 小時；另外用一組角色憑證再去承接另一個角色（角色串接）時，上限固定為 1 小時">15 分鐘是可以要求的最短效期，不是「每 15 分鐘就失效」</mark><a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_manage-assume.html" target="_blank" rel="noopener">出處</a>。承接角色時可以要求 15 分鐘到該角色「最長工作階段時間」之間的任一長度（這個設定可以調 1 到 12 小時），沒指定的話預設 1 小時。拿一組角色憑證再去承接另一個角色（角色串接）時，上限固定是 1 小時，而且不管個別角色設定多長都一樣<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html#id_roles_terms-and-concepts" target="_blank" rel="noopener">出處</a>。</p>
-<p class="muted">上面這段的主詞是「承接角色時」，不能推廣成「STS 一律 15 分鐘到 12 小時」。STS 還有別的取得方式，效期範圍不一樣——例如 IAM 使用者呼叫 GetSessionToken 取得的臨時憑證，範圍是 15 分鐘到 36 小時、預設 12 小時；同一支 API 若是用根使用者的憑證呼叫，上限就只有 1 小時<a class="fixsrc" href="https://docs.aws.amazon.com/STS/latest/APIReference/API_GetSessionToken.html" target="_blank" rel="noopener">出處</a>。這幾種方式共通的只有「15 分鐘是下限」這一點。</p>
+<p class="muted">這個範圍只適用於承接角色，STS 其他取得方式的效期範圍不一樣——例如 IAM 使用者呼叫 GetSessionToken 取得的臨時憑證，範圍是 15 分鐘到 36 小時、預設 12 小時；同一支 API 若是用根使用者的憑證呼叫，上限就只有 1 小時<a class="fixsrc" href="https://docs.aws.amazon.com/STS/latest/APIReference/API_GetSessionToken.html" target="_blank" rel="noopener">出處</a>。這幾種方式共通的只有「15 分鐘是下限」這一點。</p>
 <p>日常管理不該長期使用 AWS 帳號的根使用者（root user）。根使用者權限極高，應該設強密碼、開啟多重要素驗證（Multi-Factor Authentication，MFA），而且只在真的需要根權限的工作才動用。</p>
 </section>
 
@@ -104,7 +104,7 @@ Lambda 的資源型政策
   <li>自訂政策檢查：依 API 請求次數計費</li>
   <li>「在多個 Region 各建一個就各收一份錢」只適用於未使用權限分析器，不是所有分析器<a class="fixsrc" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p class="muted">查文件時可能會找不到入口：2026 年 7 月起，政策模擬器搬進了 IAM 主控台，並加上模擬服務控制政策的能力，不再是獨立的模擬器網站（服務控制政策＝Service Control Policy，SCP，在 AWS Organizations 裡替整個組織或某一群帳號畫出的權限天花板，個別帳號的政策再怎麼給也不會超過它）<a class="fixsrc" href="https://aws.amazon.com/about-aws/whats-new/2026/07/iam-policy-simulator-iam-console/" target="_blank" rel="noopener">出處</a>。</p>
+<p class="muted">2026 年 7 月起，政策模擬器搬進了 IAM 主控台，並加上模擬服務控制政策的能力，不再是獨立的模擬器網站（服務控制政策＝Service Control Policy，SCP，在 AWS Organizations 裡替整個組織或某一群帳號畫出的權限天花板，個別帳號的政策再怎麼給也不會超過它）<a class="fixsrc" href="https://aws.amazon.com/about-aws/whats-new/2026/07/iam-policy-simulator-iam-console/" target="_blank" rel="noopener">出處</a>。</p>
 </section>
 
 <div class="keys"><p class="lbl">重點整理</p><ul><li>Region 是地理區域；AZ 是 Region 內的故障隔離位置；Edge Location 著重把內容送到離使用者近的地方。</li><li>IAM User 與 Group 管既有身分；Role 適合可被承接的權限與短期憑證。</li><li>身分型政策附加在身分上；資源型政策附加在資源上並要寫出 Principal。</li><li>預設是隱含拒絕，適用的明確 Deny 會蓋過 Allow。</li><li>優先採用最小權限、MFA 與短期憑證，不要在程式裡放長期金鑰。</li><li>IAM 是全球服務，身分與政策不隸屬某個 Region；但改設定的控制平面只在單一 Region，復原路徑別依賴它。</li><li>上線前用政策模擬器試，上線後用 Access Analyzer 盤點外部存取與沒在用的權限。</li></ul></div>
