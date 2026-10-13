@@ -160,3 +160,47 @@ class TestIcons(unittest.TestCase):
             html = (out / page).read_text(encoding='utf-8')
             self.assertEqual(html.count('<symbol id="ic-java"'), 1, page)
             self.assertNotIn('__ICONS__', html, page)
+
+
+class TestSections(unittest.TestCase):
+    """本課小節目錄：從 <h3 class="head"> 自動產生，建置時補 id；有課中練習才列「課中練習」"""
+
+    def test_heads_get_ids_and_titles(self):
+        html, titles = builder.section_titles(
+            '<h3 class="head">甲 <code>x</code></h3><p>a</p><h3 class="head">乙\n丙</h3>', 'l1')
+        self.assertEqual(titles, ['甲 x', '乙 丙'])
+        self.assertIn('<h3 class="head" id="l1-sec-1">甲 <code>x</code></h3>', html)
+        self.assertIn('<h3 class="head" id="l1-sec-2">', html)
+
+    def test_toc_entries(self):
+        L = {'slug': 'l1', 'sections': ['甲', '乙'], 'has_drill': True}
+        self.assertEqual(builder.toc_entries(L),
+                         [('l1-sec-1', '甲'), ('l1-sec-2', '乙'), ('l1-drill', '課中練習'), ('l1-quiz', '隨堂測驗')])
+        L['has_drill'] = False
+        self.assertEqual([t for _, t in builder.toc_entries(L)], ['甲', '乙', '隨堂測驗'])
+
+    def test_built_page_has_toc_subs_scores_and_wrong_page(self):
+        with_drill = LESSON_OK + DRILL_OK
+        content, out = fake_site([('01-one', 'one', with_drill), ('02-two', 'two', LESSON_OK)])
+        builder.build(content_dir=content, out_dir=out)
+        html = (out / 'demo' / 'index.html').read_text(encoding='utf-8')
+        # 課文裡的小節 id、課中練習 id、測驗 id
+        self.assertIn('<h3 class="head" id="one-sec-1">標題</h3>', html)
+        self.assertIn('<div class="drill" id="one-drill"', html)
+        self.assertNotIn('id="two-drill"', html)
+        self.assertIn('<div class="quiz" id="one-quiz" data-quiz="one">', html)
+        # 課首目錄：第一課有課中練習、第二課沒有
+        self.assertIn('<details class="toc" open><summary>本課小節</summary><ol>'
+                      '<li><a href="#" data-goto="one-sec-1">標題</a></li>'
+                      '<li><a href="#" data-goto="one-drill">課中練習</a></li>'
+                      '<li><a href="#" data-goto="one-quiz">隨堂測驗</a></li></ol></details>', html)
+        self.assertIn('<li><a href="#" data-goto="two-sec-1">標題</a></li><li><a href="#" data-goto="two-quiz">隨堂測驗</a></li>', html)
+        # 側欄：錯題區項目、每課的成績欄、每課的小節
+        self.assertIn('href="#/wrong" data-nav="wrong"', html)
+        self.assertIn('data-wrongcnt', html)
+        self.assertIn('<span class="st" data-st="one"></span>', html)
+        self.assertIn('<div class="subs" data-subs="one" hidden><a href="#" data-goto="one-sec-1">標題</a>', html)
+        # 錯題區頁殼與課名表
+        self.assertIn('<article id="pg-wrong" hidden>', html)
+        self.assertIn('id="wrongBody"', html)
+        self.assertIn('var TITLES={"one": "第 01-one 課", "two": "第 02-two 課"}', html)

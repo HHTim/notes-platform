@@ -128,6 +128,52 @@ def icon_html(name, cls='ic'):
     return '<svg class="%s" aria-hidden="true"><use href="#ic-%s"/></svg>' % (cls, name)
 
 
+HEAD_RE = re.compile(r'<h3 class="head">(.*?)</h3>', re.S)
+TAG_RE = re.compile(r'<[^>]+>')
+
+
+def section_titles(html, slug):
+    """把每個 <h3 class="head"> 補上 id="<slug>-sec-N"，回傳 (新 html, [標題純文字])。
+    所有課的標題都寫成 <h3 class="head">，沒有別的屬性。"""
+    titles = []
+
+    def rep(m):
+        titles.append(re.sub(r'\s+', ' ', TAG_RE.sub('', m.group(1))).strip())
+        return '<h3 class="head" id="%s-sec-%d">%s</h3>' % (slug, len(titles), m.group(1))
+    return HEAD_RE.sub(rep, html), titles
+
+
+def toc_entries(L):
+    """本課小節：(目標 id, 顯示文字)。小節、課中練習（有才列）、隨堂測驗。"""
+    items = [('%s-sec-%d' % (L['slug'], i + 1), t) for i, t in enumerate(L['sections'])]
+    if L['has_drill']:
+        items.append(('%s-drill' % L['slug'], '課中練習'))
+    items.append(('%s-quiz' % L['slug'], '隨堂測驗'))
+    return items
+
+
+def toc_html(L):
+    """課首的目錄（手機用；電腦寬度 CSS 會藏起來改看側欄的小節）。
+    連結不用 #id（會被路由當成換頁），用 data-goto 交給 course.js 捲動。"""
+    lis = ''.join('<li><a href="#" data-goto="%s">%s</a></li>' % (i, t) for i, t in toc_entries(L))
+    return '<details class="toc" open><summary>本課小節</summary><ol>%s</ol></details>\n' % lis
+
+
+def subs_html(L):
+    """側欄裡該課底下的小節（電腦用；只有目前這課會被 course.js 打開）"""
+    links = ''.join('<a href="#" data-goto="%s">%s</a>' % (i, t) for i, t in toc_entries(L))
+    return '  <div class="subs" data-subs="%s" hidden>%s</div>\n' % (L['slug'], links)
+
+
+def wrong_html():
+    """錯題區的頁殼；內容由 course.js 依本機紀錄畫出來"""
+    return ('<article id="pg-wrong" hidden>\n'
+            '<p class="crumb"><a href="#/">課綱總覽</a> › 錯題區</p>\n'
+            '<h1 class="lt">錯題區 <span class="cnt" id="wrongCount" hidden></span></h1>\n'
+            '<div id="wrongBody"></div>\n'
+            '</article>\n')
+
+
 def check_slugs(mods):
     """slug 全站唯一、只含小寫英數與連字號。撞名會讓頁面裡的 QUIZ 字典後者蓋前者；
     不合法的 slug 路由不認，那一課永遠開不到。不合就中止建置並說是哪幾課。"""
@@ -162,6 +208,10 @@ def load_site(content_dir):
             if errs:
                 raise SystemExit('建置中止：%s/%s/lesson.html 的課中練習有問題\n  ' % (entry['id'], L['dir'])
                                  + '\n  '.join(errs))
+            L['html'], L['sections'] = section_titles(L['html'], L['slug'])
+            L['has_drill'] = '<div class="drill"' in L['html']
+            if L['has_drill']:
+                L['html'] = L['html'].replace('<div class="drill"', '<div class="drill" id="%s-drill"' % L['slug'], 1)
             L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             L['assets'] = ldir / 'assets'
         mods.append(mod)
@@ -172,15 +222,18 @@ def load_site(content_dir):
 
 
 def sidebar_html(mod):
-    out = ['  <a href="#/" data-nav="ov" class="ov">📖&nbsp; 課綱總覽</a>\n']
+    out = ['  <a href="#/" data-nav="ov" class="ov">%s<span>課綱總覽</span></a>\n' % icon_html('book'),
+           '  <a href="#/wrong" data-nav="wrong" class="wrong">%s<span>錯題區</span>'
+           '<span class="cnt" data-wrongcnt hidden></span></a>\n' % icon_html('flag')]
     group = None
     for i, L in enumerate(mod['lessons']):
         if L.get('group') and L['group'] != group:
             group = L['group']
             out.append('  <div class="group">%s</div>\n' % group)
         out.append('  <a href="#/lesson/%s" data-nav="%s"><span class="n">%d.</span>'
-                   '<span>%s</span><span class="tick" data-tick hidden>✓</span></a>\n'
-                   % (L['slug'], L['slug'], i + 1, L['title']))
+                   '<span>%s</span><span class="st" data-st="%s"></span></a>\n'
+                   % (L['slug'], L['slug'], i + 1, L['title'], L['slug']))
+        out.append(subs_html(L))
     return ''.join(out)
 
 
@@ -202,11 +255,12 @@ def overview_html(mod):
          % (mod['kick'], mod['title'])]
     o.append(intro_html(mod['overview_intro']))
     o.append('<p class="ov-progress" id="ovProgress"></p>\n</div>\n<div class="lesson-list">\n')
+    tick = icon_html('check', 'ic ok')
     for i, L in enumerate(mod['lessons']):
         o.append('<a href="#/lesson/%s"><span class="n">%d</span><span class="tt"><b>%s</b>'
-                 '<span>%s</span></span><span class="done" data-ovtick="%s" hidden>✓</span>'
+                 '<span>%s</span></span><span class="done" data-ovtick="%s" hidden>%s</span>'
                  '<span class="mins">%d 分</span></a>\n'
-                 % (L['slug'], i + 1, L['title'], L['desc'], L['slug'], L['mins']))
+                 % (L['slug'], i + 1, L['title'], L['desc'], L['slug'], tick, L['mins']))
     o.append('</div>\n<footer class="site">%s</footer>\n</article>\n' % mod['footer_note'])
     return ''.join(o)
 
@@ -219,8 +273,9 @@ def article_html(mod, i, L):
     a.append('<div class="meta"><span class="chip g">第 %d 課 / 共 %d 課</span>'
              '<span class="chip">約 %d 分鐘</span></div>\n' % (i + 1, N, L['mins']))
     a.append('<p class="sub">%s</p>\n' % L['desc'])
+    a.append(toc_html(L))
     a.append(L['html'] + '\n')   # 「讀完這課你會」框、內文、「重點整理」框都在 lesson.html 裡
-    a.append('<div class="quiz" data-quiz="%s"></div>\n' % L['slug'])
+    a.append('<div class="quiz" id="%s-quiz" data-quiz="%s"></div>\n' % (L['slug'], L['slug']))
     a.append('<nav class="pager">')
     if i > 0:
         P = mod['lessons'][i - 1]
@@ -256,12 +311,13 @@ def sync_html(firebase, prefix):
 def render_module_page(mod, mods, tpl, firebase=None):
     quiz = {L['slug']: L['quiz'] for L in mod['lessons']}
     slugs = [L['slug'] for L in mod['lessons']]
-    data = ('var MODULE=%s;\nvar QUIZ=%s;\nvar SLUGS=%s;'
+    titles = {L['slug']: L['title'] for L in mod['lessons']}
+    data = ('var MODULE=%s;\nvar QUIZ=%s;\nvar SLUGS=%s;\nvar TITLES=%s;'
             % (json.dumps(mod['id']), json.dumps(quiz, ensure_ascii=False),
-               json.dumps(slugs, ensure_ascii=False)))
+               json.dumps(slugs, ensure_ascii=False), json.dumps(titles, ensure_ascii=False)))
     data = data.replace('</', '<\\/')   # 防護：測驗文字若含 </ 之類的字，不會提前把嵌入的 <script> 截斷
     sync = sync_html(firebase, '../')
-    arts = [overview_html(mod)] + [article_html(mod, i, L) for i, L in enumerate(mod['lessons'])]
+    arts = [overview_html(mod), wrong_html()] + [article_html(mod, i, L) for i, L in enumerate(mod['lessons'])]
     page = tpl['module.html']
     for key, val in (('__TITLE__', mod['title']), ('__MODSEL__', modsel_html(mods, mod['id'])),
                      ('__SIDEBAR__', sidebar_html(mod)), ('__ARTICLES__', ''.join(arts)),

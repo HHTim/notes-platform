@@ -24,8 +24,8 @@ class TestBuild(unittest.TestCase):
     def test_module_page_k8s(self):
         html = (self.out / 'k8s' / 'index.html').read_text(encoding='utf-8')
         k8s = [m for m in self.mods if m['id'] == 'k8s'][0]
-        # 側邊欄：總覽 + 13 課
-        self.assertEqual(html.count('data-nav='), len(k8s['lessons']) + 1)
+        # 側邊欄：總覽 + 錯題區 + 每課
+        self.assertEqual(html.count('data-nav='), len(k8s['lessons']) + 2)
         # 分組標題四個都在
         for g in ('歷史：為什麼會有容器', 'DOCKER：一台機器上的事', 'K8S：由小到大', '判斷'):
             self.assertIn(g, html)
@@ -42,6 +42,11 @@ class TestBuild(unittest.TestCase):
         # 頂欄：回首頁連結與模組下拉選單，選單有全部模組
         self.assertIn('href="../"', html)
         self.assertEqual(html.count('<option'), len(self.mods))
+        # 每課的小節目錄與側欄小節都在；錯題區頁殼在
+        for L in k8s['lessons']:
+            self.assertIn('data-subs="%s"' % L['slug'], html)
+            self.assertIn('data-goto="%s-quiz"' % L['slug'], html)
+        self.assertIn('<article id="pg-wrong" hidden>', html)
 
     def test_no_company_terms(self):
         for page in self.out.rglob('*.html'):
