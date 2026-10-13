@@ -22,7 +22,7 @@
 
 <h4>實驗環境</h4>
 <p>專案用 Spring Boot 4.1.1（Spring Framework 7.0.9）、Java 21 與 <code>resilience4j-<wbr>spring-<wbr>boot4</code> 2.4.0。</p>
-<p>Resilience4j 從 2.4.0 起才有 Spring Boot 4 的模組（同時支援 Spring Cloud 5）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/releases/tag/v2.4.0" target="_blank" rel="noopener">出處</a>；詳細用法沿用 Spring Boot 2&amp;3 那份使用指南<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/README.adoc" target="_blank" rel="noopener">出處</a>，下面的設定都以那一頁為準。</p>
+<p>Resilience4j 從 2.4.0 起才有 Spring Boot 4 的模組（同時支援 Spring Cloud 5）<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/releases/tag/v2.4.0" target="_blank" rel="noopener">出處</a>；詳細用法沿用 Spring Boot 2&amp;3 那份使用指南<a class="fixsrc" href="https://github.com/resilience4j/resilience4j/blob/v2.4.0/resilience4j-spring-boot4/README.adoc" target="_blank" rel="noopener">出處</a>。</p>
 <p>這個模組不自帶 actuator 與 aop 兩個 starter，執行時要自己加進來<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a>；Spring Boot 4 把 AOP 的 starter 改名為 <code>spring-<wbr>boot-<wbr>starter-<wbr>aspectj</code>，Web MVC 與 RestClient 也各有自己的 starter：</p>
 <ul>
 <li>AspectJ：<code>spring-<wbr>boot-<wbr>starter-<wbr>aspectj</code></li>
@@ -301,7 +301,7 @@ public class BalanceService {
 <li>回呼的執行跟斷路器目前的狀態無關。</li>
 <li>回呼方法要放在同一個類別，方法簽名要一樣，只多一個目標例外參數。</li>
 <li>有好幾個時，呼叫最接近的那一個。</li>
-<li>全域回呼：好幾個方法回傳型別相同時，可以共用一個只收例外參數的回呼；實跑 <code>String onlyEx(Exception e)</code> 確實接得到。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></li>
+<li>全域回呼：好幾個方法回傳型別相同時，可以共用一個只收例外參數的回呼，例如 <code>String onlyEx(Exception e)</code>。<a class="fixsrc" href="https://resilience4j.readme.io/docs/getting-started-3" target="_blank" rel="noopener">出處</a></li>
 </ul>
 <p>對照實驗輸出：CLOSED 時下游回 500，進的是參數為 <code>Exception</code> 的那個（暫時查不到）；OPEN 時被擋，例外是 <code>Call<wbr>Not<wbr>Permitted<wbr>Exception</code>，兩個回呼都接得住，選比較接近的那個（快取餘額）。降級要回什麼是業務決定，例如暫時降低功能、改用替代的操作。<a class="fixsrc" href="https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker" target="_blank" rel="noopener">出處</a> 餘額這種會影響決策的資料，回快取時畫面上要標「資料時間」。</p>
 

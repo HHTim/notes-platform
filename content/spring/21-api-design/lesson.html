@@ -2,9 +2,9 @@
 <div class="learn"><p class="lbl">讀完這課你會</p><ul><li>判斷要不要開新版、版本放哪</li><li>說出偏移分頁與游標分頁的取捨</li><li>用冪等鍵讓轉帳重送只扣一次</li><li>用 ProblemDetail 統一錯誤格式</li></ul></div>
 
 <section>
-<p class="era">先講好範圍</p>
+<p class="era">四個痛點</p>
 <h3 class="head">上線之後才會痛的四件事</h3>
-<p>API 上線之後最常痛的四件事：<strong>改版</strong>、<strong>分頁</strong>、<strong>重送</strong>、<strong>錯誤格式</strong>，最後補上文件與選型。</p>
+<p>API 上線之後最常痛的四件事：<strong>改版</strong>、<strong>分頁</strong>、<strong>重送</strong>、<strong>錯誤格式</strong>。</p>
 <p>控制器與統一例外處理的基本寫法見〈Spring MVC 與 RESTful API〉〈Maven、微服務與全域例外〉。以下用一個小銀行 API：Spring Boot 4.1.1（內含 Spring Framework 7.0.9）、Java 21、H2 記憶體資料庫，文件用 springdoc-openapi 3.1.1。相依是 <code>spring-boot-starter-webmvc</code>（Boot 4 的 Spring MVC starter）、<code>spring-boot-starter-validation</code>、<code>spring-boot-starter-jdbc</code>、<code>h2</code> 與 <code>springdoc-openapi-starter-webmvc-ui</code>（3.1.1）。</p>
 </section>
 
@@ -19,7 +19,7 @@
 <li>媒體類型參數</li>
 <li>網址路徑</li>
 </ul>
-<p>查詢參數（<code>?version=2</code>）用法跟標頭很像，這課看另外三種。</p>
+<p>查詢參數（<code>?version=2</code>）用法跟標頭很像，下圖是另外三種。</p>
 <figure>
 <svg viewBox="0 0 760 300" role="img" aria-label="同一個請求可以把版本放在三個地方：路徑 GET /v2/accounts/A-001、自訂標頭 API-Version: 2、Accept 的媒體類型參數 application/json;v=2；Spring 的 ApiVersionStrategy 把它解析成 2.0.0，再對到 @GetMapping(version = &quot;2&quot;) 那個方法">
   <defs><marker id="ad-ver-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
@@ -554,7 +554,7 @@ HTTP/1.1 400
 <div class="drill">
   <p class="dq">範例自己繼承了 <code>ResponseEntityExceptionHandler</code>，又設了 <code>spring.mvc.problemdetails.enabled=true</code>。Boot 會再註冊一個自己的處理器嗎？</p>
   <ul class="dopts"><li>會，兩個都生效、各處理一半</li><li>會，然後啟動失敗</li><li>會，而且 Boot 的優先</li><li data-ok>不會，看到同型別就退開</li></ul>
-  <p class="dexp">Boot 那個處理器的條件是 @ConditionalOnMissingBean(ResponseEntityExceptionHandler.class)：容器裡已經有一個，就不建立（Boot 4.1.1 原始碼 WebMvcAutoConfiguration 的 ProblemDetailsErrorHandlingConfiguration）。</p>
+  <p class="dexp">Boot 那個處理器的條件是 @ConditionalOnMissingBean(ResponseEntityExceptionHandler.class)：容器裡已經有一個，就不建立。</p>
 </div>
 <div class="drill">
   <p class="dq"><code>pd.setProperty("balance", balance)</code> 在實跑的 JSON 裡長什麼樣？</p>
@@ -627,7 +627,7 @@ HTTP/1.1 400
 <section>
 <p class="era">選型</p>
 <h3 class="head">REST、gRPC、GraphQL</h3>
-<p>三者的基本比較（契約、序列化、HTTP/2）面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉已經整理過，這裡用改版、錯誤、分頁、文件四個主題再對一次：</p>
+<p>三者的基本比較（契約、序列化、HTTP/2）見面試集〈網路與 HTTP 面試題：三向交握、TLS、REST 對 gRPC〉。下表從改版、錯誤、分頁、文件四個主題比較：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>REST（HTTP＋JSON）</th><th>gRPC</th><th>GraphQL</th></tr></thead><tbody>
 <tr><th>改版</th><td>路徑、標頭、媒體類型三選一，本課做法</td><td>.proto 加欄位通常相容；不相容就換服務或套件名稱</td><td>傾向不開版本，新增欄位、標記舊欄位棄用<a class="fixsrc" href="https://graphql.org/learn/schema-design/" target="_blank" rel="noopener">出處</a></td></tr>
 <tr><th>錯誤</th><td>HTTP 狀態碼＋ProblemDetail</td><td>gRPC 自己定義的一組狀態碼<a class="fixsrc" href="https://grpc.io/docs/guides/status-codes/" target="_blank" rel="noopener">出處</a></td><td>有資料就回 2xx，錯誤放在回應的 errors（HTTP 還沒有代表「部分成功」的狀態碼）<a class="fixsrc" href="https://graphql.org/learn/serving-over-http/" target="_blank" rel="noopener">出處</a></td></tr>

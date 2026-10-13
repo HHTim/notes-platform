@@ -57,7 +57,7 @@ docker run -d --name mq17-kafka -p 127.0.0.1:39092:39092 \
 docker run -d --name mq17-rabbit --hostname mq17-rabbit \
   -e RABBITMQ_DEFAULT_USER=demo -e RABBITMQ_DEFAULT_PASS=demo \
   -p 127.0.0.1:35672:5672 -p 127.0.0.1:35673:15672 rabbitmq:4.3.6-management</code></pre>
-<p>Spring 這邊用 Spring Boot 4.1.1（Spring Framework 7.0.9），裡面帶的是 Spring for Apache Kafka 4.1.1、Kafka 用戶端 4.2.1 與 Spring AMQP 4.1.1（AMQP 是 RabbitMQ 使用的訊息協定），跟面試集那課引的 4.1 版文件同一版。</p>
+<p>Spring 這邊用 Spring Boot 4.1.1（Spring Framework 7.0.9），裡面帶的是 Spring for Apache Kafka 4.1.1、Kafka 用戶端 4.2.1 與 Spring AMQP 4.1.1（AMQP 是 RabbitMQ 使用的訊息協定）。</p>
 
 <div class="drill">
   <p class="dq">下面哪個情境<strong>最不適合</strong>放訊息佇列？</p>
@@ -220,13 +220,12 @@ void ledger(@Payload String value, @Header(KafkaHeaders.RECEIVED_PARTITION) int 
 <li><strong>佇列</strong>（queue）：真正存訊息的地方，消費者從這裡拿。</li>
 <li><strong>綁定</strong>（binding）：「佇列 Q 要收交換器 E 的哪些訊息」的規則。訊息帶一個<strong>路由鍵</strong>（routing key，像信封上的地址），綁定上寫的條件拿來跟它比。</li>
 </ul>
-<p>交換器有幾種，差在怎麼比路由鍵：</p>
+<p>交換器有幾種，差在怎麼比路由鍵<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a>：</p>
 <div class="tablewrap"><table><thead><tr><th>交換器</th><th>怎麼分</th></tr></thead><tbody>
 <tr><th>direct</th><td>路由鍵跟綁定鍵完全相同才送（the exchange routes it to the queue if K = R）</td></tr>
 <tr><th>fanout</th><td>綁定的佇列全部都送，不看路由鍵（the routing key is ignored）</td></tr>
 <tr><th>topic</th><td>路由鍵用點分成好幾個字，跟綁定的樣式比對（matching between a message routing key and the pattern）</td></tr>
 </tbody></table></div>
-<p>三種的定義出自同一頁。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
 <p>topic 交換器的樣式有兩個萬用字元：「* 剛好代表一個字，# 代表零個或多個字」（* (star) can substitute for exactly one word. # (hash) can substitute for zero or more words.）。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/tutorial-five-java" target="_blank" rel="noopener">出處</a></p>
 <p>另外有一個沒有名字的<strong>預設交換器</strong>，每條佇列都自動用佇列名稱當路由鍵綁上去（a routing key which is the same as the queue name），所以看起來像直接送進佇列，其實還是經過交換器。<a class="fixsrc" href="https://www.rabbitmq.com/tutorials/amqp-concepts" target="_blank" rel="noopener">出處</a></p>
 <p>實跑一個 topic 交換器 <code>bank.events</code>，三條佇列各綁一個樣式。Spring 裡把交換器、佇列、綁定宣告成 Bean，Spring Boot 自動建立的 <code>RabbitAdmin</code> 會在連上 broker 時建好它們（any Queue that is defined as a bean is automatically used to declare a corresponding queue on the RabbitMQ instance）。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/messaging/amqp.html" target="_blank" rel="noopener">出處</a></p>
@@ -339,12 +338,11 @@ void onEvent(@Payload String body, @Header(AmqpHeaders.CONSUMER_QUEUE) String qu
 <li><strong>至少一次</strong>：不丟，可能重送。</li>
 <li><strong>剛好一次</strong>：只處理一次。</li>
 </ul>
-<p>消費者這端決定是哪一種的，就是「記進度」和「做事」誰先：</p>
+<p>消費者這端決定是哪一種的，就是「記進度」和「做事」誰先<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a>：</p>
 <ul class="plainlist">
 <li><strong>先記位移、再處理</strong>：存好位置之後、處理完之前當機，接手的程序從新位置開始，那幾則就沒處理到，對應到至多一次。</li>
 <li><strong>先處理、再記位移</strong>：處理完之後、存好位置之前當機，接手的程序會再收到已經處理過的那幾則，對應到至少一次。</li>
 </ul>
-<p>兩種情況出自 Kafka 設計文件的同一段。<a class="fixsrc" href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">出處</a></p>
 <figure>
 <svg viewBox="0 0 760 270" role="img" aria-label="兩條時間線。上面是至多一次：讀到訊息、先提交位移、當機，處理沒做到，重啟後從新位移開始，這則訊息丟了。下面是至少一次：讀到訊息、處理完、當機，位移沒提交，重啟後從舊位移再讀一次，這則訊息處理了兩次">
   <defs><marker id="mq-4-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
@@ -652,9 +650,8 @@ void onDead(@Payload String body, @Header("x-death") List&lt;Map&lt;String, ?&gt
 <div class="tablewrap"><table><thead><tr><th></th><th>Spring for Apache Kafka</th><th>Spring AMQP（RabbitMQ）</th></tr></thead><tbody>
 <tr><th>監聽器丟例外的預設</th><td>DefaultErrorHandler 共試 10 次，用完寫日誌、跳過</td><td>拒絕並重新排入，無限次重送</td></tr>
 <tr><th>失敗的去處</th><td>DeadLetterPublishingRecoverer 送到「原主題-dlt」</td><td>拒絕且不重新排入時，送到佇列設定的死信交換器</td></tr>
-<tr><th>重試期間</th><td>同一分區後面的訊息要等</td><td>重新排入時盡量放回原位；多個消費者共用佇列時，可能排到比較靠前的位置</td></tr>
+<tr><th>重試期間</th><td>同一分區後面的訊息要等</td><td>重新排入時盡量放回原位；多個消費者共用佇列時，可能排到比較靠前的位置<a class="fixsrc" href="https://www.rabbitmq.com/docs/confirms" target="_blank" rel="noopener">出處</a></td></tr>
 </tbody></table></div>
-<p>RabbitMQ 那一格出自確認一頁（When a message is requeued, it will be placed to its original position in its queue, if possible. If not (due to concurrent deliveries and acknowledgements from other consumers when multiple consumers share a queue), the message will be requeued to a position closer to queue head.）。<a class="fixsrc" href="https://www.rabbitmq.com/docs/confirms" target="_blank" rel="noopener">出處</a></p>
 <p>死信不是垃圾桶，是待辦清單：死信數量大於 0 就該有人收到告警，查出原因、修好之後，要能把死信重新送回原本的主題或佇列。</p>
 <p class="formula">暫時性錯誤重試幾次、間隔拉開；永久性錯誤不重試；用完都送死信。Kafka 預設試 10 次後只寫日誌，RabbitMQ 預設無限重送，兩邊都要自己接死信</p>
 

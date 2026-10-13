@@ -46,7 +46,7 @@ public class BootdemoApplication {
 <div class="drill">
   <p class="dq"><code>@SpringBootApplication</code> 包含哪三個註解？</p>
   <ul class="dopts"><li>@Configuration、@EnableWebMvc、@ComponentScan</li><li data-ok>@SpringBootConfiguration、@EnableAutoConfiguration、@ComponentScan</li><li>@SpringBootConfiguration、@EnableAutoConfiguration、@EnableTransactionManagement</li><li>@Component、@Bean、@Autowired</li></ul>
-  <p class="dexp">參考文件逐一列出這三個。第三個常被說成 @Configuration，正確是 @SpringBootConfiguration，它是 @Configuration 的替代品，多出來的好處是整合測試能自動找到它。</p>
+  <p class="dexp">第三個常被說成 @Configuration，正確是 @SpringBootConfiguration，它是 @Configuration 的替代品，多出來的好處是整合測試能自動找到它。</p>
 </div>
 <div class="drill">
   <p class="dq">啟動類別在 <code>com.bank.app</code>，有一個 <code>@Service</code> 放在 <code>com.bank.shared</code>。這個 Service 會被掃描到嗎？</p>
@@ -125,7 +125,7 @@ public class FxAutoConfiguration {
 }</code></pre>
 <pre><code># src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 com.example.fxstarter.FxAutoConfiguration</code></pre>
-<p>這個類別放在 <code>com.example.fxstarter</code>，不在啟動類別的套件底下，元件掃描掃不到它，只靠 imports 檔載入，符合官方的要求。應用程式這邊另外寫一個只有 <code>custom</code> Profile 才生效的組態，自己定義 <code>FxRateClient</code>：</p>
+<p>這個類別放在 <code>com.example.fxstarter</code>，不在啟動類別的套件底下，元件掃描掃不到它，只靠 imports 檔載入，自動組態本來就只能這樣載入。應用程式這邊另外寫一個只有 <code>custom</code> Profile 才生效的組態，自己定義 <code>FxRateClient</code>：</p>
 <pre><code>package com.example.bootdemo;
 
 import com.example.fxstarter.FxRateClient;
@@ -161,7 +161,7 @@ FxRateClient：FxRateClient(https://fx.uat.bank)</code></pre>
 <div class="drill">
   <p class="dq">Spring Boot 3 與 4 從哪裡找出所有自動組態的候選？</p>
   <ul class="dopts"><li data-ok>jar 裡的 AutoConfiguration.imports 檔</li><li>元件掃描所有標了 @AutoConfiguration 的類別</li><li>META-INF/spring.factories 檔</li><li>application.properties 的 spring.autoconfigure.include</li></ul>
-  <p class="dexp">spring.factories 是 Boot 2 的做法，3.0 已移除這個用途。自動組態也不能靠元件掃描找到，參考文件要求只能透過 imports 檔載入。</p>
+  <p class="dexp">spring.factories 是 Boot 2 的做法，3.0 已移除這個用途。自動組態也不能靠元件掃描找到，只能透過 imports 檔載入。</p>
 </div>
 <div class="drill">
   <p class="dq">為什麼自動組態類別要放在專屬套件、不能被元件掃描到？</p>
@@ -256,7 +256,7 @@ Negative matches:
 <div class="drill">
   <p class="dq">要關掉某個自動組態，但那個類別根本不在 classpath 上（拿不到 .class），該怎麼寫？</p>
   <ul class="dopts"><li>@SpringBootApplication(exclude = 那個類別.class)</li><li data-ok>用 excludeName 或設定值排除</li><li>刪掉 imports 檔</li><li>在那個類別上加 @Profile("off")</li></ul>
-  <p class="dexp">exclude 要能引用到類別；引用不到就用 excludeName 字串，或設定值。參考文件三種都列了。</p>
+  <p class="dexp">exclude 要能引用到類別；引用不到就用 excludeName 字串，或設定值。</p>
 </div>
 <div class="drill">
   <p class="dq">實跑報告裡 <code>DispatcherServletAutoConfiguration</code> 出現在 Negative matches，原因是？</p>
@@ -343,9 +343,9 @@ $ BANK_GREETING=來自環境變數 java -jar bootdemo.jar --spring.profiles.acti
 啟用的 Profile：[uat]
 bank.greeting = 來自命令列
 FxRateClient：FxRateClient(https://fx.example.com)</code></pre>
-<p>四次一路往上蓋：Profile 設定檔蓋過基本設定檔、環境變數蓋過設定檔、命令列蓋過環境變數。Java 系統屬性也試過：同時給環境變數與 <code>-Dbank.greeting=sysprop</code>，結果是 sysprop，系統屬性比環境變數優先，跟文件的順序一致。</p>
+<p>四次一路往上蓋：Profile 設定檔蓋過基本設定檔、環境變數蓋過設定檔、命令列蓋過環境變數。同時給環境變數與 <code>-Dbank.greeting=sysprop</code> 時，結果是 sysprop：系統屬性比環境變數優先。</p>
 <p><strong>環境變數怎麼對到設定鍵。</strong>大部分作業系統不允許環境變數名稱有點，可以用底線代替，例如 <code>SPRING_CONFIG_NAME</code> 代替 <code>spring.config.name</code>；綁定到 <code>@ConfigurationProperties</code> 時還有「寬鬆綁定」（relaxed binding），例如 <code>my.main-project.person.first-name</code> 用環境變數寫成 <code>MY_MAINPROJECT_PERSON_FIRSTNAME</code>：全大寫、點換成底線、去掉連字號。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/external-config.html" target="_blank" rel="noopener">出處</a> 前一段的 <code>BANK_FX_BASEURL</code> 綁到 <code>bank.fx.base-url</code> 就是這條規則。</p>
-<p><strong>Profile</strong> 是「把應用程式設定的一部分分開，只在某些環境可用」的方法，任何 <code>@Component</code>、<code>@Configuration</code>、<code>@ConfigurationProperties</code> 都可以標 <code>@Profile</code> 限制什麼時候載入，用 <code>spring.profiles.active</code> 指定啟用哪些。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/profiles.html" target="_blank" rel="noopener">出處</a> 啟用之後，<code>application-{profile}.yaml</code> 會被讀進來、蓋過基本設定。<code>spring.profiles.active</code> 本身也是一個設定，可以從命令列或環境變數 <code>SPRING_PROFILES_ACTIVE</code> 給（實跑過，一樣啟用 uat）。</p>
+<p><strong>Profile</strong> 是「把應用程式設定的一部分分開，只在某些環境可用」的方法，任何 <code>@Component</code>、<code>@Configuration</code>、<code>@ConfigurationProperties</code> 都可以標 <code>@Profile</code> 限制什麼時候載入，用 <code>spring.profiles.active</code> 指定啟用哪些。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/profiles.html" target="_blank" rel="noopener">出處</a> 啟用之後，<code>application-{profile}.yaml</code> 會被讀進來、蓋過基本設定。<code>spring.profiles.active</code> 本身也是一個設定，可以從命令列或環境變數 <code>SPRING_PROFILES_ACTIVE</code> 給。</p>
 <p>想知道某個值最後是從哪來的，用 Actuator 的 <code>env</code> 端點；<code>env</code> 與 <code>configprops</code> 端點都可以用來判斷某個屬性為什麼是這個值。<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/features/external-config.html" target="_blank" rel="noopener">出處</a> 用 uat Profile 加環境變數啟動，查 <code>bank.greeting</code>。env 端點預設會把值遮成 <code>******</code>，要 <code>show-values</code> 設成 never 以外的值才看得到<a class="fixsrc" href="https://docs.spring.io/spring-boot/reference/actuator/endpoints.html" target="_blank" rel="noopener">出處</a>，這次示範加了 <code>--management.<wbr>endpoint.<wbr>env.<wbr>show-values=always</code>（回應節錄並重新排版）：</p>
 <pre><code>$ curl -i http://127.0.0.1:18091/actuator/env/bank.greeting
 HTTP/1.1 200
@@ -372,7 +372,7 @@ propertySources（由上而下的優先順序，節錄）：
 <div class="drill">
   <p class="dq">同時給環境變數 <code>BANK_GREETING=env</code> 與 Java 系統屬性 <code>-Dbank.greeting=sysprop</code>，用哪一個？</p>
   <ul class="dopts"><li>env，作業系統環境變數是所有來源裡最優先的，連命令列參數都蓋不過</li><li data-ok>sysprop，Java 系統屬性比作業系統環境變數優先</li><li>兩個串在一起</li><li>看哪個先設定</li></ul>
-  <p class="dexp">文件清單中 Java System properties 排在 OS environment variables 後面，後面的蓋前面。實跑印出 sysprop。</p>
+  <p class="dexp">屬性來源清單裡，Java 系統屬性排在作業系統環境變數後面，後面的蓋前面。實跑印出 sysprop。</p>
 </div>
 <div class="drill">
   <p class="dq">jar 裡有 <code>application.yaml</code>，部署時在 jar 旁邊再放一個 <code>application.yaml</code>，同一個鍵兩邊都有，用哪個？</p>

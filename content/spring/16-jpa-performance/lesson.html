@@ -138,7 +138,7 @@ list.size() = 3
 共 1 次 SQL</code></pre>
 <ul class="plainlist">
 <li><strong><code>left join fetch</code> 與 <code>join fetch</code> 不一樣。</strong><code>join fetch</code>（內部連接）只回傳有關聯實體的那些，一個人都沒有的部門也要列出來就用 <code>left</code>。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-explicit-fetch-join" target="_blank" rel="noopener">出處</a></li>
-<li><strong>從 Hibernate 6 起不必再寫 <code>distinct</code>。</strong>SQL 回 6 列（一個員工一列），<code>list.size()</code> 卻是 3：join fetch 造成的重複結果，Hibernate 會在記憶體裡自動去掉，不該再為了這個目的寫 distinct。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-distinct" target="_blank" rel="noopener">出處</a> 舊教材的 <code>select distinct d … join fetch</code> 是 Hibernate 5 的寫法。<a class="fixsrc" href="https://docs.jboss.org/hibernate/orm/6.0/migration-guide/migration-guide.html#query-sqm-distinct" target="_blank" rel="noopener">遷移指南</a></li>
+<li><strong>從 Hibernate 6 起不必再寫 <code>distinct</code>。</strong>SQL 回 6 列（一個員工一列），<code>list.size()</code> 卻是 3：join fetch 造成的重複結果，Hibernate 會在記憶體裡自動去掉，不該再為了這個目的寫 distinct。<a class="fixsrc" href="https://docs.hibernate.org/orm/7.4/userguide/html_single/#hql-distinct" target="_blank" rel="noopener">出處</a> <code>select distinct d … join fetch</code> 是 Hibernate 5 的寫法。<a class="fixsrc" href="https://docs.jboss.org/hibernate/orm/6.0/migration-guide/migration-guide.html#query-sqm-distinct" target="_blank" rel="noopener">遷移指南</a></li>
 </ul>
 <h4>@EntityGraph：衍生查詢也能一起抓</h4>
 <p>方法名稱衍生查詢（〈Spring 資料存取〉）沒有地方寫 <code>join fetch</code>，改用 <code>@EntityGraph</code>：寫在 <code>attributePaths</code> 的屬性會轉成對應的實體圖，不必在實體上另外加 <code>@NamedEntityGraph</code>。<a class="fixsrc" href="https://docs.spring.io/spring-data/jpa/reference/4.1/jpa/query-methods.html#jpa.entity-graph" target="_blank" rel="noopener">出處</a> 實體圖（entity graph）就是「這次查詢要一起載入哪些關聯」的清單。</p>
@@ -298,7 +298,7 @@ class DepartmentController {
   SQL 2：select e1_0.department_id,e1_0.id,e1_0.name from employee e1_0 where e1_0.department_id=?
 200 {"name":"研發部","employees":["阿明","小美"]}
 共 2 次 SQL</code></pre>
-<p>能動，但 SQL 2 是在 Controller 裡、交易結束之後才送的，警告講的就是這件事（原文在 Boot 的原始碼裡）。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-jpa/src/main/java/org/springframework/boot/jpa/autoconfigure/JpaBaseConfiguration.java" target="_blank" rel="noopener">出處</a> 改成 <code>false</code> 再跑：</p>
+<p>能動，但 SQL 2 是在 Controller 裡、交易結束之後才送的，警告講的就是這件事。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/blob/v4.1.1/module/spring-boot-jpa/src/main/java/org/springframework/boot/jpa/autoconfigure/JpaBaseConfiguration.java" target="_blank" rel="noopener">出處</a> 改成 <code>false</code> 再跑：</p>
 <pre><code>== GET /departments/1
   SQL 1：select d1_0.id,d1_0.name from department d1_0 where d1_0.id=?
 500 LazyInitializationException：Cannot lazily initialize collection of role 'demo.Department.employees' with key '1' (no session)

@@ -57,7 +57,7 @@
 <li><code>@SpringBootTest</code>：透過 <code>SpringApplication</code> 建立測試用的 ApplicationContext，等於把整個應用程式照正式啟動的方式載入。預設的 <code>webEnvironment</code> 是 <code>MOCK</code>：載入 web 用的 ApplicationContext、提供模擬的 web 環境，不會啟動內嵌伺服器。</li>
 </ul>
 <p>還有一條限制：「在一個測試裡用好幾個 <code>@…Test</code> 註解來組合多個切片，不支援」，需要時挑一個，另一個切片的 <code>@AutoConfigure…</code> 註解自己加上。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/spring-boot-applications.html" target="_blank" rel="noopener">出處</a></p>
-<p><strong>版本註記（Spring Boot 4）：</strong>Spring Boot 4.0 把原本幾個大 jar 拆成按技術分的小模組，測試也跟著拆：每個 starter 都有一個配套的測試 starter，所有 Spring Boot 的測試模組都命名為 <code>spring-boot-&lt;技術&gt;-test</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 所以本課的測試依賴不是一個 <code>spring-boot-starter-test</code>，而是要哪一層就加哪一層的測試 starter；註解的套件名稱也跟著換，例如 <code>@WebMvcTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>webmvc.<wbr>test.<wbr>autoconfigure</code>、<code>@DataJpaTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>data.<wbr>jpa.<wbr>test.<wbr>autoconfigure</code>（舊教學的 <code>org.<wbr>springframework.<wbr>boot.<wbr>test.<wbr>autoconfigure…</code> 在 4.1 已經找不到）。用到的測試依賴：</p>
+<p><strong>版本註記（Spring Boot 4）：</strong>Spring Boot 4.0 把原本幾個大 jar 拆成按技術分的小模組，測試也跟著拆：每個 starter 都有一個配套的測試 starter，所有 Spring Boot 的測試模組都命名為 <code>spring-boot-&lt;技術&gt;-test</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 所以本課的測試依賴不是一個 <code>spring-boot-starter-test</code>，而是要哪一層就加哪一層的測試 starter；註解的套件名稱也跟著換，例如 <code>@WebMvcTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>webmvc.<wbr>test.<wbr>autoconfigure</code>、<code>@DataJpaTest</code> 在 <code>org.<wbr>springframework.<wbr>boot.<wbr>data.<wbr>jpa.<wbr>test.<wbr>autoconfigure</code>（Boot 3 的 <code>org.<wbr>springframework.<wbr>boot.<wbr>test.<wbr>autoconfigure…</code> 在 4.1 已經沒有）。用到的測試依賴：</p>
 <pre><code>&lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-webmvc-test&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
 &lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-starter-data-jpa-test&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
 &lt;dependency&gt;&lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;&lt;artifactId&gt;spring-boot-resttestclient&lt;/artifactId&gt;&lt;scope&gt;test&lt;/scope&gt;&lt;/dependency&gt;
@@ -219,7 +219,7 @@ class AccountControllerTest {
 <p><strong>版本註記：</strong>以前的寫法是 Spring Boot 的 <code>@MockBean</code>，本課用的 Spring Boot 4.1 已經沒有它了。</p>
 <ul class="plainlist">
 <li>Spring Boot 3.4 起標為棄用，改用 Spring Framework 的 <code>@MockitoBean</code> 與 <code>MockitoSpyBean</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a></li>
-<li>API 文件標的是 <code>@Deprecated(<wbr>since="3.<wbr>4.<wbr>0", forRemoval=true)</code><a class="fixsrc" href="https://docs.spring.io/spring-boot/3.5/api/java/org/springframework/boot/test/mock/mockito/MockBean.html" target="_blank" rel="noopener">出處</a>。</li>
+<li>標註是 <code>@Deprecated(<wbr>since="3.<wbr>4.<wbr>0", forRemoval=true)</code><a class="fixsrc" href="https://docs.spring.io/spring-boot/3.5/api/java/org/springframework/boot/test/mock/mockito/MockBean.html" target="_blank" rel="noopener">出處</a>。</li>
 <li>Spring Boot 4.0 正式移除。</li>
 </ul>
 <p>還有一個差別：新的註解可以當測試類別的欄位，但不能用在 <code>@Configuration</code> 類別裡。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide" target="_blank" rel="noopener">出處</a> 想讓好幾個測試類別共用同一組替身，這課的做法是寫在共同的父類別上（下一段的 <code>IntegrationTestBase</code>）。</p>
@@ -291,8 +291,8 @@ public class TestcontainersConfig {
 <li>每個由 Spring TestContext 框架管理的 ApplicationContext，容器 Bean 各建立、啟動一次。</li>
 <li>Spring 容器被快取期間還要能用時，優先把容器當 Bean 管理。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/reference/testing/testcontainers.html" target="_blank" rel="noopener">出處</a></li>
 </ul>
-<p>（Testcontainers 2 起 MySQL 模組的 Maven 名稱是 <code>testcontainers-mysql</code>、類別在 <code>org.<wbr>testcontainers.<wbr>mysql</code>，而且不再帶泛型，網路上舊範例的 <code>MySQLContainer&lt;?&gt;</code> 是 1.x 的寫法。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/modules/databases/mysql.md" target="_blank" rel="noopener">出處</a>）</p>
-<p>容器也可以改寫成測試類別的 <code>static</code> 欄位交給 Testcontainers 管，或換成 PostgreSQL（容器換成 <code>PostgreSQLContainer</code>、依賴換成 PostgreSQL 的驅動與 Testcontainers 模組，本課兩種都實跑過），寫法見 Testcontainers 文件。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/modules/databases/postgres.md" target="_blank" rel="noopener">出處</a></p>
+<p>（Testcontainers 2 起 MySQL 模組的 Maven 名稱是 <code>testcontainers-mysql</code>、類別在 <code>org.<wbr>testcontainers.<wbr>mysql</code>，而且不再帶泛型，<code>MySQLContainer&lt;?&gt;</code> 是 1.x 的寫法。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/modules/databases/mysql.md" target="_blank" rel="noopener">出處</a>）</p>
+<p>容器也可以改寫成測試類別的 <code>static</code> 欄位交給 Testcontainers 管，或換成 PostgreSQL（容器換成 <code>PostgreSQLContainer</code>、依賴換成 PostgreSQL 的驅動與 Testcontainers 模組），寫法見 Testcontainers 文件。<a class="fixsrc" href="https://github.com/testcontainers/testcontainers-java/blob/2.0.5/docs/modules/databases/postgres.md" target="_blank" rel="noopener">出處</a></p>
 <p>repository 的切片測試加上這個設定，就是在真的 MySQL 上跑。第二個測試是 MySQL 的原生查詢：</p>
 <pre><code>@DataJpaTest
 @Import(TestcontainersConfig.class)
@@ -324,7 +324,7 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.047 s -- in demo.bank.AccountRepositoryTest</code></pre>
 <p>注意這個測試沒寫 <code>@AutoConfigureTestDatabase(<wbr>replace = Replace.<wbr>NONE)</code>，連的還是 MySQL 容器。原因是 Spring Boot 3.4 起這個註解預設 <code>replace = NON_TEST</code>：除非 DataSource 是自動設定、而且連到測試資料庫，否則就替換；而 <code>@ServiceConnection</code> 標的 Testcontainers 資料庫就算測試資料庫。<a class="fixsrc" href="https://docs.spring.io/spring-boot/4.1/api/java/org/springframework/boot/jdbc/test/autoconfigure/AutoConfigureTestDatabase.Replace.html" target="_blank" rel="noopener">出處</a></p>
 <p>3.4 起這個註解會試著偵測資料庫是不是來自容器，所以應該不再需要加 <code>replace=Replace.NONE</code>；要回到舊行為就設 <code>replace=Replace.<wbr>AUTO_CONFIGURED</code>。<a class="fixsrc" href="https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes" target="_blank" rel="noopener">出處</a></p>
-<p>也就是說，3.4 以前只要 DataSource 是自動設定的，就換成內嵌資料庫；<code>@ServiceConnection</code> 接上的容器也是自動設定，會被換掉，所以舊教學常見要加 <code>replace = NONE</code>（自己手動定義的 DataSource 本來就不換）。</p>
+<p>也就是說，3.4 以前只要 DataSource 是自動設定的，就換成內嵌資料庫；<code>@ServiceConnection</code> 接上的容器也是自動設定，會被換掉，所以 3.4 以前要加 <code>replace = NONE</code>（自己手動定義的 DataSource 本來就不換）。</p>
 <p class="formula">Testcontainers 在 Docker 裡起一個用完即丟的真資料庫；@ServiceConnection 自動接上連線，而且比設定檔優先；容器當 Bean 時，每個 Spring 容器各起一個</p>
 <div class="drill">
   <p class="dq">公司的 CI 機器沒有任何容器執行環境。專案的 Testcontainers 測試在那台機器上會怎樣？</p>
@@ -354,10 +354,10 @@ Started AccountRepositoryTest in 7.543 seconds (process running for 21.304)
 <div class="drill">
   <p class="dq">想把本課的 MySQL 換成 PostgreSQL，測試這邊最少要改什麼？</p>
   <ul class="dopts"><li>每個測試類別都要改寫成 PostgreSQL 專用的 API</li><li data-ok>容器換成 PostgreSQLContainer，依賴換成 PostgreSQL 的</li><li>只改 application.properties 的 spring.datasource.url</li><li>不用改，Testcontainers 會自動判斷</li></ul>
-  <p class="dexp">@ServiceConnection 依容器型別接上連線，測試本身不用動。本課實際換成 postgres:17 跑過，整合測試照樣通過。</p>
+  <p class="dexp">@ServiceConnection 依容器型別接上連線，測試本身不用動。</p>
 </div>
 <div class="drill">
-  <p class="dq">容器宣告成 Spring Bean 的好處，下面哪一句符合 Spring Boot 文件？</p>
+  <p class="dq">容器宣告成 Spring Bean 的好處，下面哪一句正確？</p>
   <ul class="dopts"><li data-ok>容器比其他 Bean 先啟動、最後才停止</li><li>容器 Bean 會在每個測試方法之後重啟，保證資料乾淨</li><li>容器 Bean 啟動時間會降到 1 秒以內</li><li>容器 Bean 可以讓多個 JVM 共用同一個容器</li></ul>
   <p class="dexp">容器當 Bean 時生命週期由 Spring 管理：先於其他 Bean 建立與啟動、在其他 Bean 銷毀之後才停止，依賴容器的 Bean 才用得到它。資料乾淨靠的是交易還原，不是重啟容器。</p>
 </div>

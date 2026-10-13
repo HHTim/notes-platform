@@ -200,7 +200,7 @@ Either revert the changes to the migration, or run repair to update the schema h
 <div class="drill">
   <p class="dq">為什麼校驗和不符時，Spring Boot 連 V5、V6 這些新腳本都不跑，直接啟動失敗？</p>
   <ul class="dopts"><li data-ok>validate-on-migrate 預設 true</li><li>新腳本的校驗和也跟著一起壞了</li><li>Flyway 只在第一次啟動時跑腳本</li><li>MySQL 偵測到校驗和不符而拒絕連線</li></ul>
-  <p class="dexp">屬性附錄：spring.<wbr>flyway.<wbr>validate-on-migrate 預設 true。先驗、驗過才補新腳本，避免在不一致的基礎上繼續改。</p>
+  <p class="dexp">spring.<wbr>flyway.<wbr>validate-on-migrate 預設 true。先驗、驗過才補新腳本，避免在不一致的基礎上繼續改。</p>
 </div>
 </section>
 
@@ -337,7 +337,7 @@ INFO DbMigrate : Successfully applied 1 migration to schema `bank`, now at versi
 <div class="drill">
   <p class="dq">Spring Boot 的 <code>spring.<wbr>flyway.<wbr>clean-<wbr>disabled</code> 預設是什麼？為什麼？</p>
   <ul class="dopts"><li>false，方便開發時隨時清空重來</li><li data-ok>true，避免誤清空整個 schema</li><li>沒有這個屬性，clean 一律禁止</li><li>true，因為社群版根本不支援 clean</li></ul>
-  <p class="dexp">屬性附錄寫預設 true。clean 會刪掉 schema 裡的所有物件，正式環境絕不能誤觸。</p>
+  <p class="dexp">預設是 true。clean 會刪掉 schema 裡的所有物件，正式環境絕不能誤觸。</p>
 </div>
 <div class="drill">
   <p class="dq">一個已經上線多年、表都建好了的資料庫，第一次要改用 Flyway 管。第一步該做什麼？</p>
@@ -425,7 +425,7 @@ UPDATE account SET owner_name = owner WHERE owner_name IS NULL;</code></pre>
 <pre><code>-- 收縮：確定沒有任何版本的程式還在讀寫 owner 之後才做
 ALTER TABLE account MODIFY COLUMN owner_name VARCHAR(80) NOT NULL;
 ALTER TABLE account DROP COLUMN owner;</code></pre>
-<p>實跑時踩到一個坑：V6 成功了，但前面那支可重複腳本的 view 還寫著 <code>owner</code>：</p>
+<p>這裡有一個坑：V6 成功了，但前面那支可重複腳本的 view 還寫著 <code>owner</code>：</p>
 <pre><code>ERROR 1356 (HY000) at line 1: View 'bank.account_summary' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them</code></pre>
 <p>MySQL 允許刪掉 view 用到的欄位，view 就這樣壞了，Flyway 與啟動都沒有報錯。把 <code>R__account_summary_view.<wbr>sql</code> 改成用 <code>owner_name</code>，同一次啟動就會在 V6 之後重跑它：</p>
 <pre><code>INFO DbMigrate : Migrating schema `bank` with repeatable migration "account summary view"
