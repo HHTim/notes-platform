@@ -149,6 +149,11 @@ class TestBuild(unittest.TestCase):
         for attr in found:
             self.assertIn('figure svg [%s]' % attr, css, attr)
 
+    def test_main_column_centered_on_wide_screens(self):
+        """寬螢幕上課文欄要在側欄右邊剩下的空間置中，不要貼左、右邊整片空著"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('.main{margin-left:calc(272px + max(0px, (100vw - 272px - 848px) / 2))', css)
+
     def test_theme_switch_fades(self):
         """按開關時顏色要漸變（Tim：不然眼睛不舒服）；只在切換那一下，開頁不漸變；系統要求減少動態效果時不漸變"""
         css = (self.out / 'style.css').read_text(encoding='utf-8')
