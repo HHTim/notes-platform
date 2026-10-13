@@ -115,6 +115,16 @@ class TestBuild(unittest.TestCase):
         self.assertNotIn('var(--mono)', rule)
         self.assertIn('text-align:left', rule)
 
+    def test_every_css_variable_used_in_content_is_defined(self):
+        """課文的示意圖用 var(--名稱) 上色；樣式檔沒定義的名稱會讓圖整塊變黑（2026-10-13 改版踩過）"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        defined = set(re.findall(r'(--[a-z0-9-]+)\s*:', css))
+        used = set()
+        for f in (ROOT / 'content').rglob('lesson.html'):
+            html = re.sub(r'<pre.*?</pre>|<code>.*?</code>', '', f.read_text(encoding='utf-8'), flags=re.S)   # 程式碼範例裡的字不算
+            used |= set(re.findall(r'var\((--[a-z0-9-]+)', html))
+        self.assertEqual(sorted(used - defined), [])
+
     def test_hidden_attribute_wins_over_display(self):
         """成績卡、按鈕列這些用 display:flex 的元素，加了 hidden 也要真的消失"""
         css = (self.out / 'style.css').read_text(encoding='utf-8')
