@@ -128,7 +128,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/accounts' --data-urlencode "owner=alice' 
 <ul class="plainlist">
 <li>開發者先寫好全部的 SQL，之後才一個一個傳入參數。</li>
 <li>所以不管使用者輸入什麼，資料庫都分得出程式碼跟資料；就算攻擊者塞進 SQL 指令，也改變不了查詢的意圖。</li>
-<li>反過來，「跳脫所有使用者輸入」被標成強烈不建議（STRONGLY DISCOURAGED）。</li>
+<li>反過來，自己跳脫所有使用者輸入強烈不建議。</li>
 </ul>
 <p>Spring 的 <code>JdbcTemplate</code> 用 <code>?</code>、JPA 用 <code>:name</code> 綁參數，背後都是同一件事；〈Spring 資料存取〉的命名參數也是。</p>
 <p>兩個常見的漏洞位置：<strong>表名、欄位名不能用參數</strong>，這類 SQL 結構也不能被跳脫，使用者提供的結構名稱很危險；排序欄位這類需求要用允許清單對照（只接受事先列好的幾個值）；<strong>用了 ORM 也可能出事</strong>，在 JPQL 裡自己拼字串一樣會被注入。<a class="fixsrc" href="https://top10.owasp.org/2025/A05_2025-Injection/" target="_blank" rel="noopener">出處</a></p>
@@ -149,9 +149,9 @@ $ curl -G 'http://127.0.0.1:18093/safe/accounts' --data-urlencode "owner=alice' 
   <p class="dexp">參數化之後，不管使用者輸入什麼，資料庫都分得出程式碼跟資料。它沒有刪字元，也沒有加密。</p>
 </div>
 <div class="drill">
-  <p class="dq">「自己把使用者輸入跳脫一遍」這種防法，OWASP 的評價是？</p>
+  <p class="dq">拿「自己把使用者輸入跳脫一遍」當防 SQL 注入的主要做法，這樣好嗎？</p>
   <ul class="dopts"><li data-ok>強烈不建議</li><li>首選，比參數化查詢快</li><li>跟參數化查詢一樣好</li><li>只要用在 MySQL 就安全</li></ul>
-  <p class="dexp">它被標成強烈不建議（STRONGLY DISCOURAGED）。跳脫規則複雜、容易漏，參數化才是正解。</p>
+  <p class="dexp">強烈不建議。跳脫規則複雜、容易漏，參數化才是正解。</p>
 </div>
 <div class="drill">
   <p class="dq">報表 API 讓使用者用網址參數選排序欄位：<code>order by ?</code> 綁參數能解決注入嗎？</p>
@@ -253,7 +253,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 <div class="drill">
   <p class="dq">輸出編碼「不是萬能的」，指的是什麼？</p>
   <ul class="dopts"><li data-ok>有些位置編碼也擋不住</li><li>編碼會讓網頁變慢</li><li>編碼只對英文有效</li><li>編碼會被 HTTPS 取消</li></ul>
-  <p class="dexp">這些是「危險的位置」（Dangerous Contexts）。不同位置要用不同的編碼規則，有些位置則完全不該放。</p>
+  <p class="dexp">這些是「危險的位置」。不同位置要用不同的編碼規則，有些位置則完全不該放。</p>
 </div>
 <div class="drill">
   <p class="dq">XSS 被打中時，攻擊者的程式碼在哪裡執行？</p>
