@@ -108,7 +108,9 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     if (a) a.addEventListener('click', function (e) { e.preventDefault(); loadAndMerge(user); });
   }
 
-  /* patch 的形狀是 { 模組id: 該模組的進度 }，可以一次帶多個模組；merge:true 不會蓋掉其他模組 */
+  /* patch 的形狀是 { 模組id: 該模組的進度 }，可以一次帶多個模組；merge:true 不會蓋掉其他模組。
+     模組的進度物件裡除了每課的 {best,total,done}，還有 _last（最後看的課）與 _wrong（錯題），
+     一起寫上去；錯題的鍵只會新增或更新，不會刪，所以 merge:true 不會漏掉任何一筆。 */
   function pushCloud(patch) {
     if (!synced || !uid) return;
     db.collection('progress').doc(uid).set(patch, { merge: true })['catch'](function () {});
