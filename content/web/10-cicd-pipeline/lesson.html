@@ -564,7 +564,7 @@ jobs:
 <h4>build 這個 job</h4>
 <ul class="plainlist">
 <li><code>actions/checkout@v4</code>：把 repo 抓下來。</li>
-<li><code>actions/setup-python@v5</code> 配 <code>python-version: '3.14'</code>：<strong>把 Python 版本釘住</strong>。ubuntu-latest 現在是 Ubuntu 24.04（<code>-latest</code> 標籤「指向最新的穩定版作業系統」，These labels point towards the newest stable OS version available.）<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>，它內建的是 Python 3.12.3<a class="fixsrc" href="https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md" target="_blank" rel="noopener">出處</a>，跟本機的 3.14 不同。runner 清單裡其實已經有 Ubuntu 26.04（標籤 <code>ubuntu-26.04</code>），但 <code>ubuntu-latest</code> 還指向 24.04<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>；哪天 -latest 換過去，內建的 Python 也會跟著變。釘住之後，CI 跟本機用同一個版本建置，不會出現「我這邊好好的，CI 那邊壞了」。</li>
+<li><code>actions/setup-python@v5</code> 配 <code>python-version: '3.14'</code>：<strong>把 Python 版本釘住</strong>。ubuntu-latest 現在是 Ubuntu 24.04（<code>-latest</code> 標籤指向最新的穩定版作業系統）<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>，它內建的是 Python 3.12.3<a class="fixsrc" href="https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md" target="_blank" rel="noopener">出處</a>，跟本機的 3.14 不同。runner 清單裡其實已經有 Ubuntu 26.04（標籤 <code>ubuntu-26.04</code>），但 <code>ubuntu-latest</code> 還指向 24.04<a class="fixsrc" href="https://github.com/actions/runner-images" target="_blank" rel="noopener">出處</a>；哪天 -latest 換過去，內建的 Python 也會跟著變。釘住之後，CI 跟本機用同一個版本建置，不會出現「我這邊好好的，CI 那邊壞了」。</li>
 <li><strong>測試</strong>：<code>python3 -m unittest discover -s builder/tests -v</code>，跑 builder 的測試。失敗的話，後面的 step 預設全部略過，build 失敗，deploy 不會跑，網站維持上一版。</li>
 <li><strong>建置</strong>：<code>python3 builder/build.py</code>，產出 <code>dist/</code>。</li>
 <li><strong>檢查產出的 JavaScript 語法</strong>：對 <code>dist/</code> 裡每個 .js 跑 <code>node --check</code>（只檢查語法、不執行）。這台 runner 沒有另外裝 Node.js，用的是 Ubuntu 24.04 映像檔內建的 Node.js 22。<a class="fixsrc" href="https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md" target="_blank" rel="noopener">出處</a> 語法錯一個字，整個網站的互動（側邊欄、測驗）就會壞掉，這一步把它擋在上線前。</li>
@@ -676,10 +676,10 @@ jobs:
 <ul class="plainlist">
 <li><strong>PR 與 push 都觸發</strong>，但 <code>image</code> 寫了 <code>if: ${{ github.<wbr>event_name == 'push' }}</code>，PR 只跑 <code>verify</code>，不會打映像檔。</li>
 <li><strong>concurrency</strong>：群組用 workflow 名稱加分支，PR 時 <code>cancel-in-progress</code> 為 true（新 commit 進來就砍舊的測試），push 到 main 時為 false（部署不砍）。</li>
-<li><strong>權限分層、<code>context: .</code>、映像檔標籤</strong>：只有 <code>image</code> 多給 <code>packages: write</code>；<code>context: .</code> 不能省，因為 build-push-action 預設用 Git 的內容建置，runner 上剛打好的 jar 進不去<a class="fixsrc" href="https://github.com/docker/build-push-action" target="_blank" rel="noopener">出處</a>；標籤用 <code>github.sha</code>，兩個環境部署同一份成品。這三點〈容器與部署面試題：映像分層、K8s 部署策略與探針〉的 CI/CD 那題逐行講過，這裡不重複。</li>
+<li><strong>權限分層、<code>context: .</code>、映像檔標籤</strong>：只有 <code>image</code> 多給 <code>packages: write</code>；<code>context: .</code> 不能省，因為 build-push-action 預設用 Git 的內容建置，runner 上剛打好的 jar 進不去<a class="fixsrc" href="https://github.com/docker/build-push-action" target="_blank" rel="noopener">出處</a>；標籤用 <code>github.sha</code>，兩個環境部署同一份成品。這三點的逐行說明見〈容器與部署面試題：映像分層、K8s 部署策略與探針〉的 CI/CD 那題。</li>
 <li><strong>兩個 environment</strong>：<code>staging</code> 可以不設保護；<code>production</code> 在 repo 設定裡加指定核准人、禁止自己核准、只允許 main，就是「正式環境要人工核准」。</li>
 </ul>
-<p class="muted">這份 YAML 用 actionlint（檢查 GitHub Actions workflow 寫法的工具）1.7.12 檢查過，沒有錯誤。部署那兩步只用 echo 代表，實際的部署方式見下一段。</p>
+<p class="muted">部署那兩步只用 echo 代表，實際的部署方式見下一段。</p>
 
 <div class="drill">
   <p class="dq">在上面的 <code>core-banking</code> workflow，有人開了一個 PR 到 main。會跑哪些 job？</p>

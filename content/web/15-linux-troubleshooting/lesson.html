@@ -20,7 +20,7 @@
 <rect x="530" y="170" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="630" y="195" font-size="12.5" text-anchor="middle" class="mono">ss -tan state …</text>
 <rect x="530" y="230" width="200" height="40" rx="8" fill="var(--slate-soft)" stroke="var(--slate)"/><text x="630" y="255" font-size="12.5" text-anchor="middle">誰在 TIME_WAIT／CLOSE_WAIT</text>
 <path d="M130 152 L130 166" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M130 212 L130 226" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M380 152 L380 166" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M380 212 L380 226" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M630 152 L630 166" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/><path d="M630 212 L630 226" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5" marker-end="url(#lx-m1)"/>
-<text x="30" y="292" font-size="12" opacity=".6">每一格都是「看到什麼 → 下一個指令」；後面各段用實跑輸出把每一步走一次</text>
+<text x="30" y="292" font-size="12" opacity=".6">每一格都是「看到什麼 → 下一個指令」</text>
 </svg>
 <figcaption>排查的順序：先看整體再縮小。三種常見症狀各有一條「下一個指令」的路。</figcaption>
 </figure>
@@ -515,7 +515,7 @@ tmpfs            50M   18M   32M  36% /data</code></pre>
 </svg>
 <figcaption>rm 只刪掉名字；只要還有行程的檔案描述子指著，inode 和資料都還在，空間就不會回來。</figcaption>
 </figure>
-<p>解法兩種：重啟那個行程（描述子關了，空間就回來），或像上面那樣把 <code>/proc/PID/fd/4</code> 截成 0 位元組，不必重啟。截之前一定要先用 lsof 或 <code>ls -l /proc/PID/fd</code> 確認號碼：實驗時曾經照抄成第 3 號，Java 行程的第 3 號是 JDK 自己的 <code>lib/modules</code> 檔（後面「網路」那段的 <code>ls -l /proc/920/fd</code> 看得到），結果把它截成 0，這個容器裡的 java 從此一啟動就報 <code>NoClassDefFoundError: java/lang/Object</code>，只能把容器重建。下次清日誌，對還在寫的檔案用 <code>: &gt; app.log</code> 先截斷，不要直接刪。</p>
+<p>解法兩種：重啟那個行程（描述子關了，空間就回來），或像上面那樣把 <code>/proc/PID/fd/4</code> 截成 0 位元組，不必重啟。截之前一定要先用 lsof 或 <code>ls -l /proc/PID/fd</code> 確認號碼。Java 行程的第 3 號是 JDK 自己的 <code>lib/modules</code> 檔（後面「網路」那段的 <code>ls -l /proc/920/fd</code> 看得到），實驗裡把它截成 0 之後，這個容器裡的 java 一啟動就報 <code>NoClassDefFoundError: java/lang/Object</code>，只能把容器重建。清日誌時，對還在寫的檔案用 <code>: &gt; app.log</code> 先截斷，不要直接刪。</p>
 <p>截斷之後行程能不能「照常寫」，要看它開檔的方式。附加模式（Java 的 <code>FileOutputStream(…, true)</code>，上面的 LogKeeper 就是）每次都寫到檔尾，截斷後從 0 開始長；一般模式會照舊在原本的位置繼續寫，前面那段變成沒有實際占空間的空洞，ls 看起來一樣大。實跑對照：</p>
 <pre><code>$ exec 3&gt;plain.log;  head -c 31457280 /dev/zero &gt;&amp;3   # 一般模式開檔，寫 30 MB
 $ exec 4&gt;&gt;append.log; head -c 31457280 /dev/zero &gt;&amp;4  # 附加模式開檔，寫 30 MB
@@ -630,7 +630,7 @@ $ dig no-such-host.invalid | grep status:
 <p>dig 是查詢 DNS 名稱伺服器的工具，<code>+short</code> 只印簡短答案。<a class="fixsrc" href="https://manpages.ubuntu.com/manpages/noble/man1/dig.1.html" target="_blank" rel="noopener">出處</a> 查不到時看 HEADER 的 <code>status: NXDOMAIN</code>（名字不存在）。</p>
 
 <h4>連線數爆：TIME_WAIT 與 CLOSE_WAIT</h4>
-<p>這兩個狀態的成因在〈TCP、UDP 與 TLS 握手〉的四向揮手一段，這裡只看怎麼從指令看出來。對 8000 埠連續打 300 次 curl（每次開新連線、用完就關）：</p>
+<p>這兩個狀態的成因見〈TCP、UDP 與 TLS 握手〉的四向揮手一段。對 8000 埠連續打 300 次 curl（每次開新連線、用完就關）：</p>
 <pre><code>$ ss -s
 Total: 23
 TCP:   580 (estab 0, closed 578, orphaned 0, timewait 304)

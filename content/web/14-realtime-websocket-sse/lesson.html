@@ -30,7 +30,7 @@
 <li>很多情況，AJAX 加 HTTP 串流或長輪詢就是簡單有效的解法。</li>
 <li>低延遲、高頻率、大量三者同時成立，才是 WebSocket 最適合的情況。</li>
 </ul>
-<p>示範專案的兩種輪詢都實跑過。短輪詢連問三次，版本都沒變，白跑三趟；長輪詢帶 <code>since=1</code> 掛著等，另一個請求 3 秒後發布新版本，掛著的那個才回：</p>
+<p>示範專案實跑兩種輪詢：短輪詢連問三次，版本都沒變，白跑三趟；長輪詢帶 <code>since=1</code> 掛著等，另一個請求 3 秒後發布新版本，掛著的那個才回：</p>
 <pre><code>$ for i in 1 2 3; do curl -s http://127.0.0.1:9149/poll/short; echo; done
 {"version":1}
 {"version":1}
@@ -519,7 +519,7 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 </svg>
 <figcaption>Nginx 的存取日誌也記下兩種結果：<code>"GET /bare/ws/echo HTTP/1.1" 400</code> 與 <code>"GET /ws/echo HTTP/1.1" 101</code>（2026-10-03，nginx 1.29.8）。</figcaption>
 </figure>
-<p>三個設定各有出處：</p>
+<p>三個設定：</p>
 <ul class="plainlist">
 <li><code>proxy_http_version</code>：從 1.29.7 起預設用 1.1，1.29.7 以前預設用 1.0。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version" target="_blank" rel="noopener">ngx_http_proxy_module</a> 用 <code>nginx:1.24</code>（1.24.0）實測沒寫這行時，Nginx 轉給上游的請求行是 <code>GET /x HTTP/1.0</code>，Upgrade 標頭照樣帶著。WebSocket 握手規定 HTTP 版本至少要 1.1（RFC 用 MUST），<a class="fixsrc" href="https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1" target="_blank" rel="noopener">RFC 6455 第 4.1 節</a> 這次的 Tomcat 很寬鬆，照樣回了 101、訊息也收得到，但不能保證每個後端都接受。舊版 Nginx 寫上這行比較保險。</li>
 <li><code>proxy_read_timeout</code>：被代理的伺服器在這段時間內沒有送任何東西，連線就關掉，預設 60 秒。<a class="fixsrc" href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout" target="_blank" rel="noopener">ngx_http_proxy_module</a> 另一個做法是讓後端定期送 Ping 訊框重設逾時。<a class="fixsrc" href="https://nginx.org/en/docs/http/websocket.html" target="_blank" rel="noopener">nginx.org「WebSocket proxying」</a></li>
@@ -565,7 +565,7 @@ Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code></pre>
 <section>
 <p class="era">放回銀行的情境</p>
 <h3 class="head">匯率推播、交易通知怎麼選</h3>
-<p>下面是依前面各段的取捨整理的建議，不是唯一答案；實際還要看前端、代理與既有架構。</p>
+<p>下面是建議，不是唯一答案；實際還要看前端、代理與既有架構。</p>
 <div class="tablewrap"><table><thead><tr><th>情境</th><th>建議</th><th>理由</th></tr></thead><tbody>
 <tr><th>匯率、股價看板</th><td>SSE</td><td>伺服器單向推、頻繁；瀏覽器自動重連；斷線補送可以只補最新一筆（舊匯率沒意義）</td></tr>
 <tr><th>入帳、扣款通知</th><td>SSE 或 STOMP，事件給遞增編號</td><td>不能漏：重連時依 Last-Event-ID（或自己記的編號）補送；也要有「打開 App 時查一次未讀」當保險</td></tr>

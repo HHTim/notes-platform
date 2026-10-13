@@ -17,7 +17,7 @@
 <tr><th>A09 安全記錄與告警失效</th><td>只記成功登入，失敗的沒記</td><td>登入、存取控制失敗都要記錄並告警</td></tr>
 <tr><th>A10 例外狀況處理不當</th><td>轉帳做到一半出錯，扣款沒有一起撤回</td><td>出錯就整筆撤回（fail closed）</td></tr>
 </tbody></table></div>
-<p>表格的防法都出自各類別頁的「How to prevent」，其中幾條的重點：</p>
+<p>其中幾條防法的重點：</p>
 <ul class="plainlist">
 <li><b>A01</b>：除了公開資源以外，預設拒絕；存取控制只有實作在受信任的伺服器端程式碼裡才有效。<a class="fixsrc" href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">出處</a></li>
 <li><b>A05</b>：最好的方法是讓資料跟指令、查詢分開。<a class="fixsrc" href="https://top10.owasp.org/2025/A05_2025-Injection/" target="_blank" rel="noopener">出處</a></li>
@@ -34,7 +34,7 @@
 <div class="drill">
   <p class="dq">登入後把網址 <code>/statements?account=1001</code> 改成 <code>1002</code>，看到別人的對帳單。這屬於哪一類？</p>
   <ul class="dopts"><li data-ok>A01 存取控制失效</li><li>A05 注入</li><li>A07 認證失效</li><li>A02 安全設定錯誤</li></ul>
-  <p class="dexp">已經登入（認證沒問題），但能存取不屬於自己的資料，是授權沒做。A01 的描述裡就有「提供別人的唯一識別碼就能看或改別人的帳戶」。</p>
+  <p class="dexp">已經登入（認證沒問題），但能存取不屬於自己的資料，是授權沒做。提供別人的唯一識別碼就能看或改別人的帳戶，正是 A01 的情況。</p>
 </div>
 <div class="drill">
   <p class="dq">A01 的防法裡，存取控制應該做在哪裡才有效？</p>
@@ -54,12 +54,12 @@
 <div class="drill">
   <p class="dq">轉帳流程是「扣款、入帳、記錄」，入帳時出錯，系統只停在那裡，扣款沒有撤回。照 OWASP 2025 年版，最直接相關的是哪一類？</p>
   <ul class="dopts"><li>A05 注入</li><li>A04 密碼學失效</li><li>A09 安全記錄與告警失效</li><li data-ok>A10 例外狀況處理不當</li></ul>
-  <p class="dexp">A10 頁面就用這個轉帳例子，要求出錯時整筆撤回（fail closed）。Spring 的交易還原就是實作這件事的工具。</p>
+  <p class="dexp">這正是 A10 的情況：出錯時要整筆撤回（fail closed）。Spring 的交易還原就是實作這件事的工具。</p>
 </div>
 <div class="drill">
   <p class="dq">系統只記錄成功的登入，失敗的登入沒有記。攻擊者用外洩的帳密試了一整晚都沒人發現。主要是哪一類的問題？</p>
   <ul class="dopts"><li>A01 存取控制失效，因為攻擊者存取了不屬於他的帳戶</li><li>A06 不安全的設計</li><li>A03 軟體供應鏈失效</li><li data-ok>A09 安全記錄與告警失效</li></ul>
-  <p class="dexp">A09 的描述直接舉了「只記成功登入、沒記失敗」這個例子。允許大量試登入本身則是 A07 的問題，兩者常常一起出現。</p>
+  <p class="dexp">只記成功登入、沒記失敗，正是 A09 的情況。允許大量試登入本身則是 A07 的問題，兩者常常一起出現。</p>
 </div>
 <div class="drill">
   <p class="dq">「設計時沒想到要限制每天的轉帳次數」跟「程式寫錯讓限制沒生效」，OWASP 怎麼區分？</p>
@@ -131,7 +131,7 @@ $ curl -G 'http://127.0.0.1:18093/safe/accounts' --data-urlencode "owner=alice' 
 <li>反過來，「跳脫所有使用者輸入」被標成強烈不建議（STRONGLY DISCOURAGED）。</li>
 </ul>
 <p>Spring 的 <code>JdbcTemplate</code> 用 <code>?</code>、JPA 用 <code>:name</code> 綁參數，背後都是同一件事；〈Spring 資料存取〉的命名參數也是。</p>
-<p>兩個常見的漏洞位置：<strong>表名、欄位名不能用參數</strong>，A05 寫「SQL 的結構，例如表名、欄位名，不能被跳脫，所以使用者提供的結構名稱很危險」，排序欄位這類需求要用允許清單對照（只接受事先列好的幾個值）；<strong>用了 ORM 也可能出事</strong>，在 JPQL 裡自己拼字串一樣會被注入。<a class="fixsrc" href="https://top10.owasp.org/2025/A05_2025-Injection/" target="_blank" rel="noopener">出處</a></p>
+<p>兩個常見的漏洞位置：<strong>表名、欄位名不能用參數</strong>，這類 SQL 結構也不能被跳脫，使用者提供的結構名稱很危險；排序欄位這類需求要用允許清單對照（只接受事先列好的幾個值）；<strong>用了 ORM 也可能出事</strong>，在 JPQL 裡自己拼字串一樣會被注入。<a class="fixsrc" href="https://top10.owasp.org/2025/A05_2025-Injection/" target="_blank" rel="noopener">出處</a></p>
 
 <div class="drill">
   <p class="dq">用拼字串的 <code>/unsafe/accounts</code>，輸入 <code>alice' OR '1'='1</code>，實跑回傳幾個帳戶？</p>
@@ -303,7 +303,6 @@ $ curl -G 'http://127.0.0.1:18093/safe/greet' --data-urlencode "name=&lt;script&
 <li>應用程式只會連到已識別、受信任的應用程式：用允許清單（allowlist），只放行事先登記的網域或位址。</li>
 <li>真的要能連到任意外部網址：才退而求其次做更多檢查，例如解析後的 IP 不能是內網或本機位址，並在網路層限制伺服器能連出去的範圍。</li>
 </ul>
-<p>這課只從防守的角度寫，不實作攻擊。</p>
 
 <div class="drill">
   <p class="dq">下面哪個功能最可能有 SSRF 風險？</p>
@@ -519,9 +518,9 @@ referrer-policy: strict-origin-when-cross-origin</code></pre>
 <section>
 <p class="era">程式之外，主機本身</p>
 <h3 class="head">伺服器加固與機密管理</h3>
-<p>A02 安全設定錯誤列的情況包括「啟用或安裝了不必要的功能，例如不必要的連接埠、服務、頁面、帳號」與「預設帳號與密碼仍然啟用、沒改過」，防法第一條是「一套可重複的加固流程」，而且開發、測試、正式環境「設定一致，各用不同的憑證」。<a class="fixsrc" href="https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/" target="_blank" rel="noopener">出處</a> 落到主機上，基本動作是這幾件：</p>
+<p>A02 安全設定錯誤包括啟用或安裝了不必要的功能（例如不必要的連接埠、服務、頁面、帳號），以及預設帳號與密碼仍然啟用、沒改過；防法第一條是一套可重複的加固流程，而且開發、測試、正式環境設定一致、各用不同的憑證。<a class="fixsrc" href="https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/" target="_blank" rel="noopener">出處</a> 落到主機上，基本動作是這幾件：</p>
 <ul class="plainlist">
-<li><strong>SSH 用金鑰登入，關掉密碼登入。</strong>OpenSSH 的伺服器設定 <code>PasswordAuthentication</code>「指定是否允許密碼認證，預設是 yes」，要自己改成 no；<code>PermitRootLogin</code> 的預設是 <code>prohibit-password</code>，root 不能用密碼登入，能設成 no 就完全不准 root 直接登入。<a class="fixsrc" href="https://man.openbsd.org/sshd_config" target="_blank" rel="noopener">出處</a> 用金鑰登入，就不會被大量試密碼的方式破解。</li>
+<li><strong>SSH 用金鑰登入，關掉密碼登入。</strong>OpenSSH 伺服器的 <code>PasswordAuthentication</code> 決定是否允許密碼認證，預設是 yes，要自己改成 no；<code>PermitRootLogin</code> 的預設是 <code>prohibit-password</code>，root 不能用密碼登入，能設成 no 就完全不准 root 直接登入。<a class="fixsrc" href="https://man.openbsd.org/sshd_config" target="_blank" rel="noopener">出處</a> 用金鑰登入，就不會被大量試密碼的方式破解。</li>
 <li><strong>防火牆只開必要的埠。</strong>A02 把開著不必要的連接埠、服務列為安全設定錯誤的情況之一。<a class="fixsrc" href="https://top10.owasp.org/2025/A02_2025-Security_Misconfiguration/" target="_blank" rel="noopener">出處</a> 做法是預設全部擋，只放行服務需要的（例如 443），管理用的 SSH 只開給公司的網段。</li>
 <li><strong>最小權限。</strong>應用程式用一般帳號跑、不用 root；資料庫帳號只給需要的權限（查詢服務不需要刪表權限）。A01 第一條就是違反最小權限原則。<a class="fixsrc" href="https://top10.owasp.org/2025/A01_2025-Broken_Access_Control/" target="_blank" rel="noopener">出處</a></li>
 <li><strong>照現成的基準做。</strong>CIS Benchmarks 是針對 25 個以上產品家族的規範性設定建議，由全球資安專家共同整理，作業系統、雲端、資料庫都有，不用自己從零想加固項目。<a class="fixsrc" href="https://www.cisecurity.org/cis-benchmarks" target="_blank" rel="noopener">出處</a></li>
@@ -553,7 +552,7 @@ referrer-policy: strict-origin-when-cross-origin</code></pre>
 <div class="drill">
   <p class="dq">機密的生命週期要求，下面哪一項<strong>不在</strong>其中？</p>
   <ul class="dopts"><li>經常輪替，最好能自動輪替</li><li>只給需要的人看</li><li>可以撤銷</li><li data-ok>寫進日誌方便事後追查</li></ul>
-  <p class="dexp">機密絕不能寫進日誌（Never be logged），要遮蔽或加密。</p>
+  <p class="dexp">機密絕不能寫進日誌，要遮蔽或加密。</p>
 </div>
 </section>
 
