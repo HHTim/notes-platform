@@ -108,6 +108,11 @@ class TestBuild(unittest.TestCase):
         for page in ('index.html', 'english/index.html'):
             self.assertNotIn('Chivo', (self.out / page).read_text(encoding='utf-8'), page)
 
+    def test_hidden_attribute_wins_over_display(self):
+        """成績卡、按鈕列這些用 display:flex 的元素，加了 hidden 也要真的消失"""
+        css = (self.out / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('[hidden]{display:none!important}', css)
+
     def test_home_resume_and_cards(self):
         html = (self.out / 'index.html').read_text(encoding='utf-8')
         for i in ('id="resume"', 'id="resumeIcon"', 'id="resumeMod"', 'id="resumeLesson"'):

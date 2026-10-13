@@ -21,12 +21,13 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 - **2026-09-21 起的批次收錄**：Tim 把整包 HackMD 筆記下載下來一次消化，分十波進行，慣例與進度表在 `docs/superpowers/plans/2026-09-21-batch-intake.md`。一課的測驗題數在那一輪改成預設 8 題（內容密的 10 題、薄的最少 6 題）。批次收錄踩過最多次的坑是**更正標記把對的筆記標成錯的**，判準寫在 `~/.claude/projects/-Users-twinb00597734-Workspace-notes-platform/memory/fixnote-burden-of-proof.md`。
 - **2026-09-24 全站審查**（架構＋十個模組內容＋跨模組一致性，計畫與結果在 `docs/superpowers/plans/2026-09-24-full-audit.md`）與 **2026-09-29 面試集擴充**（對照 roadmap.sh/backend 的缺口分析在 `2026-09-29-roadmap-coverage.md`，計畫與進度在 `2026-09-29-roadmap-expansion.md`；面試集從 3 課擴到 12 課，每課「依官方文件新寫」：零更正標記、每個主張附出處、獨立審查加範圍複審後才上線）。新寫課的慣例寫在 `.claude/skills/add-note/SKILL.md` 第 5 步。
 - **2026-10-02 多益文法**：英文模組新增 18 課文法書（第 3〜20 課，從句子骨架、時態四課到倒裝與解題順序），規格在 `docs/superpowers/specs/2026-10-02-toeic-grammar-design.md`，兩批計畫與審查紀錄在 `docs/superpowers/plans/2026-10-02-toeic-grammar-batch1.md`、`…-batch2.md`。網站新增「課中練習」（課文裡的四選一，點了馬上看對錯，`builder/build.py` 的 `DrillChecker` 檢查每題正解剛好一個）。題目全部自編、不得照抄 ETS 範例題；寫課守則 11 條在第二批計畫裡。同期面試集再加 3 課（微服務、容器與部署、行為面試）共 16 課。
+- **2026-10-13 改版與錯題區**：外觀換成白底配色塊、測驗回饋改圈叉加成績卡、每個模組有錯題區（連對兩次或手動移除）、首頁有「繼續上次」。規格在 `docs/superpowers/specs/2026-10-13-redesign-and-wrong-bank-design.md`，計畫在 `docs/superpowers/plans/2026-10-13-redesign-and-wrong-bank.md`。進度物件多了 `_last` 與 `_wrong` 兩個保留鍵，合併規則在 `builder/templates/sync.js`。
 
 ## 工程慣例
 
 - **沒有框架**：網站是 `builder/build.py`（Python 3）產出的靜態 HTML，維護點只有 `builder/` 與 `content/`。
 - **內容與外觀分開**：`content/` 只放不含樣式的內容檔；版型、配色、測驗互動集中在 `builder/templates/`。
-- 色系定稿：亮暖色（奶油底 #F7F0E3、白卡片、古銅 #B5730F、灰藍 #5E7A9B），**刻意不做深色模式**。
+- 色系定稿：白底配色塊（白底、深綠灰墨色 #233831、薄荷與桃橘六個淡色只當記號；色號表在 `docs/superpowers/specs/2026-10-13-redesign-and-wrong-bank-design.md` 第 2 節），**刻意不做深色模式**。圖示全部是 `builder/templates/icons.svg` 裡自己畫的 SVG，不用 emoji。
 - 建置=整站重建，`dist/` 不進 git；push 到 `main` 即發佈（GitHub Actions → GitHub Pages）。
 - 網站網址：https://hhtim.github.io/notes-platform/
 
