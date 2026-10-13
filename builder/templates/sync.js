@@ -2,12 +2,17 @@
    只有 builder 在 content/firebase.json 存在時才把本檔放進頁面；
    頁面會先宣告 FIREBASE_CONFIG，並已載入 firebase compat SDK（app/auth/firestore）。 */
 var NotesSync = {
-  /* 合併規則（規格第 7 節）：勾過就算勾過、成績取較好那次，絕不以單邊蓋掉另一邊 */
+  /* 合併規則（總規格第 7 節＋改版規格第 5.5 節）：
+     課的紀錄：勾過就算勾過、成績取較好那次，絕不以單邊蓋掉另一邊。
+     _last（最後看的課）：時間新的一邊贏。
+     _wrong（錯題）：以鍵取聯集；同一鍵兩邊都有時，時間新的那筆整筆贏。
+     保留鍵以底線開頭；課的 slug 只有小寫英數與連字號，不會撞到。 */
   merge: function (local, cloud) {
     var out = {};
-    function add(src) {
+    function addLessons(src) {
       if (!src) return;
       Object.keys(src).forEach(function (k) {
+        if (k.charAt(0) === '_') return;
         var b = src[k] || {};
         var a = out[k];
         if (!a) { out[k] = { best: b.best || 0, total: b.total || 0, done: !!b.done }; return; }
@@ -16,7 +21,26 @@ var NotesSync = {
         a.done = !!(a.done || b.done);
       });
     }
-    add(local); add(cloud);
+    addLessons(local); addLessons(cloud);
+
+    var last = null;
+    [local && local._last, cloud && cloud._last].forEach(function (x) {
+      if (x && x.slug && (!last || (x.at || 0) > (last.at || 0))) last = x;
+    });
+    if (last) out._last = { slug: last.slug, at: last.at || 0 };
+
+    var wrong = {};
+    [local, cloud].forEach(function (src) {
+      var m = src && src._wrong;
+      if (!m) return;
+      Object.keys(m).forEach(function (k) {
+        var r = m[k] || {};
+        if (!wrong[k] || (r.at || 0) > (wrong[k].at || 0)) {
+          wrong[k] = { streak: r.streak || 0, removed: r.removed || 0, at: r.at || 0 };
+        }
+      });
+    });
+    if (Object.keys(wrong).length) out._wrong = wrong;
     return out;
   }
 };
