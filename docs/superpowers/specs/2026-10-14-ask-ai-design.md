@@ -43,11 +43,21 @@ Tim 的交代：「選一段文字，然後這個文法我不懂，可以直接�
 
 - **新檔 `builder/templates/askai.js`**，跟 `sync.js` 一樣是不用框架的 JavaScript。
 - 網站現在用的 Firebase SDK 是舊式寫法（compat 10.14.1），Firebase AI Logic 只有新式寫法（modular）。做法：**第一次按「問 AI」時才載入**新式 SDK（從 gstatic 用 `import()` 載入，版本在計畫裡定死），用同一組 `content/firebase.json` 設定另外初始化一個名為 `askai` 的 app。平常不按就不多載任何東西。
-- 型號：`gemini-3.8-flash`（2026-10 定價頁標示免費版可用）。型號寫在 `content/firebase.json` 新增的 `ai_model` 欄位，改型號不用改程式。
-- **App Check**（確認呼叫來自我們的網站，別的網站拿我們的設定也呼叫不了）：用 reCAPTCHA Enterprise。免費版每月 1 萬次驗證、不用綁卡；2026-11-02 起 Firebase 強制要求。網站金鑰（site key）是公開值，放 `content/firebase.json` 的 `recaptcha_site_key`。開啟一次性用的驗證碼（`useLimitedUseAppCheckTokens: true`）。
+- 型號：`gemini-3.8-flash`（2026-10 定價頁標示免費版可用）。AI 的設定放新檔 `content/askai.json`（`model`、`app_id`、`recaptcha_site_key`，三個都是公開值），改型號不用改程式。不塞進 `firebase.json`，因為那份會整份交給登入用的舊式 SDK。
+- App Check 需要 Firebase 網頁 app 的 `app_id`（公開識別碼），現在的 `firebase.json` 沒有，Tim 在主控台註冊網頁 app 後取得。
+- **App Check**（確認呼叫來自我們的網站，別的網站拿我們的設定也呼叫不了）：用 reCAPTCHA Enterprise。免費版每月 1 萬次驗證、不用綁卡；2026-11-02 起 Firebase 強制要求。網站金鑰（site key）是公開值，放 `content/askai.json`。開啟一次性用的驗證碼（`useLimitedUseAppCheckTokens: true`）。
 - **白名單判斷**：沿用 `sync.js` 已做的白名單查詢結果。`sync.js` 確認在名單上後設 `document.documentElement` 的 `data-sync="ok"`，`askai.js` 只在這時顯示按鈕。這是網頁端的判斷，懂技術的人繞得過；免費版不產生費用，最壞情況只是當天額度被用完，接受。
-- **哪些模組開**：`module.json` 加 `"ask_ai": true`。`builder/build.py` 只在有這個欄位、而且 `firebase.json` 有 `ai_model` 時才把 `askai.js` 放進頁面。
+- **哪些模組開**：`module.json` 加 `"ask_ai": true`。`builder/build.py` 只在有這個欄位、而且 `content/askai.json` 存在時才把 `askai.js` 放進頁面。
 - 樣式放 `style.css`，亮暗兩種模式都要加；圖示畫在 `icons.svg`（不用 emoji）。
+
+## 發佈：哪個分支上線
+
+- `main`：沒有任何 AI 的網站。`ask-ai`：本規格的 AI 版。
+- GitHub repo 設定裡的 Actions 變數 `DEPLOY_BRANCH` 決定哪條上線，先設 `ask-ai`。
+- 發佈設定（`.github/workflows/deploy.yml`）改成 push 到 `main` 或 `ask-ai` 都跑測試與建置，只有分支等於 `DEPLOY_BRANCH` 才發佈。兩條分支的這個檔案要一樣。
+- 發佈環境 `github-pages` 的允許清單加上 `ask-ai`。
+- 切回沒有 AI：把 `DEPLOY_BRANCH` 改成 `main`，在 Actions 頁面對 `main` 手動跑一次。
+- `ask-ai` 上線期間，`main` 的新課要併進 `ask-ai` 才會出現在網站上；Tim 同意這樣做（只是課綱更新）。
 
 ## 錯誤時顯示什麼
 
@@ -75,7 +85,7 @@ Tim 的交代：「選一段文字，然後這個文法我不懂，可以直接�
   - 截斷：超過 500、800 字的處理。
   - 回答顯示：含 `<script>`、`<img onerror>` 的回答顯示成純文字；粗體、條列正確轉換。
   - 錯誤分類：各種錯誤對到上表的訊息。
-- 建置測試：有 `ask_ai` 的模組頁含 `askai.js`，沒有的不含；`firebase.json` 沒有 `ai_model` 時整站都不含。
+- 建置測試：有 `ask_ai` 的模組頁含 `askai.js`，沒有的不含；沒有 `content/askai.json` 時整站都不含。
 - 新加的顏色變數亮暗兩段都有（既有測試會擋）。
 - 上線前用瀏覽器實測：電腦與手機寬度、亮暗模式、日文選字含讀音、各種錯誤顯示。
 - Tim 驗收：用自己的手機在日文課選字問幾題。
