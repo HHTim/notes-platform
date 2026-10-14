@@ -318,5 +318,29 @@ class TestDeployWorkflow(unittest.TestCase):
         self.assertIn('group: pages-${{ github.ref_name }}', self.yml)
 
 
+class TestAskAiStyle(unittest.TestCase):
+    def setUp(self):
+        self.css = (ROOT / 'builder' / 'templates' / 'style.css').read_text(encoding='utf-8')
+        self.svg = (ROOT / 'builder' / 'templates' / 'icons.svg').read_text(encoding='utf-8')
+        self.js = (ROOT / 'builder' / 'templates' / 'askai.js').read_text(encoding='utf-8')
+
+    def test_styles_exist(self):
+        for sel in ('.askbtn', '.askai', '.askai .aa-log', '.askai .aa-note'):
+            self.assertIn(sel + '{', self.css.replace(' {', '{'))
+
+    def test_mobile_sheet(self):
+        self.assertRegex(self.css, r'@media \(max-width:720px\)\{[^@]*\.askai\{')
+
+    def test_icons(self):
+        self.assertIn('id="ic-ask"', self.svg)
+        self.assertIn('id="ic-close"', self.svg)
+
+    def test_mock_only_on_localhost(self):
+        self.assertIn("/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname)", self.js)
+
+    def test_privacy_note(self):
+        self.assertIn('免費版：問題與回答會被 Google 用來改進產品，不要貼個人資料。', self.js)
+
+
 if __name__ == '__main__':
     unittest.main()
