@@ -302,5 +302,21 @@ class TestOptionHeights(unittest.TestCase):
 
 
 
+class TestDeployWorkflow(unittest.TestCase):
+    """發佈只跟 DEPLOY_BRANCH 走；兩條分支都會跑測試與建置。"""
+    def setUp(self):
+        self.yml = (ROOT / '.github' / 'workflows' / 'deploy.yml').read_text(encoding='utf-8')
+
+    def test_both_branches_trigger(self):
+        self.assertIn('branches: [main, ask-ai]', self.yml)
+
+    def test_deploy_only_for_chosen_branch(self):
+        self.assertIn('if: github.ref_name == vars.DEPLOY_BRANCH', self.yml)
+
+    def test_concurrency_per_branch(self):
+        # 兩條分支共用群組時，main 的 push 會把排隊中的 ask-ai 發佈略過
+        self.assertIn('group: pages-${{ github.ref_name }}', self.yml)
+
+
 if __name__ == '__main__':
     unittest.main()
