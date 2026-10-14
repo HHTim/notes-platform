@@ -13,7 +13,7 @@ LESSON_OK = ('<!-- 來源：測試用 -->\n<div class="learn"><p class="lbl">讀
 QUIZ = {'questions': [{'q': '題目？', 'opts': ['對', '錯', '不知道'], 'exp': '因為。'}] * 5}
 
 
-def fake_site(lessons):
+def fake_site(lessons, mod_extra=None):
     """在暫存目錄造一個只有一個模組的假 content/。lessons 是 [(dir, slug, html), ...]。"""
     tmp = Path(tempfile.mkdtemp())
     content = tmp / 'content'
@@ -22,10 +22,10 @@ def fake_site(lessons):
     (content / 'modules.json').write_text(json.dumps(
         {'site_title': '測試站', 'site_intro': '介紹', 'modules': [{'id': 'demo', 'icon': 'java'}]},
         ensure_ascii=False), encoding='utf-8')
-    (mdir / 'module.json').write_text(json.dumps({
+    (mdir / 'module.json').write_text(json.dumps(dict({
         'title': '示範模組', 'intro': '介紹', 'kick': 'DEMO', 'overview_intro': '總覽', 'footer_note': '註',
         'lessons': [{'dir': d, 'slug': s, 'title': '第 %s 課' % d, 'desc': '說明', 'mins': 5}
-                    for d, s, _ in lessons]}, ensure_ascii=False), encoding='utf-8')
+                    for d, s, _ in lessons]}, **(mod_extra or {})), ensure_ascii=False), encoding='utf-8')
     for d, _, html in lessons:
         ldir = mdir / d
         ldir.mkdir()
@@ -239,3 +239,57 @@ class TestTitleSegments(unittest.TestCase):
         # 小節標題是 flex 排版（前面有小方塊）：文字一律包成一塊，換行記號才不會拆出間距，長標題在手機上也縮得下
         self.assertIn('<h3 class="head" id="one-sec-1"><span>甲：<wbr>乙</span></h3>', html)
         self.assertIn('data-goto="one-sec-1">甲：乙</a>', html)   # 目錄裡不用分段
+
+
+JA_OK = ('<p lang="ja"><ruby>私<rt>わたし</rt></ruby>は<ruby>学生<rt>がくせい</rt></ruby>です。</p>\n'
+         '<p>我是學生。用 <span lang="ja">は</span> 標主題。</p>\n')
+
+
+class TestJapanese(unittest.TestCase):
+    """日文模組：假名不在 lang="ja" 底下會用中文字形顯示；lang="ja" 底下的漢字不在 <ruby> 裡就是漏標讀音。"""
+
+    def test_good_passes(self):
+        self.assertEqual(builder.ja_errors(JA_OK), [])
+
+    def test_kana_without_lang_fails(self):
+        errs = builder.ja_errors('<p>私はです</p>')
+        self.assertEqual(len(errs), 1)
+        self.assertIn('第 1 行', errs[0])
+        self.assertIn('lang="ja"', errs[0])
+
+    def test_kanji_without_ruby_fails(self):
+        errs = builder.ja_errors('<p lang="ja"><ruby>私<rt>わたし</rt></ruby>は学生です。</p>')
+        self.assertEqual(len(errs), 1)
+        self.assertIn('学', errs[0])
+
+    def test_chinese_kanji_and_middle_dot_ok(self):
+        self.assertEqual(builder.ja_errors('<p>中文說明・甲乙</p>'), [])
+
+    def test_zh_inside_ja_resets(self):
+        self.assertEqual(builder.ja_errors('<p lang="ja">です<span lang="zh-Hant">中文</span></p>'), [])
+
+    def test_line_number_points_at_the_char(self):
+        errs = builder.ja_errors('<p>\n中文\n說明です</p>')
+        self.assertIn('第 3 行', errs[0])
+
+    def test_quiz_fields_checked(self):
+        errs = builder.ja_quiz_errors([{'q': '<span lang="ja">私です</span>',
+                                        'opts': ['<span lang="ja">は</span>', 'が'], 'exp': '中文'}])
+        self.assertEqual(len(errs), 2)
+        self.assertIn('第 1 題', errs[0])
+        self.assertTrue(any('選項 2' in e for e in errs))
+
+    def test_build_stops_for_ja_module(self):
+        content, out = fake_site([('01-one', 'one', LESSON_OK + '<p>です</p>')], {'lang': 'ja'})
+        with self.assertRaises(SystemExit) as cm:
+            builder.build(content_dir=content, out_dir=out)
+        self.assertIn('demo/01-one', str(cm.exception))
+
+    def test_other_modules_not_checked(self):
+        content, out = fake_site([('01-one', 'one', LESSON_OK + '<p>です</p>')])
+        builder.build(content_dir=content, out_dir=out)
+
+    def test_section_title_drops_ruby_reading(self):
+        html = '<h3 class="head"><span lang="ja"><ruby>私<rt>わたし</rt></ruby>は</span>的用法</h3>'
+        _, titles = builder.section_titles(html, 'x')
+        self.assertEqual(titles, ['私は的用法'])

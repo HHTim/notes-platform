@@ -103,6 +103,75 @@ def drill_errors(html):
     return p.errors
 
 
+KANA_RE = re.compile(r'[\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF]')   # 不含「・」（中文也用）
+KANJI_RE = re.compile(r'[\u3400-\u4DBF\u4E00-\u9FFF\u3005]')                       # 含「々」
+
+
+class JaChecker(HTMLParser):
+    """日文模組的兩條規則：假名一定在 lang="ja" 底下（不然日文漢字會用中文字形）；
+    lang="ja" 底下的漢字一定在 <ruby> 裡（不然漏標讀音）。<rt>、<rp> 裡的字不檢查。"""
+
+    def __init__(self):
+        super().__init__()
+        self.errors = []     # (行號, 說明)
+        self.stack = []      # 每層 (tag, 是日文, 在 ruby 裡, 在 rt 裡)
+
+    def _top(self):
+        return self.stack[-1][1:] if self.stack else (False, False, False)
+
+    def handle_starttag(self, tag, attrs):
+        if tag in VOID_TAGS:
+            return
+        ja, ruby, rt = self._top()
+        a = dict(attrs)
+        if 'lang' in a:
+            ja = (a['lang'] or '').lower().startswith('ja')
+        self.stack.append((tag, ja, ruby or tag == 'ruby', rt or tag in ('rt', 'rp')))
+
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i][0] == tag:
+                del self.stack[i:]
+                return
+
+    def handle_data(self, data):
+        ja, ruby, rt = self._top()
+        if rt:
+            return
+        line = self.getpos()[0]
+        if not ja:
+            m = KANA_RE.search(data)
+            if m:
+                self.errors.append((line + data.count('\n', 0, m.start()),
+                                    '的「%s」有日文假名，要放在 lang="ja" 的元素裡' % data.strip()[:20]))
+        elif not ruby:
+            m = KANJI_RE.search(data)
+            if m:
+                self.errors.append((line + data.count('\n', 0, m.start()),
+                                    '的漢字「%s」沒標讀音（要包在 <ruby> 裡）' % m.group()))
+
+
+def _ja_check(html):
+    p = JaChecker()
+    p.feed(html)
+    p.close()
+    return p.errors
+
+
+def ja_errors(html):
+    return ['第 %d 行%s' % (line, msg) for line, msg in _ja_check(html)]
+
+
+def ja_quiz_errors(questions):
+    errs = []
+    for i, q in enumerate(questions, 1):
+        fields = [('題目', q.get('q', ''))] + [('選項 %d' % j, o) for j, o in enumerate(q.get('opts', []), 1)] \
+            + [('解析', q.get('exp', ''))]
+        for name, text in fields:
+            errs += ['第 %d 題（%s）%s' % (i, name, msg) for _, msg in _ja_check(text)]
+    return errs
+
+
 def load_templates(tpl_dir):
     names = ('style.css', 'course.js', 'sync.js', 'theme.js', 'module.html', 'home.html', 'favicon.svg', 'icons.svg')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
@@ -139,6 +208,7 @@ def title_html(t):
         return t
     return t.replace('：', '：<wbr>')
 TAG_RE = re.compile(r'<[^>]+>')
+RT_RE = re.compile(r'<(rt|rp)>.*?</\1>', re.S)   # 讀音（振假名）不進目錄的純文字
 
 
 def section_titles(html, slug):
@@ -147,7 +217,7 @@ def section_titles(html, slug):
     titles = []
 
     def rep(m):
-        titles.append(re.sub(r'\s+', ' ', TAG_RE.sub('', m.group(1))).strip())
+        titles.append(re.sub(r'\s+', ' ', TAG_RE.sub('', RT_RE.sub('', m.group(1)))).strip())
         # h3.head 是 flex（前面有小方塊）：文字包成一塊，<wbr> 才不會把字拆成兩個項目、中間多出間距；
         # 這一塊配 min-width:0，長標題在手機上才縮得下
         inner = '<span>%s</span>' % title_html(m.group(1))
@@ -220,11 +290,16 @@ def load_site(content_dir):
             if errs:
                 raise SystemExit('建置中止：%s/%s/lesson.html 的課中練習有問題\n  ' % (entry['id'], L['dir'])
                                  + '\n  '.join(errs))
+            L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
+            if mod.get('lang') == 'ja':
+                errs = ja_errors(L['html']) + ja_quiz_errors(L['quiz'])
+                if errs:
+                    raise SystemExit('建置中止：%s/%s 的日文沒標好\n  ' % (entry['id'], L['dir'])
+                                     + '\n  '.join(errs))
             L['html'], L['sections'] = section_titles(L['html'], L['slug'])
             L['has_drill'] = '<div class="drill"' in L['html']
             if L['has_drill']:
                 L['html'] = L['html'].replace('<div class="drill"', '<div class="drill" id="%s-drill"' % L['slug'], 1)
-            L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             L['assets'] = ldir / 'assets'
         mods.append(mod)
     check_slugs(mods)
