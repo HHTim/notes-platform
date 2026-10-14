@@ -331,7 +331,11 @@ document.getElementById('burger').addEventListener('click',function(){
 });
 scrim.addEventListener('click',closeSidebar);
 sidebar.addEventListener('click',function(e){
-  if(e.target.closest('a[data-nav]'))closeSidebar();
+  var a=e.target.closest('a[data-nav]');if(!a)return;
+  /* 再點一次目前這課：網址沒變不會觸發 route，改成收合／展開它的小節 */
+  var subs=sidebar.querySelector('.subs[data-subs="'+a.getAttribute('data-nav')+'"]');
+  if(subs&&a.getAttribute('href')===location.hash){e.preventDefault();subs.hidden=!subs.hidden;}
+  closeSidebar();
 });
 function route(){
   var h=location.hash||'#/';
