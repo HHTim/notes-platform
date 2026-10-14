@@ -81,6 +81,47 @@ var NotesAsk = {
         (err.code === 'fetch-error' && !status)) return 'network';
     return 'other';
   },
+  /* 一段對話的狀態。getModel() 回傳 Promise<模型>；ask 回傳 Promise：'done'、'stale'（中途 reset 了），失敗就 reject。
+     - 第一題還沒成功前，每次都送完整問題（含選的字、前後文）；SDK 只在成功時把這輪記進對話紀錄，
+       所以失敗後要丟掉 chat 重開，不然下一題只剩「問題」那一句、沒有前後文。
+     - reset（關對話框、換題）之後立刻不算忙碌，晚到的回答片段也不再交給 onChunk。 */
+  session: function (getModel) {
+    var chat = null, turns = 0, gen = 0, busy = false;
+    return {
+      busy: function () { return busy; },
+      reset: function () { gen++; chat = null; turns = 0; busy = false; },
+      ask: function (q, ctx, onChunk) {
+        var my = gen;
+        busy = true;
+        var text = turns ? q : NotesAsk.buildPrompt({ module: ctx.module, lesson: ctx.lesson, section: ctx.section,
+          context: ctx.context, selected: ctx.selected, question: q });
+        return Promise.resolve(getModel()).then(function (model) {
+          if (my !== gen) return 'stale';
+          if (!chat) chat = model.startChat();
+          return chat.sendMessageStream(text).then(async function (res) {
+            var acc = '';
+            for await (var c of res.stream) {
+              if (my !== gen) return 'stale';
+              acc += c.text();
+              onChunk(acc);
+            }
+            if (my !== gen) return 'stale';
+            if (!acc) throw { code: 'response-error' };
+            turns++;
+            return 'done';
+          });
+        }).then(function (r) {
+          if (my === gen) busy = false;
+          return r;
+        }, function (err) {
+          if (my !== gen) return 'stale';
+          busy = false;
+          if (!turns) chat = null;
+          throw err;
+        });
+      }
+    };
+  },
   MESSAGES: {
     'quota-day': '今天的免費額度用完了，明天再試。',
     'quota-minute': '問太快了，等一分鐘再問。',
@@ -100,7 +141,8 @@ if (typeof document !== 'undefined' && typeof ASKAI_CONFIG !== 'undefined') (fun
   var DEFAULT_Q = '這段的文法是什麼意思？';
   var NOTE = '免費版：問題與回答會被 Google 用來改進產品，不要貼個人資料。';
   var main = document.getElementById('main');
-  var btn = null, panel = null, lastRange = null, ctx = null, chat = null, gen = 0, modelP = null;
+  var btn = null, panel = null, lastRange = null, ctx = null, modelP = null;
+  var sess = NotesAsk.session(function () { return loadModel(); });
 
   function allowed() { return mockMode || document.documentElement.getAttribute('data-sync') === 'ok'; }
   function icon(n) { return '<svg class="ic" aria-hidden="true"><use href="#ic-' + n + '"/></svg>'; }
@@ -215,7 +257,8 @@ if (typeof document !== 'undefined' && typeof ASKAI_CONFIG !== 'undefined') (fun
   function openPanel(range) {
     if (!panel) build();
     ctx = contextOf(range);
-    gen++; chat = null;
+    sess.reset();
+    panel.querySelector('.aa-send').disabled = false;   // 上一題還在回答時就換題，送出鈕要恢復
     var selBox = panel.querySelector('.aa-sel');
     selBox.textContent = ctx.selected;
     if (CFG.lang === 'ja') selBox.setAttribute('lang', 'ja'); else selBox.removeAttribute('lang');
@@ -225,38 +268,28 @@ if (typeof document !== 'undefined' && typeof ASKAI_CONFIG !== 'undefined') (fun
     panel.hidden = false; hideBtn();
     ta.focus(); ta.select();
   }
-  function closePanel() { if (!panel) return; panel.hidden = true; gen++; chat = null; ctx = null; }
+  function closePanel() { if (!panel) return; panel.hidden = true; sess.reset(); ctx = null; }
 
   function send(retryText) {
     var ta = panel.querySelector('textarea'), log = panel.querySelector('.aa-log'), sendBtn = panel.querySelector('.aa-send');
     var q = retryText || ta.value.trim();
     if (!q || !ctx) return;
-    var my = gen;
     if (!retryText) { log.appendChild(el('div', 'aa-q', esc(q))); ta.value = ''; }
     var ans = el('div', 'aa-a', '<p>…</p>'); log.appendChild(ans); log.scrollTop = log.scrollHeight;
     sendBtn.disabled = true;
-    var text = chat ? q : NotesAsk.buildPrompt({ module: ctx.module, lesson: ctx.lesson, section: ctx.section, context: ctx.context, selected: ctx.selected, question: q });
-    loadModel().then(function (model) {
-      if (my !== gen) return;
-      if (!chat) chat = model.startChat();
-      return chat.sendMessageStream(text).then(async function (res) {
-        var acc = '';
-        for await (var c of res.stream) {
-          if (my !== gen) return;   // 對話框已關或換題：晚到的片段不寫進新的對話
-          acc += c.text();
-          ans.innerHTML = NotesAsk.renderAnswer(acc);
-          log.scrollTop = log.scrollHeight;
-        }
-        if (!acc) throw { code: 'response-error' };
-      });
-    })['catch'](function (err) {
-      if (my !== gen) return;
+    sess.ask(q, ctx, function (acc) {
+      ans.innerHTML = NotesAsk.renderAnswer(acc);
+      log.scrollTop = log.scrollHeight;
+    }).then(function (r) {
+      if (r !== 'stale') sendBtn.disabled = false;
+    }, function (err) {
       var k = NotesAsk.classifyError(err);
       ans.className = 'aa-err';
       ans.innerHTML = esc(NotesAsk.MESSAGES[k]) + ((k === 'network' || k === 'other') ? '<button type="button">再試一次</button>' : '');
       var rb = ans.querySelector('button');
-      if (rb) rb.addEventListener('click', function () { ans.remove(); chat = null; send(q); });   // 重試開新對話，避免半截回答留在對話紀錄裡
+      if (rb) rb.addEventListener('click', function () { ans.remove(); send(q); });   // 失敗的那輪沒進對話紀錄，直接重送同一題
+      sendBtn.disabled = false;
       if (window.console) console.warn('askai', err);
-    }).then(function () { if (my === gen) sendBtn.disabled = false; });
+    });
   }
 })();

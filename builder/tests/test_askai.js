@@ -55,4 +55,60 @@ assert.strictEqual(A.classifyError(null), 'other');
 ['quota-day', 'quota-minute', 'appcheck', 'network', 'blocked', 'other'].forEach(function (k) { assert.ok(A.MESSAGES[k], k); });
 assert.strictEqual(A.MESSAGES['quota-day'], '今天的免費額度用完了，明天再試。');
 
-console.log('問 AI 純函式測試全部通過');
+
+// 對話狀態（最終審查抓到的兩個問題）：假的模型記下每次送出的文字，可以指定第幾次失敗
+function fakeModel(plan) {
+  var sent = [], n = 0;
+  return { sent: sent, model: { startChat: function () { return { sendMessageStream: function (text) {
+    sent.push(text);
+    var step = plan[n++] || 'ok';
+    if (step === 'fail') return Promise.reject({ code: 'fetch-error', customErrorData: { status: 429, errorDetails: [] } });
+    if (step === 'hang') return new Promise(function () {});
+    return Promise.resolve({ stream: (async function* () { yield { text: function () { return '答'; } }; })() });
+  } }; } } };
+}
+var CTX = { module: '日文', lesson: '助詞', section: 'が', context: '前後文', selected: '私が' };
+
+(async function () {
+  // 第一題失敗後再問：還是要送完整問題（含選的字），不能只送「問題」那一句
+  var f = fakeModel(['fail', 'ok']);
+  var s = A.session(function () { return Promise.resolve(f.model); });
+  await s.ask('第一題', CTX, function () {}).then(function () { assert.fail('應該失敗'); }, function () {});
+  await s.ask('第一題', CTX, function () {});
+  assert.ok(f.sent[1].indexOf('我選的字：「私が」') >= 0, '失敗後重問沒帶前後文：' + f.sent[1]);
+
+  // 成功之後的追問只送問題本身
+  await s.ask('追問', CTX, function () {});
+  assert.strictEqual(f.sent[2], '追問');
+
+  // 追問失敗後再問：前面的對話還在，所以仍只送問題本身
+  var g = fakeModel(['ok', 'fail', 'ok']);
+  var s2 = A.session(function () { return Promise.resolve(g.model); });
+  await s2.ask('一', CTX, function () {});
+  await s2.ask('二', CTX, function () {}).catch(function () {});
+  await s2.ask('二', CTX, function () {});
+  assert.strictEqual(g.sent[2], '二');
+
+  // 回答還沒回來就關掉／換題：reset 之後馬上不是忙碌狀態（送出鈕要能按）
+  var h = fakeModel(['hang']);
+  var s3 = A.session(function () { return Promise.resolve(h.model); });
+  s3.ask('卡住', CTX, function () {});
+  assert.strictEqual(s3.busy(), true);
+  s3.reset();
+  assert.strictEqual(s3.busy(), false);
+
+  // 換題後，舊的回答片段不會送到 onChunk
+  var late = [], release;
+  var slow = { startChat: function () { return { sendMessageStream: function () {
+    return new Promise(function (r) { release = r; });
+  } }; } };
+  var s4 = A.session(function () { return Promise.resolve(slow); });
+  var p4 = s4.ask('舊題', CTX, function (t) { late.push(t); });
+  await new Promise(function (r) { setTimeout(r, 0); });
+  s4.reset();
+  release({ stream: (async function* () { yield { text: function () { return '舊的'; } }; })() });
+  assert.strictEqual(await p4, 'stale');
+  assert.deepStrictEqual(late, []);
+
+  console.log('問 AI 純函式測試全部通過');
+})().catch(function (e) { console.error(e); process.exit(1); });
