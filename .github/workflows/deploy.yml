@@ -1,7 +1,7 @@
 name: deploy
 on:
   push:
-    branches: [main]
+    branches: [main, ask-ai]
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,8 +9,9 @@ permissions:
   id-token: write
 # 同一時間只跑一個部署；排隊中的舊 run 會被略過，但正在跑的不取消，讓已開始的發佈完整跑完
 # （照 GitHub 官方 Pages 範本 actions/starter-workflows 的 pages/static.yml）
+# 依分支分開：兩條分支共用群組時，一條的 push 會把另一條排隊中的發佈略過
 concurrency:
-  group: pages
+  group: pages-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   build:
@@ -34,6 +35,8 @@ jobs:
           path: dist
   deploy:
     needs: build
+    # 哪條分支上線由 repo 變數 DEPLOY_BRANCH 決定（main＝沒有 AI、ask-ai＝AI 版）；另一條只跑測試與建置
+    if: github.ref_name == vars.DEPLOY_BRANCH
     runs-on: ubuntu-latest
     environment:
       name: github-pages
