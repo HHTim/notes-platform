@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 # content/ 的格式檢查：檔案齊全、來源註記、不含樣式、換色乾淨、測驗格式
-import json, unittest
+import json, re, unittest
 from pathlib import Path
+
+# 日文模組的測驗要標日文與讀音，course.js 用 innerHTML 顯示得出來；只放行這幾個標籤
+JA_QUIZ_TAGS = re.compile(r'<span lang="ja">|</span>|</?(?:ruby|rt|rp)>')
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTENT = ROOT / 'content'
@@ -50,6 +53,9 @@ class TestContent(unittest.TestCase):
                 qs = json.loads(qf.read_text(encoding='utf-8'))['questions']
                 for q in qs:
                     for s in [q['q'], q['exp']] + q['opts']:
+                        if mod.get('lang') == 'ja':
+                            # 日文模組的題目要標日文與讀音：只放行這幾個標籤，其他角括號照樣擋
+                            s = JA_QUIZ_TAGS.sub('', s)
                         with self.subTest(lesson=str(qf), text=s[:40]):
                             self.assertIsNone(re.search(r'<[a-zA-Z/?]', s),
                                               '角括號要寫成 &lt; &gt;')

@@ -19,3 +19,9 @@ class TestReadings(unittest.TestCase):
         u = [(1, '私です', 'わたしです'), (2, '学生', 'がくせ')]
         fake = {'私です': 'ワタシデス', '学生': 'ガクセイ'}.get
         self.assertEqual(cr.compare(u, fake), [(2, '学生', 'がくせ', 'がくせい')])
+
+
+class TestClean(unittest.TestCase):
+    def test_symbols_and_latin_removed_before_tokenizing(self):
+        # 斷詞程式會把 Ａ、〜、／ 讀成「きごう」、把 B 讀成「びー」，送進去前先拿掉
+        self.assertEqual(cr.clean('AはBです／〜でした（　　）★＿'), 'はですでした')

@@ -66,6 +66,11 @@ def hira(s):
     return re.sub(r'[^ぁ-ゖー]', '', s)
 
 
+def clean(text):
+    """送進斷詞程式前拿掉英文字母、符號與空格（數字留著，「3人」要讀成さんにん）：程式會把 Ａ、〜、／ 讀成「きごう」，跟我們的讀音對不上"""
+    return re.sub(r'[A-Za-zＡ-Ｚａ-ｚ〜～／/：:＿★（）()「」『』、。？！…・\s　]', '', text)
+
+
 def compare(us, read_fn):
     bad = []
     for line, plain, ours in us:
@@ -75,11 +80,16 @@ def compare(us, read_fn):
     return bad
 
 
+# 斷詞辭典的讀法跟日常／教材的讀法不同、但我們的標法是對的：照詞覆蓋，免得每句都被列出來。
+# 林＝課裡的台灣人姓，音讀りん（日本姓はやし不會出現在課裡）。
+USUAL = {'私': 'わたし', '林': 'りん', '日本': 'にほん', '明日': 'あした'}
+
+
 def sudachi_reader():
     from sudachipy import dictionary, tokenizer
     tok = dictionary.Dictionary().create() if not hasattr(dictionary.Dictionary, "tokenizer") else dictionary.Dictionary().tokenizer()
     mode = tokenizer.Tokenizer.SplitMode.C
-    return lambda text: ''.join(m.reading_form() for m in tok.tokenize(re.sub(r'[＿★（）　]', '', text), mode))
+    return lambda text: ''.join(USUAL.get(m.surface(), m.reading_form()) for m in (tok.tokenize(clean(text), mode) if clean(text) else []))
 
 
 def main(dirs):
