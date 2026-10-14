@@ -316,7 +316,7 @@ git commit -m "feat(ui): 日文字型只套在 lang=ja、漢字上方讀音的�
 - Test: `builder/tests/test_readings.py`
 
 **Interfaces:**
-- Produces: `python3 builder/tools/check_readings.py <課的資料夾>…`，印出對不上的句子；結束碼 0＝全部對上、1＝有對不上的。函式：`units(html) -> list[(line, plain, reading)]`、`hira(s) -> str`、`compare(units, read_fn) -> list[(line, plain, ours, theirs)]`。
+- Produces: `~/.cache/notes-sudachi/bin/python builder/tools/check_readings.py <課的資料夾>…`，印出對不上的句子；結束碼 0＝全部對上、1＝有對不上的。函式：`units(html) -> list[(line, plain, reading)]`、`hira(s) -> str`、`compare(units, read_fn) -> list[(line, plain, ours, theirs)]`。
 
 - [ ] **Step 1: 寫會失敗的測試**
 
@@ -355,7 +355,7 @@ Expected: ERROR，`No module named 'check_readings'`
 #!/usr/bin/env python3
 """審查用：把日文模組裡我們標的讀音，跟 SudachiPy（日文斷詞程式，會把句子切成詞並查出讀音）比對。
 不是建置的一部分。對不上不一定是我們錯（例如「私」辭典讀わたくし），要逐條人工確認。
-用法：python3 builder/tools/check_readings.py content/japanese/01-n5-noun-sentence [其他課…]
+用法：~/.cache/notes-sudachi/bin/python builder/tools/check_readings.py content/japanese/01-n5-noun-sentence [其他課…]
 需要：pip3 install sudachipy sudachidict_core"""
 import json, re, sys
 from html.parser import HTMLParser
@@ -460,7 +460,7 @@ Expected: `OK`
 
 - [ ] **Step 5: 裝 SudachiPy 並實跑一次**
 
-Run: `pip3 install --user sudachipy sudachidict_core 2>&1 | tail -1`，然後在 scratchpad 造一個假課資料夾（`lesson.html` 放 `JA_OK` 那兩句、`quiz.json` 放一題），跑 `python3 builder/tools/check_readings.py <那個資料夾>`。
+Run: `pip3 install --user sudachipy sudachidict_core 2>&1 | tail -1`，然後在 scratchpad 造一個假課資料夾（`lesson.html` 放 `JA_OK` 那兩句、`quiz.json` 放一題），跑 `~/.cache/notes-sudachi/bin/python builder/tools/check_readings.py <那個資料夾>`。
 Expected: 印出結果、不當掉。若「私」被讀成わたくし而列出來，屬預期（人工確認的範例）。裝不起來就在 ledger 記一筆 Ruling，審查改成人工逐字核對。
 
 - [ ] **Step 6: Commit**
@@ -510,7 +510,7 @@ git commit -m "feat(tools): 讀音比對程式，用 SudachiPy 斷詞比對課�
 
 - [ ] **Step 3: 建置與讀音檢查**
 
-Run: `python3 builder/build.py && python3 builder/tools/check_readings.py content/japanese/01-n5-noun-sentence`
+Run: `python3 builder/build.py && ~/.cache/notes-sudachi/bin/python builder/tools/check_readings.py content/japanese/01-n5-noun-sentence`
 Expected: 建置成功；讀音對不上的每一條，代理已在回報裡說明是哪一種（辭典另一種讀法、人名、量詞）並確認我們標的對。
 
 - [ ] **Step 4: 獨立審查**（另一個代理，給它「審查代理的交代」）→ 修正 → 範圍複審（只看修過的地方）
@@ -625,7 +625,7 @@ git push
 4. **規則不要說得比出處多。** 「一定」「只能」「不能」「都」要有出處撐；想到後面的課會不會打架（例如「は 標主題」在 N4 以後會遇到對比用法，寫「這課先學」而不是「は 只有這個用法」）。
 5. **日檢怎麼出題沒有官方細節**：jlpt.jp 只公布題型與各級「認定の目安」。「最常考」一律改建議語氣。
 6. **用詞統一**：い形容詞、な形容詞、第一類動詞（五段動詞）／第二類動詞（一段動詞）／第三類動詞（する、来る）——括號裡的別名只在第一次出現時附；ます形、て形、辭書形、普通形；敬體（です、ます 的說法）、常體（普通形的說法）；主題（は）、主詞（が）；陷阱選項。台灣用語照 `~/.claude/tim-style/china-terms.md`。
-7. **讀音**：`lang="ja"` 底下每個漢字都要在 `<ruby>` 裡；`<rt>` 只蓋漢字，送假名放外面（`<ruby>食<rt>た</rt></ruby>べる`）；整個詞的讀音不能拆時整詞標（`<ruby>今日<rt>きょう</rt></ruby>`）；數字＋量詞整組標（`<ruby>3人<rt>さんにん</rt></ruby>`）。寫完跑 `python3 builder/tools/check_readings.py content/japanese/<這課>`，對不上的逐條確認，回報時列出「斷詞讀法不同但我們對」的每一條與理由。
+7. **讀音**：`lang="ja"` 底下每個漢字都要在 `<ruby>` 裡；`<rt>` 只蓋漢字，送假名放外面（`<ruby>食<rt>た</rt></ruby>べる`）；整個詞的讀音不能拆時整詞標（`<ruby>今日<rt>きょう</rt></ruby>`）；數字＋量詞整組標（`<ruby>3人<rt>さんにん</rt></ruby>`）。寫完跑 `~/.cache/notes-sudachi/bin/python builder/tools/check_readings.py content/japanese/<這課>`，對不上的逐條確認，回報時列出「斷詞讀法不同但我們對」的每一條與理由。
 8. **每句日文都有中文翻譯**：例句的 `.zh`、練習解析開頭的 `整句：`、測驗解析開頭的 `整句：`。
 9. **例句只用這課和前面課教過的句型**（單字可以新，有讀音與翻譯就好）。
 10. **情境**：日常生活為主（買東西、搭車、約朋友、學校、餐廳），穿插職場（公司、會議、跟客戶）。人名用常見日本姓（田中、山田、佐藤、鈴木）與台灣姓（林、陳、王）。全部自編，不抄考古題、參考書、題庫網站。
@@ -642,7 +642,7 @@ git push
 你要審 Tim 筆記平台日文模組的一課。照「寫課代理的交代」的 15 條守則逐條檢查，另外：
 
 - **每一題都自己作答一次**（課中練習與測驗），把每個陷阱選項放回句子判斷是否也對；正解不唯一列為最嚴重。
-- 跑 `python3 builder/tools/check_readings.py content/japanese/<這課>`，對不上的每一條自己判斷誰對。
+- 跑 `~/.cache/notes-sudachi/bin/python builder/tools/check_readings.py content/japanese/<這課>`，對不上的每一條自己判斷誰對。
 - 文法說明有沒有錯、有沒有說得比出處多；出處連結打得開、真的支撐那句話。
 - 日文自然度：例句是不是日本人會這樣說（不自然但文法對的也列）。
 - 用詞：台灣用語、守則第 6 條的術語。
