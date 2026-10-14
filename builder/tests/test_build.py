@@ -258,3 +258,23 @@ class TestFirebaseInjection(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestJapaneseStyle(unittest.TestCase):
+    """日文：日文字型只套在 lang="ja"、讀音有樣式、例句清單、模組圖示。"""
+    TPL = ROOT / 'builder' / 'templates'
+
+    def test_module_page_loads_jp_font(self):
+        self.assertIn('Noto+Sans+JP', (self.TPL / 'module.html').read_text(encoding='utf-8'))
+
+    def test_lang_ja_uses_jp_font(self):
+        css = (self.TPL / 'style.css').read_text(encoding='utf-8')
+        self.assertRegex(css, r'\[lang\|="ja"\]\{[^}]*"Noto Sans JP"')
+
+    def test_ruby_and_example_list_styled(self):
+        css = (self.TPL / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('rt{', css)
+        self.assertIn('.jx', css)
+
+    def test_japanese_icon(self):
+        self.assertIn('id="ic-japanese"', (self.TPL / 'icons.svg').read_text(encoding='utf-8'))

@@ -235,7 +235,7 @@ git commit -m "feat(build): 日文模組檢查假名要有 lang=\"ja\"、漢字�
 - Test: `builder/tests/test_build.py`
 
 **Interfaces:**
-- Produces: CSS class `ul.jx`（例句清單：`li > span.jp[lang=ja]` ＋ `span.tr`）；`[lang|="ja"]` 字型；圖示名 `japanese`。
+- Produces: CSS class `ul.jx`（例句清單：`li > span.jp[lang=ja]` ＋ `span.zh`）；`[lang|="ja"]` 字型；圖示名 `japanese`。
 
 - [ ] **Step 1: 寫會失敗的測試**（`test_build.py` 檔尾；照檔內既有方式取 `TPL` 路徑，沒有就用 `ROOT / 'builder' / 'templates'`）
 
@@ -282,7 +282,7 @@ rt{font-size:.55em;font-weight:400;color:var(--ink2);letter-spacing:0}
 .jx{list-style:none;padding:0;margin:10px 0 16px}
 .jx li{margin:0 0 10px;padding:2px 0 2px 12px;border-left:3px solid var(--mint-soft)}
 .jx .jp{display:block;font-size:17px;color:var(--ink)}
-.jx .tr{display:block;font-size:14px;color:var(--ink2);line-height:1.6}
+.jx .zh{display:block;font-size:14px;color:var(--ink2);line-height:1.6}
 ```
 
 `icons.svg` 在 `ic-ai-tools` 那行後面加（鳥居；桃色填上方橫木）：
@@ -593,7 +593,7 @@ git push
 例句：
 ```html
 <ul class="jx">
-  <li><span class="jp" lang="ja"><ruby>私<rt>わたし</rt></ruby>は<ruby>学生<rt>がくせい</rt></ruby>です。</span><span class="tr">我是學生。</span></li>
+  <li><span class="jp" lang="ja"><ruby>私<rt>わたし</rt></ruby>は<ruby>学生<rt>がくせい</rt></ruby>です。</span><span class="zh">我是學生。</span></li>
 </ul>
 ```
 
@@ -626,7 +626,7 @@ git push
 5. **日檢怎麼出題沒有官方細節**：jlpt.jp 只公布題型與各級「認定の目安」。「最常考」一律改建議語氣。
 6. **用詞統一**：い形容詞、な形容詞、第一類動詞（五段動詞）／第二類動詞（一段動詞）／第三類動詞（する、来る）——括號裡的別名只在第一次出現時附；ます形、て形、辭書形、普通形；敬體（です、ます 的說法）、常體（普通形的說法）；主題（は）、主詞（が）；陷阱選項。台灣用語照 `~/.claude/tim-style/china-terms.md`。
 7. **讀音**：`lang="ja"` 底下每個漢字都要在 `<ruby>` 裡；`<rt>` 只蓋漢字，送假名放外面（`<ruby>食<rt>た</rt></ruby>べる`）；整個詞的讀音不能拆時整詞標（`<ruby>今日<rt>きょう</rt></ruby>`）；數字＋量詞整組標（`<ruby>3人<rt>さんにん</rt></ruby>`）。寫完跑 `python3 builder/tools/check_readings.py content/japanese/<這課>`，對不上的逐條確認，回報時列出「斷詞讀法不同但我們對」的每一條與理由。
-8. **每句日文都有中文翻譯**：例句的 `.tr`、練習解析開頭的 `整句：`、測驗解析開頭的 `整句：`。
+8. **每句日文都有中文翻譯**：例句的 `.zh`、練習解析開頭的 `整句：`、測驗解析開頭的 `整句：`。
 9. **例句只用這課和前面課教過的句型**（單字可以新，有讀音與翻譯就好）。
 10. **情境**：日常生活為主（買東西、搭車、約朋友、學校、餐廳），穿插職場（公司、會議、跟客戶）。人名用常見日本姓（田中、山田、佐藤、鈴木）與台灣姓（林、陳、王）。全部自編，不抄考古題、參考書、題庫網站。
 11. **出處**：可驗證的文法說明掛 `<a class="fixsrc" href="…" target="_blank" rel="noopener">出處</a>`；優先國際交流基金（いろどり https://www.irodori.jpf.go.jp/ 的文法說明、JF 日本語教育スタンダード）、國語辭典線上條目（kotobank 的デジタル大辞泉）。連結要實際打得開且頁面真的支撐那句話（curl 確認；網頁是 JavaScript 產生的就用 gstack browse 看）。不寫「某某說」、不附日文原文長句。查不到出處的規則，寫法保留語氣。
