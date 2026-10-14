@@ -25,6 +25,10 @@ class _Units(HTMLParser):
         lang = dict(attrs).get('lang')
         if lang is not None:
             ja = lang.lower().startswith('ja')
+        if tag == 'li' and self.cur is not None:      # 選項清單：每個選項各算一句
+            if self.cur[1]:
+                self.out.append((self.cur[0], self.cur[1], self.cur[2]))
+            self.cur = None
         if ja and self.cur is None:
             self.cur = [self.getpos()[0], '', '', len(self.stack)]
         self.stack.append((tag, ja, ruby or tag == 'ruby', rt or tag in ('rt', 'rp')))

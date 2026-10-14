@@ -25,3 +25,10 @@ class TestClean(unittest.TestCase):
     def test_symbols_and_latin_removed_before_tokenizing(self):
         # 斷詞程式會把 Ａ、〜、／ 讀成「きごう」、把 B 讀成「びー」，送進去前先拿掉
         self.assertEqual(cr.clean('AはBです／〜でした（　　）★＿'), 'はですでした')
+
+
+class TestOptionsSplit(unittest.TestCase):
+    def test_each_option_is_its_own_unit(self):
+        # 選項清單整個 <ul lang="ja">：每個 <li> 各自比對，不然陷阱選項黏在一起會被斷詞讀歪
+        u = cr.units('<ul lang="ja"><li>好き</li><li>好きな</li></ul>')
+        self.assertEqual([p for _, p, _ in u], ['好き', '好きな'])
