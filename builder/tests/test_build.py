@@ -256,9 +256,6 @@ class TestFirebaseInjection(unittest.TestCase):
                 self.assertNotIn('__SYNC__', page.read_text(encoding='utf-8'), str(page))
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 class TestJapaneseStyle(unittest.TestCase):
     """日文：日文字型只套在 lang="ja"、讀音有樣式、例句清單、模組圖示。"""
@@ -292,3 +289,18 @@ class TestRubyLayout(unittest.TestCase):
         js = (self.TPL / 'course.js').read_text(encoding='utf-8')
         start = js.index('function initDrills')
         self.assertIn('class="tx"', js[start:start + 1500])
+
+
+class TestOptionHeights(unittest.TestCase):
+    """同一題的選項有的有讀音、有的沒有時，行高要一致（只看單一選項會一高一低）。"""
+
+    def test_line_height_set_on_whole_option_list(self):
+        css = (ROOT / 'builder' / 'templates' / 'style.css').read_text(encoding='utf-8')
+        self.assertIn('.opts:has(ruby) .opt .tx', css)
+        self.assertIn('.dopts:has(ruby) li .tx', css)
+        self.assertNotIn(',.opt .tx,', css)
+
+
+
+if __name__ == '__main__':
+    unittest.main()

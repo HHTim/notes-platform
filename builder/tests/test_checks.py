@@ -292,4 +292,28 @@ class TestJapanese(unittest.TestCase):
     def test_section_title_drops_ruby_reading(self):
         html = '<h3 class="head"><span lang="ja"><ruby>私<rt>わたし</rt></ruby>は</span>的用法</h3>'
         _, titles = builder.section_titles(html, 'x')
-        self.assertEqual(titles, ['私は的用法'])
+        # 讀音拿掉；lang="ja" 留著，側欄與目錄的日文才會用日文字型
+        self.assertEqual(titles, ['<span lang="ja">私は</span>的用法'])
+
+    def test_section_title_drops_rt_with_attributes(self):
+        html = '<h3 class="head"><ruby>私<rt class="x">わたし</rt></ruby></h3>'
+        self.assertEqual(builder.section_titles(html, 'x')[1], ['私'])
+
+    def test_desc_kana_needs_lang_in_ja_module(self):
+        content, out = fake_site([('01-one', 'one', LESSON_OK)], {'lang': 'ja'})
+        mj = content / 'demo' / 'module.json'
+        m = json.loads(mj.read_text(encoding='utf-8'))
+        m['lessons'][0]['desc'] = '教 です 的用法'
+        mj.write_text(json.dumps(m, ensure_ascii=False), encoding='utf-8')
+        with self.assertRaises(SystemExit) as cm:
+            builder.build(content_dir=content, out_dir=out)
+        self.assertIn('desc', str(cm.exception))
+
+    def test_desc_ja_span_without_ruby_ok(self):
+        # desc 是一行摘要，日文包 lang 就好，不要求標讀音
+        content, out = fake_site([('01-one', 'one', LESSON_OK)], {'lang': 'ja'})
+        mj = content / 'demo' / 'module.json'
+        m = json.loads(mj.read_text(encoding='utf-8'))
+        m['lessons'][0]['desc'] = '教 <span lang="ja">静かです</span> 的用法'
+        mj.write_text(json.dumps(m, ensure_ascii=False), encoding='utf-8')
+        builder.build(content_dir=content, out_dir=out)

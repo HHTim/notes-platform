@@ -111,8 +111,9 @@ class JaChecker(HTMLParser):
     """日文模組的兩條規則：假名一定在 lang="ja" 底下（不然日文漢字會用中文字形）；
     lang="ja" 底下的漢字一定在 <ruby> 裡（不然漏標讀音）。<rt>、<rp> 裡的字不檢查。"""
 
-    def __init__(self):
+    def __init__(self, need_ruby=True):
         super().__init__()
+        self.need_ruby = need_ruby
         self.errors = []     # (行號, 說明)
         self.stack = []      # 每層 (tag, 是日文, 在 ruby 裡, 在 rt 裡)
 
@@ -144,15 +145,15 @@ class JaChecker(HTMLParser):
             if m:
                 self.errors.append((line + data.count('\n', 0, m.start()),
                                     '的「%s」有日文假名，要放在 lang="ja" 的元素裡' % data.strip()[:20]))
-        elif not ruby:
+        elif not ruby and self.need_ruby:
             m = KANJI_RE.search(data)
             if m:
                 self.errors.append((line + data.count('\n', 0, m.start()),
                                     '的漢字「%s」沒標讀音（要包在 <ruby> 裡）' % m.group()))
 
 
-def _ja_check(html):
-    p = JaChecker()
+def _ja_check(html, need_ruby=True):
+    p = JaChecker(need_ruby)
     p.feed(html)
     p.close()
     return p.errors
@@ -160,6 +161,11 @@ def _ja_check(html):
 
 def ja_errors(html):
     return ['第 %d 行%s' % (line, msg) for line, msg in _ja_check(html)]
+
+
+def ja_desc_errors(desc):
+    """課的一行摘要（desc）：日文要包 lang="ja"（字型），不要求標讀音"""
+    return [msg.lstrip('的') for _, msg in _ja_check(desc, need_ruby=False)]
 
 
 def ja_quiz_errors(questions):
@@ -208,7 +214,16 @@ def title_html(t):
         return t
     return t.replace('：', '：<wbr>')
 TAG_RE = re.compile(r'<[^>]+>')
-RT_RE = re.compile(r'<(rt|rp)>.*?</\1>', re.S)   # 讀音（振假名）不進目錄的純文字
+RT_RE = re.compile(r'<(rt|rp)\b[^>]*>.*?</\1>', re.S)   # 讀音（振假名）不進目錄的文字
+JA_SPAN_RE = re.compile(r'<span lang="ja">(.*?)</span>', re.S)
+
+
+def heading_text(h):
+    """小節標題給側欄與目錄用的文字：拿掉讀音與其他標籤，只留 <span lang="ja">（日文才會用日文字型）"""
+    h = RT_RE.sub('', h)
+    h = JA_SPAN_RE.sub(lambda m: '\x00%s\x01' % TAG_RE.sub('', m.group(1)), h)
+    h = TAG_RE.sub('', h).replace('\x00', '<span lang="ja">').replace('\x01', '</span>')
+    return re.sub(r'\s+', ' ', h).strip()
 
 
 def section_titles(html, slug):
@@ -217,7 +232,7 @@ def section_titles(html, slug):
     titles = []
 
     def rep(m):
-        titles.append(re.sub(r'\s+', ' ', TAG_RE.sub('', RT_RE.sub('', m.group(1)))).strip())
+        titles.append(heading_text(m.group(1)))
         # h3.head 是 flex（前面有小方塊）：文字包成一塊，<wbr> 才不會把字拆成兩個項目、中間多出間距；
         # 這一塊配 min-width:0，長標題在手機上才縮得下
         inner = '<span>%s</span>' % title_html(m.group(1))
@@ -292,7 +307,8 @@ def load_site(content_dir):
                                  + '\n  '.join(errs))
             L['quiz'] = json.loads((ldir / 'quiz.json').read_text(encoding='utf-8'))['questions']
             if mod.get('lang') == 'ja':
-                errs = ja_errors(L['html']) + ja_quiz_errors(L['quiz'])
+                errs = ja_errors(L['html']) + ja_quiz_errors(L['quiz']) \
+                    + ['module.json 這課的 desc：%s' % e for e in ja_desc_errors(L.get('desc', ''))]
                 if errs:
                     raise SystemExit('建置中止：%s/%s 的日文沒標好\n  ' % (entry['id'], L['dir'])
                                      + '\n  '.join(errs))
