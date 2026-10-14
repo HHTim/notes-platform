@@ -77,6 +77,8 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
   var uid = null;
 
   function setHint(html) { if (hint) hint.innerHTML = html; }
+  /* 給 askai.js 看的狀態：只有 ok（登入且在白名單）才出「問 AI」按鈕 */
+  function setState(v) { document.documentElement.setAttribute('data-sync', v); }
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -89,6 +91,7 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
 
   /* 三狀態提示（文字照規格第 7 節的表格） */
   function showLoggedOut() {
+    setState('out');
     synced = false; uid = null;
     setHint('<span class="st">進度只存在這台裝置 · </span><a href="#" id="syncLogin">登入後跨裝置同步</a>');
     var a = document.getElementById('syncLogin');
@@ -98,11 +101,13 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
     });
   }
   function showUnauthorized() {
+    setState('no');
     synced = false;
     setHint('<span class="st">此帳號未獲授權，進度僅存於本機</span><span class="sh">未獲授權</span> · <a href="#" id="syncOut">登出</a>');
     bindLogout();
   }
   function showSynced(user) {
+    setState('ok');
     synced = true;
     setHint('已同步<span class="st">（' + esc(user.displayName || user.email) + '）</span> · <a href="#" id="syncOut">登出</a>');
     bindLogout();
@@ -112,6 +117,7 @@ if (typeof document !== 'undefined' && typeof firebase !== 'undefined') (functio
      Firebase 的 onAuthStateChanged 不會再觸發，點了沒有任何反應。
      所以這裡自己給一個「重試」連結，直接重跑 loadAndMerge。 */
   function showRetry(user) {
+    setState('retry');
     synced = false;
     setHint('<span class="st">暫時連不上雲端</span><span class="sh">連不上雲端</span> · <a href="#" id="syncRetry">重試</a>');
     var a = document.getElementById('syncRetry');

@@ -82,6 +82,54 @@ class TestSlugs(unittest.TestCase):
                 self.assertIn(bad, msg)
 
 
+ASKAI = {'model': 'gemini-3.8-flash', 'app_id': '1:1:web:1', 'recaptcha_site_key': 'k'}
+
+
+class TestAskAiBuild(unittest.TestCase):
+    def site(self, mod_extra=None, askai=True, firebase=True):
+        content, out = fake_site([('01-one', 'one', LESSON_OK)], mod_extra)
+        if firebase:
+            (content / 'firebase.json').write_text('{"apiKey": "a", "authDomain": "b", "projectId": "c"}', encoding='utf-8')
+        if askai:
+            (content / 'askai.json').write_text(json.dumps(ASKAI), encoding='utf-8')
+        builder.build(content_dir=content, out_dir=out)
+        return out
+
+    def test_module_with_flag_gets_script(self):
+        out = self.site({'ask_ai': True, 'lang': 'ja'})
+        html = (out / 'demo' / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('<script src="../askai.js"></script>', html)
+        self.assertIn('"model": "gemini-3.8-flash"', html)
+        self.assertIn('"lang": "ja"', html)
+        self.assertIn('firebasejs/13.0.0/', html)
+        self.assertTrue((out / 'askai.js').exists())
+
+    def test_module_without_flag(self):
+        html = (self.site() / 'demo' / 'index.html').read_text(encoding='utf-8')
+        self.assertNotIn('askai.js', html)
+
+    def test_no_config_file(self):
+        out = self.site({'ask_ai': True}, askai=False)
+        self.assertNotIn('askai.js', (out / 'demo' / 'index.html').read_text(encoding='utf-8'))
+        self.assertFalse((out / 'askai.js').exists())
+
+    def test_no_firebase(self):
+        # 白名單靠登入，沒有 firebase.json 就沒有登入，問 AI 也不放
+        out = self.site({'ask_ai': True}, firebase=False)
+        self.assertNotIn('askai.js', (out / 'demo' / 'index.html').read_text(encoding='utf-8'))
+
+    def test_home_page_never(self):
+        out = self.site({'ask_ai': True})
+        self.assertNotIn('askai.js', (out / 'index.html').read_text(encoding='utf-8'))
+
+
+class TestSyncState(unittest.TestCase):
+    def test_sync_sets_state(self):
+        js = (ROOT / 'builder' / 'templates' / 'sync.js').read_text(encoding='utf-8')
+        for v in ('out', 'no', 'retry', 'ok'):
+            self.assertIn("setState('%s')" % v, js)
+
+
 if __name__ == '__main__':
     unittest.main()
 

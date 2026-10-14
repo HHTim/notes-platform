@@ -179,7 +179,7 @@ def ja_quiz_errors(questions):
 
 
 def load_templates(tpl_dir):
-    names = ('style.css', 'course.js', 'sync.js', 'theme.js', 'module.html', 'home.html', 'favicon.svg', 'icons.svg')
+    names = ('style.css', 'course.js', 'sync.js', 'theme.js', 'module.html', 'home.html', 'favicon.svg', 'icons.svg', 'askai.js')
     return {n: (tpl_dir / n).read_text(encoding='utf-8') for n in names if (tpl_dir / n).exists()}
 
 
@@ -321,6 +321,8 @@ def load_site(content_dir):
     check_slugs(mods)
     fb = content_dir / 'firebase.json'
     site['firebase'] = json.loads(fb.read_text(encoding='utf-8')) if fb.exists() else None
+    ak = content_dir / 'askai.json'   # 選字問 AI 的設定（規格 2026-10-14-ask-ai-design.md）；沒有這個檔就整站不放
+    site['askai'] = json.loads(ak.read_text(encoding='utf-8')) if ak.exists() else None
     return site, mods
 
 
@@ -411,7 +413,19 @@ def sync_html(firebase, prefix):
             + '<script src="%ssync.js"></script>' % prefix)
 
 
-def render_module_page(mod, mods, tpl, firebase=None):
+ASKAI_SDK = 'https://www.gstatic.com/firebasejs/13.0.0/'
+
+
+def askai_html(mod, firebase, askai):
+    """問 AI 那一段 <script>。要同時有登入（firebase.json）、AI 設定（askai.json）、模組開了 ask_ai 才放。"""
+    if not (firebase and askai and mod.get('ask_ai')):
+        return ''
+    cfg = dict(askai, lang=mod.get('lang', ''), sdk=ASKAI_SDK)
+    return ('\n<script>var ASKAI_CONFIG=%s;</script>\n<script src="../askai.js"></script>'
+            % json.dumps(cfg, ensure_ascii=False).replace('</', '<\\/'))
+
+
+def render_module_page(mod, mods, tpl, firebase=None, askai=None):
     quiz = {L['slug']: L['quiz'] for L in mod['lessons']}
     slugs = [L['slug'] for L in mod['lessons']]
     titles = {L['slug']: L['title'] for L in mod['lessons']}
@@ -419,7 +433,7 @@ def render_module_page(mod, mods, tpl, firebase=None):
             % (json.dumps(mod['id']), json.dumps(quiz, ensure_ascii=False),
                json.dumps(slugs, ensure_ascii=False), json.dumps(titles, ensure_ascii=False)))
     data = data.replace('</', '<\\/')   # 防護：測驗文字若含 </ 之類的字，不會提前把嵌入的 <script> 截斷
-    sync = sync_html(firebase, '../')
+    sync = sync_html(firebase, '../') + askai_html(mod, firebase, askai)
     arts = [overview_html(mod), wrong_html()] + [article_html(mod, i, L) for i, L in enumerate(mod['lessons'])]
     page = tpl['module.html']
     for key, val in (('__TITLE__', mod['title']), ('__MODSEL__', modsel_html(mods, mod['id'])),
@@ -465,11 +479,13 @@ def build(content_dir=None, tpl_dir=None, out_dir=None):
     (out_dir / 'favicon.svg').write_text(tpl['favicon.svg'], encoding='utf-8')   # 網站圖示：分頁、書籤、手機主畫面都用它
     if site['firebase']:
         (out_dir / 'sync.js').write_text(tpl['sync.js'], encoding='utf-8')
+    if site['firebase'] and site['askai']:
+        (out_dir / 'askai.js').write_text(tpl['askai.js'], encoding='utf-8')
     (out_dir / 'index.html').write_text(render_home_page(site, mods, tpl, site['firebase']), encoding='utf-8')
     for mod in mods:
         d = out_dir / mod['id']
         d.mkdir()
-        (d / 'index.html').write_text(render_module_page(mod, mods, tpl, site['firebase']),
+        (d / 'index.html').write_text(render_module_page(mod, mods, tpl, site['firebase'], site['askai']),
                                       encoding='utf-8')
         for L in mod['lessons']:
             if L['assets'].is_dir():   # 規格：每課的圖放自己的 assets/；建置時搬到 assets/<課資料夾>/
