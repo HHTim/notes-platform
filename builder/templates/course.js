@@ -275,6 +275,8 @@ function initDrills(){
     var lis=d.querySelectorAll('.dopts li');
     lis.forEach(function(li,pos){
       li.setAttribute('role','button');li.setAttribute('tabindex','0');
+      /* 選項文字包成一塊：li 是 flex，不包的話 <ruby> 和後面的假名會變成兩項、中間多出間距 */
+      li.innerHTML='<span class="tx">'+li.innerHTML+'</span>';
       li.insertAdjacentHTML('afterbegin','<span class="l">'+String.fromCharCode(65+pos)+'</span>');
       li.insertAdjacentHTML('beforeend','<span class="mk"></span>');
       function pick(){

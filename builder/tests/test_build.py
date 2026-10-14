@@ -278,3 +278,17 @@ class TestJapaneseStyle(unittest.TestCase):
 
     def test_japanese_icon(self):
         self.assertIn('id="ic-japanese"', (self.TPL / 'icons.svg').read_text(encoding='utf-8'))
+
+
+class TestRubyLayout(unittest.TestCase):
+    """讀音比漢字寬時漢字不要被撐開（週 末）；課中練習選項的文字要包成一塊，不然 flex 把 <ruby> 和後面的假名拆成兩項、中間多出間距（書　きます）。"""
+    TPL = ROOT / 'builder' / 'templates'
+
+    def test_ruby_does_not_spread_base(self):
+        css = (self.TPL / 'style.css').read_text(encoding='utf-8')
+        self.assertRegex(css, r'ruby\{[^}]*ruby-align:center')
+
+    def test_drill_option_text_wrapped(self):
+        js = (self.TPL / 'course.js').read_text(encoding='utf-8')
+        start = js.index('function initDrills')
+        self.assertIn('class="tx"', js[start:start + 1500])
