@@ -72,7 +72,7 @@ def hira(s):
 
 def clean(text):
     """送進斷詞程式前拿掉英文字母、符號與空格（數字留著，「3人」要讀成さんにん）：程式會把 Ａ、〜、／ 讀成「きごう」，跟我們的讀音對不上"""
-    return re.sub(r'[A-Za-zＡ-Ｚａ-ｚ〜～／/：:＿★（）()「」『』、。？！…・\s　]', '', text)
+    return re.sub(r'[A-Za-zＡ-Ｚａ-ｚ〜～／/：:→←＿★（）()「」『』、。？！…・\s　]', '', text)
 
 
 def compare(us, read_fn):
