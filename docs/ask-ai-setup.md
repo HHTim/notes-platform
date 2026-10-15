@@ -21,12 +21,26 @@
 
 ## 3. 開啟 App Check（確認呼叫是從我們網站發出的）
 
-1. 左側選單「App Check」→「應用程式」分頁。
-2. 點第 2 步那個網頁 app →「reCAPTCHA Enterprise」。
-3. 照畫面建立網站金鑰：
-   - 網域填兩個：`hhtim.github.io`、`localhost`。
-   - 免費額度是每月 1 萬次驗證，不用綁卡。
-4. 儲存。把**網站金鑰**（site key，一長串英數字）複製下來。
+Firebase 已經不收舊版 reCAPTCHA（畫面寫「傳統版 reCAPTCHA 已淘汰」的那個）。要用的是 reCAPTCHA Enterprise，Google 現在把它放在「Google Cloud Fraud Defense」底下。金鑰要先到 Google Cloud 主控台建立，再回 Firebase 貼上。
+
+**先在 Google Cloud 建金鑰：**
+
+1. 打開 console.cloud.google.com，左上角確認專案是 `notes-platform-82407`。
+2. 上方搜尋框打「Fraud Defense」或「reCAPTCHA」，點進去。
+3. 如果要你「啟用 API」，按啟用。
+   - 不用綁卡。沒綁卡的專案是免費的 Essentials 方案，每月 1 萬次驗證。
+   - 如果畫面要你綁信用卡才能繼續，先停下來，回報給 Claude。
+4. 按「建立金鑰」：
+   - 平台類型選「網站」。
+   - 網域填一個：`hhtim.github.io`。（不要填 `localhost`，本機測試改用第 5 步的除錯碼。）
+   - 「使用核取方塊驗證」**不要勾**（我們要的是不用使用者點的分數型金鑰）。
+5. 建好後複製「金鑰 ID」，一長串英數字，這就是網站金鑰。
+
+**再回 Firebase 登記：**
+
+1. Firebase 主控台左側「App Check」→「應用程式」分頁。
+2. 點第 2 步那個網頁 app，選 **reCAPTCHA Enterprise**（可能也寫成 Fraud Defense），**不要選只寫「reCAPTCHA」的那個**。
+3. 貼上剛才的金鑰 ID，權杖存留時間用預設，儲存。
 
 ## 4. 對 AI Logic 開啟強制驗證
 
