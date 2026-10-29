@@ -23,6 +23,7 @@ Tim（HHTim）的**個人筆記平台**：一個靜態網站，多個學習模�
 - **2026-10-02 多益文法**：英文模組新增 18 課文法書（第 3〜20 課，從句子骨架、時態四課到倒裝與解題順序），規格在 `docs/superpowers/specs/2026-10-02-toeic-grammar-design.md`，兩批計畫與審查紀錄在 `docs/superpowers/plans/2026-10-02-toeic-grammar-batch1.md`、`…-batch2.md`。網站新增「課中練習」（課文裡的四選一，點了馬上看對錯，`builder/build.py` 的 `DrillChecker` 檢查每題正解剛好一個）。題目全部自編、不得照抄 ETS 範例題；寫課守則 11 條在第二批計畫裡。同期面試集再加 3 課（微服務、容器與部署、行為面試）共 16 課。
 - **2026-10-13 改版與錯題區**：外觀換成白底配色塊、測驗回饋改圈叉加成績卡、每個模組有錯題區（連對兩次或手動移除）、首頁有「繼續上次」。規格在 `docs/superpowers/specs/2026-10-13-redesign-and-wrong-bank-design.md`，計畫在 `docs/superpowers/plans/2026-10-13-redesign-and-wrong-bank.md`。進度物件多了 `_last` 與 `_wrong` 兩個保留鍵，合併規則在 `builder/templates/sync.js`。
 - **2026-10-14 日文模組**：日檢文法從 N5 排到 N1、只做文法；N5 八課、N4 十課全部上線（計畫與進度在 `docs/superpowers/plans/2026-10-14-japanese-n5-batch2.md`、`…-n4-batch1.md`、`…-n4-batch2.md`，寫課守則累積到 30 條）。規格 `docs/superpowers/specs/2026-10-14-japanese-grammar-design.md`，計畫與寫課守則（21 條）在 `docs/superpowers/plans/2026-10-14-japanese-n5-batch1.md`。`module.json` 有 `"lang": "ja"` 的模組，建置會擋「假名不在 `lang="ja"` 底下」「漢字沒包 `<ruby>` 標讀音」；讀音另外用 `builder/tools/check_readings.py`（SudachiPy，裝在 `~/.cache/notes-sudachi`）比對，審查時用、不在建置裡。
+- **2026-10-14 選字問 AI（只在 `ask-ai` 分支）**：日文、英文模組選字可問 Gemini 免費版，走 Firebase AI Logic＋App Check（Fraud Defense，舊稱 reCAPTCHA Enterprise），不架後端。規格 `docs/superpowers/specs/2026-10-14-ask-ai-design.md`、計畫 `docs/superpowers/plans/2026-10-14-ask-ai.md`、Tim 的設定手冊 `docs/ask-ai-setup.md`。哪條分支上線由 repo 變數 `DEPLOY_BRANCH` 決定（2026-10-29 起是 `ask-ai`）；`main` 保持沒有 AI。
 
 ## 工程慣例
 
