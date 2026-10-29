@@ -15,6 +15,8 @@ class TestAskAiJs(unittest.TestCase):
         r = subprocess.run(['node', str(ROOT / 'builder' / 'tests' / 'test_askai.js')],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+        # 非同步測試卡住時 node 會安靜結束、回 0；一定要看到最後那行才算跑完
+        self.assertIn('問 AI 純函式測試全部通過', r.stdout, '測試沒有跑到最後')
 
 
 if __name__ == '__main__':

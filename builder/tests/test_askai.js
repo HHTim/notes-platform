@@ -110,5 +110,13 @@ var CTX = { module: '日文', lesson: '助詞', section: 'が', context: '前後
   assert.strictEqual(await p4, 'stale');
   assert.deepStrictEqual(late, []);
 
+  // Gemini 一直不回（免費版塞車時會卡 3 分鐘）：等太久就放棄，跳「AI 暫時沒有回應」，送出鈕恢復
+  var stuck = { startChat: function () { return { sendMessageStream: function () { return new Promise(function () {}); } }; } };
+  var s5 = A.session(function () { return Promise.resolve(stuck); }, { waitMs: 20 });
+  var err5 = await s5.ask('卡住', CTX, function () {}).then(function () { return null; }, function (e) { return e; });
+  assert.ok(err5, '等太久要失敗，不能一直卡住');
+  assert.strictEqual(A.classifyError(err5), 'other');
+  assert.strictEqual(s5.busy(), false);
+
   console.log('問 AI 純函式測試全部通過');
 })().catch(function (e) { console.error(e); process.exit(1); });

@@ -85,8 +85,10 @@ var NotesAsk = {
      - 第一題還沒成功前，每次都送完整問題（含選的字、前後文）；SDK 只在成功時把這輪記進對話紀錄，
        所以失敗後要丟掉 chat 重開，不然下一題只剩「問題」那一句、沒有前後文。
      - reset（關對話框、換題）之後立刻不算忙碌，晚到的回答片段也不再交給 onChunk。 */
-  session: function (getModel) {
+  session: function (getModel, opts) {
     var chat = null, turns = 0, gen = 0, busy = false;
+    /* 免費版塞車時 Gemini 會整整 3 分鐘不回；等到這麼久就放棄，讓讀者按「再試一次」 */
+    var waitMs = (opts && opts.waitMs) || 45000;
     return {
       busy: function () { return busy; },
       reset: function () { gen++; chat = null; turns = 0; busy = false; },
@@ -98,7 +100,11 @@ var NotesAsk = {
         return Promise.resolve(getModel()).then(function (model) {
           if (my !== gen) return 'stale';
           if (!chat) chat = model.startChat();
-          return chat.sendMessageStream(text).then(async function (res) {
+          var timer;
+          var tooLong = new Promise(function (_, no) { timer = setTimeout(function () { no({ code: 'timeout' }); }, waitMs); });
+          var opened = chat.sendMessageStream(text);
+          opened.then(function () { clearTimeout(timer); }, function () { clearTimeout(timer); });
+          return Promise.race([opened, tooLong]).then(async function (res) {
             var acc = '';
             for await (var c of res.stream) {
               if (my !== gen) return 'stale';
