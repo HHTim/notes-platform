@@ -6,6 +6,16 @@
 <h3 class="head">生成式 AI、基礎模型與大型語言模型是什麼關係</h3>
 <p>人工智慧（AI）像一把大傘，機器學習（Machine Learning）與深度學習（Deep Learning）都在傘下；生成式 AI（Generative AI）則擅長依照學到的模式，產生新的文字、圖片、聲音或程式碼。</p>
 <p>基礎模型（Foundation Model，FM）像讀過大量通識教材的學生：先用大量資料預訓練，再被拿去處理摘要、問答、分類與內容生成等不同任務。預訓練常用自我監督學習（Self-supervised Learning），也就是由資料本身產生學習訊號，不必逐筆請人標答案。</p>
+<p>自我監督學習的答案不是模型自己判斷的，是從原始資料遮出來的。拿一句話當例子：</p>
+<ul class="plainlist">
+<li>原始句子是「今天天氣很好」。</li>
+<li>訓練時把「好」遮起來，只給模型「今天天氣很」。</li>
+<li>模型猜「冷」。</li>
+<li>正確答案是「好」，因為原句就寫著「好」。這個答案在遮之前就存在，不需要人標。</li>
+<li>訓練程式把模型的猜測跟「好」比對，算出差多少（這個差距叫損失，loss），再調整模型參數，讓下次猜「好」的機率高一點。</li>
+</ul>
+<p>所以「誰來說它答錯」這一步跟監督式學習完全一樣，都是訓練程式拿正確答案比對。差別只在正確答案從哪來：</p>
+<div class="tablewrap"><table><thead><tr><th>學習方式</th><th>答案從哪來</th><th>這課裡的例子</th></tr></thead><tbody><tr><td>監督式學習</td><td>人標好的答案（人工標籤）</td><td>微調：提示與理想答案的配對</td></tr><tr><td>自我監督學習</td><td>從資料本身遮出來</td><td>預訓練、持續預訓練：遮住下一個字叫模型猜</td></tr><tr><td>非監督式學習</td><td>沒有答案可比對，只找資料結構</td><td>分群（這課沒用到，見第 13 課〈AI 與機器學習基礎〉）</td></tr></tbody></table></div>
 <p>大型語言模型（Large Language Model，LLM）是專門處理語言任務的一類基礎模型。它不是從字典查出固定答案，而是依上下文預測接下來比較可能出現的詞，所以同一個提示詞也可能得到不同答案。</p>
 <div class="tablewrap"><table><thead><tr><th>概念</th><th>主要用途</th><th>直覺比喻</th></tr></thead><tbody><tr><td>生成式 AI</td><td>創造新內容</td><td>依照學過的作品創作新作品</td></tr><tr><td>基礎模型</td><td>支援多種通用任務</td><td>先接受廣泛教育的通才</td></tr><tr><td>LLM</td><td>理解與生成語言</td><td>很會接話的文字預測器</td></tr><tr><td>擴散模型</td><td>常用於影像生成</td><td>從滿是雜訊的畫布逐步擦出圖像</td></tr></tbody></table></div>
 </section>
@@ -32,7 +42,7 @@
 <p class="era">模型客製化</p>
 <h3 class="head">微調與持續預訓練解決不同問題</h3>
 <p>微調（Fine-tuning）就像替一位通才安排「公司話術訓練」：用有標準答案的輸入與輸出配對，改變模型回答的格式、語氣或特定任務行為。這是一種監督式學習流程。</p>
-<p>持續預訓練（Continued Pre-training）則像讓模型進修整套專業教材：用大量沒有標註的領域內容，補強特定產業、語言或術語的知識。</p>
+<p>持續預訓練（Continued Pre-training）則像讓模型進修整套專業教材：用大量沒有標註的領域內容，補強特定產業、語言或術語的知識。訓練方法跟預訓練一樣是自我監督學習：把文字遮一部分叫模型猜回來，答案從文字本身來，不是非監督式學習。</p>
 <div class="tablewrap"><table><thead><tr><th>比較</th><th>微調</th><th>持續預訓練</th></tr></thead><tbody><tr><td>資料</td><td>提示與理想答案的配對</td><td>大量未標註的文字</td></tr><tr><td>主要目的</td><td>改變行為、格式與風格</td><td>補強領域知識</td></tr><tr><td>典型情境</td><td>固定的 JSON 格式、品牌語氣</td><td>醫療、法律或公司內部的技術文件</td></tr></tbody></table></div>
 <p>在 Bedrock 的客製化流程中，訓練資料通常放在 Amazon S3，並透過 IAM 角色授權服務讀取。各個模型支援的客製化方法、資料格式與使用方式都可能不同，動手前要先看那個模型當下的規格。</p>
 <p class="muted">上面的微調與持續預訓練是通用的機器學習觀念，兩者的差別到哪裡都成立；但 Bedrock 這個服務實際提供哪幾種，會隨版本調整。2026 年 9 月的客製化總覽列出三種：監督式微調（supervised fine-tuning）、強化微調（reinforcement fine-tuning，用你自己定義的獎勵函式打分數來訓練，不用成對的標準答案）與蒸餾（distillation，把大模型的能力轉移到小模型上）<a class="fixsrc" href="https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html" target="_blank" rel="noopener">出處</a>，不含持續預訓練。考 AIF 時觀念照舊要會分；真的要動手，先查那個模型當下支援哪幾種。</p>
