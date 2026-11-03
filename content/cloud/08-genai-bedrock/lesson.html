@@ -59,6 +59,77 @@ S3 文件 → 解析與切塊 → Embedding → 向量資料庫
 問題 → 問題的 Embedding → 相似度搜尋
      → 組合相關內容與問題 → LLM 生成答案與引用</code></pre>
 <p>嵌入（Embedding）會把文字轉成一串數值向量；語意相近的文字在向量空間中通常比較靠近。向量資料庫負責存這些向量，並快速找出相似的內容。</p>
+<p>把向量當成座標畫在圖上，就能看出「靠近」是什麼意思。常見的小模型一個字算出 384 個數字，OpenAI 的模型是 1536 個；幾百維畫不出來，講解時會壓成 2 維：</p>
+<div class="tablewrap"><table><thead><tr><th>文字</th><th>向量（示意，實際有 384 個）</th></tr></thead><tbody><tr><td class="nw">貓</td><td><code>[0.21, -0.83, 0.47, 0.05, -0.32, 0.66, …]</code></td></tr></tbody></table></div>
+<figure>
+<svg viewBox="0 0 760 420" role="img" aria-label="嵌入向量壓成 2 維的示意散佈圖：動物、交通工具、食物、程式用語四群字各自聚在一角；查詢句「我想養一隻寵物」變成一顆星落在動物那群旁邊，虛線連到最近的三個點：貓、狗、小貓">
+  <line x1="40" y1="390" x2="720" y2="390" stroke="var(--line)" stroke-width="1.5"/>
+  <line x1="40" y1="30" x2="40" y2="390" stroke="var(--line)" stroke-width="1.5"/>
+  <text x="720" y="410" font-size="12" text-anchor="end" fill="var(--mut)">維度 1</text>
+  <text x="46" y="24" font-size="12" fill="var(--mut)">維度 2</text>
+  <line x1="203.2" y1="282.0" x2="176.0" y2="300.0" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <line x1="203.2" y1="282.0" x2="230.4" y2="278.4" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <line x1="203.2" y1="282.0" x2="155.6" y2="310.8" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="190" y="352" font-size="12" text-anchor="middle" fill="var(--mut)">動物</text>
+  <circle cx="176.0" cy="300.0" r="7" fill="var(--slate)" stroke="var(--ink)" stroke-width="2.5"/>
+  <text x="187.0" y="305.0" font-size="13">貓</text>
+  <circle cx="155.6" cy="310.8" r="7" fill="var(--slate)" stroke="var(--ink)" stroke-width="2.5"/>
+  <text x="144.6" y="315.8" font-size="13" text-anchor="end">小貓</text>
+  <circle cx="230.4" cy="278.4" r="7" fill="var(--slate)" stroke="var(--ink)" stroke-width="2.5"/>
+  <text x="241.4" y="283.4" font-size="13">狗</text>
+  <circle cx="250.8" cy="321.6" r="7" fill="var(--slate)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="261.8" y="326.6" font-size="13">兔子</text>
+  <circle cx="203.2" cy="249.6" r="7" fill="var(--slate)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="214.2" y="254.6" font-size="13">老虎</text>
+  <text x="545" y="352" font-size="12" text-anchor="middle" fill="var(--mut)">交通工具</text>
+  <circle cx="550.0" cy="300.0" r="7" fill="var(--gold)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="561.0" y="305.0" font-size="13">汽車</text>
+  <circle cx="590.8" cy="271.2" r="7" fill="var(--gold)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="601.8" y="276.2" font-size="13">機車</text>
+  <circle cx="509.2" cy="264.0" r="7" fill="var(--gold)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="520.2" y="269.0" font-size="13">公車</text>
+  <circle cx="604.4" cy="318.0" r="7" fill="var(--gold)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="615.4" y="323.0" font-size="13">腳踏車</text>
+  <circle cx="488.8" cy="303.6" r="7" fill="var(--gold)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="477.8" y="308.6" font-size="13" text-anchor="end">計程車</text>
+  <text x="225" y="52" font-size="12" text-anchor="middle" fill="var(--mut)">食物</text>
+  <circle cx="210.0" cy="120.0" r="7" fill="var(--gold-deep)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="221.0" y="125.0" font-size="13">滷肉飯</text>
+  <circle cx="264.4" cy="98.4" r="7" fill="var(--gold-deep)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="275.4" y="103.4" font-size="13">牛肉麵</text>
+  <circle cx="169.2" cy="80.4" r="7" fill="var(--gold-deep)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="180.2" y="85.4" font-size="13">珍珠奶茶</text>
+  <circle cx="284.8" cy="138.0" r="7" fill="var(--gold-deep)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="295.8" y="143.0" font-size="13">便當</text>
+  <text x="560" y="52" font-size="12" text-anchor="middle" fill="var(--mut)">程式用語</text>
+  <circle cx="550.0" cy="120.0" r="7" fill="var(--ink2)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="561.0" y="125.0" font-size="13">陣列</text>
+  <circle cx="604.4" cy="138.0" r="7" fill="var(--ink2)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="615.4" y="143.0" font-size="13">函式</text>
+  <circle cx="516.0" cy="91.2" r="7" fill="var(--ink2)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="527.0" y="96.2" font-size="13">迴圈</text>
+  <circle cx="590.8" cy="80.4" r="7" fill="var(--ink2)" stroke="var(--surface)" stroke-width="1.5"/>
+  <text x="601.8" y="85.4" font-size="13">變數</text>
+  <path d="M203.2 272.0L205.8 278.4L212.7 278.9L207.5 283.4L209.1 290.1L203.2 286.5L197.3 290.1L198.9 283.4L193.7 278.9L200.6 278.4Z" fill="var(--ink)"/>
+  <text x="189.2" y="272.0" font-size="13" font-weight="700" text-anchor="end">「我想養一隻寵物」</text>
+</svg>
+<figcaption>星星是查詢句算出來的向量，虛線連到離它最近的三個點。向量資料庫回傳的就是這三筆。位置是手排的示意，真模型畫出來也是同類擠在一起、不同類隔開，只是點多很多。</figcaption>
+</figure>
+<p>向量資料庫在這張圖上做四件事：</p>
+<ul class="plainlist">
+<li><b>存：</b>每段文件先算成向量，連同原文存起來。圖上每個點就是一筆資料。</li>
+<li><b>查：</b>使用者的問題也算成向量，變成圖上的一顆星。</li>
+<li><b>找最近：</b>算星星到每個點的距離，回傳最近的幾個。這就是檢索，RAG 的 R。</li>
+<li><b>快：</b>幾百萬個點一個一個算太慢，所以會先把空間切成區塊建索引，只算星星附近那幾區。這也是為什麼向量資料庫是一種獨立的產品，不是在普通資料庫上跑迴圈。</li>
+</ul>
+<div class="tablewrap"><table><thead><tr><th>項目</th><th>示意圖</th><th>真實情況</th></tr></thead><tbody>
+<tr><td class="nw">維度</td><td class="nw">2 維，能畫</td><td>384 到 3072 維，畫不出來</td></tr>
+<tr><td class="nw">怎麼畫出來</td><td class="nw">手排</td><td>用降維演算法（PCA、t-SNE、UMAP）把幾百維壓到 2 或 3 維。壓的時候盡量保留「誰跟誰靠近」，但距離的絕對值會失真。</td></tr>
+<tr><td class="nw">算「近」的方法</td><td class="nw">直線距離</td><td>多半用餘弦相似度（cosine similarity）：比兩個向量的方向夾角，不比長度。方向越一致越相似，1 是完全同方向。</td></tr>
+<tr><td class="nw">點的數量</td><td class="nw">18 個</td><td>幾萬到幾億個，所以要建索引</td></tr>
+<tr><td class="nw">點的意思</td><td class="nw">一個字</td><td>通常是一段文字（一個 chunk），例如 512 token 的一塊文件</td></tr>
+</tbody></table></div>
+<p class="muted">想看真模型算出來的向量圖：Google 的 <a href="https://projector.tensorflow.org/" target="_blank" rel="noopener">Embedding Projector</a> 內建一萬個英文單字的向量，開網頁就能轉著看 3 維版本，搜尋一個字會標出它最近的鄰居。</p>
 <div class="tablewrap"><table><thead><tr><th>需求</th><th>較適合 RAG</th><th>較適合微調</th></tr></thead><tbody><tr><td>更新公司文件後要立刻反映</td><td>是</td><td>否，通常要重新訓練</td></tr><tr><td>回答要能標出資料來源</td><td>是</td><td>不一定</td></tr><tr><td>固定品牌語氣或輸出格式</td><td>有限</td><td>是</td></tr><tr><td>改變模型的行為</td><td>不是主要目的</td><td>是</td></tr></tbody></table></div>
 <p class="muted">記法：RAG 是「補資料、不改模型」；微調是「改行為、動參數」。兩者也可以搭在一起用。</p>
 </section>
