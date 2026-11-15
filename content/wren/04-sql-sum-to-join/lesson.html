@@ -1,0 +1,174 @@
+<!-- 來源：2026-11-15 自己動手安裝 Wren AI 的實作紀錄（查詢都在 DuckDB 2.0.0 對 dbt-labs/jaffle_shop 範例資料實際執行，兩個錯誤訊息是實際打錯時出現的），依 DuckDB 與 PostgreSQL 官方文件整理 · 收錄日期：2026-11-15 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>由內往外讀懂一段多層的 SQL</li><li>用 <code>group by</code>、<code>filter</code>、<code>left join</code> 驗證一個欄位怎麼算的</li><li>說出 SQL 實際的執行順序</li><li>從錯誤類型判斷是打錯名字還是型別不對</li></ul></div>
+
+<section>
+<p class="era">要回答的問題</p>
+<h3 class="head">這個欄位到底是怎麼算出來的</h3>
+<p>顧客表有一欄 <code>customer_lifetime_value</code>，名字看起來是「這位顧客總共消費多少」。它是把所有訂單加起來，還是只算已完成的訂單？欄位名稱看不出來，要用資料驗證。下面這段 SQL 就是在做這件事：</p>
+<pre><code>select
+  count(*) filter (where abs(c.customer_lifetime_value - o.全部) &lt; 0.001)     as 等於全部,
+  count(*) filter (where abs(c.customer_lifetime_value - o.只算完成) &lt; 0.001) as 等於只算完成,
+  count(*) filter (where c.customer_lifetime_value is null)                  as 是NULL
+from customers c
+left join (
+    select customer_id,
+           sum(amount)                                     as 全部,
+           sum(amount) filter (where status = 'completed') as 只算完成
+    from orders
+    group by customer_id
+) o on o.customer_id = c.customer_id;</code></pre>
+<p>一次看整段會看不懂。讀法是從最裡面的括號開始，一層一層往外。先用一份很小的假資料說明每個動作。</p>
+<p><b>customers</b></p>
+<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>first_name</th><th>customer_lifetime_value</th></tr></thead><tbody>
+<tr><td>1</td><td>Amy</td><td>15</td></tr><tr><td>2</td><td>Bob</td><td>20</td></tr><tr><td>3</td><td>Cat</td><td>NULL</td></tr>
+</tbody></table></div>
+<p><b>orders</b>（Cat 一筆訂單都沒有）</p>
+<div class="tablewrap"><table><thead><tr><th>order_id</th><th>customer_id</th><th>status</th><th>amount</th></tr></thead><tbody>
+<tr><td>101</td><td>1</td><td>completed</td><td>10</td></tr><tr><td>102</td><td>1</td><td>returned</td><td>5</td></tr><tr><td>103</td><td>2</td><td>completed</td><td>20</td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<p class="era">sum、group by、filter</p>
+<h3 class="head">第一層：每位顧客的兩種加總</h3>
+<p><b><code>sum</code></b> 把一欄的很多列加成一個數字。<code>count</code>（數有幾列）、<code>avg</code>（平均）、<code>max</code>（最大值）是同一類，叫做聚合函式（aggregate function）。</p>
+<pre><code>select sum(amount) from orders;            -- 35</code></pre>
+<p><b><code>group by</code></b> 先把指定欄位相同的列放成一組，再對每一組各算一次：</p>
+<pre><code>select customer_id, sum(amount) as 全部
+from orders
+group by customer_id;</code></pre>
+<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>全部</th><th>怎麼來的</th></tr></thead><tbody>
+<tr><td>1</td><td>15</td><td>101 的 10 加 102 的 5</td></tr><tr><td>2</td><td>20</td><td>103 的 20</td></tr>
+</tbody></table></div>
+<p><code>as 全部</code> 是替算出來的欄位取名字（別名）。</p>
+<p><b><code>filter (where …)</code></b> 寫在聚合函式後面，讓這一個聚合只算符合條件的列。<a class="fixsrc" href="https://duckdb.org/docs/current/sql/query_syntax/filter" target="_blank" rel="noopener">出處</a> 同一次查詢就能並排算出兩種加總：</p>
+<pre><code>select customer_id,
+       sum(amount)                                     as 全部,
+       sum(amount) filter (where status = 'completed') as 只算完成
+from orders
+group by customer_id;</code></pre>
+<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>全部</th><th>只算完成</th></tr></thead><tbody>
+<tr><td>1</td><td>15</td><td>10</td></tr><tr><td>2</td><td>20</td><td>20</td></tr>
+</tbody></table></div>
+<p class="muted">PostgreSQL 也有 <code>filter</code> 這個寫法。<a class="fixsrc" href="https://www.postgresql.org/docs/current/sql-expressions.html" target="_blank" rel="noopener">出處</a> 資料庫不支援時，用 <code>sum(case when status = 'completed' then amount end)</code> 可以得到同樣的結果。</p>
+</section>
+
+<section>
+<p class="era">left join 與 inner join</p>
+<h3 class="head">第二層：接回顧客表</h3>
+<p>把上一步的結果用 <code>customer_id</code> 接到顧客表，就能並排比較。括號裡的查詢叫子查詢，後面的 <code>o</code> 是替它取的短名字，<code>c</code> 是顧客表的短名字；<code>on</code> 後面是兩邊怎麼對。</p>
+<pre><code>select c.customer_id, c.customer_lifetime_value, o.全部, o.只算完成
+from customers c
+left join ( …第一層的查詢… ) o on o.customer_id = c.customer_id;</code></pre>
+<div class="tablewrap"><table><thead><tr><th>customer_id</th><th>customer_lifetime_value</th><th>全部</th><th>只算完成</th></tr></thead><tbody>
+<tr><td>1</td><td>15</td><td>15</td><td>10</td></tr><tr><td>2</td><td>20</td><td>20</td><td>20</td></tr><tr><td>3</td><td>NULL</td><td>NULL</td><td>NULL</td></tr>
+</tbody></table></div>
+<p>Cat 在訂單那邊找不到對應的列。兩種 join 對這種情況的處理不同：<a class="fixsrc" href="https://www.postgresql.org/docs/current/queries-table-expressions.html" target="_blank" rel="noopener">出處</a></p>
+<div class="ledger">
+<div class="box left"><h5>inner join</h5><ul><li>只留兩邊都對得到的列。</li><li>Cat 整列消失。</li><li>結果是 2 列。</li></ul></div>
+<div class="box solved"><h5>left join</h5><ul><li>左邊的表每一列都保留。</li><li>右邊對不到的欄位填 NULL。</li><li>結果是 3 列，看得到 Cat。</li></ul></div>
+</div>
+<p>想知道「沒下過訂單的顧客，這一欄是什麼」，就必須用 <code>left join</code>。到這一層，用眼睛掃過結果就已經能看出 <code>customer_lifetime_value</code> 跟哪一欄一樣。</p>
+<div class="drill">
+  <p class="dq">100 位顧客裡有 38 位從沒下過訂單。把顧客表用 <code>inner join</code> 接上「每位顧客的訂單加總」，會回傳幾列？</p>
+  <ul class="dopts"><li>100 列</li><li>38 列</li><li data-ok>62 列</li><li>138 列</li></ul>
+  <p class="dexp"><code>inner join</code> 只留兩邊都對得到的列，沒下過訂單的 38 位在加總結果裡沒有對應的列，所以被丟掉。用 <code>left join</code> 才會是 100 列。</p>
+</div>
+</section>
+
+<section>
+<p class="era">abs 與 count(*) filter</p>
+<h3 class="head">第三層：把「看起來一樣」變成數字</h3>
+<p>列數一多就不能用眼睛看，要讓資料庫數出「有幾列是一樣的」。</p>
+<ul class="plainlist">
+<li><b><code>count(*) filter (where 條件)</code></b>：數符合條件的列有幾列。</li>
+<li><b><code>abs(a - b) &lt; 0.001</code></b>：金額欄位的型別是浮點數（<code>DOUBLE</code>），電腦存小數會有很小的誤差，兩個看起來相同的數字用 <code>=</code> 比可能不相等。所以改成看差距夠不夠小。</li>
+<li><b><code>abs</code></b> 是絕對值，把負號拿掉。不加的話，差距是 −50 的列也會符合 <code>&lt; 0.001</code>，就數錯了。</li>
+</ul>
+<p>用假資料算 <code>等於全部</code> 那一欄：</p>
+<div class="tablewrap"><table><thead><tr><th>顧客</th><th>lifetime value − 全部</th><th>算不算進去</th></tr></thead><tbody>
+<tr><td>Amy</td><td>15 − 15 = 0</td><td>算</td></tr><tr><td>Bob</td><td>20 − 20 = 0</td><td>算</td></tr><tr><td>Cat</td><td>NULL − NULL = NULL</td><td>不算。NULL 跟任何東西比較，結果都不會成立</td></tr>
+</tbody></table></div>
+<p>對真正的資料（100 位顧客、99 筆訂單）跑開頭那段 SQL，結果是：</p>
+<div class="tablewrap"><table><thead><tr><th>等於全部</th><th>等於只算完成</th><th>是NULL</th></tr></thead><tbody><tr><td>62</td><td>35</td><td>38</td></tr></tbody></table></div>
+<p>怎麼讀：100 位裡 38 位是 NULL，剩下 62 位全部都等於「全部訂單加總」，沒有例外。所以這一欄是所有訂單的加總，退貨的訂單也算在內。那 35 位同時也等於「只算完成」，是因為他們的訂單剛好全部都是已完成，兩種加總算出來一樣；三個數字加起來超過 100 就是這個原因。</p>
+<p class="formula">欄位怎麼算的，看名字會猜錯；寫一段 SQL 讓數字回答</p>
+</section>
+
+<section>
+<p class="era">from、where、group by、select</p>
+<h3 class="head">SQL 不是照你寫的順序執行</h3>
+<p>書寫時 <code>select</code> 在最前面，實際執行時它幾乎排最後：<a class="fixsrc" href="https://www.postgresql.org/docs/current/sql-select.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>順序</th><th>子句</th><th>做什麼</th></tr></thead><tbody>
+<tr><td>1</td><td><code>from</code>、<code>join</code></td><td>決定資料從哪些表來、怎麼接</td></tr>
+<tr><td>2</td><td><code>where</code></td><td>一列一列篩選</td></tr>
+<tr><td>3</td><td><code>group by</code></td><td>分組，計算聚合函式</td></tr>
+<tr><td>4</td><td><code>having</code></td><td>篩選分組之後的結果</td></tr>
+<tr><td>5</td><td><code>select</code></td><td>算出要輸出的欄位、取別名</td></tr>
+<tr><td>6</td><td><code>order by</code></td><td>排序</td></tr>
+</tbody></table></div>
+<p>這個順序解釋了下面這段為什麼不能跑：</p>
+<pre><code>select sum(credit_card_amount + coupon_amount) as 加總
+from orders
+where 加總 = amount;
+-- Binder Error: WHERE clause cannot contain aggregates!</code></pre>
+<p><code>where</code> 在分組和 <code>select</code> 之前執行，那時候還沒有任何聚合的結果，所以 <code>where</code> 裡不能使用 <code>sum</code> 這類聚合函式算出來的值。要篩選聚合後的結果用 <code>having</code>；要「一列一列比，再數有幾列符合」，用 <code>count(*) filter</code>：</p>
+<pre><code>select
+  count(*) as 訂單數,
+  count(*) filter (
+    where abs(
+      (credit_card_amount + coupon_amount + bank_transfer_amount + gift_card_amount)
+      - amount
+    ) &lt; 0.001
+  ) as 相等的筆數
+from orders;              -- 99、99</code></pre>
+<p>兩個數字一樣，代表每一筆訂單的 <code>amount</code> 都等於四種付款方式的加總。括號多的時候像這樣一層一行寫，哪個右括號對哪個左括號才看得清楚。</p>
+<div class="tablewrap"><table><thead><tr><th>想問的</th><th>用什麼</th></tr></thead><tbody>
+<tr><td>全部加起來是多少</td><td><code>sum(欄位)</code></td></tr>
+<tr><td>有幾列符合某個條件</td><td><code>count(*) filter (where 條件)</code></td></tr>
+<tr><td>只留某些列再算</td><td><code>where 條件</code></td></tr>
+<tr><td>只留加總超過某個數的組</td><td><code>having sum(欄位) &gt; 數字</code></td></tr>
+</tbody></table></div>
+</section>
+
+<section>
+<p class="era">NULL、avg、coalesce</p>
+<h3 class="head">NULL 會悄悄改變平均值</h3>
+<p>NULL 代表「沒有值」，不是 0。<code>sum</code>、<code>avg</code>、<code>max</code>、<code>count(欄位)</code> 這類聚合函式會跳過 NULL；<code>count(*)</code> 數的是列數，不受影響。<a class="fixsrc" href="https://duckdb.org/docs/current/sql/functions/aggregates" target="_blank" rel="noopener">出處</a> 所以同一個問題，分母可能不一樣：</p>
+<div class="tablewrap"><table><thead><tr><th>寫法</th><th>分母</th><th>回答的問題</th><th>結果</th></tr></thead><tbody>
+<tr><td><code>avg(customer_lifetime_value)</code></td><td>62（跳過 38 個 NULL）</td><td>有消費的顧客，平均消費多少</td><td>26.97</td></tr>
+<tr><td><code>avg(coalesce(customer_lifetime_value, 0))</code></td><td>100</td><td>全部顧客，平均消費多少</td><td>16.72</td></tr>
+</tbody></table></div>
+<p>同一份資料，兩種寫法差了十塊錢。</p>
+<p><code>coalesce(x, 0)</code> 的意思是：x 是 NULL 就當成 0，不是 NULL 就用原本的值。兩種寫法都沒有錯，差別在問的是哪一個問題；寫之前要先確定分母該是誰。</p>
+</section>
+
+<section>
+<p class="era">Catalog Error、Binder Error</p>
+<h3 class="head">從錯誤類型判斷錯在哪</h3>
+<p>DuckDB 的錯誤訊息開頭會寫類型，先看類型就知道往哪個方向找。</p>
+<pre><code>SQL Error: Catalog Error: Scalar Function with name awbs does not exist!
+Did you mean "abs"?</code></pre>
+<pre><code>SQL Error: Binder Error: No function matches the given name and argument types
+'abs(BOOLEAN)'. You might need to add explicit type casts.</code></pre>
+<div class="tablewrap"><table><thead><tr><th>類型</th><th>意思</th><th>先檢查什麼</th></tr></thead><tbody>
+<tr><td><code>Catalog Error</code></td><td>你寫的表名或函式名，資料庫的清單裡沒有</td><td>表名、函式名有沒有打錯字。訊息常附一個最接近的建議</td></tr>
+<tr><td><code>Binder Error</code></td><td>表和函式都找得到，但這句 SQL 對不起來：欄位名在 <code>from</code> 的表裡找不到、傳進去的型別不對，或放在不能放的位置（例如聚合函式寫進 <code>where</code>）</td><td>欄位名、括號的位置、子句的位置。訊息會寫出實際收到的型別</td></tr>
+</tbody></table></div>
+<p>第二個錯誤的原因是括號放錯：</p>
+<ul class="plainlist">
+<li>✗ <code>abs(a - b &lt; 0.001)</code> → 先算 <code>a - b &lt; 0.001</code> 得到真或假（BOOLEAN），再對真假取絕對值</li>
+<li>✓ <code>abs(a - b) &lt; 0.001</code> → 先取絕對值，再跟 0.001 比</li>
+</ul>
+<p>訊息下方用 <code>^</code> 標出的位置，就是資料庫認為出錯的那一段。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>多層的 SQL 從最裡面的括號讀起，每一層可以單獨拿出來跑。</li>
+<li><code>group by</code> 分組後各算一次；<code>filter (where …)</code> 讓單一個聚合只算符合條件的列。</li>
+<li><code>left join</code> 保留左表每一列，對不到的填 NULL；<code>inner join</code> 會把對不到的列丟掉。</li>
+<li>浮點數用 <code>abs(a - b) &lt; 很小的數</code> 比較，不用 <code>=</code>。</li>
+<li>執行順序是 from、where、group by、having、select、order by，所以 <code>where</code> 裡不能用聚合函式。</li>
+<li><code>sum</code>、<code>avg</code> 這類聚合函式跳過 NULL；要把 NULL 當 0 算，用 <code>coalesce(x, 0)</code>。</li>
+<li><code>Catalog Error</code> 先查表名、函式名有沒有打錯；<code>Binder Error</code> 先查欄位名、型別、括號與子句的位置。</li>
+</ul></div>

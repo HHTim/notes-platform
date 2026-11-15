@@ -1,0 +1,149 @@
+<!-- 來源：2026-11-15 自己動手安裝 Wren AI 的實作紀錄（每個指令都在 macOS、zsh 上實際執行過），依 zsh 手冊、man7.org 手冊頁、Git 官方文件整理 · 收錄日期：2026-11-15 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>把一長串指令拆成幾段各自看懂</li><li>分清 <code>&amp;&amp;</code>、<code>;</code>、<code>||</code> 三種串接方式</li><li>知道什麼時候一定要加引號</li><li>看懂 heredoc，用它把多行文字寫進檔案</li></ul></div>
+
+<section>
+<p class="era">先拆開，再合起來</p>
+<h3 class="head">一長串指令其實是幾個小動作</h3>
+<p>shell 是終端機裡負責讀指令、執行指令的那支程式，macOS 預設的是 zsh。安裝教學常常給一整行，照貼就能跑，但看不懂就沒辦法在出錯時知道錯在哪。讀的方法是先找 <code>&amp;&amp;</code>，從那裡切開，每一段各看各的。</p>
+<pre><code>cd ~/proj/wren-lab &amp;&amp; python3 -m venv .venv &amp;&amp; ls .venv/bin/ &amp;&amp; git status --short</code></pre>
+<div class="tablewrap"><table><thead><tr><th>段落</th><th>做什麼</th><th>屬於哪一類</th></tr></thead><tbody>
+<tr><td><code>cd ~/proj/wren-lab</code></td><td>進到專案資料夾</td><td>準備</td></tr>
+<tr><td><code>python3 -m venv .venv</code></td><td>在這個資料夾建一個 Python 虛擬環境</td><td>做事</td></tr>
+<tr><td><code>ls .venv/bin/</code></td><td>列出虛擬環境裡的執行檔</td><td>驗收</td></tr>
+<tr><td><code>git status --short</code></td><td>確認 Git 沒把新資料夾當成要追蹤的檔案</td><td>驗收</td></tr>
+</tbody></table></div>
+<p>好的一行通常長這樣：前面做事，後面馬上驗收。做完一件事就確認結果，出錯時才知道是哪一步壞的。</p>
+<p class="formula">讀一長串指令：從 &amp;&amp; 切開，分成準備、做事、驗收三類</p>
+</section>
+
+<section>
+<p class="era">資料夾與路徑</p>
+<h3 class="head">為什麼第一段幾乎都是 cd</h3>
+<ul class="plainlist">
+<li><b><code>cd</code></b> 是 change directory，切換目前所在的資料夾。</li>
+<li><b><code>~</code></b> 代表自己的家目錄，例如 <code>/Users/你的帳號</code>。</li>
+<li><b>相對路徑</b>：<code>.venv</code>、<code>.venv/bin/</code> 這種不是 <code>/</code> 或 <code>~</code> 開頭的路徑，是從「目前所在的資料夾」算起。</li>
+<li><b><code>$PWD</code></b> 是一個變數，內容是目前所在資料夾的完整路徑。</li>
+</ul>
+<p>後面幾段用的都是相對路徑，所以要先 <code>cd</code>。沒有先切過去，<code>.venv</code> 就會建在別的地方。</p>
+<p>檔名開頭是 <code>.</code> 的檔案或資料夾是隱藏的，一般的 <code>ls</code> 不會列出來，要用 <code>ls -a</code> 才看得到。<code>.venv</code>、<code>.gitignore</code> 都是這一類。</p>
+</section>
+
+<section>
+<p class="era">三種串接符號</p>
+<h3 class="head">三種串接方式，差在要不要看前一段的結果</h3>
+<p>每個指令跑完都會回傳一個結束代碼（exit code）：0 代表成功，其他數字代表失敗。串接符號就是看這個數字決定要不要跑下一段。<a class="fixsrc" href="https://zsh.sourceforge.io/Doc/Release/Shell-Grammar.html" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>寫法</th><th>下一段什麼時候跑</th><th>用在哪</th></tr></thead><tbody>
+<tr><td><code>A &amp;&amp; B</code></td><td>A 成功才跑 B</td><td>有先後關係的步驟，前一步失敗就不該繼續</td></tr>
+<tr><td><code>A ; B</code></td><td>不管 A 成不成功都跑 B</td><td>兩件互不相干的事</td></tr>
+<tr><td><code>A || B</code></td><td>A 失敗才跑 B</td><td>失敗時的替代動作或提示訊息</td></tr>
+</tbody></table></div>
+<p>安裝步驟用 <code>&amp;&amp;</code>，是因為 <code>cd</code> 如果失敗（資料夾名稱打錯），後面還繼續跑的話，東西會裝到錯的地方。</p>
+<p><code>||</code> 常拿來讓「找不到」變成一句看得懂的話：</p>
+<pre><code>$ which wren || echo "還沒裝，正常"
+wren not found
+還沒裝，正常</code></pre>
+<p><code>which wren</code> 找不到指令，結束代碼不是 0，所以接著跑 <code>echo</code>。外面再包一層括號 <code>( ... )</code>，整組就可以放進 <code>&amp;&amp;</code> 串裡而不會讓整串中斷。</p>
+<div class="drill">
+  <p class="dq"><code>cd ~/proj/wrenlab &amp;&amp; python3 -m venv .venv</code>，資料夾名稱打錯了（正確是 <code>wren-lab</code>）。會發生什麼？</p>
+  <ul class="dopts"><li>虛擬環境建在家目錄</li><li>虛擬環境建在目前所在的資料夾</li><li data-ok>cd 失敗，後面那段不會跑</li><li>shell 會自動建立 wrenlab 資料夾</li></ul>
+  <p class="dexp"><code>&amp;&amp;</code> 只在前一段成功時才跑下一段。<code>cd</code> 找不到資料夾會失敗，整串就停在那裡。換成 <code>;</code> 的話，虛擬環境就會建在目前所在的資料夾。</p>
+</div>
+</section>
+
+<section>
+<p class="era">引號</p>
+<h3 class="head">什麼時候一定要加引號</h3>
+<p>shell 在把指令交給程式之前，會先自己處理一些特殊符號。不想讓它處理，就用引號包起來。</p>
+<div class="tablewrap"><table><thead><tr><th>情況</th><th>不加引號會怎樣</th><th>寫法</th></tr></thead><tbody>
+<tr><td>參數裡有方括號</td><td>zsh 把 <code>[...]</code> 當成比對檔名的樣式，找不到符合的檔案就報 <code>no matches found</code>，後面的程式根本沒被執行</td><td><code>pip install "wrenai[mcp]"</code></td></tr>
+<tr><td>路徑裡可能有空白</td><td>被拆成兩個參數</td><td><code>"$PWD/.venv/bin/wren"</code></td></tr>
+<tr><td>有 <code>*</code>、<code>?</code></td><td>同樣被當成比對檔名的樣式</td><td><code>grep --include='*.py'</code></td></tr>
+</tbody></table></div>
+<p>zsh 的檔名比對找不到符合的檔案時，預設直接出錯而不是把原字串傳下去。<a class="fixsrc" href="https://zsh.sourceforge.io/Doc/Release/Options.html" target="_blank" rel="noopener">出處</a></p>
+<p>雙引號和單引號的差別：</p>
+<ul class="plainlist">
+<li><b>雙引號 <code>"..."</code></b>：裡面的 <code>$PWD</code> 這類變數還是會被換成實際的值。</li>
+<li><b>單引號 <code>'...'</code></b>：裡面每個字都照原樣，<code>$</code> 也不處理。</li>
+</ul>
+<pre><code>$ echo "$PWD/.venv"
+/Users/tim/proj/wren-lab/.venv
+$ echo '$PWD/.venv'
+$PWD/.venv</code></pre>
+</section>
+
+<section>
+<p class="era">heredoc</p>
+<h3 class="head">把多行文字直接交給指令</h3>
+<p>heredoc（here-document）是在指令後面直接寫一段多行文字，當成那個指令的輸入。寫法是 <code>&lt;&lt;</code> 加一個自己挑的結束記號，從下一行開始，到某一行剛好只有那個記號為止。<a class="fixsrc" href="https://zsh.sourceforge.io/Doc/Release/Redirection.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>cat &gt; /tmp/profile.yml &lt;&lt;YAML
+datasource: duckdb
+url: $PWD/sample-db
+format: duckdb
+YAML</code></pre>
+<ul class="plainlist">
+<li><b><code>cat</code></b> 把收到的文字印出來。</li>
+<li><b><code>&gt; 檔名</code></b> 把本來要印在螢幕上的內容改成寫進檔案；檔案已經存在會整個蓋掉。</li>
+<li><b><code>&lt;&lt;YAML</code> … <code>YAML</code></b> 中間三行就是 <code>cat</code> 收到的文字。<code>YAML</code> 只是記號，寫成 <code>EOF</code> 也可以。</li>
+</ul>
+<p>結束記號有沒有加引號，決定裡面的 <code>$</code> 會不會被處理：</p>
+<div class="tablewrap"><table><thead><tr><th>寫法</th><th>裡面的 <code>$PWD</code></th><th>用在哪</th></tr></thead><tbody>
+<tr><td><code>&lt;&lt;YAML</code></td><td>換成實際路徑</td><td>設定檔需要填入目前的路徑</td></tr>
+<tr><td><code>&lt;&lt;'PY'</code></td><td>照原樣不動</td><td>送一段程式碼給直譯器（一行一行讀程式碼並執行的程式，例如 <code>python</code>），不想讓 shell 改到任何字</td></tr>
+</tbody></table></div>
+<p>第二種常跟 <code>python -</code> 搭配。<code>-</code> 的意思是程式碼不從檔案讀，改從標準輸入讀，也就是 heredoc 送進來的那一段：</p>
+<pre><code>.venv/bin/python - &lt;&lt;'PY'
+import duckdb
+c = duckdb.connect('sample-db/jaffle_shop.duckdb', read_only=True)
+print(c.sql("select count(*) from orders").fetchall())
+PY</code></pre>
+<div class="drill">
+  <p class="dq">想用 heredoc 產生一個設定檔，裡面要有一行是目前資料夾的完整路徑。結束記號該怎麼寫？</p>
+  <ul class="dopts"><li><code>&lt;&lt;'EOF'</code>，加單引號</li><li data-ok><code>&lt;&lt;EOF</code>，不加引號</li><li>兩種寫法結果一樣</li><li>heredoc 裡不能用變數，要先手動查好路徑</li></ul>
+  <p class="dexp">不加引號時，heredoc 裡的 <code>$PWD</code> 會被換成實際路徑。加了單引號，檔案裡就會是 <code>$PWD</code> 這四個字。</p>
+</div>
+</section>
+
+<section>
+<p class="era">mkdir -p、ln -sf、which</p>
+<h3 class="head">讓一個指令在任何資料夾都打得到</h3>
+<p>在終端機打 <code>wren</code>，shell 會依序到 <code>PATH</code> 這個變數列出的資料夾裡找同名的執行檔。執行檔如果放在專案的 <code>.venv/bin/</code> 裡，不在 <code>PATH</code> 上，就只能打完整路徑。解法是在 <code>PATH</code> 上的某個資料夾放一個捷徑。</p>
+<pre><code>mkdir -p ~/.local/bin &amp;&amp; ln -sf "$PWD/.venv/bin/wren" ~/.local/bin/wren &amp;&amp; which wren</code></pre>
+<div class="tablewrap"><table><thead><tr><th>段落</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>mkdir -p</code></td><td>建資料夾。<code>-p</code>：已經存在不出錯，中間缺的上層資料夾一起建 <a class="fixsrc" href="https://man7.org/linux/man-pages/man1/mkdir.1.html" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td><code>ln -s</code></td><td>建符號連結（symbolic link），也就是捷徑，不是複製一份。原本的檔案更新，捷徑指到的就是新的 <a class="fixsrc" href="https://man7.org/linux/man-pages/man1/ln.1.html" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td><code>-f</code></td><td>目的地已經有同名的檔案就直接換掉</td></tr>
+<tr><td><code>"$PWD/.venv/bin/wren"</code></td><td>捷徑指向哪裡。要用完整路徑；寫相對路徑的話，會從捷徑所在的資料夾算起，就找不到了</td></tr>
+<tr><td><code>~/.local/bin/wren</code></td><td>捷徑放在哪、叫什麼</td></tr>
+<tr><td><code>which wren</code></td><td>印出 shell 實際找到的是哪一個 <code>wren</code></td></tr>
+</tbody></table></div>
+<p><code>which</code> 印出的路徑不是預期的那個，表示 <code>PATH</code> 裡排在前面的資料夾有另一個同名的指令。</p>
+</section>
+
+<section>
+<p class="era">ls、git status --short、lsof</p>
+<h3 class="head">三個拿來驗收的指令</h3>
+<div class="terms">
+<div class="term"><b>ls 資料夾</b><span>列出內容。<code>bin</code> 是 binary 的縮寫，慣例上放可以直接執行的程式。</span></div>
+<div class="term"><b>git status --short</b><span>用精簡格式列出有變動的檔案，一個檔案一行；什麼都沒印代表沒有變動。</span></div>
+<div class="term"><b>lsof 檔案</b><span>列出哪些程式正開著這個檔案。沒有程式開著時結束代碼不是 0，可以接 <code>||</code>。</span></div>
+</div>
+<p><code>git status --short</code> 每行開頭有兩個字元的狀態：<a class="fixsrc" href="https://git-scm.com/docs/git-status" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>開頭</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>??</code></td><td>Git 還沒追蹤的新檔案</td></tr>
+<tr><td><code>&nbsp;M</code></td><td>改過，還沒加進暫存區（Git 裡「準備放進下一次提交」的清單）</td></tr>
+<tr><td><code>M&nbsp;</code></td><td>改過，已經加進暫存區</td></tr>
+</tbody></table></div>
+<p><code>lsof</code> 用在檔案被鎖住的時候，找出是誰開著它：<a class="fixsrc" href="https://man7.org/linux/man-pages/man8/lsof.8.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ lsof sample-db/jaffle_shop.duckdb || echo "沒有程式開著這個檔"
+沒有程式開著這個檔</code></pre>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>讀一長串指令先從 <code>&amp;&amp;</code> 切開，每段各看各的；常見的結構是準備、做事、驗收。</li>
+<li><code>&amp;&amp;</code> 是前一段成功才繼續，<code>;</code> 是不管結果都繼續，<code>||</code> 是失敗才跑。</li>
+<li>相對路徑從目前的資料夾算起，所以第一段常是 <code>cd</code>。</li>
+<li>參數裡有 <code>[ ]</code>、<code>*</code>、空白或變數時加引號；zsh 遇到比對不到的方括號會直接報 <code>no matches found</code>。</li>
+<li>heredoc 的結束記號不加引號會處理 <code>$</code>，加單引號則照原樣。</li>
+<li><code>ln -sf 完整路徑 捷徑位置</code> 加上 <code>which</code>，可以讓專案裡的指令在任何資料夾都打得到。</li>
+</ul></div>

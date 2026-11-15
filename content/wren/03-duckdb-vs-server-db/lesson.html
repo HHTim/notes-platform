@@ -1,0 +1,101 @@
+<!-- 來源：2026-11-15 自己動手安裝 Wren AI 的實作紀錄（DuckDB 2.0.0 的 Python 套件與 DBeaver 實際操作，鎖檔錯誤是實際遇到的），依 DuckDB 官方文件整理 · 收錄日期：2026-11-15 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出嵌入式資料庫跟有伺服器的資料庫差在哪</li><li>解釋 DuckDB 為什麼會出現鎖檔錯誤</li><li>用 <code>lsof</code> 找出誰鎖住檔案並排除</li><li>看懂 <code>jaffle_shop.main.customers</code> 的三層名稱</li></ul></div>
+
+<section>
+<p class="era">同一句 SQL，走的路不一樣</p>
+<h3 class="head">有伺服器的資料庫與嵌入式資料庫</h3>
+<p>MySQL、PostgreSQL 是一支一直開著的伺服器程式，別的程式透過網路連進去。DuckDB 是嵌入式資料庫（in-process database）：資料庫引擎是一個函式庫，直接跑在使用它的那支程式裡，預設沒有另外的伺服器。<a class="fixsrc" href="https://duckdb.org/why_duckdb" target="_blank" rel="noopener">出處</a></p>
+<div class="ledger">
+<div class="box left">
+<h5>MySQL、PostgreSQL：先有伺服器</h5>
+<ul>
+<li><b>安裝並啟動</b>伺服器程式，它會一直開著。</li>
+<li><b>設定</b>帳號、密碼、連接埠（MySQL 預設 3306、PostgreSQL 預設 5432）。</li>
+<li><b>連線</b>：用戶端填主機、連接埠、帳號、密碼。</li>
+<li><b>執行</b>：SQL 送到伺服器，伺服器算完把結果傳回來。</li>
+<li><b>多人同時用</b>：全部交給伺服器協調。</li>
+</ul>
+</div>
+<div class="box solved">
+<h5>DuckDB：只有一個檔案</h5>
+<ul>
+<li><b>不用啟動任何東西</b>，裝一個函式庫就好。</li>
+<li><b>沒有帳號密碼</b>，資料庫就是一個 <code>.duckdb</code> 檔。</li>
+<li><b>連線</b>：程式直接打開那個檔案。</li>
+<li><b>執行</b>：SQL 在你自己的程式裡算，不經過網路。</li>
+<li><b>多個程式同時用</b>：靠檔案鎖，規則比較嚴。</li>
+</ul>
+</div>
+</div>
+<p>SQLite 也是嵌入式資料庫。DuckDB 跟它的差別是用途：SQLite 偏向一筆一筆的讀寫，DuckDB 是為分析設計的，資料照欄位存放，做加總、分組這類查詢比較快。<a class="fixsrc" href="https://duckdb.org/why_duckdb" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">「記憶體資料庫」是另一件事，指資料只放在記憶體、不寫進硬碟。DuckDB 可以這樣用（連線時不給檔名），但它的特點是「跑在你的程式裡」，不是「資料只在記憶體」；有給檔名時資料會存在硬碟上的檔案裡。</p>
+</section>
+
+<section>
+<p class="era">四個差別，一項一項對</p>
+<h3 class="head">實際用起來差在哪</h3>
+<div class="tablewrap"><table><thead><tr><th></th><th>差別</th><th>MySQL、PostgreSQL</th><th>DuckDB</th></tr></thead><tbody>
+<tr><td>01</td><td><b>資料在哪</b></td><td>伺服器管理的資料目錄，使用者不直接碰檔案</td><td>一個 <code>.duckdb</code> 檔，可以複製、用 Git 帶著走</td></tr>
+<tr><td>02</td><td><b>怎麼連</b></td><td>主機、連接埠、帳號、密碼</td><td>檔案路徑</td></tr>
+<tr><td>03</td><td><b>多個程式同時用</b></td><td>伺服器協調，讀寫可以同時進行</td><td>一個程式讀寫，或多個程式唯讀，二選一</td></tr>
+<tr><td>04</td><td><b>擅長的工作</b></td><td>線上交易：大量小筆的新增、修改</td><td>分析：對很多列做加總、分組</td></tr>
+</tbody></table></div>
+<p>SQL 語法本身差別不大。DuckDB 的語法刻意貼近 PostgreSQL，<code>select</code>、<code>join</code>、<code>group by</code> 的寫法都一樣。</p>
+<p class="formula">會 MySQL 的人用 DuckDB，要重新適應的不是語法，是「沒有伺服器」帶來的鎖</p>
+</section>
+
+<section>
+<p class="era">Could not set lock on file</p>
+<h3 class="head">檔案被鎖住：規則、症狀、排除</h3>
+<p>沒有伺服器，就沒有人居中協調誰在讀、誰在寫。DuckDB 用檔案鎖保護資料，一個資料庫檔只有兩種開法：<a class="fixsrc" href="https://duckdb.org/docs/current/connect/concurrency" target="_blank" rel="noopener">出處</a></p>
+<div class="tablewrap"><table><thead><tr><th>情況</th><th>可不可以</th></tr></thead><tbody>
+<tr><td>一個程式用讀寫模式打開</td><td>可以，但這時其他程式都進不來，唯讀也不行</td></tr>
+<tr><td>多個程式都用唯讀模式打開</td><td>可以</td></tr>
+<tr><td>一個讀寫，其他唯讀</td><td>不行</td></tr>
+</tbody></table></div>
+<p>圖形化工具（例如 DBeaver）預設用讀寫模式連線，所以它連著的時候，別的程式就算只想讀也打不開：</p>
+<pre><code>_duckdb.IOException: IO Error: Could not set lock on file
+"…/sample-db/jaffle_shop.duckdb": Conflicting lock is held in
+/Applications/DBeaver.app/Contents/MacOS/dbeaver (PID 52174) …</code></pre>
+<p>錯誤訊息已經寫出是哪個程式（DBeaver）和它的行程編號（PID）。排除的步驟：</p>
+<ul class="plainlist">
+<li><b>放掉鎖</b>：在那個程式裡中斷連線。中斷後鎖還在，就把整個程式關掉。</li>
+<li><b>確認</b>：<code>lsof 檔案路徑 || echo "沒有程式開著這個檔"</code>，看到後面那句才算放開。</li>
+<li><b>自己的程式用唯讀開</b>：只是要看資料時，連線加上唯讀選項，例如 Python 的 <code>duckdb.connect(路徑, read_only=True)</code>。大家都唯讀，就可以同時開。</li>
+</ul>
+<p class="muted">DuckDB 也可以啟動成伺服器，讓多個程式同時寫入同一個資料庫，那是另外的用法；直接打開檔案時，適用的就是上面這張表。<a class="fixsrc" href="https://duckdb.org/docs/current/connect/concurrency" target="_blank" rel="noopener">出處</a></p>
+<p>拿到別人給的 DuckDB 或 SQLite 檔案時，先問一句「現在有沒有程式正在寫這個檔」。有的話請對方複製一份，不要直接連正在使用中的那一份。</p>
+<div class="drill">
+  <p class="dq">DBeaver 用預設設定連著 <code>a.duckdb</code>。這時另一支 Python 程式用 <code>read_only=True</code> 去開同一個檔，會怎樣？</p>
+  <ul class="dopts"><li>可以開，因為唯讀不需要鎖</li><li data-ok>打不開，出現鎖檔錯誤</li><li>可以開，但查到的是舊資料</li><li>DBeaver 會被強制中斷連線</li></ul>
+  <p class="dexp">一個程式用讀寫模式開著時，其他程式連唯讀都進不來。要同時開，兩邊都得是唯讀。</p>
+</div>
+</section>
+
+<section>
+<p class="era">catalog、schema、table</p>
+<h3 class="head">三層名稱：jaffle_shop.main.customers</h3>
+<p>DuckDB 裡一張表的完整名稱有三層：</p>
+<div class="tablewrap"><table><thead><tr><th>層</th><th>範例</th><th>是什麼</th></tr></thead><tbody>
+<tr><td>catalog（資料庫）</td><td><code>jaffle_shop</code></td><td>打開的那個資料庫檔。沒有另外取名時，名字就是檔名去掉副檔名：<code>jaffle_shop.duckdb</code> → <code>jaffle_shop</code> <a class="fixsrc" href="https://duckdb.org/docs/current/sql/statements/attach" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td>schema</td><td><code>main</code></td><td>資料庫裡的一層分類。DuckDB 預設的 schema 叫 <code>main</code>，PostgreSQL 的預設則是 <code>public</code></td></tr>
+<tr><td>table</td><td><code>customers</code></td><td>資料表</td></tr>
+</tbody></table></div>
+<p>一個連線可以同時掛上好幾個資料庫檔，所以才需要最前面那一層來區分。只想寫 <code>select * from customers</code> 的話，先用 <code>USE</code> 指定預設的資料庫與 schema：<a class="fixsrc" href="https://duckdb.org/docs/current/sql/statements/use" target="_blank" rel="noopener">出處</a></p>
+<pre><code>USE jaffle_shop.main;
+SELECT * FROM customers;</code></pre>
+<p>要知道一個資料庫裡有什麼，查 <code>information_schema.tables</code>。這是 SQL 標準定義的一組系統檢視表，DuckDB、PostgreSQL、MySQL 都有，SQLite 沒有。<a class="fixsrc" href="https://duckdb.org/docs/current/sql/meta/information_schema" target="_blank" rel="noopener">出處</a> 再用 <code>describe</code> 看欄位：</p>
+<pre><code>select table_name, table_type from information_schema.tables order by 1;
+describe customers;</code></pre>
+<p><code>table_type</code> 是 <code>BASE TABLE</code> 代表真的存了資料，<code>VIEW</code> 代表存的是一段查詢。</p>
+<p class="muted"><code>.duckdb</code> 是二進位檔，用文字編輯器打開只會看到亂碼。要看內容得用懂這個格式的工具：DBeaver、DuckDB 自己的命令列工具，或程式語言的 DuckDB 套件。</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>MySQL、PostgreSQL 是一直開著的伺服器；DuckDB 是跑在你程式裡的函式庫，資料庫就是一個檔案。</li>
+<li>DuckDB 為分析設計，語法貼近 PostgreSQL。</li>
+<li>同一個檔案：一個程式讀寫，或多個程式唯讀，不能混用。</li>
+<li>鎖檔錯誤會寫出佔用的程式與 PID；中斷那個程式的連線，再用 <code>lsof</code> 確認。</li>
+<li>表的完整名稱是「資料庫.schema.表」，資料庫名稱預設是檔名去掉副檔名，預設 schema 是 <code>main</code>。</li>
+<li><code>information_schema.tables</code> 列出有哪些表，<code>describe</code> 列出欄位與型別。</li>
+</ul></div>

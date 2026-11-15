@@ -1,0 +1,123 @@
+<!-- 來源：2026-11-15 自己動手安裝 Wren AI 的實作紀錄（wrenai 0.18.0、Python 3.15.2、macOS 實際執行；extras 清單取自 PyPI 的套件中繼資料，記憶功能與 profile 的行為對照 wrenai 0.18.0 套件原始碼），依 Canner/WrenAI 官方 repo 與 PyPI 整理 · 收錄日期：2026-11-15 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 Wren AI 在「用一句話問資料庫」裡負責哪一段</li><li>依需要挑選 <code>wrenai</code> 的 extras</li><li>解釋嵌入模型、LanceDB、torch 各做什麼</li><li>建一筆 profile 並確認連得上資料庫</li></ul></div>
+
+<section>
+<p class="era">語意層</p>
+<h3 class="head">Wren AI 負責哪一段</h3>
+<p>讓 AI 直接看資料庫寫 SQL，常錯在三個地方：該用哪幾張表、怎麼接；「營收」這種詞到底怎麼算；欄位的值代表什麼。這些答案多半不在資料庫裡。</p>
+<p>Wren AI 的做法是把這些答案寫成檔案，叫做語意層（semantic layer）。AI 代理人（會自己下指令、跑查詢的 AI 工具，例如 Claude Code）寫 SQL 之前先讀這一層，寫好的 SQL 再交給 Wren 轉成資料庫實際能跑的版本。<a class="fixsrc" href="https://github.com/Canner/WrenAI" target="_blank" rel="noopener">出處</a></p>
+<div class="terms">
+<div class="term"><b>wrenai</b><span>Python 套件。裝完多一個 <code>wren</code> 指令，所有功能都從它進去。</span></div>
+<div class="term"><b>MDL</b><span>Modeling Definition Language，語意層的檔案格式（YAML）：有哪些模型、欄位、關聯，各自是什麼意思。</span></div>
+<div class="term"><b>profile</b><span>一筆連線設定：連哪一種資料庫、在哪裡。</span></div>
+<div class="term"><b>memory</b><span>把問過的問題和當時的 SQL 記下來，下次遇到意思相近的問題可以找回來參考。</span></div>
+</div>
+<p>安裝分三件事：裝套件、讓 <code>wren</code> 指令到處打得到、建 profile。</p>
+</section>
+
+<section>
+<p class="era">pip install "wrenai[…]"</p>
+<h3 class="head">裝套件：先決定要哪幾組 extras</h3>
+<p><code>wrenai</code> 把不是每個人都需要的功能拆成好幾組 extras。<a class="fixsrc" href="https://pypi.org/project/wrenai/" target="_blank" rel="noopener">出處</a> 常用的幾組：</p>
+<div class="tablewrap"><table><thead><tr><th>extras</th><th>帶進什麼</th><th>什麼時候需要</th></tr></thead><tbody>
+<tr><td><code>postgres</code>、<code>mysql</code>、<code>mssql</code>、<code>bigquery</code>…</td><td>該資料庫的驅動程式（讓 Python 能跟那一種資料庫溝通的套件）</td><td>要連那一種資料庫時。DuckDB 的驅動是內建的，不用另外選</td></tr>
+<tr><td><code>memory</code></td><td>LanceDB、sentence-transformers（會帶進 torch）</td><td>要用語意比對的記憶功能</td></tr>
+<tr><td><code>memory-onnx</code></td><td>LanceDB、onnxruntime、tokenizers</td><td>同上，但不裝 torch</td></tr>
+<tr><td><code>main</code></td><td>互動式提問介面、瀏覽器設定頁用的套件</td><td>想用問答方式或網頁表單建立設定</td></tr>
+<tr><td><code>mcp</code></td><td>MCP（Model Context Protocol，讓 AI 工具呼叫外部功能的共通規格）的 Python 套件</td><td>要把 Wren 當成 MCP 伺服器，給其他 AI 工具呼叫</td></tr>
+</tbody></table></div>
+<pre><code>cd ~/proj/wren-lab
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install "wrenai[postgres,memory,main,mcp]"
+.venv/bin/wren version        # wrenai 0.18.0</code></pre>
+<p><code>wrenai</code> 0.18.0 需要 Python 3.11 以上。選了 <code>memory</code> 這組，虛擬環境會長到 1.8 GB 左右。光 torch 就佔 600 多 MB，是最大的一個；加上跟著它進來的 transformers、scipy 等套件，超過一半。下載時間看網路速度，實測約二十分鐘。</p>
+<p class="muted">少裝一組不用重來，補跑 <code>.venv/bin/pip install "wrenai[mcp]"</code> 就會只裝缺的部分。</p>
+</section>
+
+<section>
+<p class="era">嵌入模型、向量、LanceDB、torch</p>
+<h3 class="head">memory 這組到底裝了什麼</h3>
+<p>記憶功能要做的事是：新問題進來，找出以前問過、意思相近的問題。字面比對做不到這件事，例如「有幾個顧客下過一次以上的訂單」和「回購的顧客有多少人」幾乎沒有相同的字。</p>
+<ul class="plainlist">
+<li><b>嵌入模型（embedding model）</b>：把一句話轉成一串數字（向量）的模型。意思相近的句子，轉出來的數字也相近。<code>wrenai</code> 預設用 <code>paraphrase-multilingual-MiniLM-L12-v2</code>，支援多國語言，每句話轉成 384 個數字。<a class="fixsrc" href="https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" target="_blank" rel="noopener">出處</a></li>
+<li><b>torch（PyTorch）</b>：執行神經網路模型的函式庫。嵌入模型是一個小型神經網路，需要有引擎來跑它。torch 還包含訓練模型等許多功能，所以體積很大。<a class="fixsrc" href="https://docs.pytorch.org/docs/stable/index.html" target="_blank" rel="noopener">出處</a></li>
+<li><b>onnxruntime</b>：另一種引擎，主要用來執行已經訓練好的模型，體積小很多。<code>memory-onnx</code> 這組用它取代 torch，跑的是同一個模型。<a class="fixsrc" href="https://onnxruntime.ai/docs/" target="_blank" rel="noopener">出處</a></li>
+<li><b>LanceDB</b>：專門存向量的資料庫，擅長「找出跟這串數字最接近的前幾筆」。跟 DuckDB 一樣是嵌入式的，資料就放在本機的檔案裡，不用架伺服器。<a class="fixsrc" href="https://docs.lancedb.com/" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<div class="tablewrap"><table><thead><tr><th></th><th>一般的資料表</th><th>向量</th></tr></thead><tbody>
+<tr><td>要開伺服器</td><td>PostgreSQL、MySQL</td><td>PostgreSQL 加 pgvector 擴充套件</td></tr>
+<tr><td>不用伺服器，資料是本機檔案</td><td>DuckDB、SQLite</td><td>LanceDB</td></tr>
+</tbody></table></div>
+<h4>為什麼不直接用 PostgreSQL 存向量</h4>
+<ul class="plainlist">
+<li><b>這份索引隨時可以重建。</b>問題和 SQL 的正本是專案裡的 Markdown 檔（<code>knowledge/sql/</code>），向量索引只是從它們產生出來的。為了一份可以重建的東西架一台資料庫伺服器不划算。</li>
+<li><b>你常常沒有地方可以寫。</b>要查的那台資料庫通常只給唯讀帳號，不能建表、不能裝擴充套件；把自己工具的索引寫進別人的正式資料庫也不恰當。</li>
+<li><b>裝完就能用。</b>不需要先架伺服器、設定帳號。</li>
+</ul>
+<p class="muted">沒裝 <code>memory</code> 或 <code>memory-onnx</code> 時，記憶功能仍然可以用，只是退回文字比對，對不上換句話說的問題。</p>
+</section>
+
+<section>
+<p class="era">ln -sf 與 which</p>
+<h3 class="head">讓 wren 在任何資料夾都打得到</h3>
+<p><code>wren</code> 裝在專案的 <code>.venv/bin/</code> 裡，換個資料夾就得打一長串相對路徑。在 <code>PATH</code> 上的資料夾放一個捷徑：</p>
+<pre><code>$ mkdir -p ~/.local/bin &amp;&amp; ln -sf "$PWD/.venv/bin/wren" ~/.local/bin/wren &amp;&amp; which wren &amp;&amp; wren version
+/Users/tim/.local/bin/wren
+wrenai 0.18.0</code></pre>
+<p>前提是 <code>~/.local/bin</code> 已經在 <code>PATH</code> 裡，用 <code>echo $PATH</code> 可以確認。</p>
+</section>
+
+<section>
+<p class="era">wren profile add</p>
+<h3 class="head">建 profile：告訴 wren 資料庫在哪</h3>
+<p>profile 的作用等於資料庫工具裡的「新增連線」。先把設定寫成一個 YAML 檔，再匯入：</p>
+<pre><code>cat &gt; /tmp/jaffle-profile.yml &lt;&lt;YAML
+datasource: duckdb
+url: $PWD/sample-db
+format: duckdb
+YAML
+wren profile add jaffle-shop --from-file /tmp/jaffle-profile.yml &amp;&amp; cat ~/.wren/profiles.yml</code></pre>
+<div class="tablewrap"><table><thead><tr><th>欄位</th><th>填什麼</th></tr></thead><tbody>
+<tr><td><code>datasource</code></td><td>資料庫的種類</td></tr>
+<tr><td><code>url</code></td><td>DuckDB 要填放 <code>.duckdb</code> 檔的<b>資料夾</b>，不是檔案本身。Wren 會把資料夾裡每個 <code>.duckdb</code> 檔都掛上去</td></tr>
+<tr><td><code>format</code></td><td>檔案格式</td></tr>
+</tbody></table></div>
+<p><code>wren profile add 名稱</code> 除了 <code>--from-file</code>，還可以用 <code>--ui</code>（開瀏覽器表單）或 <code>--interactive</code>（一題一題問）。存檔之後它會實際連一次資料庫：</p>
+<pre><code>Profile 'jaffle-shop' added.
+→ Validating connection...
+✓ Connection validated
+
+active: jaffle-shop
+profiles:
+  jaffle-shop:
+    datasource: duckdb
+    url: /Users/tim/proj/wren-lab/sample-db
+    format: duckdb</code></pre>
+<ul class="plainlist">
+<li><b><code>✓ Connection validated</code></b>：真的連上了，不只是把設定存起來。</li>
+<li><b><code>active</code></b>：目前使用中的 profile。</li>
+<li><b><code>url</code> 是完整路徑</b>：heredoc 裡的 <code>$PWD</code> 已經換成實際的資料夾。</li>
+</ul>
+<h4>為什麼存在家目錄，不存在專案裡</h4>
+<p>連到真正的資料庫時，連線設定會牽涉帳號密碼，不該進 Git。Wren 的分工是：語意層（描述資料的意思）放在專案裡、進 Git、大家共用；profile（怎麼連）留在每台電腦的 <code>~/.wren/</code>，所以每台電腦要各建一次。</p>
+<h4>Wren 怎麼打開 DuckDB</h4>
+<p>Wren 是用唯讀模式把每個檔案掛上去的，掛上去的名字是檔名去掉副檔名。這帶來兩個結果：</p>
+<ul class="plainlist">
+<li><b>不會改到資料</b>，但別的程式用讀寫模式開著同一個檔時，Wren 會連不上，出現 <code>Failed to attach</code>。</li>
+<li><b>資料庫名稱就是檔名</b>：<code>jaffle_shop.duckdb</code> 在 Wren 裡叫 <code>jaffle_shop</code>，寫語意層時要填這個名字。</li>
+</ul>
+<div class="drill">
+  <p class="dq">DuckDB 的資料庫檔放在 <code>/data/shop/sales.duckdb</code>。profile 的 <code>url</code> 該填什麼？</p>
+  <ul class="dopts"><li><code>/data/shop/sales.duckdb</code></li><li><code>sales</code></li><li><code>duckdb://localhost/sales</code></li><li data-ok><code>/data/shop</code></li></ul>
+  <p class="dexp">DuckDB 的 <code>url</code> 填的是放資料庫檔的資料夾。<code>sales</code> 是掛上去之後的資料庫名稱，寫語意層時才用到。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>Wren AI 把「資料代表什麼意思」寫成檔案（語意層），讓 AI 寫 SQL 前先讀。</li>
+<li>extras 依需要選：資料庫驅動、<code>memory</code> 或 <code>memory-onnx</code>、<code>main</code>、<code>mcp</code>；少裝可以補裝。</li>
+<li>記憶功能靠嵌入模型把句子轉成向量，LanceDB 負責找最接近的；torch 或 onnxruntime 是跑模型的引擎。</li>
+<li>向量索引可以從專案裡的 Markdown 重建，所以用本機檔案型的 LanceDB 就夠了。</li>
+<li>profile 存在 <code>~/.wren/profiles.yml</code>，不進 Git；語意層放在專案裡。</li>
+<li>DuckDB 的 <code>url</code> 填資料夾；Wren 以唯讀模式掛上檔案，資料庫名稱是檔名去掉副檔名。</li>
+</ul></div>

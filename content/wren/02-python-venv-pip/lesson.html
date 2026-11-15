@@ -1,0 +1,125 @@
+<!-- 來源：2026-11-15 自己動手安裝 Wren AI 的實作紀錄（macOS、Homebrew Python 3.15.2、pip 26.3 實際執行），依 Python 官方文件、PEP 668、Python Packaging User Guide、pip 文件整理 · 收錄日期：2026-11-15 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出 Python 跟 JDK 在放套件這件事上的差別</li><li>用 <code>python3 -m venv</code> 建虛擬環境並驗收</li><li>看懂 <code>pip install "套件[extras]"</code> 每一段</li><li>讀懂 pip 的輸出，分出跳過、下載、安裝</li></ul></div>
+
+<section>
+<p class="era">python3、python2、python4</p>
+<h3 class="head">為什麼指令叫 python3</h3>
+<p>Python 2 和 Python 3 的語法互不相容，兩個版本並存了很多年，所以系統用 <code>python2</code>、<code>python3</code> 兩個名字區分。Python 2 在 2020 年 1 月 1 日停止維護。<a class="fixsrc" href="https://www.python.org/doc/sunset-python-2/" target="_blank" rel="noopener">出處</a> 名字就沿用下來：3.11、3.15 都叫 <code>python3</code>，沒有 <code>python4</code> 這個指令。</p>
+<pre><code>$ python3 --version
+Python 3.15.2
+$ which python3
+/opt/homebrew/bin/python3</code></pre>
+<p>套件會寫明最低要哪一版 Python，裝之前先看 <code>python3 --version</code> 夠不夠新。</p>
+</section>
+
+<section>
+<p class="era">跟 JDK 比</p>
+<h3 class="head">Python 是工具，也是放套件的地方</h3>
+<p>寫過 Java 的人容易把 Python 想成 JDK：一套拿來執行程式的工具。差別在第三方套件（別人寫好、要另外下載的函式庫）放在哪裡。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>Java</th><th>Python</th></tr></thead><tbody>
+<tr><td>執行程式的工具</td><td>JDK 裡的 JVM、<code>javac</code></td><td><code>python3</code> 直譯器</td></tr>
+<tr><td>標準函式庫</td><td>在 JDK 裡</td><td>在 Python 裡</td></tr>
+<tr><td>第三方套件放哪</td><td><code>~/.m2/repository/</code>，同一個套件的不同版本各自分開放</td><td>預設裝進 Python 自己的 <code>site-packages</code> 資料夾，同名套件只能有一個版本</td></tr>
+<tr><td>誰決定專案用哪一版</td><td>每個專案的 <code>pom.xml</code></td><td>專案可以用 <code>requirements.txt</code> 寫明版本，但同一份 Python 裡還是只放得下一個版本，後裝的蓋掉先裝的</td></tr>
+</tbody></table></div>
+<p>所以一份 Python 只要裝了第三方套件，它就同時是一個「環境」。兩個專案要同一個套件的不同版本，裝進同一份 Python 就會互相蓋掉。</p>
+<p class="formula">JDK 不會因為專案用了哪個套件而改變；Python 預設會</p>
+</section>
+
+<section>
+<p class="era">python3 -m venv .venv</p>
+<h3 class="head">虛擬環境：每個專案一份自己的套件資料夾</h3>
+<p>虛擬環境（virtual environment）是專案資料夾裡的一個子資料夾，裡面有指回原本 Python 的連結，加上一份獨立的 <code>site-packages</code>。直譯器共用，套件各放各的。<a class="fixsrc" href="https://docs.python.org/3/library/venv.html" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ cd ~/proj/wren-lab &amp;&amp; python3 -m venv .venv &amp;&amp; ls .venv/bin/ &amp;&amp; git status --short
+activate
+activate.csh
+activate.fish
+Activate.ps1
+pip
+pip3
+pip3.15
+python
+python3
+python3.15</code></pre>
+<div class="tablewrap"><table><thead><tr><th>段落</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>python3</code></td><td>用哪一份 Python 執行，建出來的虛擬環境就是那一版</td></tr>
+<tr><td><code>-m venv</code></td><td><code>-m</code> 後面接模組名稱，意思是把那個模組當成程式來執行；<code>venv</code> 是標準函式庫裡專門建虛擬環境的模組，不用另外裝 <a class="fixsrc" href="https://docs.python.org/3/using/cmdline.html" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td><code>.venv</code></td><td>要建立的資料夾名稱。可以自己取，<code>.venv</code> 是慣用的名字；開頭的 <code>.</code> 讓它成為隱藏資料夾</td></tr>
+</tbody></table></div>
+<p>驗收看兩件事：</p>
+<ul class="plainlist">
+<li><b><code>.venv/bin/</code> 裡有 <code>python</code>、<code>pip</code></b>。幾個 <code>activate</code> 開頭的檔案是給不同 shell 用的同一支啟用腳本。</li>
+<li><b><code>git status --short</code> 什麼都沒印</b>。Python 3.13 起，<code>venv</code> 會在新建的資料夾裡自動放一個 <code>.gitignore</code>，所以 Git 不會把裡面幾千個檔案當成新檔案。<a class="fixsrc" href="https://docs.python.org/3/library/venv.html" target="_blank" rel="noopener">出處</a></li>
+</ul>
+<pre><code>$ cat .venv/.gitignore
+# Created by venv; see https://docs.python.org/3/library/venv.html
+*</code></pre>
+<p>內容只有一個 <code>*</code>，意思是這個資料夾裡所有檔案都忽略。</p>
+<p class="muted">用比 3.13 舊的 Python 建虛擬環境時沒有這個檔案，要自己把 <code>.venv/</code> 寫進專案的 <code>.gitignore</code>。</p>
+</section>
+
+<section>
+<p class="era">externally-managed-environment</p>
+<h3 class="head">有些 Python 直接不讓你裝套件</h3>
+<p>作業系統或套件管理工具（例如 Homebrew、Debian 的 apt）裝的 Python，可以在標準函式庫的資料夾裡放一個叫 <code>EXTERNALLY-MANAGED</code> 的檔案，宣告「這份 Python 歸我管」。pip 看到這個檔案，就會拒絕把套件裝進這份 Python，錯誤訊息是 <code>externally-managed-environment</code>。<a class="fixsrc" href="https://peps.python.org/pep-0668/" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ ls /opt/homebrew/opt/python@3.15/Frameworks/Python.framework/Versions/3.15/lib/python3.15/EXTERNALLY-MANAGED
+/opt/homebrew/opt/python@3.15/…/lib/python3.15/EXTERNALLY-MANAGED</code></pre>
+<p>遇到這個錯誤，正確的做法是建虛擬環境，把套件裝進去。虛擬環境不受這個限制。</p>
+</section>
+
+<section>
+<p class="era">pip install</p>
+<h3 class="head">把套件裝進虛擬環境</h3>
+<pre><code>.venv/bin/pip install --upgrade pip
+.venv/bin/pip install "wrenai[postgres,memory,main]"</code></pre>
+<div class="tablewrap"><table><thead><tr><th>段落</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>.venv/bin/pip</code></td><td>用虛擬環境裡的 pip，套件會裝進 <code>.venv</code> 的 <code>site-packages</code></td></tr>
+<tr><td><code>install</code></td><td>從 PyPI（Python 的官方套件庫，角色等於 Maven Central）下載並安裝 <a class="fixsrc" href="https://pip.pypa.io/en/stable/cli/pip_install/" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td><code>--upgrade pip</code></td><td>把 pip 自己更新到最新版。虛擬環境裡的 pip 是跟著 Python 打包的那一版，可能比較舊</td></tr>
+<tr><td><code>wrenai</code></td><td>套件名稱</td></tr>
+<tr><td><code>[postgres,memory,main]</code></td><td>extras：選裝的功能組。套件作者把不是每個人都需要的相依套件分成幾組，用方括號指定要哪幾組 <a class="fixsrc" href="https://packaging.python.org/en/latest/specifications/dependency-specifiers/" target="_blank" rel="noopener">出處</a></td></tr>
+<tr><td>外面的 <code>"..."</code></td><td>zsh 會把方括號當成比對檔名的樣式，不加引號會報 <code>no matches found</code></td></tr>
+</tbody></table></div>
+<p>套件裝好之後才發現少一組 extras，再跑一次只寫那一組就好，已經裝過的會跳過：</p>
+<pre><code>.venv/bin/pip install "wrenai[mcp]"</code></pre>
+<h4>不用 activate 也可以</h4>
+<p>很多教學會先打 <code>source .venv/bin/activate</code>，之後直接打 <code>pip</code>、<code>python</code>。這個指令主要做的事是把 <code>.venv/bin</code> 排到 <code>PATH</code> 最前面。每次都寫完整路徑 <code>.venv/bin/pip</code> 效果一樣，而且從指令本身就看得出用的是哪一份，不會因為忘記啟用而裝錯地方。</p>
+</section>
+
+<section>
+<p class="era">Requirement already satisfied、Collecting、Successfully installed</p>
+<h3 class="head">讀懂 pip 的輸出</h3>
+<p>pip 一次會印出幾十行，看每行的開頭就能分類：</p>
+<div class="tablewrap"><table><thead><tr><th>開頭</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>Requirement already satisfied</code></td><td>已經裝過、版本符合要求，跳過</td></tr>
+<tr><td><code>Collecting</code>、<code>Downloading</code></td><td>缺的套件，正在下載</td></tr>
+<tr><td><code>Using cached</code></td><td>以前下載過，用電腦上存的那份</td></tr>
+<tr><td><code>Successfully installed …</code></td><td>這次實際新裝的套件與版本。只要看這一行就知道結果</td></tr>
+<tr><td><code>ERROR</code></td><td>失敗。把最後二三十行留下來看</td></tr>
+</tbody></table></div>
+<pre><code>Requirement already satisfied: wrenai[mcp] in ./.venv/lib/python3.15/site-packages (0.18.0)
+Collecting mcp&lt;2,&gt;=1.19 (from mcp[cli]&lt;2,&gt;=1.19; extra == "mcp"-&gt;wrenai[mcp])
+  Downloading mcp-1.30.0-py3-none-any.whl.metadata (9.3 kB)
+…
+Successfully installed attrs-26.1.0 httpcore-1.0.9 httpx-0.28.1 … mcp-1.30.0 …</code></pre>
+<p><code>mcp&lt;2,&gt;=1.19</code> 是版本限制：要 1.19 以上、未滿 2。<code>extra == "mcp"-&gt;wrenai[mcp]</code> 說明這個套件是因為 <code>wrenai</code> 的 <code>mcp</code> 這組 extras 才被帶進來的。</p>
+<p>裝完可以用兩個指令檢查：</p>
+<ul class="plainlist">
+<li><b><code>.venv/bin/pip show 套件名</code></b>：有沒有裝、裝的是哪一版。沒裝會印 <code>Package(s) not found</code>。</li>
+<li><b><code>.venv/bin/pip check</code></b>：已安裝的套件之間版本有沒有衝突。沒問題會印 <code>No broken requirements found.</code></li>
+</ul>
+<div class="drill">
+  <p class="dq">pip 的輸出有四十幾行 <code>Requirement already satisfied</code>，最後一行是 <code>Successfully installed mcp-1.30.0 …</code>。這次安裝的結果是？</p>
+  <ul class="dopts"><li>失敗，因為大部分套件都沒有安裝</li><li>全部套件重新安裝了一次</li><li>要再執行一次才會真的安裝</li><li data-ok>成功，只補裝了缺的那幾個套件</li></ul>
+  <p class="dexp"><code>Requirement already satisfied</code> 是已經裝過所以跳過，不是錯誤。實際新裝了什麼看 <code>Successfully installed</code> 那一行。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>Python 預設把第三方套件裝進直譯器自己的 <code>site-packages</code>，同名套件只能有一版；JDK 不會這樣。</li>
+<li><code>python3 -m venv .venv</code> 建出一份專案專用的套件資料夾，直譯器還是共用原本那份。</li>
+<li>Python 3.13 起，<code>venv</code> 會自動放一個內容是 <code>*</code> 的 <code>.gitignore</code>。</li>
+<li>Homebrew、apt 管的 Python 有 <code>EXTERNALLY-MANAGED</code> 檔，pip 會拒絕直接安裝，要用虛擬環境。</li>
+<li><code>pip install "套件[extras]"</code>：方括號是選裝的功能組，在 zsh 一定要加引號。</li>
+<li>pip 的輸出看最後的 <code>Successfully installed</code>；<code>pip show</code>、<code>pip check</code> 用來驗收。</li>
+</ul></div>

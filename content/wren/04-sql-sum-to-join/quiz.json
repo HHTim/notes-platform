@@ -1,0 +1,11 @@
+{"questions":[
+{"q":"select customer_id, sum(amount) from orders group by customer_id 會回傳什麼？","opts":["每位顧客一列，附上他所有訂單的金額加總","只有一列，是全部訂單的加總","每筆訂單一列，附上顧客編號","每位顧客金額最大的那筆訂單"],"exp":"group by 先把 customer_id 相同的列放成一組，sum 再對每一組各算一次。"},
+{"q":"sum(amount) filter (where status = 'completed') 的 filter 作用在哪裡？","opts":["只影響這一個 sum，其他欄位照算","把整個查詢的結果篩成只剩 completed","等同於在查詢最後加 having","只能搭配 count 使用"],"exp":"filter 是掛在單一個聚合函式上的條件，所以同一個查詢可以並排算出不同條件的加總。"},
+{"q":"想列出「所有顧客」和他們的訂單加總，沒下過單的也要出現。customers 該怎麼接訂單加總？","opts":["left join","inner join","不用 join，直接查 orders","cross join"],"exp":"left join 保留左表的每一列，右邊對不到就填 NULL。"},
+{"q":"比較兩個 DOUBLE 欄位是否相等，為什麼寫 abs(a - b) &lt; 0.001 而不是 a = b？","opts":["浮點數有微小誤差，看起來一樣的數可能不相等","= 不能用在數字欄位","abs 執行起來比較快","這樣才能把 NULL 當成相等"],"exp":"浮點數存小數會有誤差，所以改成判斷差距是否夠小；NULL 參與比較時結果仍然不成立。"},
+{"q":"abs(a - b) &lt; 0.001 如果漏掉 abs，會出什麼錯？","opts":["a 比 b 小很多的列也會被算成符合","所有列都不符合","查詢無法執行","只有 NULL 的列會符合"],"exp":"差距是很大的負數時也小於 0.001，所以要先取絕對值。"},
+{"q":"為什麼 where 裡不能寫 sum(amount) &gt; 100？","opts":["where 在分組與聚合之前執行，那時還沒有加總的結果","where 只能比較文字","sum 只能寫在 order by 裡","因為少寫了 group by，補上就可以"],"exp":"執行順序是 from、where、group by、having、select；要篩選聚合後的結果用 having。"},
+{"q":"100 位顧客裡有 38 位的 customer_lifetime_value 是 NULL。avg(customer_lifetime_value) 的分母是多少？","opts":["62","100","38","0，結果會是 NULL"],"exp":"avg 會跳過 NULL；要以 100 位為分母，得寫 avg(coalesce(customer_lifetime_value, 0))。"},
+{"q":"錯誤訊息開頭是 Catalog Error，最該先檢查什麼？","opts":["表名或函式名有沒有打錯","括號有沒有對齊","資料庫檔是不是被鎖住","傳進函式的型別對不對"],"exp":"Catalog Error 是表或函式的名字找不到；欄位名找不到、型別不對是 Binder Error，鎖檔是 IO Error。"},
+{"q":"讀一段有子查詢的 SQL，建議從哪裡開始？","opts":["最裡面的括號，那一層可以單獨拿出來跑","最上面的 select，逐行往下","最後的 order by","from 後面第一個表名"],"exp":"子查詢是獨立的查詢，先看懂它產生什麼結果，再看外層怎麼用。"}
+]}

@@ -1,0 +1,181 @@
+<!-- 來源：2026-11-15 自己動手安裝 Wren AI 的實作紀錄（wrenai 0.18.0 對 dbt-labs/jaffle_shop 範例資料；課文裡的數字都是實際查詢的結果，模型檔格式對照 wren skills get generate-mdl 的指南與 wren context init 產生的範例檔），依 Canner/WrenAI 官方 repo 與 dbt-labs/jaffle_shop 整理 · 收錄日期：2026-11-15 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>寫出一份模型檔 <code>metadata.yml</code> 與關聯檔</li><li>分清 Wren 自己用的名稱與資料庫的三層名稱</li><li>把欄位說明寫成「怎麼算的」而不是「代表什麼」</li><li>用 SQL 驗證說明裡的每個數字</li></ul></div>
+
+<section>
+<p class="era">專案資料夾</p>
+<h3 class="head">語意層是一個資料夾</h3>
+<p><code>wren context init</code> 會建出專案骨架。跟寫語意層最有關的是這幾個：</p>
+<pre><code>jaffle-wren/
+├── wren_project.yml          專案設定：用哪個 profile、資料庫種類
+├── models/
+│   ├── customers/metadata.yml    一個模型一個資料夾
+│   └── orders/metadata.yml
+├── relationships.yml         模型之間怎麼接
+└── knowledge/                業務規則、問題與 SQL 的範例</code></pre>
+<p>模型（model）是「希望 AI 使用的一張表」加上它的說明。模型不必把資料庫照抄一份：資料庫裡的原始表、中間過程的表不想讓 AI 用，就不寫模型。</p>
+<p><code>wren_project.yml</code> 裡有 <code>catalog: wren</code>、<code>schema: public</code> 兩行。這兩行是 Wren 內部替這個專案取的名稱，跟資料庫的 catalog、schema 沒有關係，保持預設值不要改。資料庫真正的位置寫在每個模型的 <code>table_reference</code>。<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/reference/mdl.md" target="_blank" rel="noopener">出處</a></p>
+</section>
+
+<section>
+<p class="era">寫之前先看資料</p>
+<h3 class="head">三個欄位名稱回答不了的問題</h3>
+<p>範例資料是一家商店的顧客表（100 列）和訂單表（99 列）。<a class="fixsrc" href="https://github.com/dbt-labs/jaffle-shop-classic" target="_blank" rel="noopener">出處</a> 用 <code>describe</code> 看過欄位之後，有三件事從名稱看不出來：</p>
+<div class="tablewrap"><table><thead><tr><th>問題</th><th>怎麼找答案</th><th>答案</th></tr></thead><tbody>
+<tr><td><code>customer_lifetime_value</code> 是全部訂單加總，還是只算已完成的？</td><td>寫 SQL 比對兩種加總</td><td>全部訂單，退貨也算。沒下過單的 38 位是 NULL</td></tr>
+<tr><td><code>orders.amount</code> 跟四個付款方式的金額欄位是什麼關係？</td><td>寫 SQL 數有幾筆相等</td><td>99 筆全部相等，<code>amount</code> 是四個欄位的加總</td></tr>
+<tr><td>算營收要排除哪些訂單狀態？</td><td>資料查不出來</td><td>業務定義，要問負責的人，另外寫成規則</td></tr>
+</tbody></table></div>
+<p>前兩題的答案是事實，寫進模型檔的說明。第三題是決定，不寫在欄位說明裡。同一個狀態欄位，不同的問題可能要用不同的篩法，所以欄位說明只講每個值是什麼意思。</p>
+<p class="formula">資料查得出來的寫進模型檔；要人決定的另外寫成規則</p>
+</section>
+
+<section>
+<p class="era">models/customers/metadata.yml</p>
+<h3 class="head">模型檔的格式</h3>
+<pre><code>name: customers
+properties:
+  description: &gt;-
+    一列是一位顧客，共 100 位，包含從來沒下過單的顧客（38 位）。
+    沒下過單的顧客，first_order、most_recent_order、number_of_orders、
+    customer_lifetime_value 四欄都是 NULL，不是 0。
+table_reference:
+  catalog: jaffle_shop
+  schema: main
+  table: customers
+columns:
+  - name: customer_id
+    type: INTEGER
+    not_null: true
+    is_primary_key: true
+    properties:
+      description: 顧客 ID，唯一識別每位顧客
+  - name: customer_lifetime_value
+    type: DOUBLE
+    properties:
+      description: &gt;-
+        這位顧客所有訂單的 orders.amount 加總，包含 returned 和 return_pending，
+        沒有扣掉退貨，所以不是淨營收，也不是利潤。
+        沒下過單是 NULL，不是 0：avg() 會跳過 NULL，
+        問「全部顧客平均」要用 avg(coalesce(customer_lifetime_value, 0))。
+primary_key: customer_id</code></pre>
+<div class="tablewrap"><table><thead><tr><th>欄位</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>name</code></td><td>模型的名字。AI 寫 SQL 時用這個名字，可以跟資料庫的表名不同</td></tr>
+<tr><td><code>properties.description</code></td><td>寫給 AI 看的說明。AI 靠它判斷該用哪張表、哪個欄位</td></tr>
+<tr><td><code>table_reference</code></td><td>對應到資料庫的哪張表。DuckDB 的 <code>catalog</code> 填資料庫檔名去掉副檔名，<code>schema</code> 是 <code>main</code></td></tr>
+<tr><td><code>columns</code> 的 <code>type</code></td><td>型別，照 <code>describe</code> 查到的填，不要用猜的</td></tr>
+<tr><td><code>not_null</code>、<code>is_primary_key</code>、<code>primary_key</code></td><td>主鍵：每一列都不同、而且不會是空的那個欄位</td></tr>
+</tbody></table></div>
+<p>YAML 的三個規矩：</p>
+<ul class="plainlist">
+<li>縮排只能用空白，慣例每層兩格，同一層要對齊。</li>
+<li><code>- </code> 開頭是清單的一個項目。</li>
+<li>冒號後面空一格。</li>
+</ul>
+<p>說明太長時用 <code>&gt;-</code> 換行寫，讀進來會把換行接成空白，變回一整段。因為會接成一整段，<code>&gt;-</code> 裡面不要用 <code>- </code> 開頭的清單，要列舉就用頓號。</p>
+</section>
+
+<section>
+<p class="era">說明怎麼寫</p>
+<h3 class="head">寫「怎麼算的」，不寫「代表什麼」</h3>
+<p>檢查的標準：一位只看得到這份檔案、看不到資料庫的新同事，問他「顧客平均消費多少」，他會不會算對？</p>
+<div class="ledger">
+<div class="box left"><h5>寫法一</h5><ul><li><code>customer_lifetime_value</code>：顧客對商店的總貢獻價值</li><li>聽起來像扣掉退貨後的淨額，甚至像利潤。</li><li>他會寫 <code>avg(customer_lifetime_value)</code>：退貨算進去了，分母也只有 62。</li></ul></div>
+<div class="box solved"><h5>寫法二</h5><ul><li>所有訂單的 <code>orders.amount</code> 加總，包含退貨；沒下過單是 NULL</li><li>只有一種理解方式。</li><li>他知道要排除退貨得改從訂單表算，要全部顧客平均得補 <code>coalesce</code>。</li></ul></div>
+</div>
+<p>三個原則：</p>
+<ul class="plainlist">
+<li><b>寫怎麼算的。</b>「總貢獻價值」每個人理解不同；「<code>orders.amount</code> 加總，包含退貨」不會。</li>
+<li><b>寫出不能用的情況和替代做法。</b>AI 最常犯的錯是拿一個看起來像的欄位直接用。告訴它「這欄不是淨營收，要淨營收改從訂單表依狀態篩選」，它才會換一張表。</li>
+<li><b>NULL 要寫出處理方式。</b>只寫「注意 NULL」沒有用，直接寫 <code>coalesce(x, 0)</code>。</li>
+</ul>
+<p>不需要每一欄都寫很長。<code>first_name</code> 寫「顧客的名字，例如 John」就夠了；舉一個實際的值，AI 就知道裡面放的是英文名字。力氣花在會被誤解的那幾欄。</p>
+</section>
+
+<section>
+<p class="era">寫錯的說明比沒寫更糟</p>
+<h3 class="head">每個數字都要有一段 SQL 支持</h3>
+<p>寫完顧客表，接著寫訂單表時，很容易沿用同一個句型：</p>
+<pre><code>description: &gt;-
+  一列是一筆訂單，共 100 筆，包含已退貨的訂單（5 筆）。
+  已退貨的訂單，五個金額欄位都是 NULL，不是 0。</code></pre>
+<p>句型是對的，三個事實全錯：</p>
+<div class="tablewrap"><table><thead><tr><th>寫的</th><th>實際查到的</th></tr></thead><tbody>
+<tr><td>共 100 筆</td><td>99 筆</td></tr>
+<tr><td>已退貨 5 筆</td><td><code>returned</code> 4 筆、<code>return_pending</code> 2 筆</td></tr>
+<tr><td>已退貨的訂單金額是 NULL</td><td>五個金額欄位沒有任何 NULL，退貨的訂單照樣有金額</td></tr>
+</tbody></table></div>
+<p>有人問「不含退貨的營收是多少」，AI 讀到這段說明就會寫：</p>
+<pre><code>select sum(amount) from orders where amount is not null;</code></pre>
+<p>六筆退貨訂單全部被算進去，而 AI 以為已經排除了。沒寫說明時，它至少會去看狀態欄位；寫錯了，它會很有把握地算錯。</p>
+<p>避免的方法是寫一句、查一句。一段查詢就能把整段說明的數字一次驗完：</p>
+<pre><code>select count(*)                                                  as 筆數,
+       count(*) filter (where status = 'returned')               as 已退貨,
+       count(*) filter (where status = 'return_pending')         as 退貨中,
+       count(*) filter (where amount is null)                    as 金額是NULL,
+       min(order_date) as 最早, max(order_date) as 最晚
+from orders;
+-- 99、4、2、0、2018-01-01、2018-04-09</code></pre>
+<p>查證過的寫法：</p>
+<pre><code>description: &gt;-
+  一列是一筆訂單，共 99 筆，下單日期從 2018-01-01 到 2018-04-09。
+  包含退貨相關的訂單：returned 4 筆、return_pending 2 筆。
+  退貨的訂單金額照樣有值，不是 NULL；要排除退貨必須用 status 篩選。</code></pre>
+<div class="drill">
+  <p class="dq">訂單表的說明寫著「已退貨的訂單金額是 NULL」，實際上退貨訂單都有金額。這個錯誤最直接的後果是什麼？</p>
+  <ul class="dopts"><li>Wren 讀檔時出錯，專案無法建置</li><li data-ok>AI 用 <code>amount is not null</code> 排除退貨，結果退貨全被算進去</li><li>AI 會拒絕回答跟金額有關的問題</li><li>資料庫裡的退貨金額會被改成 NULL</li></ul>
+  <p class="dexp">說明只是文字，格式正確就能通過檢查，資料也不會被改動。危險在於 AI 會照著錯的說明寫出看似合理的 SQL。</p>
+</div>
+</section>
+
+<section>
+<p class="era">列舉值、單位、反方向</p>
+<h3 class="head">訂單表還要寫清楚的三件事</h3>
+<ul class="plainlist">
+<li><b>列舉值</b>：狀態欄位只有五種值，每一種的意思都寫出來：<code>placed</code>（已下單，貨還沒離開倉庫）、<code>shipped</code>（已出貨，運送中）、<code>completed</code>（顧客已收到）、<code>return_pending</code>（顧客說要退，倉庫還沒收到）、<code>returned</code>（退貨已回到倉庫）。</li>
+<li><b>單位</b>：金額是澳幣（AUD）。資料庫只存數字，不存單位。</li>
+<li><b>容易想錯的地方</b>：折價券在這份資料裡算一種付款方式，所以 <code>amount</code> 包含折價券抵掉的部分，而那部分商店並沒有實際收到錢。</li>
+</ul>
+<p>外鍵（這張表裡用來指到另一張表主鍵的欄位，例如訂單表的 <code>customer_id</code>）把兩個方向都寫出來：每筆訂單的 <code>customer_id</code> 都對得到一位顧客；反過來不成立，100 位顧客裡只有 62 位有訂單。</p>
+</section>
+
+<section>
+<p class="era">relationships.yml</p>
+<h3 class="head">關聯：告訴 AI 兩個模型怎麼接</h3>
+<pre><code>relationships:
+  - name: orders_customers
+    models:
+      - orders
+      - customers
+    join_type: MANY_TO_ONE
+    condition: orders.customer_id = customers.customer_id</code></pre>
+<div class="tablewrap"><table><thead><tr><th>欄位</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>name</code></td><td>這條關聯的名字，自己取</td></tr>
+<tr><td><code>models</code></td><td>哪兩個模型，順序要跟 <code>join_type</code> 的方向一致</td></tr>
+<tr><td><code>join_type</code></td><td><code>MANY_TO_ONE</code>：多筆訂單對到一位顧客。有外鍵的那一邊指向有主鍵的那一邊，就是多對一</td></tr>
+<tr><td><code>condition</code></td><td>怎麼對，就是 SQL 裡 <code>on</code> 後面那一段</td></tr>
+</tbody></table></div>
+<p>關聯寫錯不會出錯，只會讓查出來的數字不對，所以條件要先用資料確認：外鍵的值是不是都能在另一張表找到。</p>
+</section>
+
+<section>
+<p class="era">generate-mdl 與 enrich-context</p>
+<h3 class="head">這些檔案是人寫，還是 AI 寫</h3>
+<p>Wren 的設計是 AI 先寫草稿、人確認，分成兩個階段，各有一份給 AI 代理人照著做的指南，用 <code>wren skills get 名稱</code> 可以印出來：</p>
+<div class="tablewrap"><table><thead><tr><th>階段</th><th>指南</th><th>處理什麼</th><th>誰擅長</th></tr></thead><tbody>
+<tr><td>結構</td><td><code>generate-mdl</code></td><td>表名、欄位、型別、主鍵、關聯</td><td>AI。都能直接從資料庫查到</td></tr>
+<tr><td>意思</td><td><code>enrich-context</code></td><td>列舉值的意思、單位、NULL 代表什麼、同義詞</td><td>要靠人。資料庫裡沒有</td></tr>
+</tbody></table></div>
+<p><code>enrich-context</code> 有兩種進行方式：一次問人一個問題、每題先附上建議的答案；或是由 AI 自己推論後直接寫進去，最後交一份清單，標明每一條的把握程度與依據。</p>
+<p>不管哪一種，人要做的事都一樣：AI 從欄位名稱推出「顧客的總消費價值」是合理的猜測，但要發現它其實包含退貨，得有人寫出那段比對的 SQL，並且判斷這樣算對不對。</p>
+<p class="formula">讓 AI 寫結構和草稿，人把力氣花在驗證意思</p>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>一個模型一份 <code>models/名稱/metadata.yml</code>；只替希望 AI 使用的表寫模型。</li>
+<li><code>wren_project.yml</code> 的 <code>catalog</code>、<code>schema</code> 是 Wren 內部用的名稱，不要改；資料庫的位置寫在 <code>table_reference</code>。</li>
+<li>欄位說明寫怎麼算的、不能用的情況與替代做法、NULL 怎麼處理。</li>
+<li>說明裡的每個數字與事實都要先用 SQL 查過；寫錯的說明會讓 AI 很有把握地算錯。</li>
+<li>列舉值、單位、外鍵的兩個方向，資料庫不會告訴 AI，要寫出來。</li>
+<li>資料查得出來的寫進模型檔；要人決定的業務定義另外寫成規則。</li>
+<li>關聯用 <code>MANY_TO_ONE</code> 加上 <code>condition</code> 描述；條件要先用資料確認。</li>
+</ul></div>
