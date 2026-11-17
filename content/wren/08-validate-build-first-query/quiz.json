@@ -1,0 +1,12 @@
+{"questions":[
+{"q":"改了模型檔之後，三個指令的正確順序是？","opts":["wren context validate → wren context build → wren memory index","wren memory index → wren context build → wren context validate","wren context build → wren memory index → wren context validate","只要執行 wren memory index 就夠了"],"exp":"先檢查結構，再編譯出 mdl.json，最後用編譯好的內容重建索引。"},
+{"q":"wren context validate 印出 Valid — 2 models, 0 views, 1 relationships.，可以確定什麼？","opts":["檔案的結構可以用，而且讀到兩個模型和一條關聯","欄位說明裡寫的筆數都跟資料庫一致","規則檔跟模型檔沒有互相矛盾","資料庫現在連得上"],"exp":"它檢查的是專案檔案的結構；說明的內容對不對、兩份檔案有沒有矛盾，要自己查證。"},
+{"q":"target/mdl.json 為什麼不進 Git？","opts":["它是從 YAML 編譯出來的，隨時可以重新產生","裡面有資料庫的帳號密碼","檔案太大，Git 放不下","每台電腦的內容一定不一樣"],"exp":"正本是 models/ 與 relationships.yml；編譯產物不必進版本控制。"},
+{"q":"wren memory index 印出 Indexed 19 schema items。這個專案有 2 個模型（7 欄與 9 欄）和 1 條關聯，19 是怎麼來的？","opts":["2 個模型加 16 個欄位加 1 條關聯","19 筆訂單資料","19 條業務規則","16 個欄位加 3 個自動產生的範例問答"],"exp":"模型、欄位、關聯各算一項，連同說明各轉成一筆向量；資料庫裡的資料列不會被放進索引。"},
+{"q":"第一次執行 wren memory index，兩分鐘過去畫面都沒有動靜。最可能的原因是？","opts":["正在從 Hugging Face 下載嵌入模型","資料庫被鎖住了","YAML 有格式錯誤","索引的資料量太大"],"exp":"嵌入模型第一次用到才下載，下載過就不用再等；19 項的索引本身很小。"},
+{"q":"執行過程印出 Warning: You are sending unauthenticated requests to the HF Hub，最後一行是 Indexed 19 schema items, 7 seed queries.。該怎麼判斷？","opts":["成功了；那一行只是提醒沒有登入 Hugging Face","失敗了，要先申請 Hugging Face 帳號","索引只建了一半","要重新安裝 wrenai"],"exp":"警告不等於錯誤，看最後一行的結果。公開的模型不登入也能下載。"},
+{"q":"wren dry-plan 和 wren --sql 最大的差別是什麼？","opts":["dry-plan 只印出翻譯後的 SQL，不連資料庫；wren --sql 會真的執行","dry-plan 比較快，但結果是估計值","dry-plan 只能用在 DuckDB","dry-plan 會把查詢結果存進記憶"],"exp":"dry-plan 不需要資料庫連線，適合在真的執行前先看翻譯的結果。"},
+{"q":"dry-plan 的輸出裡，最內層是 FROM jaffle_shop.\"main\".orders。這三層名稱是從哪裡來的？","opts":["模型檔的 table_reference","wren_project.yml 的 catalog 與 schema","Wren 連進資料庫查到的","profile 的 url"],"exp":"引擎照模型檔 table_reference 的 catalog、schema、table 把模型名字換成資料庫真正的位置。"},
+{"q":"對一張沒有寫成模型的表執行 wren dry-plan --sql \"SELECT * FROM raw_orders\"，會怎樣？","opts":["報錯 table 'wren.public.raw_orders' not found，在翻譯這一步就被擋下來","照樣翻譯，把表名原封不動送出去","自動替 raw_orders 建一個模型","回傳空的結果"],"exp":"引擎只認得模型檔定義過的模型，在自己的清單裡找不到就停，不會去問資料庫。"},
+{"q":"經過 Wren 執行得到 1103.0 之後，為什麼還要不經過 Wren、直接查一次資料庫？","opts":["確認語意層的翻譯沒有改變查詢的意思","因為 Wren 的結果只是估計值","為了讓記憶功能把這一題記下來","為了解除資料庫的鎖"],"exp":"兩邊答案一致，才知道模型檔與翻譯都沒有出錯。"}
+]}

@@ -1,0 +1,175 @@
+<!-- 來源：2026-11-17 自己動手替 Wren AI 專案寫業務規則的實作紀錄（wrenai 0.18.0 對 dbt-labs/jaffle_shop 範例資料；課文裡的數字都是實際查詢的結果，規則檔內容是 wren context instructions 實際印出來的，幣別對照 dbt-labs/jaffle_shop 的 models/schema.yml 原文），依 Canner/WrenAI 官方 repo 與 dbt-labs/jaffle_shop 整理 · 收錄日期：2026-11-17 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>分清哪些事寫進模型檔、哪些寫成業務規則</li><li>用查詢結果說明一個名詞為什麼需要定義</li><li>用「數反例」證明一件事每一筆都成立</li><li>檢查規則檔與模型檔有沒有互相矛盾</li></ul></div>
+
+<section>
+<p class="era">knowledge/rules/</p>
+<h3 class="head">業務規則放在哪、誰會讀</h3>
+<p>模型檔寫的是資料查得出來的事實：有幾筆、欄位怎麼算、值代表什麼。還有一類事情資料查不出來，要有人決定，例如「營收」要算哪些訂單。這一類叫業務規則，放在專案的 <code>knowledge/rules/</code> 資料夾，每個檔案是一份 Markdown。<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/internals/project-layout-v5.md" target="_blank" rel="noopener">出處</a></p>
+<div class="terms">
+<div class="term"><b>業務規則</b><span>資料表結構表達不了的定義：名詞怎麼算、預設要篩掉什麼、單位是什麼。</span></div>
+<div class="term"><b>knowledge/rules/</b><span>放規則檔的資料夾。<code>wren context init</code> 建專案時會附一份 <code>general.md</code>，把裡面的內容換成自己的規則。</span></div>
+<div class="term"><b>wren context instructions</b><span>把規則檔的內容印出來的指令。AI 代理人在一段對話裡第一次回答資料問題前先執行它，把規則讀進去。</span></div>
+<div class="term"><b>收入認列</b><span>會計上的說法：一筆交易在哪個時間點才可以算成收入。</span></div>
+</div>
+<p>規則檔沒有固定格式，一條規則寫一行。讀它的是大型語言模型，所以要寫成只有一種理解方式的句子，欄位名稱要跟模型檔裡的一模一樣。</p>
+</section>
+
+<section>
+<p class="era">1672 與 1103</p>
+<h3 class="head">同一句「營收多少」有兩個答案</h3>
+<p>訂單表有 99 筆，狀態欄位 <code>status</code> 有五種值。先看每一種各有幾筆、金額多少：</p>
+<pre><code>select status, count(*) as 筆數, sum(amount) as 金額
+from orders
+group by status
+order by 筆數 desc, 金額 desc;</code></pre>
+<div class="tablewrap"><table><thead><tr><th>status</th><th>意思</th><th>筆數</th><th>金額</th></tr></thead><tbody>
+<tr><td><code>completed</code></td><td>顧客已收到</td><td>67</td><td>1103</td></tr>
+<tr><td><code>placed</code></td><td>已下單，貨還沒離開倉庫</td><td>13</td><td>284</td></tr>
+<tr><td><code>shipped</code></td><td>已出貨，運送中</td><td>13</td><td>198</td></tr>
+<tr><td><code>returned</code></td><td>退貨已回到倉庫</td><td>4</td><td>49</td></tr>
+<tr><td><code>return_pending</code></td><td>顧客說要退，倉庫還沒收到</td><td>2</td><td>38</td></tr>
+<tr><td>合計</td><td></td><td>99</td><td>1672</td></tr>
+</tbody></table></div>
+<p>有人問「營收多少」，下面兩段 SQL 都說得通：</p>
+<div class="ledger">
+<div class="box left"><h5>全部訂單加總</h5><ul><li><code>select sum(amount) from orders</code></li><li>答案 1672</li><li>連還沒出貨的、已經退貨的都算進去。</li></ul></div>
+<div class="box solved"><h5>只算顧客已收到的</h5><ul><li><code>select sum(amount) from orders where status = 'completed'</code></li><li>答案 1103</li><li>少掉的 569 是另外四種狀態：284、198、49、38。</li></ul></div>
+</div>
+<p>兩段 SQL 的語法都沒有錯，差別只在「營收」這個詞怎麼定義。沒有寫下來的時候，大型語言模型每次都要自己猜，同一個問題今天答 1672、明天答 1103。</p>
+<p class="formula">規則的用處是讓同一個問題每次都得到同一個答案</p>
+</section>
+
+<section>
+<p class="era">收入認列</p>
+<h3 class="head">決定之外，還要寫理由</h3>
+<p>這裡的決定是：營收只算 <code>completed</code>。規則裡要連理由一起寫，因為遇到規則沒列到的情況時，讀的人（或模型）要靠理由去推。理由本身也要禁得起反問：</p>
+<div class="ledger">
+<div class="box left"><h5>站不住的理由</h5><ul><li>「<code>placed</code>、<code>shipped</code> 的訂單之後可能退貨，所以不算。」</li><li>反問：<code>completed</code> 的訂單之後也可能退貨，為什麼它就算？</li><li>同一個理由套在 <code>completed</code> 上也成立，所以它分不開這兩群訂單。</li></ul></div>
+<div class="box solved"><h5>站得住的理由</h5><ul><li>「貨送到顧客手上才算賺到。」</li><li><code>placed</code>、<code>shipped</code>：貨還沒到，不算。</li><li><code>returned</code>、<code>return_pending</code>：交易正在取消或已經取消，不算。</li></ul></div>
+</div>
+<p>「貨送到才算」對應會計上的收入認列原則：商品的控制權移轉給顧客的那個時間點，才認列收入。<a class="fixsrc" href="https://www.ifrs.org/issued-standards/list-of-standards/ifrs-15-revenue-from-contracts-with-customers/" target="_blank" rel="noopener">出處</a></p>
+<p class="muted">這是範例資料上的練習，所以定義是自己訂的。在真正的公司裡，營收的定義要問財務或負責這個數字的人，不能由寫規則檔的人自己決定。</p>
+<div class="drill">
+  <p class="dq">有人主張「<code>shipped</code> 的訂單不算營收，因為顧客可能退貨」。這個理由的問題在哪？</p>
+  <ul class="dopts"><li><code>shipped</code> 的訂單其實不會退貨</li><li>退貨的金額太小，可以不管</li><li data-ok><code>completed</code> 的訂單也可能退貨，這個理由分不開兩者</li><li>規則檔不能寫理由</li></ul>
+  <p class="dexp">好的理由要能把「算」和「不算」的訂單分開。「貨送到才算」做得到，「可能退貨」做不到。</p>
+</div>
+</section>
+
+<section>
+<p class="era">數反例</p>
+<h3 class="head">證明「每一筆都成立」：數不成立的有幾筆</h3>
+<p>折價券要不要扣，得先確定 <code>amount</code> 跟四個付款欄位的關係：是不是每一筆訂單，四個欄位相加都等於 <code>amount</code>。要證明「每一筆都成立」，做法是反過來數「不成立的有幾筆」，答案是 0 就成立：</p>
+<pre><code>select count(*)
+from orders
+where abs(credit_card_amount + coupon_amount + bank_transfer_amount + gift_card_amount - amount) &gt; 0.001;
+-- 0</code></pre>
+<ul class="plainlist">
+<li><b><code>abs(… - amount) &gt; 0.001</code></b>：金額欄位是小數（<code>DOUBLE</code>），小數相加可能有極小的誤差，所以不直接用 <code>&lt;&gt;</code> 比，改成「差距的絕對值大於 0.001 才算不相等」。</li>
+<li><b>條件放在 <code>where</code></b>：先把不相等的列篩出來，再用 <code>count(*)</code> 數。</li>
+</ul>
+<p>同一個條件放在 <code>select</code>，意思完全不同：</p>
+<pre><code>select order_id,
+       abs(credit_card_amount + coupon_amount + bank_transfer_amount + gift_card_amount - amount) &gt; 0.001 as 不相等
+from orders
+order by order_id
+limit 3;
+-- 1  false
+-- 2  false
+-- 3  false</code></pre>
+<p>放在 <code>select</code> 是「每一列算出一個 true 或 false」，99 筆訂單就印 99 列，還得自己用眼睛找有沒有 true。放在 <code>where</code> 才是篩選。</p>
+<div class="drill">
+  <p class="dq">想確認「每筆訂單的 <code>customer_id</code> 都不是 NULL」。哪一段查詢的結果最容易判斷？</p>
+  <ul class="dopts"><li data-ok><code>select count(*) from orders where customer_id is null</code>，看是不是 0</li><li><code>select customer_id is null from orders</code>，看有沒有 true</li><li><code>select customer_id from orders</code>，整份看一遍</li><li><code>select count(*) from orders</code>，看是不是 99</li></ul>
+  <p class="dexp">數反例只會得到一個數字，0 就是全部成立。第二個選項會印出 99 列 true 或 false；最後一個只知道總筆數，不知道有沒有 NULL。</p>
+</div>
+</section>
+
+<section>
+<p class="era">amount 與 coupon_amount</p>
+<h3 class="head">折價券：同一個欄位算得出兩個數字</h3>
+<p>上一段查到反例是 0，所以 <code>amount</code> 已經包含折價券抵掉的金額。把折價券另外加總：</p>
+<pre><code>select sum(amount)                 as 含折價券,
+       sum(coupon_amount)          as 折價券,
+       sum(amount - coupon_amount) as 扣掉折價券
+from orders
+where status = 'completed';
+-- 1103、127、976</code></pre>
+<p class="muted">不篩狀態時，99 筆訂單的折價券合計是 185。</p>
+<p>「已送達的訂單金額」是 1103，其中 127 是折價券抵的，扣掉之後是 976。哪一個才叫營收，資料同樣不會回答。規則的寫法是兩個數字各給一個名字，並且把背後的假設寫出來：</p>
+<ul class="plainlist">
+<li><b>營收</b>：用 <code>amount</code>，含折價券。</li>
+<li><b>實收金額</b>：用 <code>amount - coupon_amount</code>。</li>
+<li><b>假設</b>：折價券是商店自己發的折扣，所以這部分商店沒有實際收到錢。</li>
+</ul>
+<p>假設要寫出來的原因：折價券如果是別的單位出錢補貼的，商店其實收得到這筆錢，「實收金額」的算法就不一樣。這份資料沒有記錄折價券是誰發的，所以規則裡要標明這一條是假設。</p>
+</section>
+
+<section>
+<p class="era">general.md 與 wren context instructions</p>
+<h3 class="head">寫好的規則檔</h3>
+<p><code>knowledge/rules/general.md</code> 的完整內容，一共五條：</p>
+<pre><code># Business rules
+
+- 營收只算 `orders.status = 'completed'` 的訂單，算法是 `sum(amount)`。理由：貨送到客戶手上才算賺到。
+- `placed`、`shipped` 是已下單但貨還沒送達，不算營收。`returned`、`return_pending` 是退貨，不算營收。
+- `orders.amount` 等於 `credit_card_amount + coupon_amount + bank_transfer_amount + gift_card_amount`，已經包含折價券抵的部分。營收用 `amount`（含折價券）。折價券抵的部分商店沒有實際收到（假設折價券是商店自己發的折扣），要算實收金額請用 `amount - coupon_amount`。
+- 金額單位是澳幣（AUD），來源是 jaffle_shop 原始說明檔 `models/schema.yml`。
+- `customers.customer_lifetime_value` 是該客戶所有訂單的 `amount` 加總，包含退貨和未完成的訂單，不等於該客戶的營收。沒下過單的客戶這欄是 NULL。</code></pre>
+<p>每一條的寫法：</p>
+<div class="tablewrap"><table><thead><tr><th>規則</th><th>寫了什麼</th></tr></thead><tbody>
+<tr><td>第一條</td><td>名詞（營收）、篩選條件、算法、理由，四樣都有</td></tr>
+<tr><td>第二條</td><td>沒被算進去的四種狀態各自為什麼不算，免得模型以為是漏掉</td></tr>
+<tr><td>第三條</td><td>先講查證過的事實，再給兩個名詞各自的算法，假設放在括號裡</td></tr>
+<tr><td>第四條</td><td>單位，並且寫出這個說法是從哪裡來的</td></tr>
+<tr><td>第五條</td><td>一個名字看起來像營收、其實不是的欄位，直接講明不能拿來當營收</td></tr>
+</tbody></table></div>
+<p>在專案資料夾裡執行 <code>wren context instructions</code>，印出來的就是這份檔案的內容。這是確認規則有沒有被讀到最直接的方法：</p>
+<pre><code>$ wren context instructions
+# Business rules
+
+- 營收只算 `orders.status = 'completed'` 的訂單，算法是 `sum(amount)`。理由：貨送到客戶手上才算賺到。
+…（以下四條同上）</code></pre>
+<p class="muted">規則裡的欄位名稱用反引號包起來、寫成 <code>模型.欄位</code>，模型寫 SQL 時可以直接照抄，不用自己把「訂單狀態」對回 <code>status</code>。</p>
+</section>
+
+<section>
+<p class="era">兩份檔案要說同一件事</p>
+<h3 class="head">兩個容易犯的錯</h3>
+<h4>規則檔跟模型檔互相矛盾</h4>
+<p>折價券那一條，很容易先寫成這樣：</p>
+<pre><code>- 營收不扣折價券（資料沒說明折價券是誰出錢）。</code></pre>
+<p>單看這一句沒有問題。但訂單模型檔裡 <code>coupon_amount</code> 的欄位說明早就寫著：</p>
+<pre><code>description: &gt;-
+  這筆訂單用折價券抵的金額（AUD），沒用折價券是 0。
+  這部分也算進 amount，但商店實際上沒有收到這筆錢</code></pre>
+<p>一份說「不知道誰出錢」，一份說「商店沒有收到」。AI 代理人兩份都會讀，讀到互相矛盾的說法時，它會挑哪一份沒有人能保證。修正的方法是讓兩份說同一件事：規則檔改成上一段的第三條，承認商店沒有實際收到，再用「營收」和「實收金額」兩個名詞把兩種算法分開。</p>
+<h4>沒查原始出處，就寫「資料沒說明」</h4>
+<p>資料庫只存數字，不存單位，所以查資料庫查不到幣別。這時很容易下結論：這份資料沒有說明幣別。實際上 jaffle_shop 原始專案的說明檔 <code>models/schema.yml</code> 每一個金額欄位都寫了，例如 <code>amount</code> 的說明是 <code>Total amount (AUD) of the order</code>。<a class="fixsrc" href="https://raw.githubusercontent.com/dbt-labs/jaffle_shop/main/models/schema.yml" target="_blank" rel="noopener">出處</a></p>
+<p>「資料庫裡查不到」和「沒有這項資訊」是兩回事。資料庫以外，還有三個地方要找：</p>
+<ul class="plainlist">
+<li><b>產生這份資料的專案</b>：原始碼和說明檔。</li>
+<li><b>自己已經寫好的檔案</b>：模型檔的說明裡可能早就寫過。</li>
+<li><b>負責這份資料的人</b>：前兩個地方都找不到時，問人。</li>
+</ul>
+<h4>三條守則</h4>
+<ul class="plainlist">
+<li><b>查不到的事不寫成規則。</b>真的需要寫，就像折價券那一條一樣標明是假設。</li>
+<li><b>寫之前先查原始出處。</b>查到了，把出處一起寫進規則，之後的人才有辦法核對。</li>
+<li><b>規則檔跟模型檔的說法要一致。</b>改了其中一份，把另一份提到同一個欄位的地方也讀一遍。</li>
+</ul>
+<div class="drill">
+  <p class="dq">規則檔寫「折價券不影響營收」，模型檔的欄位說明寫「折價券抵的部分商店沒有收到錢」。執行 <code>wren context validate</code> 檢查專案時會怎樣？</p>
+  <ul class="dopts"><li>報錯，指出兩份檔案矛盾</li><li data-ok>通過，檢查不會比對兩份檔案的文字意思</li><li>自動把規則檔改成跟模型檔一致</li><li>通過，但 AI 代理人之後只會讀規則檔</li></ul>
+  <p class="dexp">說明和規則都是文字，格式正確就能通過檢查。兩份有沒有互相矛盾，只能靠人讀過一遍。</p>
+</div>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>資料查得出來的事實寫進模型檔；要人決定的定義寫進 <code>knowledge/rules/</code>，<code>wren context instructions</code> 會把它印給模型讀。</li>
+<li>「營收多少」全部加總是 1672，只算 <code>completed</code> 是 1103；寫成規則，答案才會固定。</li>
+<li>規則要附理由，理由要能把算與不算的訂單分開：「貨送到才算」可以，「可能退貨」不行。</li>
+<li>要證明每一筆都成立，就數不成立的有幾筆；條件放 <code>where</code> 是篩選，放 <code>select</code> 是每列一個 true 或 false。</li>
+<li><code>amount</code> 含折價券：已送達的訂單 1103，其中折價券 127，扣掉是 976。兩個數字各給一個名字，假設要標明。</li>
+<li>規則檔與模型檔說法要一致；查不到的事不寫成規則，寫之前先查原始出處。</li>
+</ul></div>

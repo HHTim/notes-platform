@@ -1,0 +1,183 @@
+<!-- 來源：2026-11-17 自己動手把 Wren AI 專案檢查、編譯、建索引並問出第一題的實作紀錄（wrenai 0.18.0、DuckDB 2.0.0、macOS 實際執行；指令的輸出都是實際印出來的，wren memory index 第一次執行的下載時間與 Hugging Face 的警告訊息取自當天的紀錄；各指令的用途對照 Canner/WrenAI 的 docs/core/reference/cli.md 與 concepts/memory_system.md），依 Canner/WrenAI 官方 repo 整理 · 收錄日期：2026-11-17 -->
+<div class="learn"><p class="lbl">讀完這課你會</p><ul><li>說出檢查、編譯、建索引三個指令各做什麼</li><li>看懂三個指令印出來的數字</li><li>用 <code>wren dry-plan</code> 看一段 SQL 被翻成什麼</li><li>分辨哪些訊息是警告、哪些是真的錯誤</li></ul></div>
+
+<section>
+<p class="era">validate、build、memory index</p>
+<h3 class="head">寫完檔案之後的三個指令</h3>
+<p>模型檔、關聯檔、規則檔都是給人編輯的文字檔。要讓 Wren 真的用它們回答問題，還要在專案資料夾裡執行三個指令：</p>
+<div class="tablewrap"><table><thead><tr><th>指令</th><th>做什麼</th><th>產出</th></tr></thead><tbody>
+<tr><td><code>wren context validate</code></td><td>檢查專案：YAML 的結構對不對、關聯指到的模型存不存在</td><td>只印結果，不產生檔案</td></tr>
+<tr><td><code>wren context build</code></td><td>編譯：把分散的 YAML 檔合成一個 JSON 檔，給 Wren 的引擎讀</td><td><code>target/mdl.json</code></td></tr>
+<tr><td><code>wren memory index</code></td><td>建索引：把模型、欄位、關聯的說明轉成向量，之後可以用意思搜尋</td><td><code>.wren/memory/</code></td></tr>
+</tbody></table></div>
+<div class="terms">
+<div class="term"><b>編譯</b><span>把人寫的檔案轉成程式讀的格式。這裡是把好幾個 YAML 檔合成一個 JSON 檔。</span></div>
+<div class="term"><b>引擎</b><span>Wren 裡負責把 SQL 翻譯成資料庫能執行的版本的那一部分。它讀的是 <code>target/mdl.json</code>，不是 YAML。</span></div>
+<div class="term"><b>索引</b><span>為了找得快而另外整理的一份資料。這裡存的是向量，由 LanceDB 保管。</span></div>
+<div class="term"><b>dry-plan</b><span>只翻譯 SQL、不連資料庫執行的指令，用來看引擎實際會送出什麼。</span></div>
+</div>
+<p>模型檔或關聯檔改過之後，這三個指令要照順序重跑。規則檔改過之後，索引也要重建。<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/concepts/memory_system.md" target="_blank" rel="noopener">出處</a></p>
+<p class="formula">改 YAML → validate → build → memory index</p>
+</section>
+
+<section>
+<p class="era">wren context validate</p>
+<h3 class="head">檢查：格式對了，不代表內容對</h3>
+<pre><code>$ wren context validate
+Valid — 2 models, 0 views, 1 relationships.</code></pre>
+<ul class="plainlist">
+<li><b><code>2 models</code></b>：<code>customers</code> 與 <code>orders</code> 兩個模型。</li>
+<li><b><code>0 views</code></b>：view 是事先寫好、取了名字的查詢，這個專案沒有用到。</li>
+<li><b><code>1 relationships</code></b>：<code>orders_customers</code> 這一條關聯。</li>
+</ul>
+<p>數字要跟自己寫的檔案對得起來。寫了兩個模型卻只印 <code>1 models</code>，代表有一個檔案放錯位置或沒有被讀到。</p>
+<p><code>Valid</code> 只代表檔案的結構可以用。說明裡寫的筆數對不對、規則檔跟模型檔有沒有互相矛盾，它都不會檢查。</p>
+</section>
+
+<section>
+<p class="era">wren context build</p>
+<h3 class="head">編譯：產生 target/mdl.json</h3>
+<pre><code>$ wren context build
+Built: 2 models, 0 views → /Users/tim/proj/wren-lab/jaffle-wren/target/mdl.json
+
+Next: wren --sql 'SELECT ...' to query your data.</code></pre>
+<p><code>mdl.json</code> 是把兩個模型檔、關聯檔和專案設定合在一起的單一檔案，開頭長這樣：</p>
+<pre><code>{"catalog": "wren", "schema": "public",
+ "models": [{"name": "customers",
+             "properties": {"description": "一列是一位顧客，共 100 位，…"},
+             "tableReference": {"catalog": "jaffle_shop", "schema": "main", "table": "customers"},
+             "columns": [{"name": "customer_id", "type": "INTEGER", "notNull": true, "isPrimaryKey": true, …</code></pre>
+<ul class="plainlist">
+<li><b>內容跟 YAML 相同</b>，只是換了格式；欄位名稱從 <code>table_reference</code> 這種底線寫法變成 <code>tableReference</code>。</li>
+<li><b>不要手動改它。</b>下次編譯會整份重新產生，要改就改 YAML。</li>
+<li><b>不進 Git。</b>專案的 <code>.gitignore</code> 已經把 <code>target/</code> 排除，因為它隨時可以從 YAML 重新產生。</li>
+</ul>
+<p>之後的 <code>wren dry-plan</code>、<code>wren --sql</code>、<code>wren memory index</code> 預設讀的都是這個檔案。改了 YAML 卻沒有重新編譯，它們用的還是舊的內容。</p>
+<div class="drill">
+  <p class="dq">在 <code>orders</code> 的模型檔新增一個欄位之後，直接執行 <code>wren --sql</code> 查這個欄位。會怎樣？</p>
+  <ul class="dopts"><li>查得到，Wren 每次查詢都會重新讀 YAML</li><li>查得到，但速度比較慢</li><li data-ok>引擎讀的是舊的 <code>target/mdl.json</code>，裡面還沒有這個欄位</li><li>YAML 檔會被還原成上次編譯時的內容</li></ul>
+  <p class="dexp">引擎只讀編譯後的 <code>mdl.json</code>。改了 YAML 要先 <code>wren context build</code>，新的內容才會生效。</p>
+</div>
+</section>
+
+<section>
+<p class="era">wren memory index 與 wren memory status</p>
+<h3 class="head">建索引：19 和 7 是怎麼來的</h3>
+<pre><code>$ wren memory index
+Indexed 19 schema items, 7 seed queries.</code></pre>
+<ul class="plainlist">
+<li><b>19 schema items</b>：2 個模型、16 個欄位（<code>customers</code> 7 個、<code>orders</code> 9 個）、1 條關聯，加起來 19。每一項連同它的說明各轉成一筆向量。</li>
+<li><b>7 seed queries</b>：Wren 照模型的結構自動產生的 7 組範例問答，例如問句 <code>List all customers</code> 配上 <code>SELECT * FROM customers LIMIT 100</code>。它們是套句型產生的，目的是讓記憶功能一開始不是空的。</li>
+</ul>
+<p>用 <code>wren memory status</code> 確認索引的狀態：</p>
+<pre><code>$ wren memory status
+Backend: lancedb
+  embeddings: sentence-transformers (paraphrase-multilingual-MiniLM-L12-v2)
+  query_history: 7 rows
+  schema_items: 19 rows</code></pre>
+<div class="tablewrap"><table><thead><tr><th>這一行</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>Backend: lancedb</code></td><td>索引存在 LanceDB。沒裝 <code>memory</code> 那組 extras 時，這裡不會是 lancedb</td></tr>
+<tr><td><code>embeddings</code></td><td>用哪個嵌入模型把文字轉成向量</td></tr>
+<tr><td><code>query_history: 7 rows</code></td><td>問答有 7 組，目前全是自動產生的範例</td></tr>
+<tr><td><code>schema_items: 19 rows</code></td><td>模型、欄位、關聯共 19 項</td></tr>
+</tbody></table></div>
+<p>索引放在專案資料夾裡的 <code>.wren/memory/</code>。它可以從專案的檔案重新產生，所以不進 Git，換一台電腦要重建一次。<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/concepts/memory_system.md" target="_blank" rel="noopener">出處</a></p>
+<h4>第一次執行看起來像當掉</h4>
+<p>嵌入模型不在 <code>wrenai</code> 套件裡，第一次用到時才從 Hugging Face（公開放模型檔的網站）下載。實測第一次執行 <code>wren memory index</code> 花了兩分鐘以上，中間畫面沒有任何進度，其實是在下載。下載過一次之後就不用再等。</p>
+<p>過程中會印出兩種訊息，都不是錯誤：</p>
+<div class="tablewrap"><table><thead><tr><th>訊息</th><th>誰印的</th><th>意思</th></tr></thead><tbody>
+<tr><td><code>Warning: You are sending unauthenticated requests to the HF Hub</code></td><td>Hugging Face 的下載套件</td><td>沒有登入帳號就下載。公開的模型不用登入也能下載，只是速度限制比較嚴</td></tr>
+<tr><td><code>NOTE: Redirects are currently not supported in MacOs.</code></td><td>torch</td><td>torch 有一項功能在 macOS 上不支援，跟建索引無關</td></tr>
+</tbody></table></div>
+<p>判斷方法是看最後一行。出現 <code>Indexed 19 schema items, 7 seed queries.</code> 就是成功。</p>
+<p class="muted">索引只影響「用意思找相關的模型與舊問答」這件事。<code>wren dry-plan</code> 和 <code>wren --sql</code> 不需要索引，下載還沒跑完也可以先用。</p>
+</section>
+
+<section>
+<p class="era">wren dry-plan</p>
+<h3 class="head">先看翻譯，不連資料庫</h3>
+<p>在真正的流程裡，SQL 是大型語言模型讀完規則和模型說明之後寫的。自己手寫一次，才看得到中間每一步發生什麼事。照上一課的規則，「營收多少」的 SQL 是：</p>
+<pre><code>SELECT sum(amount) FROM orders WHERE status = 'completed'</code></pre>
+<p>這段 SQL 裡的 <code>orders</code> 是模型的名字，不是資料庫的表名。這種用模型名字寫的 SQL 叫語意 SQL，要經過引擎翻譯才能送進資料庫。<code>wren dry-plan</code> 只做翻譯、把結果印出來，不連資料庫：<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/reference/cli.md" target="_blank" rel="noopener">出處</a></p>
+<pre><code>$ wren dry-plan --sql "SELECT sum(amount) FROM orders WHERE status = 'completed'"
+WITH orders AS (
+  SELECT "wren_src_orders".amount AS amount, "wren_src_orders"."status" AS status
+  FROM (
+    SELECT orders.amount, orders."status"
+    FROM (
+      SELECT __source.amount AS amount, __source."status" AS "status"
+      FROM jaffle_shop."main".orders AS __source
+    ) AS orders
+  ) AS "wren_src_orders"
+)
+SELECT SUM(amount) FROM orders WHERE status = 'completed'</code></pre>
+<p class="muted">實際的輸出是一整行，這裡為了好讀加了換行與縮排，內容沒有更動。</p>
+<p>由內往外讀，有三個地方值得看：</p>
+<ul class="plainlist">
+<li><b>最內層的 <code>FROM jaffle_shop."main".orders</code></b>：模型名字 <code>orders</code> 被換成資料庫真正的位置，三層名稱就是模型檔 <code>table_reference</code> 填的 <code>catalog</code>、<code>schema</code>、<code>table</code>。</li>
+<li><b>只挑了 <code>amount</code> 和 <code>status</code></b>：模型有 9 個欄位，這一題只用到 2 個，引擎就只跟資料庫要這 2 個。</li>
+<li><b>最後一行跟自己寫的幾乎一樣</b>：引擎用 <code>WITH</code> 先定義出一張叫 <code>orders</code> 的暫時的表，原本的 SQL 接在後面，查的是這張暫時的表。</li>
+</ul>
+<p>因為所有查詢都要經過這一層翻譯，SQL 裡只能用模型檔定義過的模型。沒有寫成模型的表，在翻譯這一步就會被擋下來：</p>
+<pre><code>$ wren dry-plan --sql "SELECT * FROM raw_orders"
+Error: [INVALID_SQL] Error during planning: table 'wren.public.raw_orders' not found phase=SQL_PLANNING</code></pre>
+<p>錯誤訊息裡的 <code>wren.public</code> 是 <code>wren_project.yml</code> 裡 Wren 內部用的那組名稱：引擎是在自己的模型清單裡找 <code>raw_orders</code>，找不到就停，不會去問資料庫有沒有這張表。</p>
+<div class="drill">
+  <p class="dq">把模型檔 <code>table_reference</code> 的 <code>table</code> 從 <code>orders</code> 改成 <code>orders_v2</code>，重新編譯之後再執行同一段 <code>wren dry-plan</code>。輸出會有什麼不同？</p>
+  <ul class="dopts"><li data-ok>最內層變成 <code>FROM jaffle_shop."main".orders_v2</code>，其他地方不變</li><li>最後一行的 <code>FROM orders</code> 變成 <code>FROM orders_v2</code></li><li>完全一樣，因為沒有連資料庫</li><li>報錯，因為資料庫裡沒有 <code>orders_v2</code> 這張表</li></ul>
+  <p class="dexp"><code>dry-plan</code> 不連資料庫，所以不會發現那張表不存在；它只照模型檔把名字換掉。模型的名字還是 <code>orders</code>，自己寫的那一段不用改。</p>
+</div>
+</section>
+
+<section>
+<p class="era">wren --sql … -o table</p>
+<h3 class="head">真的執行：1103.0</h3>
+<pre><code>$ wren --sql "SELECT sum(amount) FROM orders WHERE status = 'completed'" -o table
+…/site-packages/wren/connector/duckdb.py:102: UserWarning: Arrow output on a DB-API result makes an extra copy of the rows, use con.sql(query).to_arrow_table() instead.
+  return self.connection.execute(sql).to_arrow_table()
+ sum(amount)
+      1103.0
+
+# To save this query:
+# wren memory store --nl '&lt;natural language question&gt;' --sql 'SELECT sum(amount) FROM orders WHERE status = '\''completed'\'''</code></pre>
+<ul class="plainlist">
+<li><b><code>-o table</code></b>：把結果印成表格。</li>
+<li><b><code>UserWarning</code> 那兩行</b>：針對 <code>wrenai</code> 套件自己的程式碼（路徑裡的 <code>wren/connector/duckdb.py</code> 第 102 行）的提醒，意思是它取結果的寫法會多複製一次資料。跟自己寫的 SQL 無關，答案也不受影響。</li>
+<li><b><code>1103.0</code></b>：答案。</li>
+<li><b>最後兩行 <code>#</code> 開頭的</b>：提示可以用 <code>wren memory store</code> 把這一題存起來。</li>
+</ul>
+<p>答案要再核對一次：不經過 Wren，直接對資料庫執行同樣的查詢，得到的也是 1103.0，跟上一課用狀態分組算出來的 1103 一致。經過語意層的答案和直接查資料庫的答案相同，才能確定翻譯沒有改變查詢的意思。</p>
+<h4>執行時報 Could not set lock on file</h4>
+<p><code>wren dry-plan</code> 不連資料庫，<code>wren --sql</code> 要連。圖形化工具（例如 DBeaver）用讀寫模式連著同一個 DuckDB 檔時，<code>wren --sql</code> 會報 <code>Could not set lock on file</code>。先在那個工具裡中斷連線，再執行一次。鎖的規則見第 3 課。</p>
+</section>
+
+<section>
+<p class="era">instructions、fetch、recall、store</p>
+<h3 class="head">AI 代理人的完整流程，和還沒做的部分</h3>
+<p>專案骨架裡的 <code>AGENTS.md</code> 是寫給 AI 代理人看的工作說明。它規定回答一個資料問題要走這幾步：</p>
+<div class="tablewrap"><table><thead><tr><th>順序</th><th>指令</th><th>做什麼</th></tr></thead><tbody>
+<tr><td>開始前</td><td><code>wren context instructions</code></td><td>讀業務規則（一段對話裡的第一題才需要）</td></tr>
+<tr><td>一</td><td><code>wren memory fetch -q "問題"</code></td><td>拿到跟問題有關的模型、欄位與說明</td></tr>
+<tr><td>二</td><td><code>wren memory recall -q "問題" --limit 3</code></td><td>找以前問過、意思相近的問題和當時的 SQL</td></tr>
+<tr><td>三</td><td>寫 SQL</td><td>用模型的名字寫，不用資料庫的表名</td></tr>
+<tr><td>四</td><td><code>wren --sql "…"</code></td><td>經過語意層執行</td></tr>
+<tr><td>五</td><td><code>wren memory store --nl "問題" --sql "…"</code></td><td>把確認正確的問答存起來</td></tr>
+</tbody></table></div>
+<p>這個專案只有兩個模型，<code>wren memory fetch</code> 會把兩個模型的全部欄位與說明都印出來。<code>wren memory recall -q "營收多少"</code> 找回來的三筆都是自動產生的範例（例如 <code>Total credit_card_amount in orders</code>），沒有一筆跟營收有關，因為還沒有存過任何確認過的問答。</p>
+<p>下面三件事在這個專案裡<b>沒有實測</b>，只列出它們的用途：</p>
+<ul class="plainlist">
+<li><b><code>wren memory store</code></b>：把問句和 SQL 寫成 <code>knowledge/sql/</code> 裡的一個 Markdown 檔，同時更新索引，之後 <code>recall</code> 就找得到。<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/reference/cli.md" target="_blank" rel="noopener">出處</a></li>
+<li><b>用一組題目量準確率</b>：準備一批問題和各自的正確答案，讓 AI 代理人逐題回答，算出答對的比例。改了規則或說明之後重跑，才知道是變好還是變壞。</li>
+<li><b>MCP 串接</b>：用 <code>wren serve mcp</code> 把 Wren 啟動成 MCP 伺服器，讓其他 AI 工具直接呼叫上面那些功能。需要 <code>mcp</code> 那組 extras。<a class="fixsrc" href="https://github.com/Canner/WrenAI/blob/main/docs/core/reference/cli.md" target="_blank" rel="noopener">出處</a></li>
+</ul>
+</section>
+
+<div class="keys"><p class="lbl">重點整理</p><ul>
+<li>模型檔或關聯檔改過之後，照順序重跑 <code>wren context validate</code>、<code>wren context build</code>、<code>wren memory index</code>。</li>
+<li><code>Valid</code> 只代表結構可以用；說明與規則的內容對不對，要自己查證。</li>
+<li>引擎讀的是編譯出來的 <code>target/mdl.json</code>，不是 YAML；它和 <code>.wren/memory/</code> 的索引都能重新產生，不進 Git。</li>
+<li>19 項是 2 個模型、16 個欄位、1 條關聯；7 組問答是自動產生的範例。</li>
+<li>第一次建索引要下載嵌入模型，會等上幾分鐘；看最後一行判斷成功與否，警告不等於錯誤。</li>
+<li><code>wren dry-plan</code> 不連資料庫，只印出語意 SQL 被翻成什麼：模型名字換成 <code>table_reference</code> 的位置，只取用到的欄位；沒寫成模型的表會被擋下來。</li>
+<li>經過 Wren 執行的答案要跟直接查資料庫的答案核對；<code>wren --sql</code> 會被 DuckDB 的讀寫鎖擋住。</li>
+</ul></div>
